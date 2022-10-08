@@ -29,7 +29,7 @@ Note that the indicator and backtesting demos create an image (see the example [
 
 Use *python -m unittest discover -s test -p '*_test.py'* to run unit tests (data components are tested now).
 
-**Fcore** is adopted to [nogil-3.9.10](https://github.com/colesbury/nogil) python interpreter. You it with **nogil** to benefit from parallel computing.
+**Fcore** is adopted to [nogil-3.9.10](https://github.com/colesbury/nogil) python interpreter. Use it with **nogil** to benefit from parallel computing.
 
 Fcore is distributes on an 'AS IS' basis. The author is not responsible for any losses caused by using the project.
 

@@ -1,4 +1,3 @@
-
     Contributor Agreement
     Individual Contributor Non-Exclusive License Agreement
     (including the Traditional Patent License OPTION)
@@ -68,16 +67,6 @@
     8.4 If any provision of this Agreement is found void and unenforceable, such provision will be replaced to the extent possible with a provision that comes closest to the meaning of the original provision and that is enforceable. The terms and conditions set forth in this Agreement shall apply notwithstanding any failure of essential purpose of this Agreement or any limited remedy to the maximum extent possible under law.
 
     8.5 You agree to notify Us of any facts or circumstances of which you become aware that would make this Agreement inaccurate in any respect.
-    You
-    Date:	
-    Name:	
-    Title:	
-    Address:	
-    Us
-    Date:	
-    Name:	
-    Title:	
-    Address:	
 
     Contributor Agreement
     Entity Contributor Non-Exclusive License Agreement
@@ -148,13 +137,3 @@
     8.4 If any provision of this Agreement is found void and unenforceable, such provision will be replaced to the extent possible with a provision that comes closest to the meaning of the original provision and that is enforceable. The terms and conditions set forth in this Agreement shall apply notwithstanding any failure of essential purpose of this Agreement or any limited remedy to the maximum extent possible under law.
 
     8.5 You agree to notify Us of any facts or circumstances of which you become aware that would make this Agreement inaccurate in any respect.
-    You
-    Date:	
-    Name:	
-    Title:	
-    Address:	
-    Us
-    Date:	
-    Name:	
-    Title:	
-    Address:

@@ -41,7 +41,7 @@ class MA(BackTest):
         # Period for MA calculation
         if period < 0:
             raise BackTestError(f"period can't be less than 0. Specified value is {period}")
-        self.__period = period
+        self._period = period
 
     def skip_criteria(self, index):
         """
@@ -52,7 +52,7 @@ class MA(BackTest):
             Args:
                 index(int): index of the current cycle.
         """
-        return index < self.__period
+        return index < self._period
 
     def is_uptrend(self):
         """
@@ -73,11 +73,14 @@ class MA(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
 
         if self.__is_simple:
-            ex.set_values(ta.sma(df[Rows.AdjClose], length = self.__period))
+            ex.set_values(ta.sma(df[Rows.AdjClose], length = self._period))
             ex.set_title('SMA')
         else:
-            ex.set_values(ta.ema(df[Rows.AdjClose], length = self.__period))
+            ex.set_values(ta.ema(df[Rows.AdjClose], length = self._period))
             ex.set_title('EMA')
+
+        # Skip data when no MA is calculated.
+        self.set_offset(self._period)
 
     def do_calculation(self):
         """
@@ -89,8 +92,8 @@ class MA(BackTest):
         rows = self.get_main_data().get_rows()
         length = len(rows)
 
-        if length < self.__period:
-            raise BackTestError(f"Not enough data to calculate a period: {length} < {self.__period}")
+        if length < self._period:
+            raise BackTestError(f"Not enough data to calculate a period: {length} < {self._period}")
 
         ######################################
         # Perform the global calculation setup
@@ -115,7 +118,7 @@ class MA(BackTest):
             # Check if we need to close the positions because the trend changed recently
             ############################################################################
 
-            if self.exec().get_max_positions() and self.exec().trend_changed(self.is_uptrend()):
+            if self.exec().get_max_positions() and self.exec().trend_changed(self.is_uptrend()) or self.signal():
                 self.exec().close_all()
 
             ########################

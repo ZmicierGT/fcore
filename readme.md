@@ -24,6 +24,7 @@ Examples of backtesting strategies:
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (*python -m demo.backtest.bh_test*)
 - [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (*python -m demo.backtest.ma_test*)
 - [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-instrument demo. See *python -m demo.backtest.rsi_test* for an EOD test and *python demo.backtest.rsi_intraday_test* for an intraday demonstation.
+- [backtest/ma_classification.py](backtest/ma_classification.py) - MA crossower strategy where true/false signals are determined by AI. (*python -m demo.backtest.ma_classification_test*)
 
 Note that the indicator and backtesting demos create an image (see the example [here](bh.png)) with the result of calculation located in images folder. AI learn demonstrations create a model subfolder in models folder.
 

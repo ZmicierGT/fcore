@@ -1489,7 +1489,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if index < 0:
             return True
 
-        return self.skip_criteria(index) or index < self.get_offset()
+        return self.skip_criteria(index)
 
     def to_skip(self):
         """
@@ -1498,6 +1498,10 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 True if the cycle was skipped, False otherwise.
         """
+        if self.get_index() < self.get_offset():
+            # If the index is less than offset, skip it without making any placeholder data
+            return True
+
         if self.skipped():
             self._results.append([None] * len(BTDataEnum))
             self._results[self.get_index()][BTDataEnum.DateTime] = self.exec().get_datetime_str()
@@ -1527,6 +1531,15 @@ class BackTest(metaclass=abc.ABCMeta):
                 int: the offset of the calculation.
         """
         return self._offset
+
+    def set_offset(self, offset):
+        """
+            Set the offset for the calculation.
+
+            Args:
+                offset(int): offset for the calculation.
+        """
+        self._offset =  offset
 
     def get_commission(self):
         """
@@ -2100,6 +2113,17 @@ class BackTest(metaclass=abc.ABCMeta):
         # and it will work.
         self.do_tech_calculation(ex)
         event.set()
+
+    def signal(self):
+        """
+            Indicates if buy/sell signal was considered as true.
+
+            Returns:
+                True/False depending on signal verification. True will override all other checks.
+        """
+
+        # In this case there is no signal verification.
+        return False
 
     ##########################
     # Abstract functions

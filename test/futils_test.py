@@ -25,6 +25,10 @@ import multiprocessing
 from backtest.base import BTData
 from backtest.base import BTSymbol
 
+from data.fdata import FdataError
+
+from datetime import datetime
+
 layout = {
             'height': 2000,
             'template': '...',
@@ -97,6 +101,42 @@ class Test(unittest.TestCase):
 
         self.assertEqual(ts5, 0)
         self.assertEqual(ts6, 0)
+
+    def test_20_check_datetime(self):
+        datetime1 = "2022-10-10 23:59:59" # Passes
+        datetime2 = "2022-10-10 23:59:79" # Fails
+        datetime3 = "2022-40-10 23:59:59" # Fails
+        datetime4 = "2000-01-01" # Passes
+
+        res1, ts1 = futils.check_datetime(datetime1)
+        res2, ts2 = futils.check_datetime(datetime2)
+        res3, ts3 = futils.check_datetime(datetime3)
+        res4, ts4 = futils.check_datetime(datetime4)
+
+        self.assertTrue(res1)
+        self.assertFalse(res2)
+        self.assertFalse(res3)
+        self.assertTrue(res4)
+
+        self.assertEqual(ts2, 0)
+        self.assertEqual(ts3, 0)
+
+        self.assertEqual(ts1, 1665446399)
+        self.assertEqual(ts4, 946684800)
+
+    def test_21_check_get_datetime(self):
+        dt_str1 = "2022-10-10 23:59:59" # Passes
+        dt_str2 = "2022-10-10 23:59:79" # Fails
+        dt_str3 = "2022-40-10 23:59:59" # Fails
+        dt_str4 = "2000-01-01" # Fails
+
+        dt1 = futils.get_datetime(dt_str1)
+
+        self.assertRaises(FdataError, futils.get_datetime, dt_str2)
+        self.assertRaises(FdataError, futils.get_datetime, dt_str3)
+        self.assertRaises(FdataError, futils.get_datetime, dt_str4)
+
+        self.assertEqual(dt1, datetime(2022, 10, 10, 23, 59, 59))
 
     def test_1_check_parse_config(self):
         parser = mock(configparser.ConfigParser)

@@ -86,6 +86,23 @@ def check_datetime(dt_str):
 
     return is_correct, ts
 
+def get_datetime(dt_str):
+    """
+        Create datetime from a string.
+
+        Args:
+            dt_str(str): string with a date.
+
+        Returns:
+            datetime from the input string.
+    """
+    try:
+        dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
+    except ValueError as e:
+        raise FdataError(f"The date {dt_str} is incorrect: {e}") from e
+
+    return dt
+
 # Get values from ini.file
 def parse_config(query):
     """

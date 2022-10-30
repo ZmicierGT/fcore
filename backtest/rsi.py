@@ -85,6 +85,9 @@ class RSITest(BackTest):
 
         ex.set_values(ta.rsi(df[Rows.AdjClose], length = self.__period))
 
+        # Skip data when no MA is calculated.
+        self.set_offset(self.__period)
+
     def do_calculation(self):
         """
             Perform strategy calculation.

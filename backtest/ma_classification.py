@@ -23,6 +23,7 @@ from sklearn.metrics import accuracy_score
 from enum import IntEnum
 
 class Algorithm(IntEnum):
+    """Enum with the supported algorithms."""
     GaussianNB = 0
     SVC = 1
 
@@ -45,8 +46,8 @@ class MACls(MA):
 
             Args:
                 true_ratio(float): ratio when signal is considered as true in cycle_num. For example, if true_ratio is 1.03 and cycle_num is 5,
-                                   then the signal will be considered as true if there was 3% change in price in the following 5 cycles after
-                                   getting the signal from MA.
+                                   then the signal will be considered as true if there was a 3% change in ma/quote ratio in the following 5 cycles
+                                   after getting the signal from MA.
                 cycle_num(int):    number of cycles to reach to true_ratio to consider that the signal is true.
                 learn_test_ratio(float): ratio to split dataset into learn/test parts. For example, if the ratio is 0.8, 80% of data will be used
                                          for learning, 20% for testing.
@@ -115,7 +116,8 @@ class MACls(MA):
         df['pvo'] = pvo.iloc[:, 1]
 
         # Get price-ma difference
-        df['diff'] = (df_initial[Rows.AdjClose] - df_initial['ma'])
+        #df['diff'] = (df_initial[Rows.AdjClose] - df_initial['ma'])
+        df['diff'] = ((df_initial[Rows.AdjClose] - df_initial['ma']) / df_initial[Rows.AdjClose])
 
         # Fill nan values (if any) with mean values
         df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)

@@ -39,7 +39,7 @@ if __name__ == "__main__":
     print(f"Obtained {len(rows)} rows.")
 
     if len(rows) == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and present in the {query.db_name} databases.")
+        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
         sys.exit(2)
 
     length = len(rows)

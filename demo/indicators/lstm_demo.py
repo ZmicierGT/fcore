@@ -43,7 +43,7 @@ if __name__ == "__main__":
     print(f"Obtained {length} rows.")
 
     if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and present in the {query.db_name} databases.")
+        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
         sys.exit(2)
 
     period = 60

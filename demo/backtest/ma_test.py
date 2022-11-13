@@ -29,8 +29,8 @@ if __name__ == "__main__":
     query.symbol = "SPY"
     query.db_connect()
 
-    query.first_date = check_date("2009-12-1")[1]
-    query.last_date = check_date("2011-11-1")[1]
+    query.first_date = check_date("2017-01-30")[1]
+    query.last_date = check_date("2022-8-1")[1]
 
     data = ReadOnlyData(query)
 
@@ -46,10 +46,10 @@ if __name__ == "__main__":
     print(f"Obtained {length} rows.")
 
     if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and present in the {query.db_name} databases.")
+        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
         sys.exit(2)
 
-    period = 200
+    period = 50
 
     quotes = StockData(rows=rows,
                           title=query.symbol,
@@ -57,8 +57,8 @@ if __name__ == "__main__":
                           margin_req=0.7,
                           spread=0.1,
                           margin_fee=1,
-                          trend_change_period=1,
-                          trend_change_percent=3
+                          trend_change_period=2,
+                          trend_change_percent=2
                          )
 
     ma = MA(

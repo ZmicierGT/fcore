@@ -13,7 +13,7 @@ from data.fvalues import Rows
 from data.futils import check_date
 
 from indicators.ma_classifier import MAClassifier
-from indicators.ma_classifier import Algorithm
+from indicators.classifier import Algorithm
 
 from indicators.base import IndicatorError
 
@@ -121,8 +121,8 @@ if __name__ == "__main__":
     # Train the model and get results
     #################################
 
-    ma_cls = MAClassifier(period,
-                          est_rows,
+    ma_cls = MAClassifier(period=period,
+                          rows=est_rows,
                           data_to_learn=allrows,
                           true_ratio=true_ratio,
                           cycle_num=cycle_num,

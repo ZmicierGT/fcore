@@ -5,11 +5,11 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.ma_classifier import Algorithm
+from indicators.classifier import Algorithm
 from indicators.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification
-from backtest.ma_classification import MA
+from backtest.ma import MA
 
 from backtest.base import BackTestError
 from backtest.stock import StockData

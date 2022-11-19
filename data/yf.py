@@ -69,7 +69,7 @@ class YF(fdata.BaseFetchData):
     """
     def fetch_quotes(self):
         """
-            The function to fetch quotes.
+            The method to fetch quotes.
 
             Returns:
                 list: quotes data

@@ -100,7 +100,7 @@ class StockOperations(BackTestOperations):
         self._yield_counter = 0
 
     #############################################################
-    # General functions with calculations for a particular symbol
+    # General methods with calculations for a particular symbol
     #############################################################
 
     def apply_days_counter(self, days_delta):

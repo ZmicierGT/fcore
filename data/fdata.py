@@ -301,7 +301,7 @@ class ReadWriteData(ReadOnlyData):
 
     def check_database(self):
         """
-            Database create/integrity check function.
+            Database create/integrity check method.
             Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
 
             Raises:

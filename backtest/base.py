@@ -6,6 +6,7 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 import abc
+
 from datetime import datetime
 from enum import IntEnum
 
@@ -334,9 +335,9 @@ class BackTestOperations():
         """
         return self.__data
 
-    #############################################################
-    # General functions with calculations for a particular symbol
-    #############################################################
+    ############################################################
+    # General methodss with calculations for a particular symbol
+    ############################################################
 
     def set_title(self, title):
         """
@@ -636,7 +637,7 @@ class BackTestOperations():
             Applies days counter for the calculation to a particular symbol.
 
             It may be used for a specific financial instruments. For example, days counter is used to estimate a
-            dividend yield date. The function is supposed to be overloaded in a particular financial instument implementation.
+            dividend yield date. The method is supposed to be overloaded in a particular financial instument implementation.
 
             Args:
                 days_delta(int): number of days to apply to the counter.
@@ -718,7 +719,7 @@ class BackTestOperations():
 
             return True
 
-        # Indicates that the function returned true earlier in this cycle but was called once again
+        # Indicates that the method returned true earlier in this cycle but was called once again
         if self._signal_quote == None and index == self._signal_index:
             return True
 
@@ -1275,7 +1276,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self.__threads = None
 
     #############
-    # Functions
+    # Methods
     #############
 
     def is_finished(self):
@@ -2155,7 +2156,7 @@ class BackTest(metaclass=abc.ABCMeta):
         return False
 
     ##########################
-    # Abstract functions
+    # Abstract methods
     ##########################
 
     @abc.abstractmethod

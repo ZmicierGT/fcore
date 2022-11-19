@@ -52,7 +52,7 @@ class Test(unittest.TestCase):
     def tearDown(self):
         unstub()
 
-    # Read data functions test
+    # Read data methods test
 
     def test_0_check_base_query_connect(self):
         sql_query = "SELECT title FROM sources WHERE title = '';"
@@ -177,7 +177,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.query.cur, times=1).execute(sql_query)
         verify(self.read_data.query.cur, times=1).fetchone()
 
-    # Write data functions test
+    # Write data methods test
 
     def test_6_check_database(self):
         sql_query1 = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"

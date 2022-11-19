@@ -17,8 +17,6 @@ import pandas_ta as ta
 
 import numpy as np
 
-from enum import IntEnum
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neighbors import KNeighborsClassifier
@@ -27,14 +25,6 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
 
 from sklearn.metrics import accuracy_score
-
-class MAClassifierRows(IntEnum):
-    """
-        Enum to represent MA Classifier results.
-    """
-    Value = 0
-    Quote = 1
-    MA = 2
 
 class Algorithm(IntEnum):
     """Enum with the supported algorithms."""
@@ -51,23 +41,21 @@ class MAClassifier(BaseIndicator):
     """
     def __init__(self,
                  period,
-                 rows,
-                 row_val,
+                 rows=None,
                  model_buy=None,
                  model_sell=None,
                  data_to_learn=None,
                  is_simple=True,
                  true_ratio=0,
                  cycle_num=2,
-                 algorithm=Algorithm.GaussianNB,
-                 offset=None):
+                 algorithm=Algorithm.GaussianNB
+                ):
         """
             Initialize PDO implementation class.
 
             Args:
                 period(int): long period for MA calculation (must match the period used for model calculation).
                 rows(list): quotes for calculation.
-                row_val(int): number of row with data to use in calculation.
                 model_buy(): model to estimate buy signals.
                 model_sell(): model to estimate sell signals.
                 data_to_learn([array]) data to train the models. Either models or data to learn need to be specified.
@@ -88,7 +76,6 @@ class MAClassifier(BaseIndicator):
         if (model_buy == None or model_sell == None) and data_to_learn == None:
             raise IndicatorError("No models or data to learn provided to make the estimation.")
 
-        self.__row_val = row_val
         self.__period = period
         self.__model_buy = model_buy
         self.__model_sell = model_sell
@@ -103,10 +90,19 @@ class MAClassifier(BaseIndicator):
         self.__accuracy_sell_learn = None
         self.__total_accuracy_learn = None
 
+        self.__results_buy_est = None
+        self.__results_sell_est = None
+
     def calculate(self):
         """
             Perform the calculation based on the provided data.
+
+            Raises:
+                IndicatorError: no data for test provided.
         """
+        if self._rows == None:
+            raise IndicatorError("No data for testing provided.")
+
         # Check if we need to train the model at first
         if self.__model_buy == None or self.__model_sell == None:
             self.learn()
@@ -115,29 +111,41 @@ class MAClassifier(BaseIndicator):
         df = self.get_df()
 
         # Find signals which are needed to check
-        df['buy'] = (df['diff'].shift(-1) < 0) & (df['diff'] > 0)
-        df['sell'] = (df['diff'].shift(-1) > 0) & (df['diff'] < 0)
 
+        curr_trend = df['diff'] > 0
+        prev_trend = df['diff'].shift() > 0
+
+        buy = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, np.nan)
+        sell = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, np.nan)
+        df['buy'] = buy
+        df['sell'] = sell
+
+        #########################################
         # Make estimations according to the model
+        #########################################
 
         # Create separate DataFrames for buy and sell estimation
-        df_buy = df[df['buy']]
-        df_sell = df[df['sell']]
+        df_buy = df[df['buy'] == 1]
+        df_sell = df[df['sell'] == 1]
 
         # Estimate if signals are true
         self.__results_buy_est = self.__model_buy.predict(df_buy[['pvo', 'diff']])
         self.__results_sell_est = self.__model_sell.predict(df_sell[['pvo', 'diff']])
 
-        # DataFrames with buy/sell signals for the strategy
-        df_buy_signals = pd.DataFrame()
-        df_buy_signals['dt'] = df_buy[Rows.DateTime]
-        df_buy_signals['signal'] = self.__results_buy_est.astype('bool')
+        it_buy = iter(self.__results_buy_est)
+        it_sell = iter(self.__results_sell_est)
 
-        df_sell_signals = pd.DataFrame()
-        df_sell_signals['dt'] = df_sell[Rows.DateTime]
-        df_sell_signals['signal'] = self.__results_sell_est.astype('bool')
+        df['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
+        df['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
 
-        self._results = [df_buy_signals, df_sell_signals]
+        results = pd.DataFrame()
+        results['dt'] = df[Rows.DateTime]
+        results['ma'] = df['ma']
+        results['pvo'] = df['pvo']
+        results['buy-signal'] = df['buy-signal']
+        results['sell-signal'] = df['sell-signal']
+
+        self._results = results
 
     def check_est_precision(self):
         """
@@ -154,41 +162,79 @@ class MAClassifier(BaseIndicator):
         if len(self._results) == 0:
             raise IndicatorError("The calculation is not performed.")
 
-        df = self.get_df()
-        self.add_signals(df)
-        results_buy, results_sell = self.get_buy_sell_results(df)
-
         # If we use the indicator on live data, we still may not know the outcome of the latest occurrences yes.
-        # Then we need to trim the arrays to calculate estimation correctly.
+        # Then we need to trim the arrays to calculate the estimation correctly.
 
-        results_buy_est = self.__results_buy_est
-        results_sell_est = self.__results_sell_est
+        results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
 
-        if len(results_buy) != len(results_buy_est) or len(results_sell) != len(results_sell_est):
-            results_buy_est = results_buy_est[:len(results_buy)]
-            results_sell_est = results_sell_est[:len(results_sell)]
+        if len(results_buy_actual) != len(results_buy_est) or len(results_sell_actual) != len(results_sell_est):
+            results_buy_est = results_buy_est[:len(results_buy_actual)]
+            results_sell_est = results_sell_est[:len(results_sell_actual)]
 
         # Check the accuracy
-        accuracy_buy = accuracy_score(results_buy, results_buy_est)
-        accuracy_sell = accuracy_score(results_sell, results_sell_est)
+        accuracy_buy = accuracy_score(results_buy_actual, results_buy_est)
+        accuracy_sell = accuracy_score(results_sell_actual, results_sell_est)
 
-        total_accuracy = (accuracy_buy * len(results_buy) + accuracy_sell * len(results_sell)) / (len(results_buy) + len(results_sell))
-
-        np.set_printoptions(threshold=np.inf)
-        print(results_buy)
-        print(results_sell)
-
-        print(results_buy_est)
-        print(results_sell_est)
+        total_accuracy = (accuracy_buy * len(results_buy_actual) + accuracy_sell * len(results_sell_actual)) / (len(results_buy_actual) + len(results_sell_actual))
 
         return (accuracy_buy, accuracy_sell, total_accuracy)
 
-    def get_df(self, rows=None):
+    def set_data(self, data):
         """
-            Get the DataFrame for learning/predictions based on the initial DataFrame.
+            Set data for calculation
+
+            Args:
+                data(BackTestData): data for estimation.
+        """
+        self._rows = data
+
+    def get_signals_to_compare(self):
+        """
+            Get buy/sell actual and estimated signals.
+
+            Raises:
+                IndicatorError: calculation is not performed.
 
             Returns:
-                DataFrame: data ready for learning/predictions
+                numpy.array: actual signals to buy
+                numpy.array: estimated signals to buy
+                numpy.array: actual signals to sell
+                numpy.array: estimated signals to sell
+        """
+        if len(self._results) == 0:
+            raise IndicatorError("The calculation is not performed.")
+
+        df = self.get_df()
+        self.add_signals(df)
+        results_buy_actual, results_sell_actual = self.get_buy_sell_results(df)
+
+        return (results_buy_actual, self.__results_buy_est, results_sell_actual, self.__results_sell_est)
+
+    def get_df_signals_to_compare(self):
+        """
+            Get buy/sell signals to compare as a dataframe.
+
+            Returns:
+                DataFrame: actual and estimated signals to compare.
+        """
+        results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
+
+        signals = pd.DataFrame()
+        signals.index = range(0, max(len(results_buy_est), len(results_sell_est)))
+
+        signals['buy-actual'] = pd.Series(results_buy_actual.astype('bool'))
+        signals['buy-est'] = pd.Series(results_buy_est.astype('bool'))
+        signals['sell-actual'] = pd.Series(results_sell_actual.astype('bool'))
+        signals['sell-est'] = pd.Series(results_sell_est.astype('bool'))
+
+        return signals
+
+    def get_df(self, rows=None):
+        """
+            Get the DataFrame for learning/estimation based on the initial DataFrame.
+
+            Returns:
+                DataFrame: data ready for learning/estimation
         """
         # DataFrame for the current symbol
         if rows == None:
@@ -203,12 +249,13 @@ class MAClassifier(BaseIndicator):
         pvo = ta.pvo(df[Rows.Volume])
 
         df['ma'] = ma
-        df['pvo'] = pvo.iloc[:, 1]
+        df['pvo'] = pvo.iloc[:, 0]
         df['diff'] = ((df[Rows.AdjClose] - df['ma']) / df[Rows.AdjClose])
         df['hilo-diff'] = (df[Rows.High] - df[Rows.Low] / df[Rows.High])
 
         # Get rid of the values where MA is not calculated because they are useless for learning.
         df = df[self.__period-1:]
+        df = df.reset_index().drop(['index'], axis=1)
 
         # Fill nan values (if any) with mean values
         df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
@@ -241,21 +288,22 @@ class MAClassifier(BaseIndicator):
             Args:
                 df(DataFrame): the initial data
         """
-        df['buy-true'] = (df['diff'].shift(-1) < 0) &\
-                            (df['diff'] > 0) &\
-                            (df['diff'].shift(self.__cycle_num) >= self.__true_ratio)
+        curr_trend = df['diff'] > 0
+        prev_trend = df['diff'].shift() > 0
+        buy_cycle = df['diff'].shift(-abs(self.__cycle_num)) >= self.__true_ratio
+        sell_cycle = df['diff'].shift(-abs(self.__cycle_num)) <= -abs(self.__true_ratio)
 
-        df['buy-false'] = (df['diff'].shift(-1) < 0) &\
-                            (df['diff'] > 0) &\
-                            (df['diff'].shift(self.__cycle_num) < self.__true_ratio)
+        buy_true = np.where(curr_trend & (prev_trend == False) & buy_cycle & (df.index != 0), 1, np.nan)
+        buy_false = np.where(curr_trend & (prev_trend == False) & (buy_cycle == False) & (df.index != 0), 1, np.nan)
+        sell_true = np.where((curr_trend == False) & prev_trend & sell_cycle & (df.index != 0), 1, np.nan)
+        sell_false = np.where((curr_trend == False) & prev_trend & (sell_cycle == False) & (df.index != 0), 1, np.nan)
+        df['buy-true'] = buy_true
+        df['buy-false'] = buy_false
+        df['sell-true'] = sell_true
+        df['sell-false'] = sell_false
 
-        df['sell-true'] = (df['diff'].shift(-1) > 0) &\
-                            (df['diff'] < 0) &\
-                            (df['diff'].shift(self.__cycle_num) <= -abs(self.__true_ratio))
-
-        df['sell-false'] = (df['diff'].shift(-1) > 0) &\
-                            (df['diff'] < 0) &\
-                            (df['diff'].shift(self.__cycle_num) > -abs(self.__true_ratio))
+        # Get rid of rows without signals
+        df = df[['buy-true', 'buy-false', 'sell-true', 'sell-false']].dropna(thresh=1)
 
     def get_buy_sell_results(self, df):
         """
@@ -269,10 +317,10 @@ class MAClassifier(BaseIndicator):
                 results_sell(numpy array): sell signals data
         """
         # Create a results numpy array with 4 signals
-        results_buy = np.where(df['buy-true'] == True, 1, np.nan)
-        results_buy = np.where(df['buy-false'] == True, 0, results_buy)
-        results_sell = np.where(df['sell-true'] == True, 1, np.nan)
-        results_sell = np.where(df['sell-false'] == True, 0, results_sell)
+        results_buy = np.where(df['buy-true'] == 1, 1, np.nan)
+        results_buy = np.where(df['buy-false'] == 1, 0, results_buy)
+        results_sell = np.where(df['sell-true'] == 1, 1, np.nan)
+        results_sell = np.where(df['sell-false'] == 1, 0, results_sell)
 
         # Get rid of NaNs in np arrays
         results_buy = results_buy[~np.isnan(results_buy)]
@@ -285,7 +333,7 @@ class MAClassifier(BaseIndicator):
             Perform model training.
         """
         # DataFrame for learning
-        df_main = pd.DataFrame(columns=['pvo', 'diff'])
+        df_main = pd.DataFrame()
 
         for rows in self.__data_to_learn:
             # DataFrame for the current symbol
@@ -310,8 +358,8 @@ class MAClassifier(BaseIndicator):
         results_buy, results_sell = self.get_buy_sell_results(df_main)
 
         # Create separate DataFrames for buy and sell learning
-        df_buy = df_main[df_main['buy-true'] | df_main['buy-false']]
-        df_sell = df_main[df_main['sell-true'] | df_main['sell-false']]
+        df_buy = df_main[(df_main['buy-true'] == 1) | (df_main['buy-false'] == 1)]
+        df_sell = df_main[(df_main['sell-true'] == 1) | (df_main['sell-false'] == 1)]
 
         # Train the model
         if self.__algorithm == Algorithm.LR:
@@ -337,12 +385,11 @@ class MAClassifier(BaseIndicator):
         self.__model_sell = sell_learn.fit(df_sell[['pvo', 'diff']], results_sell)
 
         # Check accuracy of learning
-        pred_buy_train = self.__model_buy.predict(df_buy[['pvo', 'diff']])
-        pred_sell_train = self.__model_sell.predict(df_sell[['pvo', 'diff']])
+        est_buy_train = self.__model_buy.predict(df_buy[['pvo', 'diff']])
+        est_sell_train = self.__model_sell.predict(df_sell[['pvo', 'diff']])
 
-        self.__accuracy_buy_learn = accuracy_score(results_buy, pred_buy_train)
-        self.__accuracy_sell_learn = accuracy_score(results_sell, pred_sell_train)
-
+        self.__accuracy_buy_learn = accuracy_score(results_buy, est_buy_train)
+        self.__accuracy_sell_learn = accuracy_score(results_sell, est_sell_train)
         self.__total_accuracy_learn = (self.__accuracy_buy_learn * len(results_buy) + self.__accuracy_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
 
     def get_learn_accuracy(self):
@@ -361,3 +408,19 @@ class MAClassifier(BaseIndicator):
             raise IndicatorError("The learning wasn't performed.")
 
         return (self.__accuracy_buy_learn, self.__accuracy_sell_learn, self.__total_accuracy_learn)
+
+    def get_models(self):
+        """
+            Get models for buy/sell signals.
+
+            Raises:
+                IndicatorError: learning was not performed.
+
+            Returns:
+                model_buy: model to check buy signals
+                model_sell: model to check sell signals
+        """
+        if self.__model_buy == None or self.__model_sell == None:
+            raise IndicatorError("The learning was not performed.")
+
+        return (self.__model_buy, self.__model_sell)

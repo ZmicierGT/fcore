@@ -52,7 +52,7 @@ if __name__ == "__main__":
     dates = [row[Rows.DateTime] for row in rows]
     price = [row[Rows.AdjClose] for row in rows]
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = make_subplots(specs=[[{"secondary_y": False}]])
 
     fig.add_trace(
         go.Scatter(x=dates, y=price, name="AdjClose"),
@@ -61,12 +61,12 @@ if __name__ == "__main__":
 
     fig.add_trace(
         go.Scatter(x=dates, y=sma, name="SMA"),
-        secondary_y=True,
+        secondary_y=False,
     )
 
     fig.add_trace(
         go.Scatter(x=dates, y=ema, name="EMA"),
-        secondary_y=True,
+        secondary_y=False,
     )
 
     ######################
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     update_layout(fig, f"SMA/EMA example chart for {query.symbol}", length)
 
     fig.update_yaxes(title_text="<b>Price</b>", secondary_y=False)
-    fig.update_yaxes(title_text="<b>SMA/EMA</b>", secondary_y=True)
+    fig.update_yaxes(title_text="<b>SMA/EMA</b>", secondary_y=False)
 
     new_file = write_image(fig)
 

@@ -55,7 +55,6 @@ class BTSymbolEnum(IntEnum):
 # Exception class for general backtesting errors
 class BackTestError(Exception):
     """Class to represent an exception triggered during backtesting."""
-    pass
 
 # Data storage class for backtesting
 class BackTestData():
@@ -621,7 +620,6 @@ class BackTestOperations():
             Args:
                 days_delta(int): number of days to apply to the counter.
         """
-        pass
 
     def get_total_value(self):
         """
@@ -2042,7 +2040,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Apply other balance change (like dividends in case of stock and so on).
         """
-        pass
 
     def tear_down(self):
         """
@@ -2114,7 +2111,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self.do_tech_calculation(ex)
         event.set()
 
-    def signal(self):
+    def any_signal(self):
         """
             Indicates if buy/sell signal was considered as true.
 
@@ -2134,7 +2131,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Perform backtest calculation."
         """
-        pass
 
     @abc.abstractmethod
     def skip_criteria(self, index):
@@ -2147,7 +2143,6 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 True is the cycle should be skipped, False otherwise.
         """
-        pass
 
     # Calculate technical data
     @abc.abstractmethod
@@ -2155,4 +2150,3 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Perform technical data calculation for the strategy.
         """
-        pass

@@ -69,9 +69,9 @@ if __name__ == "__main__":
     volume = [row[Rows.Volume] for row in rows]
 
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
-                        specs=[[{"secondary_y": True}],
-                            [{"secondary_y": True}],
-                            [{"secondary_y": True}]])  
+                        specs=[[{"secondary_y": False}],
+                            [{"secondary_y": False}],
+                            [{"secondary_y": False}]])
 
     fig.add_trace(
         go.Scatter(x=dates, y=quotes, name="AdjClose"), row=1, col=1, secondary_y=False,

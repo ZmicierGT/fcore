@@ -5,15 +5,18 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from backtest.ma_classification import MACls
-from backtest.ma_classification import Algorithm
+from indicators.ma_classifier import Algorithm
+from indicators.ma_classifier import MAClassifier
+
+from backtest.ma_classification import MAClassification
 from backtest.ma_classification import MA
 
 from backtest.base import BackTestError
 from backtest.stock import StockData
 
+from indicators.base import IndicatorError
+
 from data.futils import check_date
-from data.futils import check_datetime
 from data.futils import standard_margin_chart
 
 import plotly.graph_objects as go
@@ -25,39 +28,79 @@ from data.fdata import FdataError
 
 import sys
 
+# Variables for testing
+symbol = 'SPY'
+period = 50  # Period for MA calculation
+change_period = 2  # Number of cycles to consider the trend as changed if there was no signal
+change_percent = 2  # Change of price in percent to consider the trend as changed if there was no signal
+
+true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
+cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
+algorithm = Algorithm.LDA  # The default algorithm to use
+
 if __name__ == "__main__":
-    query = Query()
+    # Get a separate data for learning and testing.
 
-    query.symbol = "SPY"
-    query.db_connect()
+    query_learn = Query()
+    query_test = Query()
 
-    query.first_date = check_date("2000-1-1")[1]
-    query.last_date = check_date("2022-8-1")[1]
+    query_learn.symbol = symbol
+    query_learn.db_connect()
 
-    data = ReadOnlyData(query)
+    query_test.symbol = symbol
+    query_test.db_connect()
+
+    query_learn.first_date = check_date("2000-1-1")[1]
+    query_learn.last_date = check_date("2020-8-1")[1]
+
+    query_test.first_date = check_date("2020-1-1")[1]
+    query_test.last_date = check_date("2022-8-1")[1]
+
+    data_learn = ReadOnlyData(query_learn)
+    data_test = ReadOnlyData(query_test)
 
     try:
-        rows = data.get_quotes()
-        query.db_close()
+        rows_learn = data_learn.get_quotes()
+        rows = data_test.get_quotes()
+
+        query_learn.db_close()
+        query_test.db_close()
     except FdataError as e:
         print(e)
         sys.exit(2)
 
+    length_learn = len(rows_learn)
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
+    print(f"Obtained {length_learn} rows for learning and {length} rows for testing.")
 
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
+    if length_learn == 0 or length == 0:
+        print(f"Make sure that the symbol {symbol} is fetched and presents in the {query_learn.db_name} database.")
         sys.exit(2)
 
-    period = 50
+    # Train the models
 
-    change_period = 2
-    change_percent = 2
+    classifier = MAClassifier(period,
+                              data_to_learn=[rows_learn],
+                              true_ratio=true_ratio,
+                              cycle_num=cycle_num,
+                              algorithm=algorithm)
 
-    quotes_cls = StockData(rows=rows,
-                          title=query.symbol,
+    try:
+        classifier.learn()
+        accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = classifier.get_learn_accuracy()
+    except IndicatorError as e:
+        print(f"Can't train MA classification models: {e}")
+        sys.exit(2)
+
+    print('\nBuy train Accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
+    print('Sell train Accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
+    print('Total train Accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
+
+    # Perform a backtest
+
+    quotes = StockData(rows=rows,
+                          title=symbol,
                           margin_rec=0.4,
                           margin_req=0.7,
                           spread=0.1,
@@ -66,74 +109,36 @@ if __name__ == "__main__":
                           trend_change_percent=change_percent
                          )
 
-    ma_cls = MACls(data=[quotes_cls],
-                    commission=2.5,
-                    initial_deposit=10000,
-                    periodic_deposit=500,
-                    deposit_interval=30,
-                    inflation=2.5,
-                    period=period,
-                    margin_rec=0.9,
-                    margin_req=1,
-                    algorithm=Algorithm.KNC,
-                    cycle_num=2,
-                    true_ratio=0.01
-                   )
-
     try:
-        ma_cls.calculate()
-        results_cls = ma_cls.get_results()
+        classification = MAClassification(data=[quotes],
+                                          commission=2.5,
+                                          initial_deposit=10000,
+                                          periodic_deposit=500,
+                                          deposit_interval=30,
+                                          inflation=2.5,
+                                          period=period,
+                                          margin_rec=0.9,
+                                          margin_req=1,
+                                          classifier=classifier
+                                        )
+
+        classification.calculate()
+        results_cls = classification.get_results()
+        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = classifier.check_est_precision()
     except BackTestError as e:
-        print(f"Can't perform backtesting calculation: {e}")
+        print(f"Can't perform backtesting: {e}")
         sys.exit(2)
 
-    accuracy_buy_train, accuracy_buy_test = ma_cls.get_buy_accuracy()
-    accuracy_sell_train, accuracy_sell_test = ma_cls.get_sell_accuracy()
+    print('\nBuy estimation Accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
+    print('Sell estimation Accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
+    print('Total estimation Accuracy:{: .2f}%'.format(total_accuracy_est * 100))
 
-    print('Buy train Accuracy:{: .2f}%'.format(accuracy_buy_train * 100))
-    print('Buy test Accuracy:{: .2f}%'.format(accuracy_buy_test * 100))
-    print('Sell train Accuracy:{: .2f}%'.format(accuracy_sell_train * 100))
-    print('Sell test Accuracy:{: .2f}%'.format(accuracy_sell_test * 100))
+    print(f"\nThe actual/estimated signals:\n{classifier.get_df_signals_to_compare().to_string()}\n")
 
-    actual_buy_signals, pred_buy_signals = ma_cls.get_buy_signals()
-    actual_sell_signals, pred_sell_signals = ma_cls.get_sell_signals() 
-
-    # Initial/generated signals
-    print(f"\nBuy signals: {actual_buy_signals}")
-    print(f"Predicted buy signals: {pred_buy_signals}")
-    print(f"Sell signals: {actual_sell_signals}")
-    print(f"Predicted sell signals: {pred_sell_signals}")
-
-    # Get data for comparision
-
-    query.first_date = check_datetime(ma_cls.get_min_ma_dt())[1]
-    query.db_connect()
-
-    data_cmp = ReadOnlyData(query)
-
-    try:
-        rows = data_cmp.get_quotes()
-        query.db_close()
-    except FdataError as e:
-        print(e)
-        sys.exit(2)
-
-    length_cmp = len(rows)
-
-    print(f"Obtained {length} rows for comparison.")
-
-    quotes_cmp = StockData(rows=rows,
-                          title=query.symbol,
-                          margin_rec=0.4,
-                          margin_req=0.7,
-                          spread=0.1,
-                          margin_fee=1,
-                          trend_change_period=change_period,
-                          trend_change_percent=change_percent
-                         )
+    # Compare with regular MA-cross strategy
 
     # Create the 'regular' MA-Cross result for comparison
-    ma = MA(data=[quotes_cmp],
+    ma = MA(data=[quotes],
             commission=2.5,
             initial_deposit=10000,
             periodic_deposit=500,
@@ -162,7 +167,7 @@ if __name__ == "__main__":
                             [{"secondary_y": True}],
                             [{"secondary_y": False}]])
 
-    standard_margin_chart(results_cls, title=f"MA/Quote Cross + AI Backtesting Example for {query.symbol}", fig=fig)
+    standard_margin_chart(results_cls, title=f"MA/Quote Cross + AI Backtesting Example for {symbol}", fig=fig)
 
     # Append MA values to the main chart
     fig.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech, mode='lines', name="MA"), secondary_y=False)
@@ -178,7 +183,7 @@ if __name__ == "__main__":
     fig.add_trace(go.Scatter(x=results.DateTime, y=results_cls.Symbols[0].Tech, mode='lines', name="MA"), row=2, col=1)
 
     # Add second strategy results for comparison
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.TotalValue, mode='lines', name=f"MA Cross {query.symbol}"), row=3, col=1)
+    fig.add_trace(go.Scatter(x=results.DateTime, y=results.TotalValue, mode='lines', name=f"MA Cross {symbol}"), row=3, col=1)
 
     ######################
     # Write the chart

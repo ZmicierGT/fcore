@@ -43,6 +43,15 @@ class MA(BackTest):
             raise BackTestError(f"period can't be less than 0. Specified value is {period}")
         self._period = period
 
+    def is_simple(self):
+        """
+            Gets the MA type flag.
+
+            Retuns:
+                bool: True if SMA, EMA otherwise.
+        """
+        return self.__is_simple
+
     def skip_criteria(self, index):
         """
             Check if the current cycle should be skipped.
@@ -80,7 +89,7 @@ class MA(BackTest):
             ex.set_title('EMA')
 
         # Skip data when no MA is calculated.
-        self.set_offset(self._period)
+        self.set_offset(self.get_offset() + self._period)
 
     def do_calculation(self):
         """
@@ -118,7 +127,7 @@ class MA(BackTest):
             # Check if we need to close the positions because the trend changed recently
             ############################################################################
 
-            if self.exec().get_max_positions() and self.exec().trend_changed(self.is_uptrend()) or self.signal():
+            if self.exec().get_max_positions() and self.exec().trend_changed(self.is_uptrend()) or self.any_signal():
                 self.exec().close_all()
 
             ########################

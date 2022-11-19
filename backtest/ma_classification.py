@@ -8,35 +8,13 @@ Distributed under Fcore License 1.0 (see license.md)
 from backtest.ma import MA
 from backtest.base import BackTestError
 
-from data.fvalues import Rows
-
-from data.futils import get_datetime
+from indicators.ma_classifier import MAClassifier
+from indicators.base import IndicatorError
 
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
 
-from sklearn.linear_model import LogisticRegression
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.svm import SVC
-
-from sklearn.metrics import accuracy_score
-
-from enum import IntEnum
-
-class Algorithm(IntEnum):
-    """Enum with the supported algorithms."""
-    LR = 0
-    LDA = 1
-    KNC = 2
-    GaussianNB = 3
-    DTC = 4
-    SVC = 5
-
-class MACls(MA):
+class MAClassification(MA):
     """
         Moving average vs. price cross backtesting strategy implementation when signal is checked by AI.
 
@@ -44,58 +22,34 @@ class MACls(MA):
         AI determines if signals are true or false.
     """
     def __init__(self,
-                 true_ratio=0,
-                 cycle_num=2,
-                 learn_test_ratio=0.8,
-                 algorithm=Algorithm.GaussianNB,
+                 model_buy=None,
+                 model_sell=None,
+                 classifier=None,
                  **kwargs):
         super().__init__(**kwargs)
         """
             Initializes the MA Cross stragegy implementation with signal validity estimation.
 
             Args:
-                true_ratio(float): ratio when signal is considered as true in cycle_num. For example, if true_ratio is 0.03 and cycle_num is 5,
-                                   then the signal will be considered as true if there was a 0.03 change in ma/quote ratio in the following 5 cycles
-                                   after getting the signal from MA.
-                cycle_num(int):    number of cycles to reach to true_ratio to consider that the signal is true.
-                learn_test_ratio(float): ratio to split dataset into learn/test parts. For example, if the ratio is 0.8, 80% of data will be used
-                                         for learning, 20% for testing.
-                algorithm(Algorithm): algorithm used for learning (from Algorithm enum).
+                model_buy(sklearn model): model to check buy signals.
+                model_sell(sklearn model): model to check sell signals.
+                classifier(MAClassifier): classifier for estimations.
+                period(int): period of MA.
+                is_simple(bool): indicates if SMA(True) or EMA(False) will be used.
 
             Raises:
-                BackTestError: provided arguments are incorrect.
+                BackTestError: provided arguments are incorrect or no data for learning/estimation.
         """
-        if true_ratio < 0:
-            raise BackTestError(f"true_ratio can't be < 0. The provided value is {true_ratio}")
-        self._true_ratio = true_ratio
+        if ((model_buy == None) or (model_sell == None)) and (classifier == None):
+            raise BackTestError("Either models or classifier object should be provided.")
 
-        if cycle_num < 0:
-            raise BackTestError(f"cycle_num can't be negative. The provided value is {cycle_num}")
-        self._cycle_num = cycle_num
+        if classifier == None:
+            self._model_buy = model_buy
+            self._model_sell = model_sell
+        else:
+            self._model_buy, self._model_sell = classifier.get_models()
 
-        if learn_test_ratio < 0:
-            raise BackTestError(f"learn_test_ratio can't be less than 0. The provided value is {learn_test_ratio}")
-        self._learn_test_ratio = learn_test_ratio
-
-        self._algorithm = algorithm
-
-        # Calculated buy and sell signals
-        self._df_buy_signals = None
-        self._df_sell_signals = None
-
-        # Accuracy for calculations
-        self._accuracy_buy_train = None
-        self._accuracy_buy_test = None
-
-        self._accuracy_sell_train = None
-        self._accuracy_sell_test = None
-
-        # Actual and predicted signals:
-        self._actual_buy_signals = None
-        self._pred_buy_signals = None
-
-        self._actual_sell_signals = None
-        self._pred_sell_signals = None   
+        self._ma_cls = classifier
 
     def do_tech_calculation(self, ex):
         """
@@ -104,236 +58,40 @@ class MACls(MA):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        # Calculate MA values
-        super().do_tech_calculation(ex)
-        self.learn(ex)
+        # Initialize classifier if the instance is not provided.
+        if self._ma_cls == None:
+            self._ma_cls = MAClassifier(period=self._period,
+                                        model_buy=self._model_buy,
+                                        model_sell=self._model_sell,
+                                        is_simple=self.is_simple())
 
-    def learn(self, ex):
+        self._ma_cls.set_data(self.get_main_data().get_rows())
+
+        try:
+            self._ma_cls.calculate()
+        except IndicatorError as e:
+            raise BackTestError(e) from e
+
+        # Set MA values used by base testing class. Add empty values at the beginning or the column.
+        ma = pd.DataFrame([np.nan] * self._period)
+        ex.set_values(ma[0].append(self._ma_cls.get_results()['ma'], ignore_index=True))
+
+        if self.is_simple():
+            ex.set_title('SMA')
+        else:
+            ex.set_title('EMA')
+
+        # Skip data when no MA is calculated.
+        self.set_offset(self.get_offset() + self._period)
+
+    def classifier(self):
         """
-            Train the model. The results are assigned to class members self._df_buy_signals and self._df_sell_signals.
-
-            Args:
-                df(DataFrame): DataFrame with the initial data.
-        """
-        # Create a DataFrame with the initial data
-        df_initial = pd.DataFrame(self.get_main_data().get_rows())
-
-        # Add MA column to the DataFrame
-        df_initial['ma'] = ex.get_values()
-
-        # Calculate PVO
-        pvo = ta.pvo(df_initial[Rows.Volume])
-
-        # Get rid of the values where MA is not calculated because they are useless for learning.
-        df_initial = df_initial[self._period-1:]
-
-        # DataFrame for learning
-        df = pd.DataFrame()
-        df['dt'] = df_initial[Rows.DateTime]
-        df['pvo'] = pvo.iloc[:, 1]
-
-        # Get price-ma difference ratio
-        df['diff'] = ((df_initial[Rows.AdjClose] - df_initial['ma']) / df_initial[Rows.AdjClose])
-
-        # Fill nan values (if any) with mean values
-        df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
-        df['diff'].fillna(value=df['diff'].mean(), inplace=True)
-
-        # Distintuish true and false trade signals
-        df['buy-true'] = (df['diff'].shift(-1) < 0) &\
-                         (df['diff'] > 0) &\
-                         (df['diff'].shift(self._cycle_num) >= self._true_ratio)
-
-        df['buy-false'] = (df['diff'].shift(-1) < 0) &\
-                          (df['diff'] > 0) &\
-                          (df['diff'].shift(self._cycle_num) < self._true_ratio)
-
-        df['sell-true'] = (df['diff'].shift(-1) > 0) &\
-                          (df['diff'] < 0) &\
-                          (df['diff'].shift(self._cycle_num) <= -abs(self._true_ratio))
-
-        df['sell-false'] = (df['diff'].shift(-1) > 0) &\
-                           (df['diff'] < 0) &\
-                           (df['diff'].shift(self._cycle_num) > -abs(self._true_ratio))
-
-        # Create a results numpy array with 4 signals
-        results_buy = np.where(df['buy-true'] == True, 1, np.nan)
-        results_buy = np.where(df['buy-false'] == True, 0, results_buy)
-        results_sell = np.where(df['sell-true'] == True, 1, np.nan)
-        results_sell = np.where(df['sell-false'] == True, 0, results_sell)
-
-        # Get rid of NaNs in np arrays
-        results_buy = results_buy[~np.isnan(results_buy)]
-        results_sell = results_sell[~np.isnan(results_sell)]
-
-        # Create separate DataFrames for buy and sell learning
-        df_buy = df[df['buy-true'] | df['buy-false']]
-        df_sell = df[df['sell-true'] | df['sell-false']]
-
-        # Split the arrays to learn/test
-        split_buy = int(self._learn_test_ratio*len(df_buy))
-        split_sell = int(self._learn_test_ratio*len(df_sell))
-
-        # Buy signals data to learn
-        learn_buy_data = df_buy[:split_buy]
-        learn_buy_results = results_buy[:split_buy]
-
-        # Buy signals data to test
-        test_buy_data = df_buy[split_buy:]
-        self._actual_buy_signals = results_buy[split_buy:]
-
-        # Sell signals data to learn
-        learn_sell_data = df_sell[:split_sell]
-        learn_sell_results = results_sell[:split_sell]
-
-        # Sell signals data to test
-        test_sell_data = df_sell[split_sell:]
-        self._actual_sell_signals = results_sell[split_sell:]
-
-        # Train the model
-        if self._algorithm == Algorithm.LR:
-            buy_learn = LogisticRegression()
-            sell_learn = LogisticRegression()
-        elif self._algorithm == Algorithm.LDA:
-            buy_learn = LinearDiscriminantAnalysis()
-            sell_learn = LinearDiscriminantAnalysis()
-        elif self._algorithm == Algorithm.KNC:
-            buy_learn = KNeighborsClassifier()
-            sell_learn = KNeighborsClassifier()
-        elif self._algorithm == Algorithm.GaussianNB:
-            buy_learn = GaussianNB()
-            sell_learn = GaussianNB()
-        elif self._algorithm == Algorithm.DTC:
-            buy_learn = DecisionTreeClassifier()
-            sell_learn = DecisionTreeClassifier()
-        elif self._algorithm == Algorithm.SVC:
-            buy_learn = SVC()
-            sell_learn = SVC()
-
-        pred_buy = buy_learn.fit(learn_buy_data[['diff', 'pvo']], learn_buy_results)
-        pred_sell = sell_learn.fit(learn_sell_data[['diff', 'pvo']], learn_sell_results)
-
-        # Predict values
-        pred_buy_train = pred_buy.predict(learn_buy_data[['diff', 'pvo']])
-        pred_sell_train = pred_sell.predict(learn_sell_data[['diff', 'pvo']])
-
-        self._pred_buy_signals = pred_buy.predict(test_buy_data[['diff', 'pvo']])
-        self._pred_sell_signals = pred_sell.predict(test_sell_data[['diff', 'pvo']])
-
-        # Check accuracy of learning/testing
-        self._accuracy_buy_train = accuracy_score(learn_buy_results, pred_buy_train)
-        self._accuracy_buy_test = accuracy_score(self._actual_buy_signals, self._pred_buy_signals)
-
-        self._accuracy_sell_train = accuracy_score(learn_sell_results, pred_sell_train)
-        self._accuracy_sell_test = accuracy_score(self._actual_sell_signals, self._pred_sell_signals)
-
-        # DataFrames with buy/sell signals for the strategy
-        self._df_buy_signals = pd.DataFrame()
-        self._df_buy_signals['dt'] = test_buy_data['dt']
-        self._df_buy_signals['signal'] = self._pred_buy_signals.astype('bool')
-
-        self._df_sell_signals = pd.DataFrame()
-        self._df_sell_signals['dt'] = test_sell_data['dt']
-        self._df_sell_signals['signal'] = self._pred_sell_signals.astype('bool')
-
-        # Trim values from the calculation where no AI generated data presents
-        self._offset = self.get_min_dt_index()
-
-    def get_buy_accuracy(self):
-        """
-            Get accuracy for determining buy signals.
+            Get the MA Classifier instance.
 
             Returns:
-                float: train data accuracy.
-                float: test data accuracy.
+                MAClassifier: the instance used in calculations.
         """
-        return (self._accuracy_buy_train, self._accuracy_buy_test)
-
-    def get_sell_accuracy(self):
-        """
-            Get accuracy for determining sell signals.
-
-            Returns:
-                float: train data accuracy.
-                float: test data accuracy.
-        """
-        return (self._accuracy_sell_train, self._accuracy_sell_test)
-
-    def get_buy_signals(self):
-        """
-            Get buy signals.
-
-            Returns:
-                numpy array: actual buy signals
-                numpy array: predicted buy signals
-        """
-        return (self._actual_buy_signals, self._pred_buy_signals)
-
-    def get_sell_signals(self):
-        """
-            Get sell signals.
-
-            Returns:
-                numpy array: actual sell signals
-                numpy array: predicted sell signals
-        """
-        return (self._actual_sell_signals, self._pred_sell_signals)
-
-    def get_dt_index(self, dt):
-        """
-            Get the index with the specified datetime.
-
-            Args:
-                dt(datetime): datetime to search for.
-
-            Returns:
-                int: index with this datetime in the main dataset.
-        """
-        datetimes = [row[Rows.DateTime] for row in self.get_main_data().get_rows()]
-        return datetimes.index(str(dt))
-
-    def get_min_ai_dt(self):
-        """
-            Get the minimum datetime where AI generated data presents.
-
-            Returns:
-                datetime: the earliers available datetime with AI-generated data.
-        """
-        min_buy_dt = get_datetime(self._df_buy_signals['dt'].iloc[0])
-        min_sell_dt = get_datetime(self._df_sell_signals['dt'].iloc[0])
-
-        return min(min_buy_dt, min_sell_dt)
-
-    def get_min_ma_dt(self):
-        """
-            Get the minimum datetime where ai estimation present minus period.
-
-            Returns:
-                datetime: the ai datetime - period.
-        """
-        datetimes = [row[Rows.DateTime] for row in self.get_main_data().get_rows()]
-        ai_dt_index = self.get_min_dt_index()
-        return datetimes[ai_dt_index - self._period]
-
-    def get_min_dt_index(self):
-        """
-            Get the index of the minimum datetime where AI generated data presents.
-
-            Returns:
-                int: index with the minimum datetime in the main dataset.
-        """
-        return self.get_dt_index(self.get_min_ai_dt())
-
-    def skip_criteria(self, index):
-        """
-            Check if the current cycle should be skipped.
-
-            The cycle should be skipped if the MA is not calculated yet or there are no AI generated data.
-
-            Args:
-                index(int): index of the current cycle.
-        """
-        return self.exec().get_datetime() < self.get_min_ai_dt() or index < self._period
+        return self._ma_cls
 
     def signal_buy(self):
         """
@@ -343,10 +101,10 @@ class MACls(MA):
                 True if the buy signal is true, False otherwise.
         """
         dt_str = self.exec().get_datetime_str()
+        df = self.classifier().get_results()
+        row = df.loc[df['dt'] == dt_str]
 
-        row = self._df_buy_signals.loc[self._df_buy_signals['dt'] == dt_str]
-
-        if row.empty == False and row.iloc[0]['signal'] == True:
+        if row.empty == False and row.iloc[0]['buy-signal'] == True:
             return True
 
         return False
@@ -359,15 +117,15 @@ class MACls(MA):
                 True if the sell signal is true, False otherwise.
         """
         dt_str = self.exec().get_datetime_str()
+        df = self.classifier().get_results()
+        row = df.loc[df['dt'] == dt_str]
 
-        row = self._df_sell_signals.loc[self._df_sell_signals['dt'] == dt_str]
-
-        if row.empty == False and row.iloc[0]['signal'] == True:
+        if row.empty == False and row.iloc[0]['sell-signal'] == True:
             return True
 
         return False
 
-    def signal(self):
+    def any_signal(self):
         """
             Indicates if buy/sell signal was considered as true.
 

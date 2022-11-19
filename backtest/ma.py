@@ -7,6 +7,7 @@ Distributed under Fcore License 1.0 (see license.md)
 
 from backtest.base import BackTest
 from backtest.base import BackTestError
+from backtest.base import BackTestEvent
 
 from data.fvalues import Rows
 
@@ -107,7 +108,6 @@ class MA(BackTest):
         ######################################
         # Perform the global calculation setup
         ######################################
-
         self.setup()
 
         ############################################################

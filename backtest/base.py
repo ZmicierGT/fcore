@@ -11,6 +11,8 @@ from enum import IntEnum
 
 from itertools import repeat
 
+import time
+
 from data.fvalues import Rows
 
 from pandas.core.series import Series
@@ -51,6 +53,25 @@ class BTSymbolEnum(IntEnum):
     MarginPositions = 7
     TradesNo = 8
     Tech = 9
+
+class BackTestEvent(Event):
+    """
+        Class to represent a backtesting event.
+    """
+    def __init__(self, timeout, **kwargs):
+        super().__init__(**kwargs)
+
+        self.__timer = time.perf_counter()
+        self.__timeout = timeout + self.__timer
+
+    def time_left(self):
+        """
+            Get the remaining time before timeout happens.
+
+            Returns:
+                float:remaining time in seconds.
+        """
+        return self.__timeout - time.perf_counter()
 
 # Exception class for general backtesting errors
 class BackTestError(Exception):
@@ -1288,7 +1309,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.__event == None:
             raise BackTestError("Calulation was not performed.")
 
-        result = self.__event.wait(self.__timeout)
+        result = self.__event.wait(self.__event.time_left())
 
         if self.__thread != None:
             self.__thread.join()
@@ -2062,7 +2083,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Perform the calculation of the entire strategy.
         """
-        self.__event = Event()
+        self.__event = BackTestEvent(self.__timeout)
 
         if thread_available():
             self.__thread = Thread(target=self.__do_calculation)
@@ -2071,8 +2092,13 @@ class BackTest(metaclass=abc.ABCMeta):
             self.__do_calculation()
 
     def __do_calculation(self):
-        self.do_calculation()
-        self.__event.set()
+        # Catch any exception which happens in a thread to finish the thread soon then.
+        try:
+            self.do_calculation()
+        except Exception as e:
+            raise BackTestError(e) from e
+        finally:
+            self.__event.set()
 
     def calculate_all_tech(self):
         """
@@ -2099,7 +2125,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Waif for each calculation thread to finish.
         """
         for event in events:
-            event.wait()
+            event.wait(self.__event.time_left())
 
     def __do_tech_calculation(self, ex, event):
         # If eventually you get the following error in pandas source code in _format_argument_list() function
@@ -2108,8 +2134,14 @@ class BackTest(metaclass=abc.ABCMeta):
         # It is an interpreter bug. Just add a debug print at the beginning of that function like 
         # print(f"allow args is {allow_args}")
         # and it will work.
-        self.do_tech_calculation(ex)
-        event.set()
+
+        # Catch any exception which happens in a thread to finish the thread soon then.
+        try:
+            self.do_tech_calculation(ex)
+        except Exception as e:
+            raise BackTestError(e) from e
+        finally:
+            event.set()
 
     def any_signal(self):
         """

@@ -85,8 +85,8 @@ class RSITest(BackTest):
 
         ex.set_values(ta.rsi(df[Rows.AdjClose], length = self.__period))
 
-        # Skip data when no MA is calculated.
-        self.set_offset(self.get_offset() + self._period)
+        # Skip data when no RSI is calculated.
+        self.set_offset(self.get_offset() + self.__period)
 
     def do_calculation(self):
         """

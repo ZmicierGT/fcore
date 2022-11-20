@@ -1055,47 +1055,121 @@ class BackTestOperations():
         """
         self.close(self.get_max_positions())
 
-################################################
-# Classes for data structures used in reporting.
-################################################
+#####################################################
+# Classes for data structures of backtesting results.
+#####################################################
 
-class BTData():
+class BTData(list):
     """
-        The class used in charting which represents the whole portfolio.
+        The class which represents the whole portfolio.
     """
-    def __init__(self):
-        self.DateTime = None
-        self.TotalValue = None
-        self.Deposits = None
-        self.Cash = None
-        self.Borrowed = None
-        self.OtherProfit = None
-        self.CommissionExpense = None
-        self.SpreadExpense = None
-        self.DebtExpense = None
-        self.OtherExpense = None
-        self.TotalExpenses = None
-        self.TotalTrades = None
-        self.Symbols = None
+    @property
+    def DateTime(self):
+        return [row[BTDataEnum.DateTime] for row in self]
 
-class BTSymbol():
+    @property
+    def TotalValue(self):
+        return [row[BTDataEnum.TotalValue] for row in self]
+
+    @property
+    def Deposits(self):
+        return [row[BTDataEnum.Deposits] for row in self]
+
+    @property
+    def Cash(self):
+        return [row[BTDataEnum.Cash] for row in self]
+
+    @property
+    def Borrowed(self):
+        return [row[BTDataEnum.Borrowed] for row in self]
+
+    @property
+    def OtherProfit(self):
+        return [row[BTDataEnum.OtherProfit] for row in self]
+
+    @property
+    def CommissionExpense(self):
+        return [row[BTDataEnum.CommissionExpense] for row in self]
+
+    @property
+    def SpreadExpense(self):
+        return [row[BTDataEnum.SpreadExpense] for row in self]
+
+    @property
+    def DebtExpense(self):
+        return [row[BTDataEnum.DebtExpense] for row in self]
+
+    @property
+    def OtherExpense(self):
+        return [row[BTDataEnum.OtherExpense] for row in self]
+
+    @property
+    def TotalExpenses(self):
+        return [row[BTDataEnum.TotalExpenses] for row in self]
+
+    @property
+    def TotalTrades(self):
+        return [row[BTDataEnum.TotalTrades] for row in self]
+
+    # TODO Investigate the performance issue why is it called to many times in reporting.
+    # Try to optimize the code below as well
+    @property
+    def Symbols(self):
+        symbols = BTSymbol()
+
+        for i in range(len([row[BTDataEnum.Symbols] for row in self][0])):
+            symbol = BTSymbol([row[BTDataEnum.Symbols][i] for row in self])
+            symbols.append(symbol)
+
+        return symbols
+
+class BTSymbol(list):
     """
-        The class used in charting which represents the particular symbol used in the strategy. More than one symbols may be used.
+        The class which represents the particular symbol used in the strategy. More than one symbols may be used.
     """
-    def __init__(self):
-        self.Title = None
-        self.Quote = None
-        self.TradePriceLong = None
-        self.TradePriceShort = None
-        self.TradePriceMargin = None
-        self.LongPositions = None
-        self.ShortPositions = None
-        self.MarginPositions = None
-        self.TradesNo = None
-        self.Tech = None
+    @property
+    def Title(self):
+        return [row[BTSymbolEnum.Title] for row in self]
+
+    @property
+    def Quote(self):
+        return [row[BTSymbolEnum.Quote] for row in self]
+
+    @property
+    def TradePriceLong(self):
+        return [row[BTSymbolEnum.TradePriceLong] for row in self]
+
+    @property
+    def TradePriceShort(self):
+        return [row[BTSymbolEnum.TradePriceShort] for row in self]
+
+    @property
+    def TradePriceMargin(self):
+        return [row[BTSymbolEnum.TradePriceMargin] for row in self]
+
+    @property
+    def LongPositions(self):
+        return [row[BTSymbolEnum.LongPositions] for row in self]
+
+    @property
+    def ShortPositions(self):
+        return [row[BTSymbolEnum.ShortPositions] for row in self]
+
+    @property
+    def MarginPositions(self):
+        return [row[BTSymbolEnum.MarginPositions] for row in self]
+
+    @property
+    def TradesNo(self):
+        return [row[BTSymbolEnum.TradesNo] for row in self]
+
+    # TODO Tech should be always an array
+    @property
+    def Tech(self):
+        return [row[BTSymbolEnum.Tech] for row in self]
 
 ########################
-# Back backtesting class
+# Base backtesting class
 ########################
 
 class BackTest(metaclass=abc.ABCMeta):
@@ -1236,7 +1310,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._total_trades = 0
 
         # Results of the calculation
-        self._results = []
+        self._results = BTData()
 
         # Counter till deposit date
         self._deposit_counter = 0
@@ -1297,7 +1371,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._initial_deposit
 
-    def get_raw_results(self):
+    def get_results(self):
         """
             Get the result list of the calculation.
 
@@ -1326,53 +1400,6 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"Timeout ({self.__timeout} sec) has happened. Calculation is not finished.")
 
         return self._results
-
-    def get_results(self):
-        """
-            Get the results as BTData and BTSymbol instances for a more convenient reporting.
-
-            Returns:
-                BTData: results of the calculation.
-        """
-        # Get list with data
-        self.get_raw_results()
-
-        # Data structures classes preparation
-
-        bt_data = BTData()
-
-        bt_data.DateTime = [row[BTDataEnum.DateTime] for row in self._results]
-        bt_data.TotalValue = [row[BTDataEnum.TotalValue] for row in self._results]
-        bt_data.Deposits = [row[BTDataEnum.Deposits] for row in self._results]
-        bt_data.Cash = [row[BTDataEnum.Cash] for row in self._results]
-        bt_data.Borrowed = [row[BTDataEnum.Borrowed] for row in self._results]
-        bt_data.OtherProfit = [row[BTDataEnum.OtherProfit] for row in self._results]
-        bt_data.CommissionExpense = [row[BTDataEnum.CommissionExpense] for row in self._results]
-        bt_data.SpreadExpense = [row[BTDataEnum.SpreadExpense] for row in self._results]
-        bt_data.DebtExpense = [row[BTDataEnum.DebtExpense] for row in self._results]
-        bt_data.OtherExpense = [row[BTDataEnum.OtherExpense] for row in self._results]
-        bt_data.TotalExpenses = [row[BTDataEnum.TotalExpenses] for row in self._results]
-        bt_data.TotalTrades = [row[BTDataEnum.TotalTrades] for row in self._results]
-
-        bt_data.Symbols = []
-
-        for i in range(len(self.all_exec())):
-            bt_symbol = BTSymbol()
-
-            bt_symbol.Title = [row[BTDataEnum.Symbols][i][BTSymbolEnum.Title] for row in self._results]
-            bt_symbol.Quote = [row[BTDataEnum.Symbols][i][BTSymbolEnum.Quote] for row in self._results]
-            bt_symbol.TradePriceLong = [row[BTDataEnum.Symbols][i][BTSymbolEnum.TradePriceLong] for row in self._results]
-            bt_symbol.TradePriceShort = [row[BTDataEnum.Symbols][i][BTSymbolEnum.TradePriceShort] for row in self._results]
-            bt_symbol.TradePriceMargin = [row[BTDataEnum.Symbols][i][BTSymbolEnum.TradePriceMargin] for row in self._results]
-            bt_symbol.LongPositions = [row[BTDataEnum.Symbols][i][BTSymbolEnum.LongPositions] for row in self._results]
-            bt_symbol.ShortPositions = [row[BTDataEnum.Symbols][i][BTSymbolEnum.ShortPositions] for row in self._results]
-            bt_symbol.MarginPositions = [row[BTDataEnum.Symbols][i][BTSymbolEnum.MarginPositions] for row in self._results]
-            bt_symbol.TradesNo = [row[BTDataEnum.Symbols][i][BTSymbolEnum.TradesNo] for row in self._results]
-            bt_symbol.Tech = [row[BTDataEnum.Symbols][i][BTSymbolEnum.Tech] for row in self._results]
-
-            bt_data.Symbols.append(bt_symbol)
-
-        return bt_data
 
     def get_prev_dt(self):
         """

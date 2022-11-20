@@ -27,6 +27,5 @@ class Test(unittest.TestCase):
             # This is expected
             pass
 
-        # TODO Change API key
         requests.get.assert_called_once_with('https://api.polygon.io/v2/aggs/ticker//range/1/day/2020-06-16/2022-06-16?adjusted=true&sort=asc&limit=50000&apiKey=get_your_free_api_key_at_polygon.io')
         json.loads.assert_called_once()

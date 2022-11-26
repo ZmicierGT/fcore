@@ -23,9 +23,9 @@ import threading
 import multiprocessing
 import time
 
-from data.fdata import FdataError
+from data.fvalues import Quotes
 
-from data.fvalues import Rows
+import numpy as np
 
 def check_date(date):
     """
@@ -93,13 +93,16 @@ def get_datetime(dt_str):
         Args:
             dt_str(str): string with a date.
 
+        Raises:
+            ValueError: the datatime string is not correct.
+
         Returns:
             datetime from the input string.
     """
     try:
         dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
     except ValueError as e:
-        raise FdataError(f"The date {dt_str} is incorrect: {e}") from e
+        raise ValueError(f"The date {dt_str} is incorrect: {e}") from e
 
     return dt
 
@@ -122,7 +125,7 @@ def parse_config(query):
 
         query.db_name = settings['db_name']
         query.db_type = settings['db_type']
-    except:
+    except Exception:
         # Using default values from 'query' instance if configuration can't be read
         # Other db setting are supposed to be in the different sections (when needed)
         if not config_parser.has_section(query.source_title):
@@ -149,7 +152,7 @@ def write_image(fig):
             str: new file name.
 
         Raises:
-            FdataError: can't generate a filename.
+            RuntimeError: can't generate a filename.
     """
     img_dir = "images"
 
@@ -170,7 +173,7 @@ def write_image(fig):
     try:
         new_counter = int(last_file) + 1
     except ValueError as e:
-        raise FdataError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
+        raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
 
     new_file = "fig_" + f"{new_counter}" + ".png"
 
@@ -190,7 +193,7 @@ def write_model(name, model):
             str: new file name.
 
         Raises:
-            FdataError: can't generate a directory name.
+            RuntimeError: can't generate a directory name.
     """
     model_dir = "models"
 
@@ -211,7 +214,7 @@ def write_model(name, model):
     try:
         new_counter = int(last_dir) + 1
     except ValueError as e:
-        raise FdataError(f"Can't generate new directory name. {last_dir} has a broken filename pattern.") from e
+        raise RuntimeError(f"Can't generate new directory name. {last_dir} has a broken filename pattern.") from e
 
     new_dir = f"{name}_" + f"{new_counter}"
 
@@ -229,8 +232,8 @@ def build_chart(rows):
         Returns:
             str: new file name.
     """
-    date = [row[fvalues.Rows.DateTime] for row in rows]
-    close = [row[fvalues.Rows.AdjClose] for row in rows]
+    date = [row[fvalues.Quotes.DateTime] for row in rows]
+    close = [row[fvalues.Quotes.AdjClose] for row in rows]
 
     fig = go.Figure([go.Scatter(x=date, y=close)])
 
@@ -261,9 +264,9 @@ def get_dt_offset(rows, dt):
             int: offset in the list where datetime is found.
 
         Raises:
-            FdataError: datetime not found.
+            RuntimeError: datetime not found.
     """
-    dts = [row[Rows.DateTime] for row in rows]
+    dts = [row[Quotes.DateTime] for row in rows]
 
     if len(dt) == 10:
         dt += ' 23:59:59'
@@ -272,7 +275,7 @@ def get_dt_offset(rows, dt):
         if dt <= row:
             return dts.index(row)
 
-    raise FdataError(f"Can't find the datetime <= {dt} in the list.")
+    raise RuntimeError(f"Can't find the datetime <= {dt} in the list.")
 
 #################################
 # Functions related to reporting.
@@ -313,9 +316,13 @@ def adjust_trades(results):
     """
     for i in range(len(results.Symbols)):
         for j in range(len(results.TotalTrades)):
-            if results.Symbols[i].TradePriceLong[j] == None and results.Symbols[i].TradePriceShort[j] == None:
-                results.Symbols[i].TradesNo[j] = None
-                results.TotalTrades[j] = None
+            price_long = results.Symbols[i].TradePriceLong[j]
+            price_short = results.Symbols[i].TradePriceShort[j]
+            price_margin = results.Symbols[i].TradePriceMargin[j]
+
+            if np.isnan(price_long) and np.isnan(price_short) and np.isnan(price_margin):
+                results.Symbols[i].TradesNo = (j, None)
+                results.TotalTrades = (j, None)
 
 def main_chart(results, fig):
     """
@@ -333,8 +340,8 @@ def main_chart(results, fig):
 
         num = round(i/2) + 1
 
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
 
 def main_margin_chart(results, fig):
     """
@@ -352,10 +359,10 @@ def main_margin_chart(results, fig):
 
         num = round(i/2) + 1
 
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[i].Title[0]}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
 
 def value_chart(results, fig):
     """

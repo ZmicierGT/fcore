@@ -131,7 +131,7 @@ if __name__ == "__main__":
         source = polygon.Polygon(query)
         query.db_connect()
 
-        num_before, num_after = source.check_and_fetch()
+        num_before, num_after = source.insert_quotes(self.fetch_quotes())
     except (polygon.PolygonError, fdata.FdataError) as e:
         print(e)
         sys.exit(2)

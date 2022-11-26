@@ -6,49 +6,46 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 from indicators.vo import VO
-from indicators.vo import VORows
+from indicators.vo import VOData
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from data.futils import update_layout
 from data.futils import write_image
-from data.futils import check_date
 
-from data.fdata import Query, ReadOnlyData
 from data.fdata import FdataError
-from data.fvalues import Rows
+from data.fvalues import Quotes
 from indicators.base import IndicatorError
+
+from data.yf import YFError, YFQuery, YF
 
 import sys
 
+long_period = 28
+short_period = 14
+
+threshold = 525  # Quotes number threshold for calculation
+
 if __name__ == "__main__":
-    query = Query()
-    query.symbol = "SPY"
-    query.first_date = check_date("2020-10-01")[1]
-    query.db_connect()
-
-    data = ReadOnlyData(query)
-
+    # Get quotes
     try:
-        rows = data.get_quotes()
-        query.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
+        rows, num = YF(query).fetch_if_none(threshold)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
 
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
-        sys.exit(2)
-
-    long_period = 28
-    short_period = 14
-
-    vo = VO(long_period, short_period, rows, Rows.Volume)
+    # VO calculation
+    vo = VO(long_period, short_period, rows, Quotes.Volume)
 
     try:
         vo.calculate()
@@ -59,13 +56,13 @@ if __name__ == "__main__":
     results = vo.get_results()
     length = len(results)
 
-    dates = [row[Rows.DateTime] for row in rows]
-    price = [row[Rows.AdjClose] for row in rows]
+    dates = [row[Quotes.DateTime] for row in rows]
+    price = [row[Quotes.AdjClose] for row in rows]
 
-    vo_values = [row[VORows.Value] for row in results]
-    long_sma = [row[VORows.LongSMAValue] for row in results]
-    short_sma = [row[VORows.ShortSMAValue] for row in results]
-    volume = [row[Rows.Volume] for row in rows]
+    vo_values = [row[VOData.Value] for row in results]
+    long_sma = [row[VOData.LongSMAValue] for row in results]
+    short_sma = [row[VOData.ShortSMAValue] for row in results]
+    volume = [row[Quotes.Volume] for row in rows]
 
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
                         specs=[[{"secondary_y": False}],

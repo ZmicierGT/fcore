@@ -8,9 +8,7 @@ Distributed under Fcore License 1.0 (see license.md)
 from data.yf import YFQuery, YFError, YF
 from data.fdata import FdataError
 
-from data.fvalues import Rows
-
-from data.futils import check_date
+from data.fvalues import Quotes
 
 from indicators.ma_classifier import MAClassifier
 from indicators.classifier import Algorithm
@@ -32,7 +30,10 @@ algorithm = Algorithm.KNC  # The default algorithm to use
 period = 50  # Period for MA calculation
 symbol = 'SPY'  # Symbol to make estimations
 
+first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
+last_date = "2022-11-1"  # The last date to fetch quotes
 def_threshold = 15314  # The default quotes num required for the calculation for each symbol
+test_threshold = 500  # Minimum threshold value for testing
 
 # For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
 # In this case, DJIA stocks are used to train the models.
@@ -76,46 +77,36 @@ if __name__ == "__main__":
     print("Fetchig the required quotes for model calculation. Press CTRL-C and restart if it stucks.")
 
     for symbol_learn, threshold in symbols:
-        query = YFQuery()
-        query.symbol = symbol_learn
-        query.last_date = check_date("2022-11-1")[1]
-
-        data = YF(query)
-
         try:
-            query.db_connect()
-
-            current_num = data.get_symbol_quotes_num()
-
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
-            if current_num < threshold:
-                num_before, num_after = data.check_and_fetch()
-                print(f"Fetched {num_after-num_before} quotes for {symbol_learn}.")
-            else:
-                print(f"No need to fetch quotes for {symbol_learn}. There are {current_num} quotes in the database and it is beyond the threshold level of {threshold}.")
-
-            rows = data.get_quotes()
-            query.db_close()
+            query = YFQuery(symbol=symbol_learn, last_date=last_date)
+            rows, num = YF(query).fetch_if_none(threshold)
         except (YFError, FdataError) as e:
             print(e)
             sys.exit(2)
 
+        if num > 0:
+            print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
+        else:
+            print(f"No need to fetch quotes for {query.symbol}. There are {len(rows)} quotes in the database and it is beyond the threshold level of {threshold}.")
+
         allrows.append(rows)
 
     # Get quotes for estimations
-    query.first_date = check_date("2020-11-1")[1]
-    query.symbol = symbol
-
     try:
-        query.db_connect()
-
-        est_rows = data.get_quotes()
-        query.db_close()
+        # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
+        query = YFQuery(symbol=symbol, first_date=first_date, last_date=last_date)
+        est_rows, num = YF(query).fetch_if_none(test_threshold)
     except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(est_rows)
+
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {test_threshold}.")
 
     #################################
     # Train the model and get results
@@ -151,8 +142,8 @@ if __name__ == "__main__":
     #################
 
     df = ma_cls.get_results()
-    df['quote'] = [row[Rows.AdjClose] for row in est_rows][period-1:]
-    df['volume'] = [row[Rows.Volume] for row in est_rows][period-1:]
+    df['quote'] = [row[Quotes.AdjClose] for row in est_rows][period-1:]
+    df['volume'] = [row[Quotes.Volume] for row in est_rows][period-1:]
 
     buy_quotes = df.loc[df['buy-signal'] == 1]
     sell_quotes = df.loc[df['sell-signal'] == 1]

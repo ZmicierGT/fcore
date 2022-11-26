@@ -9,7 +9,7 @@ from backtest.base import BackTestData
 from backtest.base import BackTestOperations
 from backtest.base import BackTestError
 
-from data.fvalues import Rows
+from data.fvalues import Quotes
 
 from enum import IntEnum
 
@@ -127,8 +127,8 @@ class StockOperations(BackTestOperations):
             self._yield_counter = 0
 
         # Check if we have dividends today according to the dataset
-        if self.data().get_use_yield() == 0 and self.data().get_rows()[self.get_caller_index()][Rows.Dividends] != None and self.get_max_positions() > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][Rows.Dividends] * self.get_max_positions()
+        if self.data().get_use_yield() == 0 and self.data().get_rows()[self.get_caller_index()][Quotes.Dividends] != None and self.get_max_positions() > 0:
+            current_yield = self.data().get_rows()[self.get_caller_index()][Quotes.Dividends] * self.get_max_positions()
 
         return current_yield
 

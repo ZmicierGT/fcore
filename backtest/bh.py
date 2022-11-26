@@ -15,13 +15,12 @@ class BuyAndHold(BackTest):
         """
             Abstract method placeholder. Check if this cycle should be skipped. Not relevant to B&H strategy.
         """
-        pass
+        return False
 
     def do_tech_calculation(self, ex):
         """
             Abstract method placeholder. B&H strategy does not involve any technical calculation.
         """
-        pass
 
     def do_calculation(self):
         """

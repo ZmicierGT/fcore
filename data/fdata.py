@@ -11,7 +11,8 @@ import abc
 
 from data import fdatabase
 
-from data.fvalues import Timespans
+from data.fvalues import Timespans, def_first_date, def_last_date
+from data.futils import check_datetime
 
 # Enum class for database types
 class DbTypes(Enum):
@@ -25,24 +26,32 @@ class FdataError(Exception):
     """
         Base data exception class.
     """
-    pass
 
 # Base query object class
 class Query():
     """
         Base database query class.
     """
-    def __init__(self):
+    def __init__(self, symbol="", first_date=None, last_date=None, timespan=Timespans.Day):
         """
             Initialize base database query class.
         """
         # Setting the default values
-        self.symbol = ""
-        self.first_date = -2147483648
-        self.last_date = 9999999999999
+        self.symbol = symbol
+
+        if first_date == None:
+            self.first_date = def_first_date
+        else:
+            self.first_date = check_datetime(first_date)[1]
+
+        if last_date == None:
+            self.last_date = def_last_date
+        else:
+            self.last_date = check_datetime(last_date)[1]
+
         self.update = "IGNORE"
         self.source_title = ""
-        self.timespan = Timespans.Day
+        self.timespan = timespan
 
         self.db_type = "sqlite"
         self.db_name = "data.sqlite"
@@ -52,6 +61,9 @@ class Query():
 
         # Type of exception for db queries
         self.Error = None
+
+        # Flag which indicates if the database is connected
+        self.Connected = False
 
     def get_db_type(self):
         """
@@ -69,12 +81,183 @@ class Query():
         if DbTypes('sqlite') == DbTypes.SQLite:
             self.database = fdatabase.SQLiteConn(self)
             self.database.db_connect()
+            self.Connected = True
+
+            # Check the database integrity
+            self.check_database()
+
+            if self.check_source() == False:
+                self.add_source()
 
     def db_close(self):
         """
             Close the database connection.
         """
         self.database.db_close()
+        self.Connected = False
+
+    def check_database(self):
+        """
+            Database create/integrity check method.
+            Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        # Check if we need to create table 'quotes'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_quotes = """CREATE TABLE quotes (
+                            quote_id INTEGER PRIMARY KEY,
+                            symbol_id INTEGER NOT NULL,
+                            source_id INTEGER NOT NULL,
+                            "TimeStamp" INTEGER NOT NULL,
+                            timespan_id INTEGER NOT NULL,
+                            Open REAL,
+                            High REAL,
+                            Low REAL,
+                            Close REAL,
+                            AdjClose REAL NOT NULL,
+                            Volume INTEGER,
+                            Dividends REAL,
+                            Transactions INTEGER,
+                            VWAP REAL,
+                            CONSTRAINT fk_symols
+                                FOREIGN KEY (symbol_id)
+                                REFERENCES symbols(symbol_id),
+                            CONSTRAINT fk_sources
+                                FOREIGN KEY (source_id)
+                                REFERENCES sources(source_id),
+                            CONSTRAINT fk_timespan
+                                FOREIGN KEY (timespan_id)
+                                REFERENCES timespans(timespan_id),
+                            UNIQUE(symbol_id, "TimeStamp", timespan_id)
+                            );"""
+
+            try:
+                self.cur.execute(create_quotes)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if we need to create table 'symbols'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_symbols = """CREATE TABLE symbols(
+                                symbol_id INTEGER PRIMARY KEY,
+                                ticker TEXT NOT NULL UNIQUE,
+                                ISIN TEXT UNIQUE,
+                                description TEXT
+                                );"""
+
+            try:
+                self.cur.execute(create_symbols)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if we need to create table 'sources'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sources';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_sources = """CREATE TABLE sources(
+                                source_id INTEGER PRIMARY KEY,
+                                title TEXT NOT NULL UNIQUE,
+                                description TEXT
+                                );"""
+
+            try:
+                self.cur.execute(create_sources)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if we need to create table 'timespans'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_timespans = """CREATE TABLE timespans(
+                                    timespan_id INTEGER PRIMARY KEY,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_timespans)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if timespans table is empty
+        try:
+            self.cur.execute("SELECT * FROM timespans;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        # Check if timespans table has data
+        if len(rows) < 6:
+            insert_timespans = f"""INSERT INTO timespans (title)
+                                    VALUES
+                                    ('{Timespans.Unknown}'),
+                                    ('{Timespans.Intraday}'),
+                                    ('{Timespans.Day}'),
+                                    ('{Timespans.Week}'),
+                                    ('{Timespans.Month}'),
+                                    ('{Timespans.Year}');"""
+
+            try:
+                self.cur.execute(insert_timespans)
+                self.conn.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
+
+    def check_source(self):
+        """
+            Check if the current source exists in the table 'sources'
+
+            Returns:
+                int: the number of rows in 'sources' table.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        try:
+            self.cur.execute(f"SELECT title FROM sources WHERE title = '{self.source_title}';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        # Check if sources table has the required row
+        return len(rows)
+
+    def add_source(self):
+        """
+            Add source to the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        insert_source = f"INSERT INTO sources (title) VALUES ('{self.source_title}')"
+
+        try:
+            self.cur.execute(insert_source)
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't insert data to a table 'sources': {e}") from e
 
 class ReadOnlyData(metaclass=abc.ABCMeta):
     """
@@ -88,25 +271,6 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                 query(Query): database query.
         """
         self.query = query
-
-    def check_source(self):
-        """
-            Check if the current source exists in the table 'sources'
-
-            Returns:
-                int: the number of rows in 'sources' table.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        try:
-            self.query.cur.execute(f"SELECT title FROM sources WHERE title = '{self.query.source_title}';")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        # Check if sources table has the required row
-        return len(rows)
 
     def get_all_symbols(self):
         """
@@ -265,6 +429,32 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
 
         return result
 
+    def get_symbol_quotes_num_dt(self):
+        """
+            Get the number of quotes in the database per symbol for specified dates.
+
+            Returns:
+                int: the number of quotes in the database per symbol.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
+                        (SELECT symbol_id FROM symbols where ticker = '{self.query.symbol}') AND
+                        "TimeStamp" >= {self.query.first_date} AND "TimeStamp" <= {self.query.last_date};"""
+
+        try:
+            self.query.cur.execute(num_query)
+        except self.query.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        result = self.query.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
     def get_max_datetime(self):
         """
             Get maximum datetime for a particular symbol.
@@ -297,136 +487,7 @@ class ReadWriteData(ReadOnlyData):
             Args:
                 query(Query): database query instance.
         """
-        self.query = query
-
-    def check_database(self):
-        """
-            Database create/integrity check method.
-            Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        # Check if we need to create table 'quotes'
-        try:
-            self.query.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        if len(rows) == 0:
-            create_quotes = """CREATE TABLE quotes (
-                            quote_id INTEGER PRIMARY KEY,
-                            symbol_id INTEGER NOT NULL,
-                            source_id INTEGER NOT NULL,
-                            "TimeStamp" INTEGER NOT NULL,
-                            timespan_id INTEGER NOT NULL,
-                            Open REAL,
-                            High REAL,
-                            Low REAL,
-                            Close REAL,
-                            AdjClose REAL NOT NULL,
-                            Volume INTEGER,
-                            Dividends REAL,
-                            Transactions INTEGER,
-                            VWAP REAL,
-                            CONSTRAINT fk_symols
-                                FOREIGN KEY (symbol_id)
-                                REFERENCES symbols(symbol_id),
-                            CONSTRAINT fk_sources
-                                FOREIGN KEY (source_id)
-                                REFERENCES sources(source_id),
-                            CONSTRAINT fk_timespan
-                                FOREIGN KEY (timespan_id)
-                                REFERENCES timespans(timespan_id),
-                            UNIQUE(symbol_id, "TimeStamp", timespan_id)
-                            );"""
-
-            try:
-                self.query.cur.execute(create_quotes)
-            except self.query.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
-
-        # Check if we need to create table 'symbols'
-        try:
-            self.query.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        if len(rows) == 0:
-            create_symbols = """CREATE TABLE symbols(
-                                symbol_id INTEGER PRIMARY KEY,
-                                ticker TEXT NOT NULL UNIQUE,
-                                ISIN TEXT UNIQUE,
-                                description TEXT
-                                );"""
-
-            try:
-                self.query.cur.execute(create_symbols)
-            except self.query.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
-
-        # Check if we need to create table 'sources'
-        try:
-            self.query.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sources';")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        if len(rows) == 0:
-            create_sources = """CREATE TABLE sources(
-                                source_id INTEGER PRIMARY KEY,
-                                title TEXT NOT NULL UNIQUE,
-                                description TEXT
-                                );"""
-
-            try:
-                self.query.cur.execute(create_sources)
-            except self.query.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
-
-        # Check if we need to create table 'timespans'
-        try:
-            self.query.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        if len(rows) == 0:
-            create_timespans = """CREATE TABLE timespans(
-                                    timespan_id INTEGER PRIMARY KEY,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
-
-            try:
-                self.query.cur.execute(create_timespans)
-            except self.query.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
-
-        # Check if timespans table is empty
-        try:
-            self.query.cur.execute("SELECT * FROM timespans;")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        # Check if timespans table has data
-        if len(rows) < 6:
-            insert_timespans = f"""INSERT INTO timespans (title)
-                                    VALUES
-                                    ('{Timespans.Unknown}'),
-                                    ('{Timespans.Intraday}'),
-                                    ('{Timespans.Day}'),
-                                    ('{Timespans.Week}'),
-                                    ('{Timespans.Month}'),
-                                    ('{Timespans.Year}');"""
-
-            try:
-                self.query.cur.execute(insert_timespans)
-                self.query.conn.commit()
-            except self.query.Error as e:
-                raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
+        super().__init__(query)
 
     def commit(self):
         """
@@ -536,38 +597,13 @@ class ReadWriteData(ReadOnlyData):
         if self.get_symbol_quotes_num() == 0:
             self.remove_symbol()
 
-    def add_source(self):
-        """
-            Add source to the database.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        insert_source = f"INSERT INTO sources (title) VALUES ('{self.query.source_title}')"
-
-        try:
-            self.query.cur.execute(insert_source)
-            self.query.conn.commit()
-        except self.query.Error as e:
-            raise FdataError(f"Can't insert data to a table 'sources': {e}") from e
-
 class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def check_and_fetch(self):
-        """
-            Check the database and fetch quotes.
-
-            Returns:
-                int: the number of fetched quotes.
-        """
-        self.check_database()
-
-        if self.check_source() == False:
-            self.add_source()
-
-        return self.insert_quotes(self.fetch_quotes())
+    def __init__(self, query):
+        """Initialize the instance of BaseFetchData class."""
+        super().__init__(query)
 
     def insert_quotes(self, rows):
         """
@@ -588,9 +624,40 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
 
         return (num_before, num_after)
 
+    def fetch_if_none(self, threshold):
+        """
+            Check is the required number of quotes exist in the database and fetch if not.
+            The data will be cached in the database.
+
+            Args:
+                treshold(int): the minimum required number of quotes in the database.
+
+            Returns:
+                array: the fetched data.
+                int: the number of fetched quotes.
+        """
+        if self.query.Connected == False:
+            self.query.db_connect()
+
+        current_num = self.get_symbol_quotes_num_dt()
+
+        # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
+        if current_num < threshold:
+            num_before, num_after = self.insert_quotes(self.fetch_quotes())
+            num = num_after - num_before
+
+            if num == 0:
+                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval. Decrease the threshold.")
+        else:
+            num = 0
+
+        rows = self.get_quotes()
+        self.query.db_close()
+
+        return (rows, num)
+
     @abc.abstractmethod
     def fetch_quotes(self):
         """
             Abstract method to fetch quotes.
         """
-        pass

@@ -8,7 +8,7 @@ Distributed under Fcore License 1.0 (see license.md)
 from indicators.base import IndicatorError
 from indicators.classifier import Classifier
 
-from data.fvalues import Rows
+from data.fvalues import Quotes
 
 import pandas as pd
 import pandas_ta as ta
@@ -97,7 +97,7 @@ class MAClassifier(Classifier):
         df['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
 
         results = pd.DataFrame()
-        results['dt'] = df[Rows.DateTime]
+        results['dt'] = df[Quotes.DateTime]
         results['ma'] = df['ma']
         results['pvo'] = df['pvo']
         results['buy-signal'] = df['buy-signal']
@@ -122,12 +122,12 @@ class MAClassifier(Classifier):
         ma = self.get_ma(df)
 
         # Calculate PVO
-        pvo = ta.pvo(df[Rows.Volume])
+        pvo = ta.pvo(df[Quotes.Volume])
 
         df['ma'] = ma
         df['pvo'] = pvo.iloc[:, 0]
-        df['diff'] = ((df[Rows.AdjClose] - df['ma']) / df[Rows.AdjClose])
-        df['hilo-diff'] = (df[Rows.High] - df[Rows.Low] / df[Rows.High])
+        df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])
+        df['hilo-diff'] = (df[Quotes.High] - df[Quotes.Low] / df[Quotes.High])
 
         # Get rid of the values where MA is not calculated because they are useless for learning.
         df = df[self._period-1:]
@@ -151,9 +151,9 @@ class MAClassifier(Classifier):
                 DataFrame: calculated MA
         """
         if self._is_simple:
-            ma = ta.sma(df[Rows.AdjClose], length = self._period)
+            ma = ta.sma(df[Quotes.AdjClose], length = self._period)
         else:
-            ma = ta.ema(df[Rows.AdjClose], length = self._period)
+            ma = ta.ema(df[Quotes.AdjClose], length = self._period)
 
         return ma
 

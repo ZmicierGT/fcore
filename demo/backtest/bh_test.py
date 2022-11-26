@@ -10,38 +10,33 @@ from backtest.bh import BuyAndHold
 from backtest.base import BackTestError
 from backtest.stock import StockData
 
-from data.futils import check_date
 from data.futils import standard_chart
 
-from data.fdata import Query, ReadOnlyData
 from data.futils import write_image
 from data.fdata import FdataError
 
+from data.yf import YFError, YFQuery, YF
+
 import sys
 
+threshold = 500  # Quotes num threshold for the test
+
 if __name__ == "__main__":
-    query = Query()
-    query.symbol = "SPY"
-    query.db_connect()
-
-    query.first_date = check_date("2020-10-01")[1]
-
-    data = ReadOnlyData(query)
-
+    # Get quotes
     try:
-        rows = data.get_quotes()
-        query.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
+        rows, num = YF(query).fetch_if_none(threshold)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
-
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
-        sys.exit(2)
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
 
     quotes = StockData(rows=rows,
                           title=query.symbol,

@@ -9,6 +9,7 @@ Free production use of the project is allowed to the following categories or use
 - Journalists and bloggers who use the project to create a media product (article, video, audio) for mass media or media platform and the media product is distributed without limitations and free of charge. In such case it is required to mention in the media product that the media product was created using the project.
 
 If your needs do not comply with the current licence requirements, you may contact the author and inquiry about the custom license.
+You may contact the author by email zmiciergt at icloud dot com.
 
 All contributions to the main repository are subject to Contributors License Agreement (see CLA.md).
 

@@ -5,11 +5,11 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from data.futils import check_date
 from data.futils import write_model
-from data.fdata import Query, ReadOnlyData
 from data.fdata import FdataError
-from data.fvalues import Rows
+from data.fvalues import Quotes
+
+from data.yf import YFError, YFQuery, YF
 
 import sys
 
@@ -23,38 +23,34 @@ from keras.layers import Dropout
 from keras.layers import LSTM
 from keras.models import Sequential
 
+timesteps = 60
+dropout = 0.3  # Add dropouts to decrease overfitting
+
+threshold = 2500  # Quotes number threshold for learning
+
 if __name__ == "__main__":
     name = "LSTM"
 
     # Get data for learning
 
-    query = Query()
-    query.symbol = "SPY"
-    query.db_connect()
-
-    query.first_date = check_date("2018-01-01")[1]
-    query.last_date = check_date("2021-01-01")[1]
-
-    data = ReadOnlyData(query)
-
     try:
-        rows = data.get_quotes()
-        query.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2010-08-30", last_date="2020-08-30")
+        rows, num = YF(query).fetch_if_none(threshold)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
-
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
-        sys.exit(2)
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
 
     # Prepare a DataFrame of close prices
 
-    close = [row[Rows.AdjClose] for row in rows]
+    close = [row[Quotes.AdjClose] for row in rows]
 
     df = pd.DataFrame()
     df['Close'] = close
@@ -65,8 +61,6 @@ if __name__ == "__main__":
     df = scaler.fit_transform(np.array(df).reshape(-1,1))
 
     # Prepare the data structure for learning
-
-    timesteps = 60
 
     x = []
     y = []
@@ -79,9 +73,6 @@ if __name__ == "__main__":
     x = np.array(x)
     y = np.array(y)
     x = x.reshape(x.shape[0], x.shape[1])
-
-    # Train the model and add dropouts to decrease overfitting
-    dropout = 0.3
 
     model = Sequential()
     model.add(LSTM(units=50, return_sequences=True, input_shape=(x.shape[1], 1)))

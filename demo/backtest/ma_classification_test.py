@@ -16,15 +16,15 @@ from backtest.stock import StockData
 
 from indicators.base import IndicatorError
 
-from data.futils import check_date
 from data.futils import standard_margin_chart
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data.fdata import Query, ReadOnlyData
 from data.futils import write_image
 from data.fdata import FdataError
+
+from data.yf import YFError, YFQuery, YF
 
 import sys
 
@@ -38,45 +38,43 @@ true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. 
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 algorithm = Algorithm.LDA  # The default algorithm to use
 
+threshold_learn = 5178  # Quotes num threshold for the learning
+threshold_test = 567  # Quotes num threshold for the test
+
 if __name__ == "__main__":
     # Get a separate data for learning and testing.
 
-    query_learn = Query()
-    query_test = Query()
-
-    query_learn.symbol = symbol
-    query_learn.db_connect()
-
-    query_test.symbol = symbol
-    query_test.db_connect()
-
-    query_learn.first_date = check_date("2000-1-1")[1]
-    query_learn.last_date = check_date("2020-8-1")[1]
-
-    query_test.first_date = check_date("2020-1-1")[1]
-    query_test.last_date = check_date("2022-8-1")[1]
-
-    data_learn = ReadOnlyData(query_learn)
-    data_test = ReadOnlyData(query_test)
-
+    # Get quotes for learning
     try:
-        rows_learn = data_learn.get_quotes()
-        rows = data_test.get_quotes()
-
-        query_learn.db_close()
-        query_test.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
+        rows_learn, num = YF(query).fetch_if_none(threshold_learn)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length_learn = len(rows_learn)
-    length = len(rows)
 
-    print(f"Obtained {length_learn} rows for learning and {length} rows for testing.")
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_learn}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length_learn} quotes in the database and it is beyond the threshold level of {threshold_learn}.")
 
-    if length_learn == 0 or length == 0:
-        print(f"Make sure that the symbol {symbol} is fetched and presents in the {query_learn.db_name} database.")
+    # Get quotes for testing
+    try:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
+        rows, num = YF(query).fetch_if_none(threshold_test)
+    except (YFError, FdataError) as e:
+        print(e)
         sys.exit(2)
+
+    length_test = len(rows)
+
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_test}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length_test} quotes in the database and it is beyond the threshold level of {threshold_test}.")
 
     # Train the models
 

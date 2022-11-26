@@ -13,7 +13,7 @@ from enum import IntEnum
 import pandas as pd
 import pandas_ta as ta
 
-class VORows(IntEnum):
+class VOData(IntEnum):
     """
         Enum to represent Volume Oscillator results.
     """

@@ -9,7 +9,7 @@ from backtest.base import BackTest
 from backtest.base import BackTestError
 from backtest.base import BackTestEvent
 
-from data.fvalues import Rows
+from data.fvalues import Quotes
 
 import pandas as pd
 import pandas_ta as ta
@@ -71,7 +71,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_value() <= self.exec().get_quote()
+        return self.exec().get_tech_val() <= self.exec().get_quote()
 
     def do_tech_calculation(self, ex):
         """
@@ -83,11 +83,9 @@ class MA(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
 
         if self.__is_simple:
-            ex.set_values(ta.sma(df[Rows.AdjClose], length = self._period))
-            ex.set_title('SMA')
+            ex.append_tech(ta.sma(df[Quotes.AdjClose], length = self._period))
         else:
-            ex.set_values(ta.ema(df[Rows.AdjClose], length = self._period))
-            ex.set_title('EMA')
+            ex.append_tech(ta.ema(df[Quotes.AdjClose], length = self._period))
 
         # Skip data when no MA is calculated.
         self.set_offset(self.get_offset() + self._period)

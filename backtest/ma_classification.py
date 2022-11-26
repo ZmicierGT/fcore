@@ -26,7 +26,6 @@ class MAClassification(MA):
                  model_sell=None,
                  classifier=None,
                  **kwargs):
-        super().__init__(**kwargs)
         """
             Initializes the MA Cross stragegy implementation with signal validity estimation.
 
@@ -40,6 +39,8 @@ class MAClassification(MA):
             Raises:
                 BackTestError: provided arguments are incorrect or no data for learning/estimation.
         """
+        super().__init__(**kwargs)
+
         if ((model_buy == None) or (model_sell == None)) and (classifier == None):
             raise BackTestError("Either models or classifier object should be provided.")
 
@@ -74,12 +75,7 @@ class MAClassification(MA):
 
         # Set MA values used by base testing class. Add empty values at the beginning or the column.
         ma = pd.DataFrame([np.nan] * self._period)
-        ex.set_values(ma[0].append(self._ma_cls.get_results()['ma'], ignore_index=True))
-
-        if self.is_simple():
-            ex.set_title('SMA')
-        else:
-            ex.set_title('EMA')
+        ex.append_tech(ma[0].append(self._ma_cls.get_results()['ma'], ignore_index=True))
 
         # Skip data when no MA is calculated.
         self.set_offset(self.get_offset() + self._period)

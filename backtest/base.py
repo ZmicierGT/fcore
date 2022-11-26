@@ -14,9 +14,9 @@ from itertools import repeat
 
 import time
 
-from data.fvalues import Rows
+from data.fvalues import Quotes
 
-from pandas.core.series import Series
+import numpy as np
 
 from threading import Thread, Event
 
@@ -39,21 +39,18 @@ class BTDataEnum(IntEnum):
     OtherExpense = 9
     TotalExpenses = 10
     TotalTrades = 11
-    Symbols = 12
 
 # Enum class for backtesting data regarding a particular symbol
 class BTSymbolEnum(IntEnum):
     """Enum to describe a list with backtesting result for each particular symbol."""
-    Title = 0
-    Quote = 1
-    TradePriceLong = 2
-    TradePriceShort = 3
-    TradePriceMargin = 4
-    LongPositions = 5
-    ShortPositions = 6
-    MarginPositions = 7
-    TradesNo = 8
-    Tech = 9
+    Quote = 0
+    TradePriceLong = 1
+    TradePriceShort = 2
+    TradePriceMargin = 3
+    LongPositions = 4
+    ShortPositions = 5
+    MarginPositions = 6
+    TradesNo = 7
 
 class BackTestEvent(Event):
     """
@@ -250,7 +247,7 @@ class BackTestData():
             Raises:
                 BackTestError: incorrect date in the provided data.
         """
-        dt_str = self._rows[0][Rows.DateTime]
+        dt_str = self._rows[0][Quotes.DateTime]
 
         try:
             dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
@@ -293,7 +290,6 @@ class BackTestOperations():
         ############################################################
 
         self.__data = data
-        self.__title = None
 
         # Opened positions
         self._long_positions = 0
@@ -314,8 +310,9 @@ class BackTestOperations():
         # Index for signal change calculations
         self._signal_index = None
 
-        # TA indicator(s) calculated values
-        self._values = None
+        # Results of symbol's calculation
+        self._sym_results = BTSymbol()
+        self._sym_results.Title = self.data().get_title()
 
         ####################################################################
         # Cycle specific data for calculations. Need to be reset each cycle.
@@ -339,75 +336,69 @@ class BackTestOperations():
     # General methodss with calculations for a particular symbol
     ############################################################
 
-    def set_title(self, title):
+    def append_tech(self, data):
         """
-            Set the title of the calculation.
+            Set the data of indicator's calculation.
 
             Args:
-                title(str): the title for the calculation. Usually it represents the indicators used for the strategy, not a symbol title.
-        """
-        self.__title = title
+                datas: data of the calculation.
 
-    def set_values(self, values):
+            returns:
+                int: the index of the indicator's data.
         """
-            Set the values of the calculation.
+        num = self.get_tech_num()
+
+        self.get_alltech().append(data)
+
+        return num
+
+    def get_tech_num(self):
+        """
+            Get the number of used technical indicators.
+
+            Returns:
+                int: the number of used indicators.
+        """
+        return len(self.get_alltech())
+
+    def get_alltech(self):
+        """
+            Get all the technical data used in the calculation.
+
+            Returns:
+                The array with the technical data of all indicators used in the calculation for the symbol used in the strategy.
+        """
+        return self._sym_results.Tech
+
+    def get_tech(self, num=0):
+        """
+            Get the particular indicator's data or a value at the particular index of the calculated indicator(s)
 
             Args:
-                values: values of the calculation. Usually it is a pandas DataFrame, usual list, may be a numpy array and so on.
-                May be a multi-dimensional list.
-        """
-        self._values = values
-
-    def get_values(self):
-        """
-            Get the values of the calculation.
+                num(int): the index of an indicator to get.
 
             Returns:
-                The values of the calculation of the indicators for the symbol used in the strategy. Usually it is a pandas DataFrame,
-                usual list, may be a numpy array and so on. It may be a multi dimensional list as well.
+                Technical indicator's data.
         """
-        return self._values
+        return self.get_alltech()[num]
 
-    def get_title(self):
+    def get_tech_val(self, index=None, num=0, offset=0):
         """
-            Get the title of the calculation.
-
-            Returns:
-                str: The title of the calculation. Usually it represents the indicators used in the calculation, not a symbol title.
-        """
-        return self.__title
-
-    def get_value(self, num=None):
-        """
-            Get the current value or a value at the particular index of the calculated indicator(s)
+            Get the value of a technical indicator at the current(specified) index.
 
             Args:
-                int: optional index of the value to get. Default is None.
+                index(int): optional index of the value to get. Default is None.
+                num(int): index of the indicator.
+                offset(int): offset from the index.
 
             Returns:
-                The values (it may be a list as well) which represents a calculated indicator value at the current position or at
-                the particular index.
+                The value at the specified index.
         """
-        if num == None:
-            num = self.get_caller_index()
+        if index == None:
+            index = self.get_caller_index()
 
-        # Workaround to handle both pandas and list instances of values
-        if isinstance(self._values, Series) or isinstance(self._values, list):
-            return self._values[num]
-
-    def get_value_offset_from_end(self, offset):
-        """
-            Get the value with the offset from the current index of the calculated indicator(s)
-
-            Args:
-                int: offset of the index to get.
-
-            Returns:
-                The values (it may be a list as well) which represents a calculated indicator value at the offset from thecurrent position.
-                For example, if the offset is 1, it will return the last but one calculated value.
-        """
         try:
-            value = self.get_value(self.get_caller_index() - offset)
+            value = self.get_tech(num)[index - offset]
         except IndexError:
             value = None
 
@@ -498,7 +489,7 @@ class BackTestOperations():
         if index == None:
             index = self.get_caller_index()
 
-        return self.data().get_rows()[index][Rows.DateTime]
+        return self.data().get_rows()[index][Quotes.DateTime]
 
     def get_datetime(self, index=None):
         """
@@ -539,7 +530,7 @@ class BackTestOperations():
             Returns:
                 float: the quote at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_caller_index()][Rows.AdjClose]
+        return self.data().get_rows()[self.get_caller_index()][Quotes.AdjClose]
 
     def apply_margin_fee(self):
         """
@@ -662,27 +653,34 @@ class BackTestOperations():
 
         return total_value
 
-    def get_symbol_result(self, value=None):
+    def add_symbol_result(self, result=None):
         """
             Generate symbol-specific results for the current cycle.
+
+            Args:
+                result(list): the result to add. Auto generated otherwise.
         """
-        symbol_result = [
-            self.data().get_title(),
-            self.get_quote(),
-            self._trade_price_long,
-            self._trade_price_short,
-            self._trade_price_margin,
-            self._long_positions,
-            self._short_positions,
-            self.get_margin_positions(),
-            self._trades_no]
+        if result == None:
+            result = [
+                self.get_quote(),
+                self._trade_price_long,
+                self._trade_price_short,
+                self._trade_price_margin,
+                self._long_positions,
+                self._short_positions,
+                self.get_margin_positions(),
+                self._trades_no]
 
-        if value != None:
-            symbol_result.append(value)
-        else:
-            symbol_result.append(self.get_value())
+        self._sym_results.append(result)
 
-        return symbol_result
+    def get_sym_results(self):
+        """
+            Get results of the current symbol's calculation.
+
+            Returns:
+                np.ndarray: symbol calculation results.
+        """
+        return self._sym_results
 
     def trend_changed(self, is_uptrend):
         """
@@ -1059,114 +1057,189 @@ class BackTestOperations():
 # Classes for data structures of backtesting results.
 #####################################################
 
-class BTData(list):
+class BTBaseData():
+    """
+        Base class to represent backtesting results.
+    """
+    def __init__(self):
+        """Initialize the instance of the data class."""
+        # Numpy array for stored data
+        self.Data = None
+
+    def append(self, row):
+        """
+            Append row to the results.
+
+            Args:
+                row(list): the data to add.
+        """
+        if self.Data is None:
+            self.Data = np.array(row, dtype='object')
+        else:
+            self.Data = np.vstack([self.Data, row])
+
+    def __getitem__(self, point):
+        """
+            Get the item.
+
+            Args:
+                point(list): indexes of the item to get.
+        """
+        x, y = point
+        return self.Data[x][y]
+
+    def __setitem__(self, point, value):
+        """
+            Get the item.
+
+            Args:
+                point(list): indexes of the item to get.
+                value: value to set.
+        """
+        x, y = point
+        self.Data[x][y] = value
+
+    def __str__(self):
+        """
+            Return the string representation of the underlying data.
+
+            Returns:
+                str: the string representation of the underlying data.
+        """
+        return self.Data.__str__()
+
+class BTData(BTBaseData):
     """
         The class which represents the whole portfolio.
     """
+    def __init__(self):
+        """Initialize the instance of the data class."""
+        super().__init__()
+        self.Symbols = []
+
     @property
     def DateTime(self):
-        return [row[BTDataEnum.DateTime] for row in self]
+        return self.Data[:, BTDataEnum.DateTime].astype('str')
 
     @property
     def TotalValue(self):
-        return [row[BTDataEnum.TotalValue] for row in self]
+        return self.Data[:, BTDataEnum.TotalValue].astype('float')
 
     @property
     def Deposits(self):
-        return [row[BTDataEnum.Deposits] for row in self]
+        return self.Data[:, BTDataEnum.Deposits].astype('float')
 
     @property
     def Cash(self):
-        return [row[BTDataEnum.Cash] for row in self]
+        return self.Data[:, BTDataEnum.Cash].astype('float')
 
     @property
     def Borrowed(self):
-        return [row[BTDataEnum.Borrowed] for row in self]
+        return self.Data[:, BTDataEnum.Borrowed].astype('float')
 
     @property
     def OtherProfit(self):
-        return [row[BTDataEnum.OtherProfit] for row in self]
+        return self.Data[:, BTDataEnum.OtherProfit].astype('float')
 
     @property
     def CommissionExpense(self):
-        return [row[BTDataEnum.CommissionExpense] for row in self]
+        return self.Data[:, BTDataEnum.CommissionExpense].astype('float')
 
     @property
     def SpreadExpense(self):
-        return [row[BTDataEnum.SpreadExpense] for row in self]
+        return self.Data[:, BTDataEnum.SpreadExpense].astype('float')
 
     @property
     def DebtExpense(self):
-        return [row[BTDataEnum.DebtExpense] for row in self]
+        return self.Data[:, BTDataEnum.DebtExpense].astype('float')
 
     @property
     def OtherExpense(self):
-        return [row[BTDataEnum.OtherExpense] for row in self]
+        return self.Data[:, BTDataEnum.OtherExpense].astype('float')
 
     @property
     def TotalExpenses(self):
-        return [row[BTDataEnum.TotalExpenses] for row in self]
+        return self.Data[:, BTDataEnum.TotalExpenses].astype('float')
 
     @property
     def TotalTrades(self):
-        return [row[BTDataEnum.TotalTrades] for row in self]
+        return self.Data[:, BTDataEnum.TotalTrades].astype('float')
 
-    # TODO Investigate the performance issue why is it called to many times in reporting.
-    # Try to optimize the code below as well
-    @property
-    def Symbols(self):
-        symbols = BTSymbol()
+    @TotalTrades.setter
+    def TotalTrades(self, data):
+        """
+            Workaround to prevent the automatic copying of column. Python may make a copy of the column and then
+            changing the value will only change the value in the copy but not in the actual array.
 
-        for i in range(len([row[BTDataEnum.Symbols] for row in self][0])):
-            symbol = BTSymbol([row[BTDataEnum.Symbols][i] for row in self])
-            symbols.append(symbol)
+            Args:
+                data(int, float): index and the value to set the actual column.
+        """
+        try:
+            idx, value = data
+        except ValueError as e:
+            raise ValueError("Iterable with two items is required to set the value.") from e
+        else:
+            self.Data[idx][BTDataEnum.TotalTrades] = value
 
-        return symbols
-
-class BTSymbol(list):
+class BTSymbol(BTBaseData):
     """
         The class which represents the particular symbol used in the strategy. More than one symbols may be used.
     """
-    @property
-    def Title(self):
-        return [row[BTSymbolEnum.Title] for row in self]
+    def __init__(self, title=""):
+        """Initialize the instance of symbol data class."""
+        super().__init__()
+        # Technical data
+        self.Tech = []
+        # Title of the symbol
+        self.Title = title
 
     @property
     def Quote(self):
-        return [row[BTSymbolEnum.Quote] for row in self]
+        return self.Data[:, BTSymbolEnum.Quote].astype('float')
 
     @property
     def TradePriceLong(self):
-        return [row[BTSymbolEnum.TradePriceLong] for row in self]
+        return self.Data[:, BTSymbolEnum.TradePriceLong].astype('float')
 
     @property
     def TradePriceShort(self):
-        return [row[BTSymbolEnum.TradePriceShort] for row in self]
+        return self.Data[:, BTSymbolEnum.TradePriceShort].astype('float')
 
     @property
     def TradePriceMargin(self):
-        return [row[BTSymbolEnum.TradePriceMargin] for row in self]
+        return self.Data[:, BTSymbolEnum.TradePriceMargin].astype('float')
 
     @property
     def LongPositions(self):
-        return [row[BTSymbolEnum.LongPositions] for row in self]
+        return self.Data[:, BTSymbolEnum.LongPositions].astype('int')
 
     @property
     def ShortPositions(self):
-        return [row[BTSymbolEnum.ShortPositions] for row in self]
+        return self.Data[:, BTSymbolEnum.ShortPositions].astype('int')
 
     @property
     def MarginPositions(self):
-        return [row[BTSymbolEnum.MarginPositions] for row in self]
+        return self.Data[:, BTSymbolEnum.MarginPositions].astype('int')
 
     @property
     def TradesNo(self):
-        return [row[BTSymbolEnum.TradesNo] for row in self]
+        return self.Data[:, BTSymbolEnum.TradesNo].astype('float')
 
-    # TODO Tech should be always an array
-    @property
-    def Tech(self):
-        return [row[BTSymbolEnum.Tech] for row in self]
+    @TradesNo.setter
+    def TradesNo(self, data):
+        """
+            Workaround to prevent the automatic copying of column. Python may make a copy of the column and then
+            changing the value will only change the value in the copy but not in the actual array.
+
+            Args:
+                data(int, float): index and the value to set the actual column.
+        """
+        try:
+            idx, value = data
+        except ValueError as e:
+            raise ValueError("Iterable with two items is required to set the value.") from e
+        else:
+            self.Data[idx][BTSymbolEnum.TradesNo] = value
 
 ########################
 # Base backtesting class
@@ -1399,6 +1472,9 @@ class BackTest(metaclass=abc.ABCMeta):
         if result == False:
             raise BackTestError(f"Timeout ({self.__timeout} sec) has happened. Calculation is not finished.")
 
+        for ex in self.__exec:
+            self._results.Symbols.append(ex.get_sym_results())
+
         return self._results
 
     def get_prev_dt(self):
@@ -1550,21 +1626,17 @@ class BackTest(metaclass=abc.ABCMeta):
             return True
 
         if self.skipped():
-            self._results.append([None] * len(BTDataEnum))
+            self._results.append(np.full(len(BTDataEnum), None))
             self._results[self.get_index()][BTDataEnum.DateTime] = self.exec().get_datetime_str()
-
-            symbol_rows = []
+            self._results[self.get_index()][BTDataEnum.TotalTrades] = 0
 
             for ex in self.all_exec():
                 symbol_row = []
 
-                symbol_row.extend(repeat(None, len(BTSymbolEnum)))
-                symbol_row[BTSymbolEnum.Title] = ex.data().get_title()
+                symbol_row.extend(np.full(len(BTSymbolEnum), None))
                 symbol_row[BTSymbolEnum.Quote] = ex.get_quote()
 
-                symbol_rows.append(symbol_row)
-
-            self._results[self.get_index()][BTDataEnum.Symbols] = symbol_rows
+                ex.add_symbol_result(symbol_row)
 
             return True
 
@@ -1682,15 +1754,6 @@ class BackTest(metaclass=abc.ABCMeta):
                 float: spread expense to add to the statistics.
         """
         self._spread_expense += expense
-
-    def add_result(self, result):
-        """
-            Add cycle's result to the calculation.
-
-            Args:
-                list: list of the calculation of the current cycle.
-        """
-        self._results.append(result)
 
     def get_margin_req(self):
         """
@@ -1878,10 +1941,8 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 list: the result of the current cycle.
         """
-        symbol_results = []
-
         for ex in self.__exec:
-            symbol_results.append(ex.get_symbol_result())
+            ex.add_symbol_result()
 
         result = [
             self.exec().get_datetime_str(),
@@ -1895,17 +1956,10 @@ class BackTest(metaclass=abc.ABCMeta):
             self.get_debt_expense(),
             self.get_other_expense(),
             self.get_total_expenses(),
-            self.get_total_trades(),
-            symbol_results
+            self.get_total_trades()
         ]
 
         return result
-
-    def generate_cycle_result(self):
-        """
-            Append the result of the current cycle to the results list.
-        """
-        self.add_result(self.get_result())
 
     def setup(self):
         """
@@ -1939,10 +1993,10 @@ class BackTest(metaclass=abc.ABCMeta):
 
             for i in range(all_execs):
                 for j in range(len(self.exec(i).data().get_rows())):
-                    dt = self.exec(i).data().get_rows()[j][Rows.DateTime]
+                    dt = self.exec(i).data().get_rows()[j][Quotes.DateTime]
 
                     for ex in self.all_exec():
-                        dts2 = [row2[Rows.DateTime] for row2 in ex.data().get_rows()]
+                        dts2 = [row2[Quotes.DateTime] for row2 in ex.data().get_rows()]
                         
                         if dt not in dts2:
                             dts_to_remove.append(dt)
@@ -1950,7 +2004,7 @@ class BackTest(metaclass=abc.ABCMeta):
             for dt in dts_to_remove:
                 for ex in self.all_exec():
                     for i in range(len(ex.data().get_rows())):
-                        if ex.data().get_rows()[i][Rows.DateTime] == dt:
+                        if ex.data().get_rows()[i][Quotes.DateTime] == dt:
                             del ex.data().get_rows()[i]
                             break
 
@@ -1958,12 +2012,12 @@ class BackTest(metaclass=abc.ABCMeta):
 
             # Check data integrity
             for i in range(length):
-                dt = self.exec().data().get_rows()[i][Rows.DateTime]
+                dt = self.exec().data().get_rows()[i][Quotes.DateTime]
 
                 for j in range(1, all_execs):
                     ex = self.exec(j)
                     ex_row = ex.data().get_rows()[i]
-                    ex_dt = ex_row[Rows.DateTime]
+                    ex_dt = ex_row[Quotes.DateTime]
                     if ex_dt != dt:
                         raise BackTestError(f"Date misintegrity found at index {i}. {dt} of {self.exec().data().get_title()} != {ex_dt} of {ex.data().get_title()}")
 
@@ -2098,7 +2152,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 BackTestError: the cycle is not active.
         """
         if self.__is_active == True:
-            self.generate_cycle_result()
+            self._results.append(self.get_result())
             self.__is_active = False
         else:
             raise BackTestError("The current cycle is not active.")

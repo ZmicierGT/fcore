@@ -9,12 +9,13 @@ import requests
 import json
 
 from data import polygon
+from data.futils import check_datetime
 
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
         query = polygon.PolygonQuery()
-        query.first_date = "2020-06-16"
-        query.last_date = "2022-06-16"
+        query.first_date = check_datetime("2020-06-16")[1]
+        query.last_date = check_datetime("2022-06-16")[1]
         polygon_obj = polygon.Polygon(query)
 
         # Mocking

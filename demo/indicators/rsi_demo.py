@@ -10,11 +10,11 @@ from plotly.subplots import make_subplots
 
 from data.futils import update_layout
 from data.futils import write_image
-from data.futils import check_date
 
-from data.fdata import Query, ReadOnlyData
 from data.fdata import FdataError
-from data.fvalues import Rows
+from data.fvalues import Quotes
+
+from data.yf import YFError, YFQuery, YF
 
 import sys
 from itertools import repeat
@@ -22,38 +22,35 @@ from itertools import repeat
 import pandas as pd
 import pandas_ta as ta
 
+period = 14
+upper_band = 70
+lower_band = 30
+
+threshold = 525  # Quotes number threshold for calculation
+
 if __name__ == "__main__":
-    query = Query()
-    query.symbol = "SPY"
-    query.first_date = check_date("2020-10-01")[1]
-    query.db_connect()
-
-    data = ReadOnlyData(query)
-
+    # Get quotes
     try:
-        rows = data.get_quotes()
-        query.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
+        rows, num = YF(query).fetch_if_none(threshold)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
 
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
-        sys.exit(2)
-
-    period = 14
-    upper_band = 70
-    lower_band = 30
-
+    # RSI calculation
     df = pd.DataFrame(rows)
-    rsi = ta.rsi(df[Rows.AdjClose], length = 14)
+    rsi = ta.rsi(df[Quotes.AdjClose], length = 14)
 
-    dates = [row[Rows.DateTime] for row in rows]
-    price = [row[Rows.AdjClose] for row in rows]
+    dates = [row[Quotes.DateTime] for row in rows]
+    price = [row[Quotes.AdjClose] for row in rows]
 
     length = len(rows)
 

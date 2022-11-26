@@ -57,16 +57,15 @@ class AVQuery(fdata.Query):
     """
         AlphaVantage query class.
     """
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
             Initialize AlphaVantage query class.
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         # Default values
         self.source_title = "AlphaVantage"
-        self.timespan = Timespans.Day
-        self.api_key = "get_your_free_api_key_at_alphavantage.co"
+        self.api_key = "get_your_api_key_at_alphavantage.co" ## Please note that free keys do not support live quotes now.
         self.type = AVType.Daily
 
     def get_timespan(self):
@@ -95,12 +94,15 @@ class AVError(Exception):
     """
         AlphaVantage exception class.
     """
-    pass
 
 class AV(fdata.BaseFetchData):
     """
         AlphaVantage API wrapper class.
     """
+    def __init__(self, query):
+        """Initialize the instance of AV class."""
+        super().__init__(query)
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -115,7 +117,7 @@ class AV(fdata.BaseFetchData):
             url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}$interval={self.query.get_timespan()}&apikey={self.query.api_key}"
         else:
             url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}&market=USD&interval={self.query.get_timespan()}&apikey={self.query.api_key}"
-        
+
         try:
             response = requests.get(url)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
@@ -147,7 +149,6 @@ class AV(fdata.BaseFetchData):
                 dt = dt.replace(tzinfo=pytz.utc)
                 dt = dt.replace(hour=23, minute=59, second=59)
                 ts = int(datetime.timestamp(dt))
-                print("Adjust")
 
             quote = dict_results[dt_str]
 

@@ -165,6 +165,18 @@ class Test(unittest.TestCase):
         verify(self.read_data.query.cur, times=1).execute(sql_query)
         verify(self.read_data.query.cur, times=1).fetchone()
 
+    def test_17_get_symbol_quotes_num_dt(self):
+        sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
+                        (SELECT symbol_id FROM symbols where ticker = '{self.read_data.query.symbol}') AND
+                        "TimeStamp" >= {self.read_data.query.first_date} AND "TimeStamp" <= {self.read_data.query.last_date};"""
+
+        when(self.read_data.query.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_symbol_quotes_num_dt() == 'r'
+
+        verify(self.read_data.query.cur, times=1).execute(sql_query)
+        verify(self.read_data.query.cur, times=1).fetchone()
+
     def test_14_get_max_datetime(self):
         sql_query = f"""SELECT MAX(datetime("TimeStamp", 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
@@ -361,21 +373,6 @@ class Test(unittest.TestCase):
         verify(self.write_data.query.cur, times=1).execute(sql_query)
         verify(self.write_data.query.conn, times=1).commit()
 
-    def test_12_check_check_and_fetch(self):
-        when(self.fetch_data).check_database().thenReturn()
-        when(self.fetch_data).check_source().thenReturn(False)
-        when(self.fetch_data).add_source().thenReturn()
-        when(self.fetch_data).fetch_quotes().thenReturn(self.results)
-        when(self.fetch_data).insert_quotes(self.results).thenReturn()
-
-        self.fetch_data.check_and_fetch()
-
-        verify(self.fetch_data, times=1).check_database()
-        verify(self.fetch_data, times=1).check_source()
-        verify(self.fetch_data, times=1).add_source()
-        verify(self.fetch_data, times=1).fetch_quotes()
-        verify(self.fetch_data, times=1).insert_quotes(self.results)
-
     def test_13_check_insert_quotes(self):
         when(self.fetch_data).add_symbol().thenReturn()
         when(self.fetch_data).get_quotes_num().thenReturn(1)
@@ -391,3 +388,21 @@ class Test(unittest.TestCase):
         verify(self.fetch_data, times=2).get_quotes_num()
         verify(self.fetch_data, times=1).add_quotes(self.results)
         verify(self.fetch_data, times=1).commit()
+
+    def test_18_check_fetch_if_none(self):
+        when(self.fetch_data.query).db_connect().thenReturn()
+        when(self.fetch_data).get_symbol_quotes_num_dt().thenReturn(100)
+        when(self.fetch_data).fetch_quotes().thenReturn((0, 200))
+        when(self.fetch_data).get_quotes().thenReturn(self.results)
+        when(self.fetch_data.query).db_close().thenReturn()
+
+        rows, num = self.fetch_data.fetch_if_none(110)
+
+        assert num == 200
+        assert rows == self.results
+
+        verify(self.fetch_data.query, times=1).db_connect()
+        verify(self.fetch_data, times=1).get_symbol_quotes_num_dt()
+        verify(self.fetch_data, times=1).fetch_quotes()
+        verify(self.fetch_data, times=1).get_quotes()
+        verify(self.fetch_data.query, times=1).db_close()

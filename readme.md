@@ -37,3 +37,4 @@ Use *python -m unittest discover -s test -p '*_test.py'* to run unit tests (data
 
 Fcore is distributes on an 'AS IS' basis. The author is not responsible for any losses caused by using the project.
 
+In case of any questions, please feel free to contact me by email - zmiciergt at icloud dot com

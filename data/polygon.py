@@ -6,7 +6,6 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 from datetime import datetime
-from datetime import date
 import pytz
 
 from dateutil.relativedelta import relativedelta
@@ -19,26 +18,35 @@ import json
 
 from data import fdata
 
-from data.fvalues import Timespans
+from data.fvalues import Timespans, def_first_date, def_last_date
 
 # Provides parameters for the query to Polygon.IO
 class PolygonQuery(fdata.Query):
     """
         Polygon.IO query class.
     """
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
             Initialize Polygon.IO query class.
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         # Default values
         self.source_title = "Polygon.io"
-        self.timespan = Timespans.Day
         self.year_delta = "2"
         self.api_key = "get_your_free_api_key_at_polygon.io"
-        self.first_date = date.today() - relativedelta(years=int(self.year_delta))
-        self.last_date = date.today()
+
+        if self.first_date == def_first_date:
+            self.first_date = datetime.now() - relativedelta(years=int(self.year_delta))
+            self.first_date = self.first_date.replace(tzinfo=pytz.utc)
+            self.first_date = self.first_date.replace(hour=0, minute=0, second=0)
+            self.first_date = int(datetime.timestamp(self.first_date))
+
+        if self.last_date == def_last_date:
+            self.last_date = datetime.now()
+            self.last_date = self.last_date.replace(tzinfo=pytz.utc)
+            self.last_date = self.last_date.replace(hour=23, minute=59, second=59)
+            self.last_date = int(datetime.timestamp(self.last_date))
 
     def get_timespan(self):
         """
@@ -46,18 +54,24 @@ class PolygonQuery(fdata.Query):
 
             No need to convert the default timespan to Polygon.IO timespan because they are the same.
         """
-        return self.timespan
+        if self.timespan == Timespans.Intraday:
+            return 'minute'
+        else:
+            return self.timespan.lower()
 
 class PolygonError(Exception):
     """
         Polygon.IO exception class.
     """
-    pass
 
 class Polygon(fdata.BaseFetchData):
     """
         Poligon.IO API wrapper class.
     """
+    def __init__(self, query):
+        """Initialize the instance of Polygon class."""
+        super().__init__(query)
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -68,12 +82,15 @@ class Polygon(fdata.BaseFetchData):
             Raises:
                 PolygonError: Network error happened, no data obtained or can't parse json.
         """
-        request_timespan = self.query.timespan
+        first_date = datetime.utcfromtimestamp(self.query.first_date)
+        first_date.replace(tzinfo=pytz.utc)
+        first_date = first_date.date()
 
-        if request_timespan == Timespans.Intraday:
-            request_timespan = "minute"
+        last_date = datetime.utcfromtimestamp(self.query.last_date)
+        last_date.replace(tzinfo=pytz.utc)
+        last_date = last_date.date()
 
-        url = f"https://api.polygon.io/v2/aggs/ticker/{self.query.symbol}/range/1/{request_timespan.lower()}/{self.query.first_date}/{self.query.last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.query.api_key}"
+        url = f"https://api.polygon.io/v2/aggs/ticker/{self.query.symbol}/range/1/{self.query.get_timespan()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.query.api_key}"
 
         try:
             response = requests.get(url)
@@ -84,7 +101,7 @@ class Polygon(fdata.BaseFetchData):
             json_data = json.loads(response.text)
             json_results = json_data['results']
         except (json.JSONDecodeError, KeyError) as e:
-            raise PolygonError(f"Can't parse json or no symbol found: {e}") from e
+            raise PolygonError(f"Can't parse json or no symbol found. Maybe API key is missing? {e}") from e
 
         if len(json_results) == 0:
             raise PolygonError("No data obtained.")

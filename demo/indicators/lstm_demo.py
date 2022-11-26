@@ -5,55 +5,50 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from data.futils import check_date
 from data.futils import update_layout
 
 from indicators.lstm import LSTM
-from indicators.lstm import LSTMRows
+from indicators.lstm import LSTMData
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data.fdata import Query, ReadOnlyData
 from data.futils import write_image
 from data.fdata import FdataError
-from data.fvalues import Rows
+from data.fvalues import Quotes
 from indicators.base import IndicatorError
+
+from data.yf import YFError, YFQuery, YF
 
 import sys
 
+period = 60
+threshold = 546  # Quotes number threshold for calculation
+
 if __name__ == "__main__":
-    query = Query()
-    query.symbol = "SPY"
-    query.db_connect()
-
-    query.first_date = check_date("2020-09-01")[1]
-
-    data = ReadOnlyData(query)
-
+    # Get quotes
     try:
-        rows = data.get_quotes()
-        query.db_close()
-    except FdataError as e:
+        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        query = YFQuery(symbol="SPY", first_date="2020-09-01", last_date="2022-11-1")
+        rows, num = YF(query).fetch_if_none(threshold)
+    except (YFError, FdataError) as e:
         print(e)
         sys.exit(2)
 
     length = len(rows)
 
-    print(f"Obtained {length} rows.")
+    if num > 0:
+        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+    else:
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
 
-    if length == 0:
-        print(f"Make sure that the symbol {query.symbol} is fetched and presents in the {query.db_name} database.")
-        sys.exit(2)
-
-    period = 60
-
-    lstm = LSTM(rows, period, Rows.AdjClose, 'models/LSTM_1')
+    # Calculate LSTM
+    lstm = LSTM(rows, period, Quotes.AdjClose, 'models/LSTM_1')
 
     try:
         lstm.calculate()
     except IndicatorError as e:
-        print(f"Can't calculate LSTM: {e}")
+        print(f"Can't calculate LSTM. Likely you need to train the model at first by launching lstm_learn.py. {e}")
         sys.exit(2)
 
     results = lstm.get_results()
@@ -61,12 +56,12 @@ if __name__ == "__main__":
 
     # Prepare the chart
 
-    dates = [row[Rows.DateTime] for row in rows]
-    quotes = [row[Rows.AdjClose] for row in rows]
+    dates = [row[Quotes.DateTime] for row in rows]
+    quotes = [row[Quotes.AdjClose] for row in rows]
 
-    difference = [row[LSTMRows.Difference] for row in results]
-    lstm_values = [row[LSTMRows.Value] for row in results]
-    volume = [row[Rows.Volume] for row in rows]
+    difference = [row[LSTMData.Difference] for row in results]
+    lstm_values = [row[LSTMData.Value] for row in results]
+    volume = [row[Quotes.Volume] for row in rows]
 
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
                         specs=[[{"secondary_y": False}],

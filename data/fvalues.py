@@ -7,8 +7,11 @@ Distributed under Fcore License 1.0 (see license.md)
 
 from enum import IntEnum, Enum
 
+def_first_date = -2147483648
+def_last_date = 9999999999999
+
 # Enum class for standard data query rows order
-class Rows(IntEnum):
+class Quotes(IntEnum):
     """
         Enum class for the database query result.
     """

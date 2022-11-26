@@ -182,7 +182,7 @@ class BaseScr(metaclass=abc.ABCMeta):
             symbol.get_source().query.first_date = check_datetime(max_dt)[1]
 
             try:
-                symbol.get_source().check_and_fetch()
+                symbol.get_source().insert_quotes(symbol.get_source().fetch_quotes())
             except FdataError as e:
                 raise ScrError(f"Can't get quotes: {e}") from e
 
@@ -313,6 +313,6 @@ class ScrData():
         self.get_source().query.first_date = yesterday
 
         try:
-            self.get_source().check_and_fetch()
+            self.get_source().insert_quotes(self.get_source().fetch_quotes())
         except FdataError as e:
             raise ScrError(f"Can't get quotes: {e}") from e

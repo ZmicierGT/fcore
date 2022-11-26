@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
-class LSTMRows(IntEnum):
+class LSTMData(IntEnum):
     """
         Enum to represent LSTM results.
     """

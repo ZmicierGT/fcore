@@ -8,12 +8,12 @@ Distributed under Fcore License 1.0 (see license.md)
 from backtest.base import BackTest
 from backtest.base import BackTestError
 
-from data.fvalues import Rows
+from data.fvalues import Quotes
 
 import pandas as pd
 import pandas_ta as ta
 
-class RSITest(BackTest):
+class RSI(BackTest):
     """
         RSI backtesting strategy implementation.
 
@@ -43,7 +43,7 @@ class RSITest(BackTest):
         # Period for RSI calculation
         if period < 0:
             raise BackTestError(f"period can't be less than 0. Specified value is {period}")
-        self.__period = period
+        self._period = period
 
         # Support and resistance values for the strategy
         if support < 0 or support > 99:
@@ -72,7 +72,7 @@ class RSITest(BackTest):
             Args:
                 index(int): index of the current cycle.
         """
-        return index < self.__period
+        return index < self._period
 
     def do_tech_calculation(self, ex):
         """
@@ -83,10 +83,10 @@ class RSITest(BackTest):
         """
         df = pd.DataFrame(ex.data().get_rows())
 
-        ex.set_values(ta.rsi(df[Rows.AdjClose], length = self.__period))
+        ex.append_tech(ta.rsi(df[Quotes.AdjClose], length = self._period))
 
         # Skip data when no RSI is calculated.
-        self.set_offset(self.get_offset() + self.__period)
+        self.set_offset(self.get_offset() + self._period)
 
     def do_calculation(self):
         """
@@ -98,8 +98,8 @@ class RSITest(BackTest):
         rows = self.get_main_data().get_rows()
         length = len(rows)
 
-        if length < self.__period:
-            raise BackTestError(f"Not enough data to calculate a period: {length} < {self.__period}")
+        if length < self._period:
+            raise BackTestError(f"Not enough data to calculate a period: {length} < {self._period}")
 
         ######################################
         # Perform the global calculation setup
@@ -130,16 +130,16 @@ class RSITest(BackTest):
             open_short = False
 
             for ex in self.all_exec():
-                if max_ex == None or ex.get_value() > max_ex.get_value():
+                if max_ex == None or ex.get_tech_val() > max_ex.get_tech_val():
                     max_ex = ex
 
-                if min_ex == None or ex.get_value() < min_ex.get_value():
+                if min_ex == None or ex.get_tech_val() < min_ex.get_tech_val():
                     min_ex = ex
 
             if (
-                max_ex.get_value_offset_from_end(1) != None and
-                max_ex.get_value_offset_from_end(1) > self.__resistance and
-                max_ex.get_value() < self.__resistance
+                max_ex.get_tech_val(offset=1) != None and
+                max_ex.get_tech_val(offset=1) > self.__resistance and
+                max_ex.get_tech_val() < self.__resistance
                ):
 
                 max_ex.close_all_long()
@@ -148,9 +148,9 @@ class RSITest(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_value_offset_from_end(1) != None and
-                min_ex.get_value_offset_from_end(1) < self.__support and 
-                min_ex.get_value() > self.__support
+                min_ex.get_tech_val(offset=1) != None and
+                min_ex.get_tech_val(offset=1) < self.__support and
+                min_ex.get_tech_val() > self.__support
                ):
 
                 min_ex.close_all_short()

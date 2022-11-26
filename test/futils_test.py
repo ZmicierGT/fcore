@@ -29,6 +29,8 @@ from data.fdata import FdataError
 
 from datetime import datetime
 
+import numpy as np
+
 layout = {
             'height': 2000,
             'template': '...',
@@ -42,22 +44,18 @@ layout = {
 
 def create_results():
     results = BTData()
-    results.DateTime = [1, 2, 3]
-    results.TotalValue = [100, 110, 120]
-    results.Deposits = [100, 100, 100]
-    results.OtherProfit = [0, 0, 10]
-    results.TotalExpenses = [5, 10, 15]
-    results.CommissionExpense = [1, 2, 3]
-    results.SpreadExpense = [2, 4, 6]
-    results.DebtExpense = [1, 2, 3]
-    results.OtherExpense = [1, 2, 3]
-    results.TotalTrades = [1, 2, 3]
-    
+
+    results.Data = np.array([['1', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+                             ['2', 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                             ['3', 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+                            ])
+
     symbol = BTSymbol()
-    symbol.Quote = [100, 200, 300]
-    symbol.TradePriceLong = [100, None, 120]
-    symbol.TradePriceShort = [None, 110, None]
-    symbol.TradePriceMargin = [None, None, 120]
+
+    symbol.Data = np.array([[100, 2, 3, 4, 5, 6, 7, 8],
+                            [200, 3, 4, 5, 6, 7, 8, 9],
+                            [300, 4, 5, 6, 7, 8, 9, 10]
+                           ])
 
     results.Symbols = [symbol]
 
@@ -132,9 +130,9 @@ class Test(unittest.TestCase):
 
         dt1 = futils.get_datetime(dt_str1)
 
-        self.assertRaises(FdataError, futils.get_datetime, dt_str2)
-        self.assertRaises(FdataError, futils.get_datetime, dt_str3)
-        self.assertRaises(FdataError, futils.get_datetime, dt_str4)
+        self.assertRaises(ValueError, futils.get_datetime, dt_str2)
+        self.assertRaises(ValueError, futils.get_datetime, dt_str3)
+        self.assertRaises(ValueError, futils.get_datetime, dt_str4)
 
         self.assertEqual(dt1, datetime(2022, 10, 10, 23, 59, 59))
 
@@ -295,23 +293,40 @@ class Test(unittest.TestCase):
 
         data.Symbols = [symbol]
 
-        data.TotalTrades = [1, 2, 2, 3]
-        data.Symbols[0].TradePriceLong = [None, 200, None, 300]
-        data.Symbols[0].TradePriceShort = [100, None, None, None]
-        data.Symbols[0].TradesNo = [1, 2, 2, 3]
+        # Lets fill the arrays in two different ways.
+        data.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+        data.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
+        data.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
+        data.append([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3])
+
+        data.Symbols[0].Data = np.array([[0, None, 100, 0, 0, 0, 0, 1],
+                                         [0, 200, None, 0, 0, 0, 0, 2],
+                                         [0, None, None, None, 0, 0, 0, 2],
+                                         [0, 300, None, 0, 0, 0, 0, 4],
+                                        ], dtype='object')
+
 
         futils.adjust_trades(data)
 
-        assert data.TotalTrades[2] == None
-        assert data.Symbols[0].TradesNo[2] == None
+        assert data.TotalTrades[0] == 1
+        assert data.Symbols[0].TradesNo[0] == 1
+
+        assert data.TotalTrades[1] == 2
+        assert data.Symbols[0].TradesNo[1] == 2
+
+        assert np.isnan(data.TotalTrades[2]) == True
+        assert np.isnan(data.Symbols[0].TradesNo[2]) == True
+
+        assert data.TotalTrades[3] == 3
+        assert data.Symbols[0].TradesNo[3] == 4
 
     def test_8_main_chart(self):
         results = create_results()
 
         fig = mock(go.Figure())
 
-        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}')
-        second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title[0]}')
+        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title}')
 
         num_main = 1
 
@@ -328,10 +343,10 @@ class Test(unittest.TestCase):
 
         fig = mock(go.Figure())
 
-        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}')
-        second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title[0]}')
-        third_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title[0]}')
-        fourth_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title[0]}')
+        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title}')
+        third_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title}')
+        fourth_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title}')
 
         when(fig).add_trace(first_args, row=1, col=1, secondary_y=False).thenReturn()
         when(fig).add_trace(second_args, row=1, col=1, secondary_y=False).thenReturn()
@@ -461,8 +476,8 @@ class Test(unittest.TestCase):
         when(fig).update_layout(**update_args).thenReturn()
         when(fig).add_annotation(ANY).thenReturn()
 
-        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}')
-        second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title[0]}')
+        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title}')
 
         num_main = 1
 
@@ -526,10 +541,10 @@ class Test(unittest.TestCase):
         when(fig).update_layout(**update_args).thenReturn()
         when(fig).add_annotation(ANY).thenReturn()
 
-        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}')
-        second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title[0]}')
-        third_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title[0]}')
-        fourth_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title[0]}')
+        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title}')
+        third_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title}')
+        fourth_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title}')
 
         num_main = 1
 

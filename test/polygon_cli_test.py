@@ -36,8 +36,8 @@ class Test(unittest.TestCase):
 
         self.assertEqual(query.symbol, "SPY")
         self.assertEqual(query.year_delta, "2")
-        self.assertEqual(query.first_date, date.today() - relativedelta(years=int(query.year_delta)))
-        self.assertEqual(query.last_date, date.today())
+        self.assertEqual(query.first_date, 1606176000)
+        self.assertEqual(query.last_date, 1669334399)
         self.assertEqual(query.update, "IGNORE")
         self.assertEqual(query.source_title, "Polygon.io")
 

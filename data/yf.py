@@ -19,11 +19,11 @@ class YFQuery(fdata.Query):
     """
         Yahoo Finance query class.
     """
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
             Initialize Yahoo Finance query class.
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         # Default values
         self.source_title = "YF"
@@ -41,7 +41,6 @@ class YFError(Exception):
     """
         Yahoo Finance exception class.
     """
-    pass
 
 class YFcsv(IntEnum):
     """
@@ -67,6 +66,10 @@ class YF(fdata.BaseFetchData):
     """
         Yahoo Finance wrapper class.
     """
+    def __init__(self, query):
+        """Initialize the instance of YF class."""
+        super().__init__(query)
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.

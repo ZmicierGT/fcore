@@ -105,7 +105,7 @@ if __name__ == "__main__":
         source = yf.YF(query)
         query.db_connect()
 
-        num_before, num_after = source.check_and_fetch()
+        num_before, num_after = source.insert_quotes(source.fetch_quotes())
     except (yf.YFError, fdata.FdataError) as e:
         print(e)
         sys.exit(2)

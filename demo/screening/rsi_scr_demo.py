@@ -13,6 +13,8 @@ from data.fvalues import Timespans
 from data import av
 
 if __name__ == "__main__":
+    # Please note that free AlphaVantage keys do not support live quotes any more.
+
     query_btc = av.AVQuery()
     query_btc.type = av.AVType.CryptoIntraday
     source_btc = av.AV(query_btc)

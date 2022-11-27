@@ -236,8 +236,8 @@ class Classifier(BaseIndicator):
                 sell_learn: instance to learn sell signals.
         """
         if self._algorithm == Algorithm.LR:
-            buy_learn = LogisticRegression()
-            sell_learn = LogisticRegression()
+            buy_learn = LogisticRegression(class_weight='balanced')
+            sell_learn = LogisticRegression(class_weight='balanced')
         elif self._algorithm == Algorithm.LDA:
             buy_learn = LinearDiscriminantAnalysis()
             sell_learn = LinearDiscriminantAnalysis()
@@ -248,11 +248,11 @@ class Classifier(BaseIndicator):
             buy_learn = GaussianNB()
             sell_learn = GaussianNB()
         elif self._algorithm == Algorithm.DTC:
-            buy_learn = DecisionTreeClassifier()
-            sell_learn = DecisionTreeClassifier()
+            buy_learn = DecisionTreeClassifier(class_weight='balanced')
+            sell_learn = DecisionTreeClassifier(class_weight='balanced')
         elif self._algorithm == Algorithm.SVC:
-            buy_learn = SVC()
-            sell_learn = SVC()
+            buy_learn = SVC(class_weight='balanced')
+            sell_learn = SVC(class_weight='balanced')
 
         return (buy_learn, sell_learn)
 

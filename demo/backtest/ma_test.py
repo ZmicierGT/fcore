@@ -41,7 +41,7 @@ if __name__ == "__main__":
     if num > 0:
         print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     quotes = StockData(rows=rows,
                           title=query.symbol,

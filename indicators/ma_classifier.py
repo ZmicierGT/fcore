@@ -205,7 +205,8 @@ class MAClassifier(Classifier):
             dfi['sell-false'] = df['sell-false']
             dfi['hilo-diff'] = df['hilo-diff']
 
-            df_main = df_main.append(dfi)
+            #df_main = df_main.append(dfi)
+            df_main = pd.concat([df_main, dfi], ignore_index=True)
 
         results_buy, results_sell = self.get_buy_sell_results(df_main)
 

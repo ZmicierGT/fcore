@@ -75,7 +75,7 @@ class MAClassification(MA):
 
         # Set MA values used by base testing class. Add empty values at the beginning or the column.
         ma = pd.DataFrame([np.nan] * self._period)
-        ex.append_tech(ma[0].append(self._ma_cls.get_results()['ma'], ignore_index=True))
+        ex.append_tech(pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True))
 
         # Skip data when no MA is calculated.
         self.set_offset(self.get_offset() + self._period)

@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Quotes database manager.
 
 The author is Zmicier Gotowka

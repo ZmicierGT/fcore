@@ -58,7 +58,7 @@ if __name__ == "__main__":
     if num > 0:
         print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_learn}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length_learn} quotes in the database and it is beyond the threshold level of {threshold_learn}.")
+        print(f"No need to fetch quotes for {query.symbol}. There are {length_learn} quotes in the database and it is >= the threshold level of {threshold_learn}.")
 
     # Get quotes for testing
     try:
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     if num > 0:
         print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_test}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length_test} quotes in the database and it is beyond the threshold level of {threshold_test}.")
+        print(f"No need to fetch quotes for {query.symbol}. There are {length_test} quotes in the database and it is >= the threshold level of {threshold_test}.")
 
     # Train the models
 

@@ -20,6 +20,7 @@ import sys
 
 import pandas as pd
 import pandas_ta as ta
+import numpy as np
 
 slow_period = 26
 fast_period = 12
@@ -42,15 +43,16 @@ if __name__ == "__main__":
     if num > 0:
         print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is beyond the threshold level of {threshold}.")
+        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Calculate MACD
-    df = pd.DataFrame(rows)
-
-    macd = ta.macd(df[Quotes.AdjClose], fast_period, slow_period, signal_period)
+    #df = pd.DataFrame(rows)
 
     dates = [row[Quotes.DateTime] for row in rows]
     price = [row[Quotes.AdjClose] for row in rows]
+
+    # Please note that the warning below is caused by pandas_ta issue.
+    macd = ta.macd(pd.Series(price), fast_period, slow_period, signal_period)
 
     macd_values = macd.iloc[:,0]
     histogram = macd.iloc[:,1]

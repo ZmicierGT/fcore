@@ -87,13 +87,18 @@ if __name__ == "__main__":
     try:
         classifier.learn()
         accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = classifier.get_learn_accuracy()
+        f1_buy_learn, f1_sell_learn, total_f1_learn = classifier.get_learn_f1()
     except IndicatorError as e:
         print(f"Can't train MA classification models: {e}")
         sys.exit(2)
 
-    print('\nBuy train Accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
-    print('Sell train Accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
-    print('Total train Accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
+    print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
+    print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
+    print('Total train accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
+
+    print(f"\nBuy train f1 score: {round(f1_buy_learn, 4)}")
+    print(f"Sell train f1 score: {round(f1_sell_learn, 4)}")
+    print(f"Total train f1 score: {round(total_f1_learn, 4)}")
 
     # Perform a backtest
 
@@ -122,14 +127,19 @@ if __name__ == "__main__":
 
         classification.calculate()
         results_cls = classification.get_results()
-        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = classifier.check_est_precision()
+        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = classifier.get_est_accuracy()
+        f1_buy_est, f1_sell_est, total_f1_est = classifier.get_est_f1()
     except BackTestError as e:
         print(f"Can't perform backtesting: {e}")
         sys.exit(2)
 
-    print('\nBuy estimation Accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
-    print('Sell estimation Accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
-    print('Total estimation Accuracy:{: .2f}%'.format(total_accuracy_est * 100))
+    print('\nBuy estimation accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
+    print('Sell estimation accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
+    print('Total estimation accuracy:{: .2f}%'.format(total_accuracy_est * 100))
+
+    print(f"\nBuy estimation f1 score: {round(f1_buy_est, 4)}")
+    print(f"Sell estimation f1 score: {round(f1_sell_est, 4)}")
+    print(f"Total estimation f1 score: {round(total_f1_est, 4)}")
 
     print(f"\nThe actual/estimated signals:\n{classifier.get_df_signals_to_compare().to_string()}\n")
 

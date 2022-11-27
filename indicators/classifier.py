@@ -27,7 +27,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.svm import SVC
 
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 
 class Algorithm(IntEnum):
     """Enum with the supported algorithms."""
@@ -87,12 +87,17 @@ class Classifier(BaseIndicator):
         self._accuracy_sell_learn = None
         self._total_accuracy_learn = None
 
+        # f1 score values are set in a case if there was a calculation
+        self._f1_buy_learn = None
+        self._f1_sell_learn = None
+        self._total_f1_learn = None
+
         self._results_buy_est = None
         self._results_sell_est = None
 
-    def check_est_precision(self):
+    def get_est_accuracy(self):
         """
-            Check precision of price estimation. The function compares the actual results with the estimated ones.
+            Get precision of signal estimation. The function compares the actual results with the estimated ones.
 
             Raises:
                 IndicatorError: the calculation is not performed.
@@ -105,22 +110,40 @@ class Classifier(BaseIndicator):
         if len(self._results) == 0:
             raise IndicatorError("The calculation is not performed.")
 
-        # If we use the indicator on live data, we still may not know the outcome of the latest occurrences yes.
-        # Then we need to trim the arrays to calculate the estimation correctly.
-
         results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
 
-        if len(results_buy_actual) != len(results_buy_est) or len(results_sell_actual) != len(results_sell_est):
-            results_buy_est = results_buy_est[:len(results_buy_actual)]
-            results_sell_est = results_sell_est[:len(results_sell_actual)]
-
-        # Check the accuracy
+        # Get the accuracy
         accuracy_buy = accuracy_score(results_buy_actual, results_buy_est)
         accuracy_sell = accuracy_score(results_sell_actual, results_sell_est)
 
         total_accuracy = (accuracy_buy * len(results_buy_actual) + accuracy_sell * len(results_sell_actual)) / (len(results_buy_actual) + len(results_sell_actual))
 
         return (accuracy_buy, accuracy_sell, total_accuracy)
+
+    def get_est_f1(self):
+        """
+            Get f1 score of signal estimation.
+
+            Raises:
+                IndicatorError: the calculation is not performed.
+
+            Returns:
+                float: buy f1 score
+                float: sell f1 score
+                float: cumulative f1 score
+        """
+        if len(self._results) == 0:
+            raise IndicatorError("The calculation is not performed.")
+
+        results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
+
+        # Get the f1 score
+        f1_buy = f1_score(results_buy_actual, results_buy_est)
+        f1_sell = f1_score(results_sell_actual, results_sell_est)
+
+        total_f1 = (f1_buy * len(results_buy_actual) + f1_sell * len(results_sell_actual)) / (len(results_buy_actual) + len(results_sell_actual))
+
+        return (f1_buy, f1_sell, total_f1)
 
     def set_data(self, data):
         """
@@ -134,14 +157,16 @@ class Classifier(BaseIndicator):
     def get_signals_to_compare(self):
         """
             Get buy/sell actual and estimated signals.
+            In the case of the streaming calculation, there may be less actual values than than estimated.
+            In such case the exceeding estimated results will be trimmed.
 
             Raises:
                 IndicatorError: calculation is not performed.
 
             Returns:
-                numpy.array: actual signals to buy
+                numpy.array: adjusted actual signals to buy
                 numpy.array: estimated signals to buy
-                numpy.array: actual signals to sell
+                numpy.array: adjusted actual signals to sell
                 numpy.array: estimated signals to sell
         """
         if len(self._results) == 0:
@@ -151,7 +176,14 @@ class Classifier(BaseIndicator):
         self.add_signals(df)
         results_buy_actual, results_sell_actual = self.get_buy_sell_results(df)
 
-        return (results_buy_actual, self._results_buy_est, results_sell_actual, self._results_sell_est)
+        results_buy_est = self._results_buy_est
+        results_sell_est = self._results_sell_est
+
+        if len(results_buy_actual) != len(results_buy_est) or len(results_sell_actual) != len(results_sell_est):
+            results_buy_est = results_buy_est[:len(results_buy_actual)]
+            results_sell_est = results_sell_est[:len(results_sell_actual)]
+
+        return (results_buy_actual, results_buy_est, results_sell_actual, results_sell_est)
 
     def get_df_signals_to_compare(self):
         """
@@ -240,6 +272,23 @@ class Classifier(BaseIndicator):
             raise IndicatorError("The learning wasn't performed.")
 
         return (self._accuracy_buy_learn, self._accuracy_sell_learn, self._total_accuracy_learn)
+
+    def get_learn_f1(self):
+        """
+            Get f1 ratio for learning. Learning should be performed at first to get a rational results. It does not work with pre-defined model.
+
+            Raises:
+                IndicatorError: the learning wasn't performed.
+
+            Returns:
+                float: buy f1 ratio
+                float: sell f1 ratio
+                float: cumulative f1 ratio
+        """
+        if self._f1_buy_learn == None or self._f1_sell_learn == None or self._total_f1_learn == None:
+            raise IndicatorError("The learning wasn't performed.")
+
+        return (self._f1_buy_learn, self._f1_sell_learn, self._total_f1_learn)
 
     def get_models(self):
         """

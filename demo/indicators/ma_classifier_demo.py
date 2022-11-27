@@ -122,18 +122,28 @@ if __name__ == "__main__":
     try:
         ma_cls.calculate()
         accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = ma_cls.get_learn_accuracy()
-        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.check_est_precision()
+        f1_buy_learn, f1_sell_learn, total_f1_learn = ma_cls.get_learn_f1()
+        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.get_est_accuracy()
+        f1_buy_est, f1_sell_est, total_f1_est = ma_cls.get_est_f1()
     except IndicatorError as e:
         print(f"Can't calculate MA Classifier: {e}")
         sys.exit(2)
 
-    print('\nBuy train Accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
-    print('Sell train Accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
-    print('Total train Accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
+    print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
+    print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
+    print('Total train accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
 
-    print('\nBuy estimation Accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
-    print('Sell estimation Accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
-    print('Total estimation Accuracy:{: .2f}%'.format(total_accuracy_est * 100))
+    print(f"\nBuy train f1 score: {round(f1_buy_learn, 4)}")
+    print(f"Sell train f1 score: {round(f1_sell_learn, 4)}")
+    print(f"Total train f1 score: {round(total_f1_learn, 4)}")
+
+    print('\nBuy estimation accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
+    print('Sell estimation accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
+    print('Total estimation accuracy:{: .2f}%'.format(total_accuracy_est * 100))
+
+    print(f"\nBuy estimation f1 score: {round(f1_buy_est, 4)}")
+    print(f"Sell estimation f1 score: {round(f1_sell_est, 4)}")
+    print(f"Total estimation f1 score: {round(total_f1_est, 4)}")
 
     print(f"\nThe actual/estimated signals:\n{ma_cls.get_df_signals_to_compare().to_string()}\n")
 

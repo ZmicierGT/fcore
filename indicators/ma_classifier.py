@@ -15,7 +15,7 @@ import pandas_ta as ta
 
 import numpy as np
 
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 
 class MAClassifier(Classifier):
     """
@@ -228,3 +228,7 @@ class MAClassifier(Classifier):
         self._accuracy_buy_learn = accuracy_score(results_buy, est_buy_train)
         self._accuracy_sell_learn = accuracy_score(results_sell, est_sell_train)
         self._total_accuracy_learn = (self._accuracy_buy_learn * len(results_buy) + self._accuracy_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
+
+        self._f1_buy_learn = f1_score(results_buy, est_buy_train)
+        self._f1_sell_learn = f1_score(results_sell, est_sell_train)
+        self._total_f1_learn = (self._f1_buy_learn * len(results_buy) + self._f1_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))

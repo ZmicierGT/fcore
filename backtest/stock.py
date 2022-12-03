@@ -123,7 +123,7 @@ class StockOperations(BackTestOperations):
 
         # Check if pre-defined yield is incoming
         if self.data().get_use_yield() != 0 and self.data().get_yield_interval() <= self._yield_counter and self.get_max_positions() > 0:
-            current_yield = self.get_max_positions() * self.get_quote() * self.data().get_use_yield() / 100 / (240 / self.data().get_yield_interval())
+            current_yield = self.get_max_positions() * self.get_close() * self.data().get_use_yield() / 100 / (240 / self.data().get_yield_interval())
             self._yield_counter = 0
 
         # Check if we have dividends today according to the dataset

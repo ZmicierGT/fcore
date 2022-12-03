@@ -21,10 +21,14 @@ from data.fdata import FdataError
 
 from data.yf import YFError, YFQuery, YF
 
+from data.reporting import Report
+from data.reporting import ChartType
+
 import sys
 
 period = 50  # Period used in strategy
 threshold = 1385  # Quotes num threshold for the test
+min_width = 2500 # Minimum width for charting
 
 if __name__ == "__main__":
     # Get quotes
@@ -91,6 +95,17 @@ if __name__ == "__main__":
 
     results_bh = bh.get_results()
     results = ma.get_results()
+
+    ###########
+    report = Report(width=max(length, min_width), margin=True)
+    fig = report.add_quotes_chart(data=results, title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
+
+    report.combine_charts()
+
+    #new_file = write_image(fig)
+    #print(f"{new_file} is written.")
+
+    sys.exit(2)
 
     ##################
     # Build the charts

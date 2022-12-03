@@ -71,7 +71,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_tech_val() <= self.exec().get_quote()
+        return self.exec().get_tech_val() <= self.exec().get_close()
 
     def do_tech_calculation(self, ex):
         """

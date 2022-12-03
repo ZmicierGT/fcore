@@ -325,7 +325,7 @@ class Test(unittest.TestCase):
 
         fig = mock(go.Figure())
 
-        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
         second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title}')
 
         num_main = 1
@@ -343,7 +343,7 @@ class Test(unittest.TestCase):
 
         fig = mock(go.Figure())
 
-        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        first_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
         second_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title}')
         third_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title}')
         fourth_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title}')
@@ -476,7 +476,7 @@ class Test(unittest.TestCase):
         when(fig).update_layout(**update_args).thenReturn()
         when(fig).add_annotation(ANY).thenReturn()
 
-        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
         second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[0].Title}')
 
         num_main = 1
@@ -541,7 +541,7 @@ class Test(unittest.TestCase):
         when(fig).update_layout(**update_args).thenReturn()
         when(fig).add_annotation(ANY).thenReturn()
 
-        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
+        first_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title}')
         second_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title}')
         third_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title}')
         fourth_main_args = go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title}')

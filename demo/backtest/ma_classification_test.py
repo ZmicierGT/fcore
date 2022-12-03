@@ -182,7 +182,7 @@ if __name__ == "__main__":
 
     # Add strategy comparison to the second chart
 
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Quote, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}'), row=2, col=1)
+    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}'), row=2, col=1)
     fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title[0]}'), row=2, col=1)
     fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title[0]}'), row=2, col=1)
     fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title[0]}'), row=2, col=1)

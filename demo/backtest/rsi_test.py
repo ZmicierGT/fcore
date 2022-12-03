@@ -23,6 +23,9 @@ from data.yf import YFError, YFQuery, YF
 
 from itertools import repeat
 
+from data.reporting import Report
+from data.reporting import ChartType
+
 import sys
 
 threshold = 250  # Quotes num threshold for the test
@@ -34,6 +37,8 @@ symbols = ['SPY', 'AAPL']
 period = 14
 support = 30
 resistance = 70
+
+min_width = 2500 # Minimum width for charting
 
 if __name__ == "__main__":
     # Array for the fetched data for all symbols
@@ -121,6 +126,20 @@ if __name__ == "__main__":
 
     support_arr.extend(repeat(support, length))
     resistance_arr.extend(repeat(resistance, length))
+
+    ##############
+
+    report = Report(width=max(length, min_width), margin=True)
+    #fig = report.MainCharts(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
+    report.add_quotes_chart(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
+    report.add_quotes_chart(data=results, index=1)
+
+    report.combine_charts()
+
+    #new_file = write_image(fig)
+    #print(f"{new_file} is written.")
+
+    sys.exit(2)
 
     ##################
     # Build the charts

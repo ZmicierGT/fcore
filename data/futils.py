@@ -340,7 +340,7 @@ def main_chart(results, fig):
 
         num = round(i/2) + 1
 
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Close, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
         fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
 
 def main_margin_chart(results, fig):
@@ -359,7 +359,7 @@ def main_margin_chart(results, fig):
 
         num = round(i/2) + 1
 
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Quote, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
+        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Close, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
         fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
         fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
         fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)

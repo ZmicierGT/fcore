@@ -43,14 +43,17 @@ class BTDataEnum(IntEnum):
 # Enum class for backtesting data regarding a particular symbol
 class BTSymbolEnum(IntEnum):
     """Enum to describe a list with backtesting result for each particular symbol."""
-    Quote = 0
-    TradePriceLong = 1
-    TradePriceShort = 2
-    TradePriceMargin = 3
-    LongPositions = 4
-    ShortPositions = 5
-    MarginPositions = 6
-    TradesNo = 7
+    Open = 0
+    Close = 1
+    High = 2
+    Low = 3
+    TradePriceLong = 4
+    TradePriceShort = 5
+    TradePriceMargin = 6
+    LongPositions = 7
+    ShortPositions = 8
+    MarginPositions = 9
+    TradesNo = 10
 
 class BackTestEvent(Event):
     """
@@ -421,7 +424,8 @@ class BackTestOperations():
             Returns:
                 float: percent fee for the trade for 1 instrument
         """
-        return self.get_quote() * self.get_caller().get_commission_percent() / 100
+        # TODO Estimate if close price is rational here
+        return self.get_close() * self.get_caller().get_commission_percent() / 100
 
     # Fee for one share
     def get_share_fee(self):
@@ -522,15 +526,41 @@ class BackTestOperations():
         """
         return self.get_datetime().year
 
-    # Get current quote
-    def get_quote(self):
+    def get_open(self):
         """
-            Get the current quote.
+            Get the open price.
 
             Returns:
-                float: the quote at the current index of the calculation.
+                float: the open price at the current index of the calculation.
+        """
+        return self.data().get_rows()[self.get_caller_index()][Quotes.Open]
+
+    def get_close(self):
+        """
+            Get the close price.
+
+            Returns:
+                float: the close price at the current index of the calculation.
         """
         return self.data().get_rows()[self.get_caller_index()][Quotes.AdjClose]
+
+    def get_high(self):
+        """
+            Get the current cycle's highest price.
+
+            Returns:
+                float: the highest price at the current index of the calculation.
+        """
+        return self.data().get_rows()[self.get_caller_index()][Quotes.High]
+
+    def get_low(self):
+        """
+            Get the current cycle's lowest price.
+
+            Returns:
+                float: the lowest price at the current index of the calculation.
+        """
+        return self.data().get_rows()[self.get_caller_index()][Quotes.Low]
 
     def apply_margin_fee(self):
         """
@@ -550,7 +580,7 @@ class BackTestOperations():
             Returns:
                 float: current daily margin expenses for the symbol.
         """
-        return self.get_margin_positions() * self.get_quote() * self.data().get_margin_fee() / 100 / 240
+        return self.get_margin_positions() * self.get_close() * self.data().get_margin_fee() / 100 / 240
 
     def get_spread_deviation(self):
         """
@@ -559,7 +589,7 @@ class BackTestOperations():
             Returns:
                 float: the spread deviation for the corresponding symbol.
         """
-        return self.get_quote() * self.data().get_spread() / 100 / 2
+        return self.get_close() * self.data().get_spread() / 100 / 2
 
     def get_buy_price(self):
         """
@@ -568,7 +598,7 @@ class BackTestOperations():
             Returns:
                 float: the buy price of the symbol
         """
-        return self.get_quote() + self.get_spread_deviation()
+        return self.get_close() + self.get_spread_deviation()
 
     def get_sell_price(self):
         """
@@ -577,7 +607,7 @@ class BackTestOperations():
             Returns:
                 float: the sell price of the symbol.
         """
-        return self.get_quote() - self.get_spread_deviation()
+        return self.get_close() - self.get_spread_deviation()
 
     def get_long_positions(self):
         """
@@ -662,7 +692,10 @@ class BackTestOperations():
         """
         if result == None:
             result = [
-                self.get_quote(),
+                self.get_open(),
+                self.get_close(),
+                self.get_high(),
+                self.get_low(),
                 self._trade_price_long,
                 self._trade_price_short,
                 self._trade_price_margin,
@@ -689,7 +722,7 @@ class BackTestOperations():
             Returns:
                 bool: True if the signal to buy/sell is considered as changed, false otherwise
         """
-        quote = self.get_quote()
+        quote = self.get_close()
         index = self.get_caller().get_index()
 
         if is_uptrend == self.is_long():
@@ -734,7 +767,7 @@ class BackTestOperations():
             Returns:
                 float: the buying power based on the long positions opened for the corresponding symbol.
         """
-        return self._long_positions_cash * self.get_quote() * self.data().get_margin_rec()
+        return self._long_positions_cash * self.get_close() * self.data().get_margin_rec()
 
     def get_future_margin_buying_power(self):
         """
@@ -743,7 +776,7 @@ class BackTestOperations():
             Returns:
                 float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
         """
-        return self.get_shares_num_cash() * self.get_quote() * self.data().get_margin_rec()
+        return self.get_shares_num_cash() * self.get_close() * self.data().get_margin_rec()
 
     def get_used_margin(self):
         """
@@ -752,7 +785,7 @@ class BackTestOperations():
             Returns:
                 float: the current used margin by the corresponding symbol.
         """
-        return self.get_quote() * self.get_margin_positions()
+        return self.get_close() * self.get_margin_positions()
 
     def get_margin_limit(self):
         """
@@ -761,7 +794,7 @@ class BackTestOperations():
             Returns:
                 float: the current margin limit.
         """
-        return self._long_positions_cash * self.get_quote() * self.data().get_margin_req()
+        return self._long_positions_cash * self.get_close() * self.data().get_margin_req()
 
     def check_margin_requirements(self):
         """
@@ -1194,8 +1227,20 @@ class BTSymbol(BTBaseData):
         self.Title = title
 
     @property
-    def Quote(self):
-        return self.Data[:, BTSymbolEnum.Quote].astype('float')
+    def Open(self):
+        return self.Data[:, BTSymbolEnum.Open].astype('float')
+
+    @property
+    def Close(self):
+        return self.Data[:, BTSymbolEnum.Close].astype('float')
+
+    @property
+    def High(self):
+        return self.Data[:, BTSymbolEnum.High].astype('float')
+
+    @property
+    def Low(self):
+        return self.Data[:, BTSymbolEnum.Low].astype('float')
 
     @property
     def TradePriceLong(self):
@@ -1634,7 +1679,10 @@ class BackTest(metaclass=abc.ABCMeta):
                 symbol_row = []
 
                 symbol_row.extend(np.full(len(BTSymbolEnum), None))
-                symbol_row[BTSymbolEnum.Quote] = ex.get_quote()
+                symbol_row[BTSymbolEnum.Open] = ex.get_open()
+                symbol_row[BTSymbolEnum.Close] = ex.get_close()
+                symbol_row[BTSymbolEnum.Close] = ex.get_high()
+                symbol_row[BTSymbolEnum.Close] = ex.get_low()
 
                 ex.add_symbol_result(symbol_row)
 

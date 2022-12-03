@@ -14,6 +14,7 @@ from backtest.stock import StockData
 from data.futils import standard_chart
 
 import plotly.graph_objects as go
+from plotly import subplots
 from plotly.subplots import make_subplots
 
 from data.futils import write_image
@@ -38,7 +39,8 @@ period = 14
 support = 30
 resistance = 70
 
-min_width = 2500 # Minimum width for charting
+min_width = 2500  # Minimum width for charting
+height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     # Array for the fetched data for all symbols
@@ -127,50 +129,41 @@ if __name__ == "__main__":
     support_arr.extend(repeat(support, length))
     resistance_arr.extend(repeat(resistance, length))
 
-    ##############
+    #################
+    # Create a report
+    #################
 
     report = Report(width=max(length, min_width), margin=True)
-    #fig = report.MainCharts(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
-    report.add_quotes_chart(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
-    report.add_quotes_chart(data=results, index=1)
 
-    report.combine_charts()
+    # Add charts for used symbols
+    report.add_quotes_chart(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}", height=250)
+    report.add_quotes_chart(data=results, index=1, height=height)
 
-    #new_file = write_image(fig)
-    #print(f"{new_file} is written.")
+    # Add a custom chart with RSI values
+    rsi_fig = subplots.make_subplots()
 
-    sys.exit(2)
-
-    ##################
-    # Build the charts
-    ##################
-
-    # Create a custom figure
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_width=[0.25, 0.25, 0.25, 0.25],
-                        specs=[[{"secondary_y": True}],
-                            [{"secondary_y": False}],
-                            [{"secondary_y": True}],
-                            [{"secondary_y": False}]])
-
-    # Create a standard chart
-    standard_chart(results, fig=fig, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
-
-    # Add RSI values to the second chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbols[0]}"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbols[1]}"), row=2, col=1)
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbols[0]}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbols[1]}"))
 
     # Add support and resistance lines to the second chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=resistance_arr, mode='lines', name="Resistance"), row=2, col=1)
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=resistance_arr, mode='lines', name="Resistance"))
 
-    # Add B&H comparison for both symbols to the third chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results_bh_a.TotalValue, mode='lines', name=f"B&H {symbols[0]}"), row=3, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results_bh_b.TotalValue, mode='lines', name=f"B&H {symbols[1]}"), row=3, col=1)
+    report.add_custom_chart(rsi_fig, height=height)
 
-    ######################
-    # Write the chart
-    ######################
+    # Add a chart to represent portfolio performance
+    fig_portf = report.add_portfolio_chart(data=results, height=height)
 
-    new_file = write_image(fig)
+    # Add B&H performance comparison to the portfolio chart
+    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_a.TotalValue, mode='lines', name=f"B&H {symbols[0]}"))
+    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_b.TotalValue, mode='lines', name=f"B&H {symbols[1]}"))
 
-    print(f"{new_file} is written.")
+    # Add a chart with expenses
+    report.add_expenses_chart(data=results, height=height)
+
+    # Combine charts
+    report.combine_charts()
+
+    # Save chart
+    #new_file = write_image(fig)
+    #print(f"{new_file} is written.")

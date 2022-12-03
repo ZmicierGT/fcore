@@ -28,7 +28,9 @@ import sys
 
 period = 50  # Period used in strategy
 threshold = 1385  # Quotes num threshold for the test
+
 min_width = 2500 # Minimum width for charting
+height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     # Get quotes
@@ -96,33 +98,29 @@ if __name__ == "__main__":
     results_bh = bh.get_results()
     results = ma.get_results()
 
-    ###########
+    #################
+    # Create a report
+    #################
+
     report = Report(width=max(length, min_width), margin=True)
-    fig = report.add_quotes_chart(data=results, title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
+
+    # Add a chart with quotes
+    fig_quotes = report.add_quotes_chart(data=results, title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
+
+    # Append MA values to the quotes chart
+    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA"))
+
+    # Add a chart to represent portfolio performance
+    fig_portf = report.add_portfolio_chart(data=results, height=height)
+
+    # Append B&H comparison to the portfolio chart
+    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh.TotalValue, mode='lines', name="Total Value Buy and Hold", line=dict(color="#32CD32")))
+
+    # Add chart a with expenses
+    report.add_expenses_chart(data=results, height=height)
 
     report.combine_charts()
 
+    # Save chart
     #new_file = write_image(fig)
     #print(f"{new_file} is written.")
-
-    sys.exit(2)
-
-    ##################
-    # Build the charts
-    ##################
-
-    fig = standard_margin_chart(results, title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
-
-    # Append MA values to the main chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA"), secondary_y=False)
-
-    # Append B&H comparison to the second subchart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results_bh.TotalValue, mode='lines', name="Total Value Buy and Hold", line=dict(color="#32CD32")), row=2, col=1)
-
-    ######################
-    # Write the chart
-    ######################
-
-    new_file = write_image(fig)
-
-    print(f"{new_file} is written.")

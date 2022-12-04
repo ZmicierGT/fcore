@@ -6,23 +6,15 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 from backtest.ma import MA
-
 from backtest.base import BackTestError
 from backtest.stock import StockData
-
 from backtest.bh import BuyAndHold
+from backtest.reporting import Report
 
-from data.futils import standard_margin_chart
-
-import plotly.graph_objects as go
-
-from data.futils import write_image
 from data.fdata import FdataError
-
 from data.yf import YFError, YFQuery, YF
 
-from data.reporting import Report
-from data.reporting import ChartType
+import plotly.graph_objects as go
 
 import sys
 

@@ -29,7 +29,7 @@ Examples of backtesting strategies:
 - [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-instrument demo. See *python -m demo.backtest.rsi_test* for an EOD test and *python demo.backtest.rsi_intraday_test* for an intraday demonstation.
 - [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (*python -m demo.backtest.ma_classification_test*)
 
-Note that the indicator and backtesting demos create an image (see the example [here](bh.png)) with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.
+Note that the indicator and backtesting demos create an image with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.
 
 Use *python -m unittest discover -s test -p '*_test.py'* to run unit tests (data components are tested now).
 

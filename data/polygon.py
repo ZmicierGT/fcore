@@ -93,7 +93,7 @@ class Polygon(fdata.BaseFetchData):
         url = f"https://api.polygon.io/v2/aggs/ticker/{self.query.symbol}/range/1/{self.query.get_timespan()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.query.api_key}"
 
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=30)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise PolygonError(f"Can't fetch quotes: {e}") from e
         

@@ -7,7 +7,6 @@ Distributed under Fcore License 1.0 (see license.md)
 
 from backtest.base import BackTest
 from backtest.base import BackTestError
-from backtest.base import BackTestEvent
 
 from data.fvalues import Quotes
 
@@ -24,7 +23,6 @@ class MA(BackTest):
                  period,
                  is_simple=True,
                  **kwargs):
-        super().__init__(**kwargs)
         """
             Initializes the MA Cross stragegy implementation.
 
@@ -35,6 +33,7 @@ class MA(BackTest):
             Raises:
                 BackTestError: the period is too small.
         """
+        super().__init__(**kwargs)
 
         # Indicates if the backtesting should use SMA or EMA
         self.__is_simple = is_simple

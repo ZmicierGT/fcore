@@ -15,7 +15,6 @@ class FdatabaseError(Exception):
     """
         Database exception class.
     """
-    pass
 
 class DBConn():
     """
@@ -39,7 +38,6 @@ class DBConn():
         """
             Abstract method to connect to the database. Needs to be overloader for a particular database type.
         """
-        pass
 
     # Abstract method to close db connection
     @abc.abstractmethod
@@ -47,7 +45,6 @@ class DBConn():
         """
             Abstract method to disconnect from the database. Needs to be overloader for a particular database type.
         """
-        pass
 
 class SQLiteConn(DBConn, metaclass=abc.ABCMeta):
     # Connect to the database

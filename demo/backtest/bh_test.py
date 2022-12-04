@@ -6,18 +6,12 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 from backtest.bh import BuyAndHold
-
 from backtest.base import BackTestError
 from backtest.stock import StockData
+from backtest.reporting import Report
 
-from data.futils import standard_chart
-
-from data.futils import write_image
 from data.fdata import FdataError
-
 from data.yf import YFError, YFQuery, YF
-
-from data.reporting import Report
 
 import sys
 

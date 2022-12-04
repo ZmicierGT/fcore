@@ -10,23 +10,16 @@ from indicators.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification
 from backtest.ma import MA
-
 from backtest.base import BackTestError
 from backtest.stock import StockData
+from backtest.reporting import Report
 
 from indicators.base import IndicatorError
 
-from data.futils import standard_margin_chart
-
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-from data.futils import write_image
 from data.fdata import FdataError
-
 from data.yf import YFError, YFQuery, YF
 
-from data.reporting import Report
+import plotly.graph_objects as go
 
 import sys
 
@@ -201,7 +194,7 @@ if __name__ == "__main__":
     fig_portf = report.add_portfolio_chart(height=height)
 
     # Add second strategy results for comparison
-    fig_portf.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.TotalValue, mode='lines', name=f"MA Cross Results"))
+    fig_portf.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.TotalValue, mode='lines', name="MA Cross Results"))
 
     # Add chart a with expenses
     report.add_expenses_chart(height=height)

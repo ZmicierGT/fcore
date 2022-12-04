@@ -11,8 +11,6 @@ from backtest.base import BackTestError
 
 from data.fvalues import Quotes
 
-from enum import IntEnum
-
 class StockData(BackTestData):
     """
         The class represents stock data for backtesting.
@@ -21,7 +19,6 @@ class StockData(BackTestData):
                  use_yield=0,
                  yield_interval=0,
                  **kwargs):
-        super().__init__(**kwargs)
         """
             Initializes the stock data class.
 
@@ -34,6 +31,8 @@ class StockData(BackTestData):
             Raises:
                 BackTestError: incorrect values in arguments.
         """
+        super().__init__(**kwargs)
+
         # Annual dividend/coupon yield in percent. Overrides the yield in dataset if != 0
         if use_yield < 0 or use_yield > 100:
             raise BackTestError(f"use_yield can't be less than 0% or more than 100%. Specified value is {use_yield}")
@@ -76,15 +75,6 @@ class StockData(BackTestData):
                 float: pre-defined yield interval value.
         """        
         return self._yield_interval
-
-    def add_yield_counter(self, days_delta):
-        """
-            Increase the counter till the next yield.
-
-            Args:
-                days_delta(int): the days to add to the yield counter
-        """
-        self._yield_counter += days_delta
 
 class StockOperations(BackTestOperations):
     """

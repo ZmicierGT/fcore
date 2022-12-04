@@ -20,7 +20,6 @@ import sys
 
 import pandas as pd
 import pandas_ta as ta
-import numpy as np
 
 slow_period = 26
 fast_period = 12

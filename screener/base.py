@@ -25,7 +25,6 @@ class ScrError(Exception):
     """
         Screening exception class.
     """
-    pass
 
 class ScrResult(IntEnum):
     """
@@ -200,7 +199,6 @@ class BaseScr(metaclass=abc.ABCMeta):
         """
             Abstract method to perform the calculation.
         """
-        pass
 
     def get_results(self):
         """

@@ -11,7 +11,6 @@ from datetime import datetime
 import pytz
 
 import plotly.graph_objects as go
-from plotly import subplots
 
 import os
 from os.path import exists
@@ -24,8 +23,6 @@ import multiprocessing
 import time
 
 from data.fvalues import Quotes
-
-import numpy as np
 
 def check_date(date):
     """
@@ -275,14 +272,9 @@ def get_dt_offset(rows, dt):
 
     raise RuntimeError(f"Can't find the datetime <= {dt} in the list.")
 
-#################################
-# Functions related to reporting.
-#################################
-
 def update_layout(fig, title, length):
     """
         Update layout for a chart.
-
         Args:
             fig(go.Figure): figure to update the layout.
             title(str): title of the chart.
@@ -304,241 +296,6 @@ def update_layout(fig, title, length):
             pad=4
         ),
         paper_bgcolor="LightSteelBlue")
-
-def adjust_trades(results):
-    """
-        Set trade related data to None if there was no trades this day. It helps with chart creation.
-
-        Args:
-            results(BTData): instance with backtesting results.
-    """
-    for i in range(len(results.Symbols)):
-        for j in range(len(results.TotalTrades)):
-            price_long = results.Symbols[i].TradePriceLong[j]
-            price_short = results.Symbols[i].TradePriceShort[j]
-            price_margin = results.Symbols[i].TradePriceMargin[j]
-
-            if np.isnan(price_long) and np.isnan(price_short) and np.isnan(price_margin):
-                results.Symbols[i].TradesNo = (j, None)
-                results.TotalTrades = (j, None)
-
-def main_chart(results, fig):
-    """
-        Generate main chart for a regular (non-margin) strategy.
-
-        Args:
-            results(BTData): results of the calculation.
-            fig(go.Figure): plotly figure to display results.
-    """
-    for i in range(len(results.Symbols)):
-        secondary_y = False
-        j = i + 1
-        if j != 1 and j % 2 == 0:
-            secondary_y = True
-
-        num = round(i/2) + 1
-
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Close, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-
-def main_margin_chart(results, fig):
-    """
-        Generate main chart for a margin strategy.
-
-        Args:
-            results(BTData): results of the calculation.
-            fig(go.Figure): plotly figure to display results.
-    """
-    for i in range(len(results.Symbols)):
-        secondary_y = False
-        j = i + 1
-        if j != 1 and j % 2 == 0:
-            secondary_y = True
-
-        num = round(i/2) + 1
-
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].Close, mode='lines', name=f'Quotes {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-        fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[i].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[i].Title}'), row=num, col=1, secondary_y=secondary_y)
-
-def value_chart(results, fig):
-    """
-        Generate value subchart.
-
-        Args:
-            results(BTData): results of the calculation.
-            fig(go.Figure): plotly figure to display results.
-    """
-    num = get_charts_num(fig) - 1
-
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.TotalValue, mode='lines', name="Total Value"), row=num, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Deposits, mode='lines', name="Deposits"), row=num, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.OtherProfit, mode='lines', name="Dividends"), row=num, col=1)
-
-def expenses_chart(results, fig):
-    """
-        Generate expenses chart for a regular (non-margin) strategy.
-
-        Args:
-            results(BTData): results of the calculation.
-            fig(go.Figure): plotly figure to display results.
-    """
-    num = get_charts_num(fig)
-
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.TotalExpenses, mode='lines', name="Expenses"), row=num, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.CommissionExpense, mode='lines', name="Commission"), row=num, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.SpreadExpense, mode='lines', name="Spread"), row=num, col=1)
-
-def expenses_margin_chart(results, fig):
-    """
-        Generate expenses chart for a margin strategy.
-
-        Args:
-            results(BTData): results of the calculation.
-            fig(go.Figure): plotly figure to display results.
-    """
-    num = get_charts_num(fig)
-
-    expenses_chart(results, fig)
-
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.DebtExpense, mode='lines', name="Margin Expenses"), row=num, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.OtherExpense, mode='lines', name="Yield Expenses"), row=num, col=1)
-
-def get_charts_num(fig):
-    """
-        Get the number of subcharts in the fugure.
-
-        Args:
-            fig(go.Figure): figure to get the number of subcharts.
-
-        Returns:
-            int: the number of subcharts in the figure.
-    """
-    num = 0
-
-    for keyword in fig.layout:
-        if keyword.startswith('xaxis'):
-            num += 1
-
-    return num
-
-def create_standard_fig():
-    """
-        Create a standard figure for a basic strategy.
-
-        Returns:
-            go.Figure: a figure for a basic strategy.
-    """
-    return subplots.make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.3, 0.3, 0.4],
-                                  specs=[[{"secondary_y": True}],
-                                         [{"secondary_y": True}],
-                                         [{"secondary_y": False}]])
-
-def standard_chart(results, title='', fig=None):
-    """
-        Generate a standard chart for non-margin strategy.
-
-        Args:
-            results(BTData): calculation results.
-            title(str): title for the chart.
-            fig(go.Figure): figure to display results.
-
-        Returns:
-            go.Figure: figure to display results.
-    """
-    fig = prepare_chart(results, title, fig)
-
-    main_chart(results, fig)
-    value_chart(results, fig)
-    expenses_chart(results, fig)
-
-    return fig
-
-def standard_margin_chart(results, title='', fig=None):
-    """
-        Generate a standard chart for a margin strategy.
-
-        Args:
-            results(BTData): calculation results.
-            title(str): title for the chart.
-            fig(go.Figure): figure to display results.
-
-        Returns:
-            go.Figure: figure to display results.
-    """
-    fig = prepare_chart(results, title, fig)
-
-    main_margin_chart(results, fig)
-    value_chart(results, fig)
-    expenses_margin_chart(results, fig)
-
-    return fig
-
-def prepare_chart(results, title, fig):
-    """
-        Prepare the chart to display results.
-
-        Args:
-            results(BTData): calculation results.
-            title(str): title for the chart.
-            fig(go.Figure): figure to display results.
-
-        Returns:
-            go.Figure: figure to display results.
-    """
-    if fig == None:
-        fig = create_standard_fig()
-
-    update_layout(fig, title, len(results.DateTime))
-
-    add_annotations(results, fig)
-
-    # No need to display trades number if there was no trade this day
-    adjust_trades(results)
-
-    return fig
-
-def add_annotations(results, fig):
-    """
-        Add annotations to the chart.
-
-        Args:
-            results(BTData): calculation results.
-            fig(go.Figure): figure to display results.
-    """
-    height = fig.layout['height']
-
-    invested = results.Deposits[-1]
-    final_value = results.TotalValue[-1]
-    profit = final_value / invested * 100 - 100
-
-    invested     = f"Invested in-total: {round(invested, 2)}"
-    value        = f"Total value: {round(final_value, 2)}"
-    profit       = f"Profit: {round(profit, 2)}%"
-    yield_profit = f"Yield profit: {round(results.OtherProfit[-1], 2)}"
-    total_trades = f"Total trades: {results.TotalTrades[-1]}"
-
-    expenses = f"Total expenses: {round(results.TotalExpenses[-1], 2)}"
-    comm_expense = f"Commission expense: {round(results.CommissionExpense[-1], 2)}"
-    spread_expense = f"Spread expense: {round(results.SpreadExpense[-1], 2)}"
-    debt_expense = f"Debt expense: {round(results.DebtExpense[-1], 2)}"
-    yield_expense = f"Yield expense: {round(results.OtherExpense[-1], 2)}"
-
-    top_margin  = 0 - 1 / (height / 90)
-    text_margin = 0 - 1 / (height / 30)
-
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0, y=top_margin, showarrow=False, text=invested, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0, y=top_margin+text_margin, showarrow=False, text=value, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0, y=top_margin+text_margin*2, showarrow=False, text=profit, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0, y=top_margin+text_margin*3, showarrow=False, text=yield_profit, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0, y=top_margin+text_margin*4, showarrow=False, text=total_trades, xref="paper", yref="paper"))
-
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0.25, y=top_margin, showarrow=False, text=expenses, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0.25, y=top_margin+text_margin, showarrow=False, text=comm_expense, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0.25, y=top_margin+text_margin*2, showarrow=False, text=spread_expense, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0.25, y=top_margin+text_margin*3, showarrow=False, text=debt_expense, xref="paper", yref="paper"))
-    fig.add_annotation(dict(font=dict(color='black',size=17), x=0.25, y=top_margin+text_margin*4, showarrow=False, text=yield_expense, xref="paper", yref="paper"))
 
 # The project is intended to be used with GIL-free Python interpreters (like nogil-3.9.10). However, it is fully compatible with regular
 # CPython but in such case there won't be any benefit related to parallel computing.

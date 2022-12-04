@@ -119,7 +119,7 @@ class AV(fdata.BaseFetchData):
             url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}&market=USD&interval={self.query.get_timespan()}&apikey={self.query.api_key}"
 
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=30)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise AVError(f"Can't fetch quotes: {e}") from e
 

@@ -25,6 +25,8 @@ import glob
 
 from matplotlib import font_manager
 
+from math import ceil
+
 class ChartType(IntEnum):
     Line = 0
     Candle = 1
@@ -412,24 +414,35 @@ class Report():
             height += fig.layout.height
 
         # Add height of annotations
-        height += len(self._annotations) * self._annotation_height
+        img_per_row = int(self._width / self._annotation_width)
+        annotations_height = ceil(len(self._annotations) / img_per_row) * self._annotation_height
+
+        height += int(annotations_height)
 
         # Create the resulting image
         result = Image.new('RGB', (width, height))
 
         # The variable to store the current vertical image position
-        cursor = 0
+        y = 0
 
         # Iterate through images to append them one after another
         for image in images:
             img = Image.open(io.BytesIO(image))
-            result.paste(img, (0, cursor))
-            cursor += img.height
+            result.paste(img, (0, y))
+            y += img.height
+
+        # The variable to store the current horizontal position
+        x = 0
 
         # Iterate through annotations images to append them one after another
         for annotation in self._annotations:
-            result.paste(annotation, (0, cursor))
-            cursor += self._annotation_height
+            result.paste(annotation, (x, y))
+
+            x += self._annotation_width
+
+            if x > (self._width - self._annotation_width):
+                x = 0 
+                y += self._annotation_height
 
         return result
 

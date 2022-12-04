@@ -6,7 +6,6 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 
 from screener.base import BaseScr
-from screener.base import ScrResult
 from screener.base import ScrError
 
 import pandas as pd

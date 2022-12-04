@@ -462,12 +462,12 @@ class Report():
         if image is None:
             image = self.combine_charts()
 
-        img_dir = "images/"
+        img_dir = "images"
 
         if os.path.exists(img_dir) == False:
             os.mkdir(img_dir)
 
-        files = glob.glob(img_dir + "fig_*.png")
+        files = glob.glob(os.path.join(img_dir, "fig_*.png"))
 
         files.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
 
@@ -475,14 +475,14 @@ class Report():
             last_file = 0
         else:
             last_file = files[-1]
-            last_file = last_file.replace('.png', '').replace(img_dir + 'fig_', '')
+            last_file = last_file.replace('.png', '').replace(os.path.join(img_dir, 'fig_'), '')
         
         try:
             new_counter = int(last_file) + 1
         except ValueError as e:
             raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
 
-        new_file = img_dir + "fig_" + f"{new_counter}" + ".png"
+        new_file = os.path.join(img_dir, "fig_") + f"{new_counter}" + ".png"
 
         image.save(new_file,"PNG")
 

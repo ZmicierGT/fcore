@@ -87,9 +87,6 @@ class MA(BackTest):
         else:
             ex.append_tech(ta.ema(df[Quotes.AdjClose], length = self._period))
 
-        # Skip data when no MA is calculated.
-        self.set_offset(self.get_offset() + self._period)
-
     def do_calculation(self):
         """
             Perform strategy calculation.

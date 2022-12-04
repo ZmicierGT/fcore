@@ -26,6 +26,8 @@ from data.fdata import FdataError
 
 from data.yf import YFError, YFQuery, YF
 
+from data.reporting import Report
+
 import sys
 
 # Variables for testing
@@ -40,6 +42,9 @@ algorithm = Algorithm.LDA  # The default algorithm to use
 
 threshold_learn = 5178  # Quotes num threshold for the learning
 threshold_test = 567  # Quotes num threshold for the test
+
+min_width = 2500 # Minimum width for charting
+height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     # Get a separate data for learning and testing.
@@ -159,44 +164,52 @@ if __name__ == "__main__":
 
     try:
         ma.calculate()
-        results = ma.get_results()
+        results_cmp = ma.get_results()
     except BackTestError as e:
         print(f"Can't perform backtesting calculation: {e}")
         sys.exit(2)
 
-    ##################
-    # Build the charts
-    ##################
+    #################
+    # Create a report
+    #################
 
-    # Create a custom figure
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_width=[0.25, 0.25, 0.25, 0.25],
-                        specs=[[{"secondary_y": True}],
-                            [{"secondary_y": False}],
-                            [{"secondary_y": True}],
-                            [{"secondary_y": False}]])
+    report = Report(data=results_cls, width=max(length_test, min_width), margin=True)
 
-    standard_margin_chart(results_cls, title=f"MA/Quote Cross + AI Backtesting Example for {symbol}", fig=fig)
+    # Add a chart with quotes
+    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross + AI Backtesting Example for {symbol}")
 
-    # Append MA values to the main chart
-    fig.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech, mode='lines', name="MA"), secondary_y=False)
+    # Append MA values to the quotes chart
+    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA"))
 
     # Add strategy comparison to the second chart
+    fig_cmp = go.Figure()
 
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Close, mode='lines', name=f'Quotes {results.Symbols[0].Title[0]}'), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceLong, mode='markers', name=f'Long Trades {results.Symbols[0].Title[0]}'), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceShort, mode='markers', name=f'Short Trades {results.Symbols[0].Title[0]}'), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].TradePriceMargin, mode='markers', name=f'Margin Req Trades {results.Symbols[0].Title[0]}'), row=2, col=1)
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Close, mode='lines', name='Quotes'))
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceLong, mode='markers', name='Long Trades'))
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceShort, mode='markers', name='Short Trades'))
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceMargin, mode='markers', name='Margin Req Trades'))
 
-    # Append MA values to the second chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results_cls.Symbols[0].Tech, mode='lines', name="MA"), row=2, col=1)
+    # Append MA values to the comparison chart
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Tech[0], mode='lines', name="MA"))
+
+    # Workaround to handle plotly whitespace issue when adding markers
+    fig_cmp.update_layout(xaxis={"range":[results_cmp.DateTime[0], results_cmp.DateTime[-1]]})
+
+    report.add_custom_chart(fig_cmp, height=height)
+
+    # Add a chart to represent portfolio performance
+    fig_portf = report.add_portfolio_chart(height=height)
 
     # Add second strategy results for comparison
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.TotalValue, mode='lines', name=f"MA Cross {symbol}"), row=3, col=1)
+    fig_portf.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.TotalValue, mode='lines', name=f"MA Cross Results"))
 
-    ######################
-    # Write the chart
-    ######################
+    # Add chart a with expenses
+    report.add_expenses_chart(height=height)
 
-    new_file = write_image(fig)
+    # Add annotations with strategy results
+    report.add_annotations(title="MA Classifier performance:")
+    report.add_annotations(data=results_cmp, title="Regular MA/Price Crossover performance:")
 
+    # Show image
+    new_file = report.show_image()
     print(f"{new_file} is written.")

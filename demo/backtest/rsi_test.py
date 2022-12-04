@@ -133,11 +133,11 @@ if __name__ == "__main__":
     # Create a report
     #################
 
-    report = Report(width=max(length, min_width), margin=True)
+    report = Report(data=results, width=max(length, min_width), margin=True)
 
     # Add charts for used symbols
-    report.add_quotes_chart(data=results, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}", height=250)
-    report.add_quotes_chart(data=results, index=1, height=height)
+    report.add_quotes_chart(title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}", height=250)
+    report.add_quotes_chart(index=1, height=height)
 
     # Add a custom chart with RSI values
     rsi_fig = subplots.make_subplots()
@@ -152,18 +152,18 @@ if __name__ == "__main__":
     report.add_custom_chart(rsi_fig, height=height)
 
     # Add a chart to represent portfolio performance
-    fig_portf = report.add_portfolio_chart(data=results, height=height)
+    fig_portf = report.add_portfolio_chart(height=height)
 
     # Add B&H performance comparison to the portfolio chart
     fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_a.TotalValue, mode='lines', name=f"B&H {symbols[0]}"))
     fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_b.TotalValue, mode='lines', name=f"B&H {symbols[1]}"))
 
     # Add a chart with expenses
-    report.add_expenses_chart(data=results, height=height)
+    report.add_expenses_chart(height=height)
 
-    # Combine charts
-    report.combine_charts()
+    # Add annotations with strategy results
+    report.add_annotations()
 
-    # Save chart
-    #new_file = write_image(fig)
-    #print(f"{new_file} is written.")
+    # Show image
+    new_file = report.show_image()
+    print(f"{new_file} is written.")

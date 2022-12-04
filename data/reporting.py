@@ -9,14 +9,21 @@ import plotly.graph_objects as go
 from plotly import subplots
 
 from PIL import Image
+from PIL import ImageFont
+from PIL import ImageDraw
 
 from enum import IntEnum
 
-import copy
-
 import numpy as np
 
+import copy
 import io
+import os
+import subprocess
+import platform
+import glob
+
+from matplotlib import font_manager
 
 class ChartType(IntEnum):
     Line = 0
@@ -28,12 +35,14 @@ class ReportsError(Exception):
 
 class Report():
     """The reporting class."""
-    def __init__(self, width, margin=False):
+    def __init__(self, data, width, margin=False, color="LightSteelBlue"):
         """Initializes the instance of reporting class.
         
             Args:
                 margin(bool): indicates if margin related data should be used.
+                data(BTData): the main data to use. Used if no other dataset is provided in further functions.
                 width(int): the width of the chart.
+                color(str): the color of chart's background.
         """
 
         # Generate margin-related data
@@ -44,16 +53,33 @@ class Report():
             raise ReportsError(f"Invalid width specified: {width}. The width should be > 0.")
         self._width = width
 
-        # The container of subcharts. Standalone charts are preferred than plotly subcharts. 
+        # The container for subcharts. Standalone charts are preferred than plotly subcharts. 
         self._charts = []
 
-    def adjust_trades(self, data):
+        # The container for annotations
+        self._annotations = []
+
+        # The default dataset
+        self._data = data
+
+        # The color of chart's background
+        self._color = color
+
+        # The default dimensions of an annotation
+        self._annotation_height = 170
+        self._annotation_width = 1000
+
+    def adjust_trades(self, data=None):
         """
-            Set trade related data to None if there was no trades this day. It helps with chart creation.
+            Set trade related data to None if there was no trades this day.
+            It may be used in some charting.
 
             Args:
                 data(BTData): instance with backtesting results.
         """
+        if data is None:
+            data = self._data
+
         alt_data = copy.deepcopy(data)
         for i in range(len(data.Symbols)):
             for j in range(len(data.TotalTrades)):
@@ -116,9 +142,9 @@ class Report():
                 bordercolor="Black",
                 borderwidth=2
             ),
-            paper_bgcolor="LightSteelBlue")
+            paper_bgcolor=self._color)
 
-    def add_quotes_chart(self, data, index=0, title=None, chart_type=ChartType.Line, fig=None, height=600):
+    def add_quotes_chart(self, data=None, index=0, title=None, chart_type=ChartType.Line, fig=None, height=600):
         """Add a quotes chart with price, trades and dates/time to the chart list.
         
             Args:
@@ -132,6 +158,9 @@ class Report():
             Returns:
                 go.figure: created figure.
         """
+        if data is None:
+            data = self._data
+
         # The symbol to use
         symbol = data.Symbols[index]
 
@@ -183,13 +212,14 @@ class Report():
 
         self.update_layout(fig=fig, title=title, height=height)
 
-        # Workaround to handle plotly whitespace bug when adding markers.
+        # Workaround to handle plotly whitespace issue when adding markers
         fig.update_layout(xaxis={"range":[data.DateTime[0], data.DateTime[-1]]})
+
         self._charts.append(fig)
 
         return fig
 
-    def add_expenses_chart(self, data, title=None, fig=None, height=600):
+    def add_expenses_chart(self, data=None, title=None, fig=None, height=600):
         """Add an expenses chart to the charts list.
         
             Args:
@@ -201,6 +231,9 @@ class Report():
             Returns:
                 go.figure: created figure.
         """
+        if data is None:
+            data = self._data
+
         if fig is None:
             # Create the default figure
             fig = go.Figure()
@@ -218,7 +251,7 @@ class Report():
 
         return fig
 
-    def add_portfolio_chart(self, data, title=None, fig=None, height=600):
+    def add_portfolio_chart(self, data=None, title=None, fig=None, height=600):
         """Add a chart with portfolio performance.
         
             Args:
@@ -230,6 +263,9 @@ class Report():
             Returns:
                 go.figure: created figure.
         """
+        if data is None:
+            data = self._data
+
         if fig is None:
             # Create the default figure
             fig = go.Figure()
@@ -237,6 +273,37 @@ class Report():
         fig.add_trace(go.Scatter(x=data.DateTime, y=data.TotalValue, mode='lines', name="Total Value"))
         fig.add_trace(go.Scatter(x=data.DateTime, y=data.Deposits, mode='lines', name="Deposits"))
         fig.add_trace(go.Scatter(x=data.DateTime, y=data.OtherProfit, mode='lines', name="Dividends"))
+
+        self.update_layout(fig=fig, title=title, height=height)
+        self._charts.append(fig)
+
+        return fig
+
+    def add_trades_chart(self, data=None, title=None, fig=None, height=600):
+        """
+            Add a chart with trades statistics.
+
+            Args:
+                data(BtData): data to build the chart.
+                title(str): the title of the chart.
+                fig(go.figure): custom figure to use.
+                height(int): the height of the chart image.
+
+            Returns:
+                go.figure: created figure.
+        """
+        if data is None:
+            data = self._data
+
+        if fig is None:
+            # Create the default figure
+            fig = go.Figure()
+
+        fig.add_trace(go.Scatter(x=data.DateTime, y=data.TotalTrades, mode='lines', name="Total Trades"))
+
+        # Iterate through all charts to get trades statistics
+        for symbol in data.Symbols:
+            fig.add_trace(go.Scatter(x=data.DateTime, y=symbol.TradesNo, mode='lines', name=f"{symbol.Title} Trades"))
 
         self.update_layout(fig=fig, title=title, height=height)
         self._charts.append(fig)
@@ -255,7 +322,69 @@ class Report():
         self.update_layout(fig=fig, title=title, height=height)
         self._charts.append(fig)
 
-        return fig        
+        return fig
+
+    def add_annotations(self, data=None, title=None, margin=None):
+        """
+            Add annotation with strategy results to the chart.
+
+            Args:
+                data(BtData): data to calculate the results.
+                title(str): the title of the strategy.
+                margin(bool): indicates if the strategy involves margin.
+
+            Returns:
+                str: The annotation in string form.
+        """
+        if data is None:
+            data = self._data
+
+        if margin is None:
+            margin = self._margin
+
+        # Create image for the annotations.
+        result = Image.new('RGB', (self._width, self._annotation_height), color=self._color)
+
+        # Prepare the annotations
+        invested = data.Deposits[-1]
+        final_value = data.TotalValue[-1]
+        profit = final_value / invested * 100 - 100
+
+        performance = f"Invested:     {round(invested, 2)}\n"\
+                      f"Total value:  {round(final_value, 2)}\n"\
+                      f"Profit:       {round(profit, 2)}%\n"\
+                      f"Yield profit: {round(data.OtherProfit[-1], 2)}\n"\
+                      f"Total trades: {data.TotalTrades[-1]}"\
+
+
+        expenses = f"Total expenses:     {round(data.TotalExpenses[-1], 2)}\n"\
+                   f"Commission expense: {round(data.CommissionExpense[-1], 2)}\n"\
+                   f"Spread expense:     {round(data.SpreadExpense[-1], 2)}\n"\
+                   f"Debt expense:       {round(data.DebtExpense[-1], 2)}\n"\
+                   f"Yield expense:      {round(data.OtherExpense[-1], 2)}"\
+
+        # Put annotations to the image
+        draw = ImageDraw.Draw(result)
+
+        # Find the font to use on each platform
+        font_type = font_manager.FontProperties(family='monospace', weight='regular')
+        path = font_manager.findfont(font_type)
+        font = ImageFont.truetype(path, 22)
+        
+        y_offset = 15
+
+        if title != None:
+            bold_font_type = font_manager.FontProperties(family='monospace', weight='bold')
+            bold_path = font_manager.findfont(bold_font_type)
+            bold_font = ImageFont.truetype(bold_path, 22)
+
+            draw.text((50, 5), title, (54, 69, 79), font=bold_font)
+            y_offset = 35
+
+        draw.text((50, y_offset), performance, (54, 69, 79), font=font)
+        draw.text((500, y_offset), expenses, (54, 69, 79), font=font)
+
+        self._annotations.append(result)
 
     def combine_charts(self):
         """
@@ -282,6 +411,9 @@ class Report():
             images.append(fig.to_image(format="png"))
             height += fig.layout.height
 
+        # Add height of annotations
+        height += len(self._annotations) * self._annotation_height
+
         # Create the resulting image
         result = Image.new('RGB', (width, height))
 
@@ -294,4 +426,74 @@ class Report():
             result.paste(img, (0, cursor))
             cursor += img.height
 
-        result.show()
+        # Iterate through annotations images to append them one after another
+        for annotation in self._annotations:
+            result.paste(annotation, (0, cursor))
+            cursor += self._annotation_height
+
+        return result
+
+    def write_image(self, image=None):
+        """
+            Write plotly figure to a disk.
+
+            Args:
+                image(PIL.image): image to write.
+
+            Returns:
+                str: new file path.
+
+            Raises:
+                RuntimeError: can't generate a filename.
+        """
+        if image is None:
+            image = self.combine_charts()
+
+        img_dir = "images/"
+
+        if os.path.exists(img_dir) == False:
+            os.mkdir(img_dir)
+
+        files = glob.glob(img_dir + "fig_*.png")
+
+        files.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
+
+        if len(files) == 0:
+            last_file = 0
+        else:
+            last_file = files[-1]
+            last_file = last_file.replace('.png', '').replace(img_dir + 'fig_', '')
+        
+        try:
+            new_counter = int(last_file) + 1
+        except ValueError as e:
+            raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
+
+        new_file = img_dir + "fig_" + f"{new_counter}" + ".png"
+
+        image.save(new_file,"PNG")
+
+        return new_file
+
+    def show_image(self, image_path=None):
+        """
+            Write the image (if no path is specified) and open it in the system default image viewer.
+
+            Args:
+                image_path(str): path to image to show.
+
+            Returns:
+                str: path to the image
+        """
+        if image_path is None:
+            image_path = self.write_image()
+
+        # Open image file in the default viewer.
+        if platform.system() == 'Darwin':  # macOS
+            subprocess.call(('open', image_path))
+        elif platform.system() == 'Windows':
+            os.startfile(image_path)
+        else:  # Linux
+            subprocess.call(('xdg-open', image_path))
+
+        return image_path

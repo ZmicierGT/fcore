@@ -13,6 +13,7 @@ from backtest.stock import StockData
 from data.futils import standard_margin_chart
 
 import plotly.graph_objects as go
+from plotly import subplots
 from plotly.subplots import make_subplots
 
 from data.futils import write_image
@@ -21,6 +22,8 @@ from data.fdata import FdataError
 from data.fvalues import Timespans
 
 from data.polygon import PolygonError, PolygonQuery, Polygon
+
+from data.reporting import Report
 
 from itertools import repeat
 
@@ -35,6 +38,9 @@ symbols = ['MSFT', 'AAPL']
 period = 14
 support = 30
 resistance = 70
+
+min_width = 2500  # Minimum width for charting
+height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     # Array for the fetched data for all symbols
@@ -101,32 +107,37 @@ if __name__ == "__main__":
     support_arr.extend(repeat(support, length))
     resistance_arr.extend(repeat(resistance, length))
 
-    ##################
-    # Build the charts
-    ##################
+    #################
+    # Create a report
+    #################
 
-    # Create a custom figure
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_width=[0.25, 0.25, 0.25, 0.25],
-                        specs=[[{"secondary_y": True}],
-                            [{"secondary_y": False}],
-                            [{"secondary_y": True}],
-                            [{"secondary_y": False}]])
+    report = Report(data=results, width=max(length, min_width), margin=True)
 
-    # Create a standard chart
-    standard_margin_chart(results, fig=fig, title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}")
+    # Add charts for used symbols
+    report.add_quotes_chart(title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}", height=250)
+    report.add_quotes_chart(index=1, height=height)
 
-    # Add RSI values to the second chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbols[0]}"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbols[1]}"), row=2, col=1)
+    # Add a custom chart with RSI values
+    rsi_fig = subplots.make_subplots()
+
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbols[0]}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbols[1]}"))
 
     # Add support and resistance lines to the second chart
-    fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"), row=2, col=1)
-    fig.add_trace(go.Scatter(x=results.DateTime, y=resistance_arr, mode='lines', name="Resistance"), row=2, col=1)
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=resistance_arr, mode='lines', name="Resistance"))
 
-    ######################
-    # Write the chart
-    ######################
+    report.add_custom_chart(rsi_fig, height=height)
 
-    new_file = write_image(fig)
+    # Add a chart to represent portfolio performance
+    fig_portf = report.add_portfolio_chart(height=height)
 
+    # Add a chart with expenses
+    report.add_expenses_chart(height=height)
+
+    # Add annotations with strategy results
+    report.add_annotations()
+
+    # Show image
+    new_file = report.show_image()
     print(f"{new_file} is written.")

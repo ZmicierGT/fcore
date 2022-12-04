@@ -192,6 +192,7 @@ if __name__ == "__main__":
 
     update_layout(fig, f"MA Classifier example chart for {query.symbol}", length)
 
+    # TODO open saved file in d default image viewer
     new_file = write_image(fig)
 
     print(f"{new_file} is written.")

@@ -85,9 +85,6 @@ class RSI(BackTest):
 
         ex.append_tech(ta.rsi(df[Quotes.AdjClose], length = self._period))
 
-        # Skip data when no RSI is calculated.
-        self.set_offset(self.get_offset() + self._period)
-
     def do_calculation(self):
         """
             Perform strategy calculation.

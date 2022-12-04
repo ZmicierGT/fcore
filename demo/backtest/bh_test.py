@@ -17,9 +17,14 @@ from data.fdata import FdataError
 
 from data.yf import YFError, YFQuery, YF
 
+from data.reporting import Report
+
 import sys
 
 threshold = 500  # Quotes num threshold for the test
+
+min_width = 2500  # Minimum width for charting
+height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     # Get quotes
@@ -62,16 +67,24 @@ if __name__ == "__main__":
 
     results = bh.get_results()
 
-    ##################
-    # Build the charts
-    ##################
+    #################
+    # Create a report
+    #################
 
-    fig = standard_chart(results, title=f"BuyAndHold Example Testing for {query.symbol}")
+    report = Report(data=results, width=max(length, min_width))
 
-    ######################
-    # Write the chart
-    ######################
+    # Add a chart with quotes
+    fig_quotes = report.add_quotes_chart(title=f"BuyAndHold Example Testing for {query.symbol}")
 
-    new_file = write_image(fig)
+    # Add a chart to represent portfolio performance
+    fig_portf = report.add_portfolio_chart(height=height)
 
+    # Add chart a with expenses
+    report.add_expenses_chart(height=height)
+
+    # Add annotations with strategy results
+    report.add_annotations(title="B&H Strategy performance/expenses:")
+
+    # Show image
+    new_file = report.show_image()
     print(f"{new_file} is written.")

@@ -1008,6 +1008,7 @@ class BackTestOperations():
 
         total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
+        # TODO better to distinguish opening/closing positions
         self._trade_price_long = self.get_sell_price()
 
         # Close cash long positions
@@ -1646,7 +1647,7 @@ class BackTest(metaclass=abc.ABCMeta):
     def skipped(self, index=None):
         """
             Check if the current cycle should be skipped.
-            Skipping criteria is set by the offset of by other factors used in the strategy (period and so on.)
+            Skipping criteria is set by the offset of by other factors used in the strategy.
 
             Returns:
                 True if the cycle should be skipped, False otherwise.
@@ -1657,7 +1658,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if index < 0:
             return True
 
-        return self.skip_criteria(index)
+        return self.skip_criteria(index) or self.get_index() < self.get_offset()
 
     def to_skip(self):
         """
@@ -1666,14 +1667,11 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 True if the cycle was skipped, False otherwise.
         """
-        if self.get_index() < self.get_offset():
-            # If the index is less than offset, skip it without making any placeholder data
-            return True
-
         if self.skipped():
-            self._results.append(np.full(len(BTDataEnum), None))
-            self._results[self.get_index()][BTDataEnum.DateTime] = self.exec().get_datetime_str()
-            self._results[self.get_index()][BTDataEnum.TotalTrades] = 0
+            cycle_result = np.full(len(BTDataEnum), None)
+            cycle_result[BTDataEnum.DateTime] = self.exec().get_datetime_str()
+            cycle_result[BTDataEnum.TotalTrades] = 0
+            self._results.append(cycle_result)
 
             for ex in self.all_exec():
                 symbol_row = []
@@ -1681,8 +1679,8 @@ class BackTest(metaclass=abc.ABCMeta):
                 symbol_row.extend(np.full(len(BTSymbolEnum), None))
                 symbol_row[BTSymbolEnum.Open] = ex.get_open()
                 symbol_row[BTSymbolEnum.Close] = ex.get_close()
-                symbol_row[BTSymbolEnum.Close] = ex.get_high()
-                symbol_row[BTSymbolEnum.Close] = ex.get_low()
+                symbol_row[BTSymbolEnum.High] = ex.get_high()
+                symbol_row[BTSymbolEnum.Low] = ex.get_low()
 
                 ex.add_symbol_result(symbol_row)
 
@@ -2241,6 +2239,9 @@ class BackTest(metaclass=abc.ABCMeta):
             stop_event = Event()
 
             if thread_available():
+                # TODO It is fine to perform backtest in a separate thread using nogil but it is better to omit separate tech calculation
+                # in individual threads because low level calculation is usually performed by numpy or AI libs which involve C/C++ code anyway.
+                # Threading should be omitted here.
                 thread = Thread(target=self.__do_tech_calculation, args=[ex, stop_event])
                 self.__threads.append(thread)
                 events.append(stop_event)
@@ -2281,7 +2282,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 True/False depending on signal verification. True will override all other checks.
         """
 
-        # In this case there is no signal verification.
+        # In the default case there is no signal verification.
         return False
 
     ##########################

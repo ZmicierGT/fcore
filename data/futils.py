@@ -140,7 +140,6 @@ def parse_config(query):
 
     return query
 
-# Writes chart image to a file
 def write_image(fig):
     """
         Write plotly figure to a disk.
@@ -154,13 +153,12 @@ def write_image(fig):
         Raises:
             RuntimeError: can't generate a filename.
     """
-    img_dir = "images"
+    img_dir = "images/"
 
     if exists(img_dir) == False:
         os.mkdir(img_dir)
 
-    os.chdir(img_dir)
-    files = glob.glob("fig_*.png")
+    files = glob.glob(img_dir + "fig_*.png")
 
     files.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
 
@@ -168,14 +166,14 @@ def write_image(fig):
         last_file = 0
     else:
         last_file = files[-1]
-        last_file = last_file.replace('.png', '').replace('fig_', '')
+        last_file = last_file.replace('.png', '').replace(img_dir + 'fig_', '')
     
     try:
         new_counter = int(last_file) + 1
     except ValueError as e:
         raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
 
-    new_file = "fig_" + f"{new_counter}" + ".png"
+    new_file = img_dir + "fig_" + f"{new_counter}" + ".png"
 
     fig.write_image(new_file)
 

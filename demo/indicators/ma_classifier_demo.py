@@ -16,7 +16,7 @@ from indicators.classifier import Algorithm
 from indicators.base import IndicatorError
 
 from data.futils import update_layout
-from data.futils import write_image
+from data.futils import show_image
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -192,7 +192,6 @@ if __name__ == "__main__":
 
     update_layout(fig, f"MA Classifier example chart for {query.symbol}", length)
 
-    # TODO open saved file in d default image viewer
-    new_file = write_image(fig)
+    new_file = show_image(fig)
 
     print(f"{new_file} is written.")

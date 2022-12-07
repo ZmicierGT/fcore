@@ -58,7 +58,7 @@ class Test(unittest.TestCase):
         sql_query = "SELECT title FROM sources WHERE title = '';"
         when(self.read_data.query.cur).execute(sql_query).thenReturn()
 
-        assert self.read_data.check_source() == len(self.results)
+        assert self.read_data.query.check_source() == len(self.results)
 
         verify(self.read_data.query.cur, times=1).execute(sql_query)
         verify(self.read_data.query.cur, times=1).fetchall()
@@ -68,7 +68,7 @@ class Test(unittest.TestCase):
 
         when(self.read_data.query.cur).execute(sql_query).thenReturn()
 
-        assert self.read_data.check_source() == len(self.results)
+        assert self.read_data.query.check_source() == len(self.results)
 
         verify(self.read_data.query.cur, times=1).execute(sql_query)
         verify(self.read_data.query.cur, times=1).fetchall()
@@ -268,7 +268,7 @@ class Test(unittest.TestCase):
 
         when(self.write_data.query.cur).fetchall().thenReturn([])
 
-        self.write_data.check_database()
+        self.write_data.query.check_database()
 
         verify(self.write_data.query.cur, times=1).execute(sql_query1)
         verify(self.write_data.query.cur, times=1).execute(sql_query2)
@@ -368,7 +368,7 @@ class Test(unittest.TestCase):
 
         when(self.write_data.query.cur).execute(sql_query).thenReturn()
 
-        self.write_data.add_source()
+        self.write_data.query.add_source()
 
         verify(self.write_data.query.cur, times=1).execute(sql_query)
         verify(self.write_data.query.conn, times=1).commit()
@@ -390,9 +390,15 @@ class Test(unittest.TestCase):
         verify(self.fetch_data, times=1).commit()
 
     def test_18_check_fetch_if_none(self):
+        nums = (0, 200)
+
         when(self.fetch_data.query).db_connect().thenReturn()
+        when(self.fetch_data.query.cur).execute("SELECT COUNT(*) FROM quotes;").thenReturn()
+        when(self.fetch_data.query.cur).execute("INSERT OR IGNORE INTO symbols (ticker) VALUES ('AAPL');").thenReturn()
+        when(self.fetch_data).add_quotes(nums).thenReturn()
         when(self.fetch_data).get_symbol_quotes_num_dt().thenReturn(100)
-        when(self.fetch_data).fetch_quotes().thenReturn((0, 200))
+        when(self.fetch_data).fetch_quotes().thenReturn(nums)
+        when(self.fetch_data).insert_quotes(nums).thenReturn(nums)
         when(self.fetch_data).get_quotes().thenReturn(self.results)
         when(self.fetch_data.query).db_close().thenReturn()
 

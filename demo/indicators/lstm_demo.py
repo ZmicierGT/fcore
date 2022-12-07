@@ -13,7 +13,7 @@ from indicators.lstm import LSTMData
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data.futils import write_image
+from data.futils import show_image
 from data.fdata import FdataError
 from data.fvalues import Quotes
 from indicators.base import IndicatorError
@@ -85,6 +85,6 @@ if __name__ == "__main__":
 
     update_layout(fig, f"LSTM example chart for {query.symbol}", length)
 
-    new_file = write_image(fig)
+    new_file = show_image(fig)
 
     print(f"{new_file} is written.")

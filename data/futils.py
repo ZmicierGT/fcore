@@ -21,6 +21,8 @@ from data import fvalues
 import threading
 import multiprocessing
 import time
+import platform
+import subprocess
 
 from data.fvalues import Quotes
 
@@ -137,12 +139,12 @@ def parse_config(query):
 
     return query
 
-def write_image(fig):
+def write_image(img):
     """
         Write plotly figure to a disk.
 
         Args:
-            fig(go.Figure): plotly figure to write.
+            img(PIL.Image or go.Figure): Image to write.
 
         Returns:
             str: new file name.
@@ -150,12 +152,30 @@ def write_image(fig):
         Raises:
             RuntimeError: can't generate a filename.
     """
-    img_dir = "images/"
+    new_file = gen_image_path()
+
+    if type(img).__name__ == "Figure":
+        img.write_image(new_file)
+    elif type(img).__name__ == "Image":
+        img.save(new_file)
+    else:
+        raise RuntimeError(f"Unsupported image type: {type(img).__name__}")
+
+    return new_file
+
+def gen_image_path():
+    """
+        Generate a next sequential filename for an image.
+
+        Returns:
+            str: new image path.
+    """
+    img_dir = "images"
 
     if exists(img_dir) == False:
         os.mkdir(img_dir)
 
-    files = glob.glob(img_dir + "fig_*.png")
+    files = glob.glob(os.path.join(img_dir, "fig_*.png"))
 
     files.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
 
@@ -163,20 +183,44 @@ def write_image(fig):
         last_file = 0
     else:
         last_file = files[-1]
-        last_file = last_file.replace('.png', '').replace(img_dir + 'fig_', '')
+        last_file = last_file.replace('.png', '').replace(os.path.join(img_dir, 'fig_'), '')
     
     try:
         new_counter = int(last_file) + 1
     except ValueError as e:
         raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
 
-    new_file = img_dir + "fig_" + f"{new_counter}" + ".png"
-
-    fig.write_image(new_file)
+    new_file = os.path.join(img_dir, "fig_") + f"{new_counter}" + ".png"
 
     return new_file
 
-# Writes AI model to a directory
+def open_image(image_path):
+    """
+        Open image in the default image-viewer.
+
+        Args:
+            path(str): path to the opened image.
+    """
+    # Open image file in the default viewer.
+    if platform.system() == 'Darwin':  # macOS
+        subprocess.call(('open', image_path))
+    elif platform.system() == 'Windows':
+        os.startfile(image_path)
+    else:  # Linux
+        subprocess.call(('xdg-open', image_path))
+
+def show_image(fig):
+    """
+        Write the image and open it in the system default image viewer.
+
+        Returns:
+            str: path to the image
+    """
+    image_path = write_image(fig)
+    open_image(image_path)
+
+    return image_path
+
 def write_model(name, model):
     """
         Write keras model to a disk.

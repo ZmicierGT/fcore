@@ -3,9 +3,6 @@ import unittest
 import sys
 sys.path.append('../')
 
-from dateutil.relativedelta import relativedelta
-from datetime import date
-
 import polygon_cli
 
 class Test(unittest.TestCase):
@@ -22,26 +19,6 @@ class Test(unittest.TestCase):
         self.assertEqual(query.year_delta, "2")
 
         self.assertEqual(query.db_name, "test.sqlite")
-        self.assertEqual(query.db_type, "sqlite")
-        self.assertEqual(query.database, None)
-        self.assertEqual(query.conn, None)
-        self.assertEqual(query.cur, None)
-        self.assertEqual(query.Error, None)
-
-    def test_1_check_arg_parser(self):
-
-        argv = ['./polygon_cli.py', '-s', 'SPY']
-
-        query = polygon_cli.arg_parser(argv)
-
-        self.assertEqual(query.symbol, "SPY")
-        self.assertEqual(query.year_delta, "2")
-        self.assertEqual(query.first_date, 1606176000)
-        self.assertEqual(query.last_date, 1669334399)
-        self.assertEqual(query.update, "IGNORE")
-        self.assertEqual(query.source_title, "Polygon.io")
-
-        self.assertEqual(query.db_name, "data.sqlite")
         self.assertEqual(query.db_type, "sqlite")
         self.assertEqual(query.database, None)
         self.assertEqual(query.conn, None)

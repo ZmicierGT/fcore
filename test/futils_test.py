@@ -12,7 +12,8 @@ from plotly.subplots import make_subplots
 from plotly import subplots
 
 import os
-from os import path
+import platform
+import subprocess
 import glob
 
 from data import futils, fdata, fvalues
@@ -30,6 +31,8 @@ from data.fdata import FdataError
 from datetime import datetime
 
 import numpy as np
+
+from PIL import Image
 
 layout = {
             'height': 2000,
@@ -100,7 +103,7 @@ class Test(unittest.TestCase):
         self.assertEqual(ts5, 0)
         self.assertEqual(ts6, 0)
 
-    def test_20_check_datetime(self):
+    def test_1_check_datetime(self):
         datetime1 = "2022-10-10 23:59:59" # Passes
         datetime2 = "2022-10-10 23:59:79" # Fails
         datetime3 = "2022-40-10 23:59:59" # Fails
@@ -122,7 +125,7 @@ class Test(unittest.TestCase):
         self.assertEqual(ts1, 1665446399)
         self.assertEqual(ts4, 946684800)
 
-    def test_21_check_get_datetime(self):
+    def test_2_check_get_datetime(self):
         dt_str1 = "2022-10-10 23:59:59" # Passes
         dt_str2 = "2022-10-10 23:59:79" # Fails
         dt_str3 = "2022-40-10 23:59:59" # Fails
@@ -136,7 +139,7 @@ class Test(unittest.TestCase):
 
         self.assertEqual(dt1, datetime(2022, 10, 10, 23, 59, 59))
 
-    def test_1_check_parse_config(self):
+    def test_3_check_parse_config(self):
         parser = mock(configparser.ConfigParser)
         ini_file = "settings.ini"
 
@@ -162,29 +165,89 @@ class Test(unittest.TestCase):
         assert query.db_name == expected_db_name
         assert query.db_type == expected_db_type
 
-    def test_2_write_image(self):
+    def test_10_write_image(self):
+        img1 = go.Figure()
+        img2 = Image.new('RGB', (50, 50))
+        img3 = "unsupported"
+
+        image_path = "/home/user/Pictures/1.png"
+
+        self.assertRaises(RuntimeError, futils.write_image, img3)
+
+        when(futils).gen_image_path().thenReturn(image_path)
+
+        when(img1).write_image(image_path).thenReturn()
+        when(img2).save(image_path).thenReturn()
+
+        result1 = futils.write_image(img1)
+
+        assert image_path == result1
+
+        verify(img1, times=1).write_image(image_path)
+
+        result2 = futils.write_image(img2)
+
+        verify(img2, times=1).save(image_path)
+
+        assert image_path == result2
+
+    def test_4_gen_image_path(self):
         img_dir = "images"
         file_mask = "fig_*.png"
-        expected_file = "fig_1.png"
+        expected_file = os.path.join(img_dir, "fig_1.png")
         files = []
 
-        fig = mock(go.Figure())
+        #fig = mock(go.Figure())
 
         when(futils).exists(img_dir).thenReturn(True)
-        when(os).chdir(img_dir).thenReturn()
-        when(glob).glob(file_mask).thenReturn(files)
-        when(fig).write_image(expected_file).thenReturn()
+        when(glob).glob(os.path.join(img_dir, file_mask)).thenReturn(files)
+        #when(fig).write_image(expected_file).thenReturn()
 
-        new_file = futils.write_image(fig)
+        new_file = futils.gen_image_path()
 
         verify(futils, times=1).exists(img_dir)
-        verify(os, times=1).chdir(img_dir)
-        verify(glob, times=1).glob(file_mask)
-        verify(fig).write_image(expected_file)
+        #verify(os, times=1).chdir(img_dir)
+        verify(glob, times=1).glob(os.path.join(img_dir, file_mask))
+        #verify(fig).write_image(expected_file)
+
+        #self.assertRaises(RuntimeError, futils.write_image, fig)
 
         assert new_file == expected_file
 
-    def test_4_write_model(self):
+    def test_11_open_image(self):
+        image_path = "/home/user/Pictures/1.png"
+
+        if platform.system() == 'Darwin':  # macOS
+            when(subprocess).call(('open', image_path)).thenReturn()
+        elif platform.system() == 'Windows':
+            when(os).startfile(path).thenReturn()
+        else:  # Linux
+            when(subprocess).call(('xdg-open', image_path)).thenReturn()
+
+        futils.open_image(image_path)
+
+        if platform.system() == 'Darwin':  # macOS
+            verify(subprocess, times=1).call(('open', image_path))
+        elif platform.system() == 'Windows':
+            verufy(os, times=1).startfile(path)
+        else:  # Linux
+            verify(subprocess, times=1).call(('xdg-open', image_path))
+
+    def test_12_show_image(self):
+        image_path = "/home/user/Pictures/1.png"
+        fig = go.Figure()
+
+        when(futils).write_image(fig).thenReturn(image_path)
+        when(futils).open_image(image_path).thenReturn()
+
+        result = futils.show_image(fig)
+
+        verify(futils, times=1).write_image(fig)
+        verify(futils, times=1).open_image(image_path)
+
+        assert image_path == result
+
+    def test_5_write_model(self):
         model_dir = "models"
         name = "LSTM"
         file_mask = f"{name}_*"
@@ -207,7 +270,7 @@ class Test(unittest.TestCase):
 
         assert new_file == expected_file
 
-    def test_3_build_chart(self):
+    def test_6_build_chart(self):
         expected_file = "fig_1.png"
 
         test_list = [
@@ -251,7 +314,7 @@ class Test(unittest.TestCase):
 
         assert new_file == expected_file
 
-    def test_5_get_dt_offset(self):
+    def test_7_get_dt_offset(self):
         test_rows = [['AAPL', None, 'YF', '1986-12-30 23:59:59', 'Day', 0.180804, 0.185268, 0.180246, None, 0.183036, 148153600, None, None, None],
                      ['AAPL', None, 'YF', '1986-12-31 23:59:59', 'Day', 0.183036, 0.18471, 0.180246, None, 0.180804, 132563200, None, None, None],
                      ['AAPL', None, 'YF', '1987-01-02 23:59:59', 'Day', 0.180246, 0.183594, 0.179129, None, 0.182478, 120870400, None, None, None]]
@@ -260,7 +323,7 @@ class Test(unittest.TestCase):
 
         assert dt_offset == 1
 
-    def test_6_update_layout(self):
+    def test_8_update_layout(self):
         fig = mock(go.Figure())
 
         update_args = dict(
@@ -287,7 +350,7 @@ class Test(unittest.TestCase):
 # Multithreading functions
 ##########################
 
-    def test_19_thread_available(self):
+    def test_9_thread_available(self):
         when(multiprocessing).cpu_count().thenReturn(4)
         when(threading).active_count().thenReturn(2)
 

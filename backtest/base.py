@@ -424,7 +424,6 @@ class BackTestOperations():
             Returns:
                 float: percent fee for the trade for 1 instrument
         """
-        # TODO Estimate if close price is rational here
         return self.get_close() * self.get_caller().get_commission_percent() / 100
 
     # Fee for one share

@@ -4,6 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
+from data.futils import write_image, open_image
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -19,8 +20,6 @@ import numpy as np
 import copy
 import io
 import os
-import subprocess
-import platform
 import glob
 
 from matplotlib import font_manager
@@ -446,67 +445,15 @@ class Report():
 
         return result
 
-    def write_image(self, image=None):
+    def show_image(self):
         """
-            Write plotly figure to a disk.
-
-            Args:
-                image(PIL.image): image to write.
-
-            Returns:
-                str: new file path.
-
-            Raises:
-                RuntimeError: can't generate a filename.
-        """
-        if image is None:
-            image = self.combine_charts()
-
-        img_dir = "images"
-
-        if os.path.exists(img_dir) == False:
-            os.mkdir(img_dir)
-
-        files = glob.glob(os.path.join(img_dir, "fig_*.png"))
-
-        files.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
-
-        if len(files) == 0:
-            last_file = 0
-        else:
-            last_file = files[-1]
-            last_file = last_file.replace('.png', '').replace(os.path.join(img_dir, 'fig_'), '')
-        
-        try:
-            new_counter = int(last_file) + 1
-        except ValueError as e:
-            raise RuntimeError(f"Can't generate new filename. {last_file} has a broken filename pattern.") from e
-
-        new_file = os.path.join(img_dir, "fig_") + f"{new_counter}" + ".png"
-
-        image.save(new_file,"PNG")
-
-        return new_file
-
-    def show_image(self, image_path=None):
-        """
-            Write the image (if no path is specified) and open it in the system default image viewer.
-
-            Args:
-                image_path(str): path to image to show.
+            Write the image and open it in the system default image viewer.
 
             Returns:
                 str: path to the image
         """
-        if image_path is None:
-            image_path = self.write_image()
-
-        # Open image file in the default viewer.
-        if platform.system() == 'Darwin':  # macOS
-            subprocess.call(('open', image_path))
-        elif platform.system() == 'Windows':
-            os.startfile(image_path)
-        else:  # Linux
-            subprocess.call(('xdg-open', image_path))
+        image = self.combine_charts()
+        image_path = write_image(image)
+        open_image(image_path)
 
         return image_path

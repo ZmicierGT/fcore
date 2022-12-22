@@ -177,8 +177,19 @@ if __name__ == "__main__":
 
     # Add buy/sell signals to the chart
 
-    fig.add_trace(go.Scatter(x=buy_quotes['dt'], y=buy_quotes['quote'], mode='markers', name='Buy Signals'), row=1, col=1)
-    fig.add_trace(go.Scatter(x=sell_quotes['dt'], y=sell_quotes['quote'], mode='markers', name='Sell Signals'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=buy_quotes['dt'],
+                             y=buy_quotes['quote'],
+                             mode='markers',
+                             name='Buy Signals',
+                             marker=dict(size=12, symbol="arrow-up", color='green', line_color="midnightblue", line_width=2)),
+                  row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=sell_quotes['dt'],
+                             y=sell_quotes['quote'],
+                             mode='markers',
+                             name='Sell Signals',
+                             marker=dict(size=12, symbol="arrow-down", color='red', line_color="midnightblue", line_width=2)),
+                  row=1, col=1)
 
     # Add percentage volume oscillator chart
     fig.add_trace(go.Scatter(x=df['dt'], y=df['pvo'], fill='tozeroy', name="PVO"), row=2, col=1)

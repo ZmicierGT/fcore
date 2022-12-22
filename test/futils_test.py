@@ -220,7 +220,7 @@ class Test(unittest.TestCase):
         if platform.system() == 'Darwin':  # macOS
             when(subprocess).call(('open', image_path)).thenReturn()
         elif platform.system() == 'Windows':
-            when(os).startfile(path).thenReturn()
+            when(os).startfile(image_path).thenReturn()
         else:  # Linux
             when(subprocess).call(('xdg-open', image_path)).thenReturn()
 
@@ -229,7 +229,7 @@ class Test(unittest.TestCase):
         if platform.system() == 'Darwin':  # macOS
             verify(subprocess, times=1).call(('open', image_path))
         elif platform.system() == 'Windows':
-            verufy(os, times=1).startfile(path)
+            verify(os, times=1).startfile(image_path)
         else:  # Linux
             verify(subprocess, times=1).call(('xdg-open', image_path))
 

@@ -120,9 +120,12 @@ class MA(BackTest):
             ############################################################################
             # Check if we need to close the positions because the trend changed recently
             ############################################################################
-
-            if self.exec().get_max_positions() and self.exec().trend_changed(self.is_uptrend()) or self.any_signal():
-                self.exec().close_all()
+            if self.exec().get_max_positions():
+                if self.exec().trend_changed(self.is_uptrend()):
+                    self.exec().close_all()
+                elif self.is_uptrend() != self.exec().is_long():
+                    if (self.is_uptrend() and self.signal_buy()) or (self.is_uptrend() is False and self.signal_sell()):
+                        self.exec().close_all()
 
             ########################
             # Open positions

@@ -20,6 +20,8 @@ from enum import IntEnum
 
 import abc
 
+# TODO Screener should use the most recent quote in calculation (like Last Trade from Polygon).
+
 # Exception class for screener errors
 class ScrError(Exception):
     """

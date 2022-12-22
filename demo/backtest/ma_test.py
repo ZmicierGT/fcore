@@ -100,7 +100,7 @@ if __name__ == "__main__":
     fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA"))
+    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

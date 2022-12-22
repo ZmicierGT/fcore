@@ -169,26 +169,16 @@ if __name__ == "__main__":
     report = Report(data=results_cls, width=max(length_test, min_width), margin=True)
 
     # Add a chart with quotes
-    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross + AI Backtesting Example for {symbol}")
+    fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA"))
+    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
 
     # Add strategy comparison to the second chart
-    fig_cmp = go.Figure()
-
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Close, mode='lines', name='Quotes'))
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceLong, mode='markers', name='Long Trades'))
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceShort, mode='markers', name='Short Trades'))
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].TradePriceMargin, mode='markers', name='Margin Req Trades'))
+    fig_cmp = report.add_quotes_chart(title="Regular MA/Quote cross Example for Comparison", data=results_cmp, height=height)
 
     # Append MA values to the comparison chart
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Tech[0], mode='lines', name="MA"))
-
-    # Workaround to handle plotly whitespace issue when adding markers
-    fig_cmp.update_layout(xaxis={"range":[results_cmp.DateTime[0], results_cmp.DateTime[-1]]})
-
-    report.add_custom_chart(fig_cmp, height=height)
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

@@ -121,13 +121,3 @@ class MAClassification(MA):
             return True
 
         return False
-
-    def any_signal(self):
-        """
-            Indicates if buy/sell signal was considered as true.
-
-            Returns:
-                True/False depending on signal verification.
-        """
-
-        return self.signal_buy() or self.signal_sell()

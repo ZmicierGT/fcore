@@ -47,13 +47,16 @@ class BTSymbolEnum(IntEnum):
     Close = 1
     High = 2
     Low = 3
-    TradePriceLong = 4
-    TradePriceShort = 5
-    TradePriceMargin = 6
-    LongPositions = 7
-    ShortPositions = 8
-    MarginPositions = 9
-    TradesNo = 10
+    PriceOpenLong = 4
+    PriceCloseLong = 5
+    PriceOpenShort = 6
+    PriceCloseShort = 7
+    PriceMarginReqLong = 8
+    PriceMarginReqShort = 9
+    LongPositions = 10
+    ShortPositions = 11
+    MarginPositions = 12
+    TradesNo = 13
 
 class BackTestEvent(Event):
     """
@@ -322,9 +325,14 @@ class BackTestOperations():
         ####################################################################
 
         # Trade prices in the current cycle
-        self._trade_price_long = None
-        self._trade_price_short = None
-        self._trade_price_margin = None
+        self._price_open_long = None
+        self._price_close_long = None
+
+        self._price_open_short = None
+        self._price_close_short = None
+
+        self._price_margin_req_long = None
+        self._price_margin_req_short = None
 
     def data(self):
         """
@@ -630,9 +638,14 @@ class BackTestOperations():
         """
             Reset trade prices used in the current cycle.
         """
-        self._trade_price_long = None
-        self._trade_price_short = None
-        self._trade_price_margin = None
+        self._price_open_long = None
+        self._price_close_long = None
+
+        self._price_open_short = None
+        self._price_close_short = None
+
+        self._price_margin_req_long = None
+        self._price_margin_req_short = None
 
     def get_caller(self):
         """
@@ -695,9 +708,12 @@ class BackTestOperations():
                 self.get_close(),
                 self.get_high(),
                 self.get_low(),
-                self._trade_price_long,
-                self._trade_price_short,
-                self._trade_price_margin,
+                self._price_open_long,
+                self._price_close_long,
+                self._price_open_short,
+                self._price_close_short,
+                self._price_margin_req_long,
+                self._price_margin_req_short,
                 self._long_positions,
                 self._short_positions,
                 self.get_margin_positions(),
@@ -716,10 +732,10 @@ class BackTestOperations():
 
     def trend_changed(self, is_uptrend):
         """
-            Checks if we consider that the signal to buy/sell has changed in the current cycle.
+            Checks if we consider that the trend has changed in the current cycle.
 
             Returns:
-                bool: True if the signal to buy/sell is considered as changed, false otherwise
+                bool: True if the trend is considered as changed, false otherwise
         """
         quote = self.get_close()
         index = self.get_caller().get_index()
@@ -822,7 +838,7 @@ class BackTestOperations():
                         break
 
                 # Close the positions which exceed margin requirement
-                self.close(shares_num)
+                self.close(shares_num, margin_call=True)
 
     #######################################
     # Methods related to opening positions.
@@ -899,7 +915,7 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
-        self._trade_price_long = self.get_buy_price()
+        self._price_open_long = self.get_buy_price()
 
     def get_total_shares_num_short(self):
         """
@@ -942,7 +958,7 @@ class BackTestOperations():
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
-        self._trade_price_short = self.get_sell_price()
+        self._price_open_short = self.get_sell_price()
 
     # Open maxumum possible positions
     def open_long_max(self):
@@ -961,12 +977,13 @@ class BackTestOperations():
     # Methods related to closing positions.
     #######################################
 
-    def close(self, num):
+    def close(self, num, margin_call=False):
         """
             Close the number of positions. No matter long or short.
 
             Args:
                 num(int): the number of positions to close.
+                margin_call(bool): indicates if the trade is initiated by margin requirement.
 
             Raises:
                 BackTestError: trying to close a negative number of positions.
@@ -978,16 +995,17 @@ class BackTestOperations():
             return
 
         if self.is_long():
-            self.close_long(num)
+            self.close_long(num, margin_call)
         else:
-            self.close_all_short()
+            self.close_short(num, margin_call)
 
-    def close_long(self, num):
+    def close_long(self, num, margin_call=False):
         """
             Close the number of long positions.
 
             Args:
                 num(int): the number of positions to close.
+                margin_call(bool): indicates if the trade is initiated by margin requirement.
 
             Raises:
                 BackTestError: to many positions to close.
@@ -1007,8 +1025,10 @@ class BackTestOperations():
 
         total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
-        # TODO better to distinguish opening/closing positions
-        self._trade_price_long = self.get_sell_price()
+        if margin_call:
+            self._price_margin_req_long = self.get_sell_price()
+        else:
+            self._price_close_long = self.get_sell_price()
 
         # Close cash long positions
         self.get_caller().add_cash(self.get_sell_price() * cash_positions)
@@ -1031,12 +1051,13 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
-    def close_short(self, num):
+    def close_short(self, num, margin_call=False):
         """
             Close the number of short positions.
 
             Args:
                 num(int): the number of positions to close.
+                margin_call(bool): indicates if the trade is initiated by margin requirement.
 
             Raises:
                 BackTestError: too many positions to close.
@@ -1066,7 +1087,10 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
-        self._trade_price_short = self.get_buy_price()
+        if margin_call:
+            self._price_margin_req_short = self.get_buy_price()
+        else:
+            self._price_close_short = self.get_buy_price()
 
     def close_all_long(self):
         """
@@ -1243,16 +1267,28 @@ class BTSymbol(BTBaseData):
         return self.Data[:, BTSymbolEnum.Low].astype('float')
 
     @property
-    def TradePriceLong(self):
-        return self.Data[:, BTSymbolEnum.TradePriceLong].astype('float')
+    def PriceOpenLong(self):
+        return self.Data[:, BTSymbolEnum.PriceOpenLong].astype('float')
 
     @property
-    def TradePriceShort(self):
-        return self.Data[:, BTSymbolEnum.TradePriceShort].astype('float')
+    def PriceCloseLong(self):
+        return self.Data[:, BTSymbolEnum.PriceCloseLong].astype('float')
 
     @property
-    def TradePriceMargin(self):
-        return self.Data[:, BTSymbolEnum.TradePriceMargin].astype('float')
+    def PriceOpenShort(self):
+        return self.Data[:, BTSymbolEnum.PriceOpenShort].astype('float')
+
+    @property
+    def PriceCloseShort(self):
+        return self.Data[:, BTSymbolEnum.PriceCloseShort].astype('float')
+
+    @property
+    def PriceMarginReqLong(self):
+        return self.Data[:, BTSymbolEnum.PriceMarginReqLong].astype('float')
+
+    @property
+    def PriceMarginReqShort(self):
+        return self.Data[:, BTSymbolEnum.PriceMarginReqShort].astype('float')
 
     @property
     def LongPositions(self):
@@ -2231,58 +2267,40 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Calculate all the required technical data.
         """
-        events = []
-        self.__threads = []
-
         for ex in self.all_exec():
-            stop_event = Event()
-
-            if thread_available():
-                # TODO It is fine to perform backtest in a separate thread using nogil but it is better to omit separate tech calculation
-                # in individual threads because low level calculation is usually performed by numpy or AI libs which involve C/C++ code anyway.
-                # Threading should be omitted here.
-                thread = Thread(target=self.__do_tech_calculation, args=[ex, stop_event])
-                self.__threads.append(thread)
-                events.append(stop_event)
-                thread.start()
-            else:
-                self.__do_tech_calculation(ex, stop_event)
-
-        self.wait_till_threads_finish(events)
-
-    def wait_till_threads_finish(self, events):
-        """
-            Waif for each calculation thread to finish.
-        """
-        for event in events:
-            event.wait(self.__event.time_left())
-
-    def __do_tech_calculation(self, ex, event):
-        # If eventually you get the following error in pandas source code in _format_argument_list() function
-        # last = allow_args[-1]
-        # IndexError: list index out of range
-        # It is an interpreter bug. Just add a debug print at the beginning of that function like 
-        # print(f"allow args is {allow_args}")
-        # and it will work.
-
-        # Catch any exception which happens in a thread to finish the thread soon then.
-        try:
             self.do_tech_calculation(ex)
-        except Exception as e:
-            raise BackTestError(e) from e
-        finally:
-            event.set()
+
+    def signal_buy(self):
+        """
+            Determines if a signal to buy is true.
+
+            Returns:
+                True if the buy signal is true, False otherwise.
+        """
+
+        # In the default case there is no signal verification.
+        return False
+
+    def signal_sell(self):
+        """
+            Determines if a signal to sell is true.
+
+            Returns:
+                True if the sell signal is true, False otherwise.
+        """
+
+        # In the default case there is no signal verification.
+        return False
 
     def any_signal(self):
         """
             Indicates if buy/sell signal was considered as true.
 
             Returns:
-                True/False depending on signal verification. True will override all other checks.
+                True/False depending on signal verification.
         """
 
-        # In the default case there is no signal verification.
-        return False
+        return self.signal_buy() or self.signal_sell()
 
     ##########################
     # Abstract methods

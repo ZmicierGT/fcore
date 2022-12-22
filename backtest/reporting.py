@@ -19,8 +19,6 @@ import numpy as np
 
 import copy
 import io
-import os
-import glob
 
 from matplotlib import font_manager
 
@@ -70,6 +68,7 @@ class Report():
         self._annotation_height = 170
         self._annotation_width = 1000
 
+    # TODO TO REMOVE
     def adjust_trades(self, data=None):
         """
             Set trade related data to None if there was no trades this day.
@@ -84,11 +83,21 @@ class Report():
         alt_data = copy.deepcopy(data)
         for i in range(len(data.Symbols)):
             for j in range(len(data.TotalTrades)):
-                price_long = data.Symbols[i].TradePriceLong[j]
-                price_short = data.Symbols[i].TradePriceShort[j]
-                price_margin = data.Symbols[i].TradePriceMargin[j]
+                price_openlong = data.Symbols[i].PriceOpenLong[j]
+                price_closelong = data.Symbols[i].PriceCloseLong[j]
 
-                if np.isnan(price_long) and np.isnan(price_short) and np.isnan(price_margin):
+                price_openshort = data.Symbols[i].PriceOpenShort[j]
+                price_closeshort = data.Symbols[i].PriceCloseShort[j]
+
+                price_margin_req_long = data.Symbols[i].PriceMarginReqLong[j]
+                price_margin_req_short = data.Symbols[i].PriceMarginReqShort[j]
+
+                if np.isnan(price_openlong) and\
+                   np.isnan(price_closelong) and\
+                   np.isnan(price_openshort) and\
+                   np.isnan(price_closeshort) and\
+                   np.isnan(price_margin_req_long) and\
+                   np.isnan(price_margin_req_short):
                     alt_data.Symbols[i].TradesNo = (j, None)
                     alt_data.TotalTrades = (j, None)
 
@@ -194,22 +203,41 @@ class Report():
             fig.update_layout(xaxis_rangeslider_visible=False)
 
         fig.add_trace(go.Scatter(x=data.DateTime,
-                                 y=symbol.TradePriceLong,
+                                 y=symbol.PriceOpenLong,
                                  mode='markers',
-                                 marker=dict(color='orange'),
-                      name='Trades'))
+                                 marker=dict(size=12, symbol="arrow-up", color='green', line_color="midnightblue", line_width=2),
+                                 name='Open Long'))
+
+        fig.add_trace(go.Scatter(x=data.DateTime,
+                                 y=symbol.PriceCloseLong,
+                                 mode='markers',
+                                 marker=dict(size=12, symbol="arrow-down", color='red', line_color="midnightblue", line_width=2),
+                                 name='Close Long'))
 
         if self._margin is True:
             fig.add_trace(go.Scatter(x=data.DateTime,
-                                     y=symbol.TradePriceShort,
+                                     y=symbol.PriceOpenShort,
                                      mode='markers',
-                                     marker=dict(color='brown'),
-                          name='Short Trades'))
+                                     marker=dict(size=12, symbol="arrow-right", color='purple', line_color="midnightblue", line_width=2),
+                                     name='Open Short'))
 
             fig.add_trace(go.Scatter(x=data.DateTime,
-                                        y=symbol.TradePriceMargin,
-                                        mode='markers',
-                                        name='Margin Req Trades'))
+                                     y=symbol.PriceCloseShort,
+                                     mode='markers',
+                                     marker=dict(size=12, symbol="arrow-left", color='yellow', line_color="midnightblue", line_width=2),
+                                     name='Close Short'))
+
+            fig.add_trace(go.Scatter(x=data.DateTime,
+                                     y=symbol.PriceMarginReqLong,
+                                     mode='markers',
+                                     marker=dict(size=12, symbol="hourglass", line_color="midnightblue", line_width=2),
+                                     name='Margin Req Close Long'))
+
+            fig.add_trace(go.Scatter(x=data.DateTime,
+                                     y=symbol.PriceMarginReqShort,
+                                     mode='markers',
+                                     marker=dict(size=12, symbol="bowtie", line_color="midnightblue", line_width=2),
+                                     name='Margin Req Close Short'))
 
         self.update_layout(fig=fig, title=title, height=height)
 

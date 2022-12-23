@@ -7,7 +7,7 @@ Distributed under Fcore License 1.0 (see license.md)
 
 import configparser
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 import plotly.graph_objects as go
@@ -26,86 +26,63 @@ import subprocess
 
 from data.fvalues import Quotes
 
-def check_date(date):
+def get_dt(value):
     """
-        Check if the date is valid.
+        Get datetime from one of provided types: datetime, string, timestamp.
 
         Args:
-            str: date - string with the date to check and format.
-
-        Returns:
-            is_correct(bool): indicates if the date is correct.
-            ts(int): timestamp.
-    """
-    is_correct = None
-    dt = None
-    ts = 0
-
-    try:
-        dt = datetime.strptime(date, '%Y-%m-%d')
-
-        # Keep all timestamps UTC adjusted
-        dt = dt.replace(tzinfo=pytz.utc)
-        ts = int(datetime.timestamp(dt))
-
-        is_correct = True
-    except ValueError:
-        is_correct = False
-
-    return is_correct, ts
-
-def check_datetime(dt_str):
-    """
-        Check if the datetime is valid.
-
-        Args:
-            str: dt_str - string with the datetime to check and format.
-
-        Returns:
-            is_correct(bool): indicates if the date is correct.
-            ts(int): timestamp.
-    """
-    if len(dt_str) <= 10:
-        return check_date(dt_str)
-
-    is_correct = None
-    dt = None
-    ts = 0
-
-    try:
-        dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
-
-        # Keep all timestamps UTC adjusted
-        dt = dt.replace(tzinfo=pytz.utc)
-        ts = int(datetime.timestamp(dt))
-
-        is_correct = True
-    except ValueError:
-        is_correct = False
-
-    return is_correct, ts
-
-def get_datetime(dt_str):
-    """
-        Create datetime from a string.
-
-        Args:
-            dt_str(str): string with a date.
+            value(datetime, str, int): value to get datetime from.
 
         Raises:
-            ValueError: the datatime string is not correct.
+            ValueError: unknown type or can't generate a datetime.
 
-        Returns:
-            datetime from the input string.
+        Return:
+            datetime: datetime obtained from the provided value.
     """
-    try:
-        dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
-    except ValueError as e:
-        raise ValueError(f"The date {dt_str} is incorrect: {e}") from e
+    # Timestamp
+    if isinstance(value, int):
+        try:
+            if value < 0:
+                dt = datetime(1970, 1, 1) + timedelta(seconds=value)
+            else:
+                dt = datetime.utcfromtimestamp(value)
+        except (OverflowError, OSError) as e:
+            raise ValueError(f"Too big/small timestamp value: {e}") from e
+    # String
+    elif isinstance(value, str):
+        if len(value) <= 10:
+            dt = datetime.strptime(value, '%Y-%m-%d')
+        elif len(value) > 10 and len(value) <= 16:
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M')
+        else:
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+    # DateTime
+    elif isinstance(value, datetime):
+        dt = value
+    # Unknown type
+    else:
+        raise ValueError(f"Unknown type provided for datetime: {type(value).__name__}")
+
+    # Always keep datetimes in UTC time zone!
+    dt = dt.replace(tzinfo=pytz.utc)
 
     return dt
 
-# Get values from ini.file
+def get_ts_from_str(value):
+    """
+        Get timestamp from datetime or datetime string representation.
+
+        Args:
+            value(datetime, str): datetime or datetime string representation.
+
+        Raises:
+            ValueError, OSError: incorrect representation provided.
+
+        Returns:
+            int: timestamp.
+    """
+    return int(get_dt(value).timestamp())
+
 def parse_config(query):
     """
         Parse configuration file to fill query object.

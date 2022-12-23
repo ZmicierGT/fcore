@@ -25,8 +25,8 @@ class Test(unittest.TestCase):
             # This is expected
             pass
 
-        divs_url = 'https://query1.finance.yahoo.com/v7/finance/download/?period1=-2147483648&period2=9999999999999&interval=1d&events=div&includeAdjustedClose=true'
-        quotes_url = 'https://query1.finance.yahoo.com/v7/finance/download/?period1=-2147483648&period2=9999999999999&interval=1d&events=history&includeAdjustedClose=true'
+        divs_url = 'https://query1.finance.yahoo.com/v7/finance/download/?period1=-2147483648000&period2=9999999999000&interval=1d&events=div&includeAdjustedClose=true'
+        quotes_url = 'https://query1.finance.yahoo.com/v7/finance/download/?period1=-2147483648000&period2=9999999999000&interval=1d&events=history&includeAdjustedClose=true'
 
         urllib.request.urlopen.assert_has_calls([
             mock.call(quotes_url),

@@ -83,7 +83,7 @@ class YF(fdata.BaseFetchData):
         elif self.query.timespan == Timespans.Month:
             request_timespan = "1mo"
 
-        quotes_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date}&period2={self.query.last_date}&interval={request_timespan}&events=history&includeAdjustedClose=true"
+        quotes_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts * 1000}&period2={self.query.last_date_ts * 1000}&interval={request_timespan}&events=history&includeAdjustedClose=true"
 
         try:
             quotes_response = urllib.request.urlopen(quotes_url)
@@ -97,7 +97,7 @@ class YF(fdata.BaseFetchData):
         quotes = quote_data.splitlines()[1:]
 
         # Get dividends data
-        divs_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date}&period2={self.query.last_date}&interval={request_timespan}&events=div&includeAdjustedClose=true"
+        divs_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts * 1000}&period2={self.query.last_date_ts * 1000}&interval={request_timespan}&events=div&includeAdjustedClose=true"
 
         try:
             divs_response = urllib.request.urlopen(divs_url)
@@ -117,10 +117,11 @@ class YF(fdata.BaseFetchData):
             div = div_values.split(',')
 
             date = div[YFdiv.Date]
-            result, ts = futils.check_date(date)
 
-            if result == False:
-                raise FdataError(f"The date {date} is incorrect.")
+            try:
+                ts = futils.get_ts_from_str(date)
+            except ValueError as e:
+                raise FdataError(f"The date {date} is incorrect: {e}")
 
             div_dates.append(ts)
             div_amounts.append(div[YFdiv.Amount])
@@ -144,10 +145,11 @@ class YF(fdata.BaseFetchData):
             }
 
             date = quote[YFcsv.Date]
-            result, ts = futils.check_date(date)
 
-            if result == False:
-                raise FdataError(f"The date {date} is incorrect.")
+            try:
+                ts = futils.get_ts_from_str(date)
+            except ValueError as e:
+                raise FdataError(f"The date {date} is incorrect: {e}")
 
             # Add 23:59:59 to non-intraday quotes
             quote_dict['t'] = ts + 86399

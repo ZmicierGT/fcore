@@ -99,28 +99,26 @@ def arg_parser(argv):
             print(f"Chosen symbol is {query.symbol}")
 
         elif argument in ("-f", "--first_date"):
-            result, ts = futils.check_datetime(value)
-            if result is False:
+            try:
+                query.first_date = value
+            except ValueError as e:
                 print("\n" + usage)
                 query.db_close()
-                sys.exit("\nThe date is incorrect.")
-            else:
-                print(f"The first date is {value}")
-                query.first_date = ts
+                sys.exit(f"\nThe date is incorrect: {e}")
+
+            print(f"The first date is {query.first_date_str}")
 
         elif argument in ("-l", "--last_date"):
-            result, ts = futils.check_datetime(value)
-            if result is False:
+            try:
+                query.last_date = value
+            except ValueError as e:
                 print("\n" + usage)
                 query.db_close()
-                sys.exit("\nThe date is incorrect.")
-            else:
-                print(f"The last date is {value}")
-                if len(value) <= 10:
-                    # Set the time to 23:59:59 for end of day quotes
-                    query.last_date = ts + 86399
-                else:
-                    query.last_date = ts
+                sys.exit(f"\nThe date is incorrect: {e}")
+
+            query.last_date_set_eod()
+
+            print(f"The last date is {query.last_date_str}")
 
         elif argument in ("-q", "--quotes"):
             query.to_print_quotes = True

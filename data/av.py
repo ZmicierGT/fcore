@@ -15,10 +15,11 @@ import requests
 from data import fdata
 
 from data.fvalues import Timespans
+from data.fdata import FdataError
 
 from enum import Enum
 
-from data.futils import check_datetime
+from data.futils import get_ts_from_str
 
 class AVType(str, Enum):
     """
@@ -42,14 +43,24 @@ class AVType(str, Enum):
     CryptoWeekly = 'DIGITAL_CURRENCY_WEEKLY'
     CryptoMonthly = 'DIGITAL_CURRENCY_MONTHLY'
 
-class AVResults(str, Enum):
+class AVResultsCI(str, Enum):
     """
-        Enumeration with AlphaVantage results.
+        Enumeration with AlphaVantage results for crypto intraday.
     """
     Open = '1. open'
     High = '2. high'
     Low = '3. low'
     Close = '4. close'
+    Volume = '5. volume'
+
+class AVResultsCD(str, Enum):
+    """
+        Enumeration with AlphaVantage results for crypto daily.
+    """
+    Open = '1a. open (USD)'
+    High = '2a. high (USD)'
+    Low = '3a. low (USD)'
+    Close = '4a. close (USD)'
     Volume = '5. volume'
 
 # Provides parameters for the query to Alpha Vantage
@@ -88,7 +99,7 @@ class AVQuery(fdata.Query):
         elif self.timespan in (Timespans.OneHour):
             return '60min'
         else:
-            raise FDataError(f"Unsupported timespan: {self.timespan}")
+            raise FdataError(f"Unsupported timespan: {self.timespan}")
 
 class AV(fdata.BaseFetchData):
     """
@@ -108,10 +119,12 @@ class AV(fdata.BaseFetchData):
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened or no data obtained.
         """
-        if self.query.type not in (AVType.Crypto, AVType.CryptoIntraday, AVType.CryptoDaily, AVType.CryptoWeekly, AVType.CryptoMonthly):
-            url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}$interval={self.query.get_timespan()}&apikey={self.query.api_key}"
-        else:
-            url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}&market=USD&interval={self.query.get_timespan()}&apikey={self.query.api_key}"
+        url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}&market=USD&interval={self.query.get_timespan()}&apikey={self.query.api_key}"
+
+        AVResults = AVResultsCI
+
+        if self.query.type == AVType.CryptoDaily:
+            AVResults = AVResultsCD
 
         try:
             response = requests.get(url, timeout=30)
@@ -135,7 +148,10 @@ class AV(fdata.BaseFetchData):
         quotes_data = []
 
         for dt_str in datetimes:
-            ts = check_datetime(dt_str)[1]
+            try:
+                ts = get_ts_from_str(dt_str)
+            except ValueError as e:
+                raise FdataError(f"Can't parse the datetime {dt_str}: {e}")
 
             # Keep all non-intraday timestamps at 23:59:59
             if self.query.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):

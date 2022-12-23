@@ -12,7 +12,7 @@ import abc
 from data import fdatabase
 
 from data.fvalues import Timespans, def_first_date, def_last_date
-from data.futils import check_datetime
+from data.futils import get_dt
 
 # Enum class for database types
 class DbTypes(Enum):
@@ -32,28 +32,30 @@ class Query():
     """
         Base database query class.
     """
-    def __init__(self, symbol="", first_date=None, last_date=None, timespan=Timespans.Day):
+    def __init__(self,
+                 symbol="",
+                 first_date=def_first_date,
+                 last_date=def_last_date,
+                 timespan=Timespans.Day,
+                 update="IGNORE",
+                 ):
         """
             Initialize base database query class.
         """
         # Setting the default values
         self.symbol = symbol
 
-        # Datetimes should be stored in one format (for example, datetime for utc timezone).
-        # Then DTs will be converted as needed according to query type (data souce, database and so on).
-        if first_date == None:
-            self.first_date = def_first_date
-        else:
-            self.first_date = check_datetime(first_date)[1]
+        self._first_date = None
+        self._last_date = None
 
-        if last_date == None:
-            self.last_date = def_last_date
-        else:
-            self.last_date = check_datetime(last_date)[1]
+        self.first_date = first_date
+        self.last_date = last_date
 
         self.update = "IGNORE"
-        self.source_title = ""
         self.timespan = timespan
+
+        # Source title should be overridden in derived classes for particular data sources
+        self.source_title = ""
 
         self.db_type = "sqlite"
         self.db_name = "data.sqlite"
@@ -66,6 +68,109 @@ class Query():
 
         # Flag which indicates if the database is connected
         self.Connected = False
+
+    ########################################################
+    # Get/set datetimes (depending on the input value type).
+    ########################################################
+    @property
+    def first_date(self):
+        """
+            Get the first datetime of the query.
+
+            Returns:
+                datetime: the first datetime in the query.
+        """
+        return self._first_date
+
+    @first_date.setter
+    def first_date(self, value):
+        """
+            Set the first datetime of the query.
+
+            value(int, str, datetime): datetime representation to set.
+
+            Raises:
+                ValueError, OSError: incorrect datetime representation.
+        """
+        self._first_date = get_dt(value)
+
+    @property
+    def last_date(self):
+        """
+            Get the last datetime of the query.
+
+            Returns:
+                datetime: the last datetime in the query.
+        """
+        return self._last_date
+
+    @last_date.setter
+    def last_date(self, value):
+        """
+            Set the last datetime of the query.
+
+            value(int, str, datetime): datetime representation to set.
+
+            Raises:
+                ValueError, OSError: incorrect datetime representation.
+        """
+        self._last_date = get_dt(value)
+
+    @property
+    def first_date_ts(self):
+        """
+            Get the first datetime's timestamp of the query.
+
+            Returns:
+                int: the first datetime's timestamp in the query.
+        """
+        return int(self.first_date.timestamp())
+
+    @property
+    def last_date_ts(self):
+        """
+            Get the last datetime's timestamp of the query.
+
+            Returns:
+                int: the last datetime's timestamp in the query.
+        """
+        return int(self.last_date.timestamp())
+
+    @property
+    def first_date_str(self):
+        """
+            Get the first datetime's string representation of the query.
+
+            Returns:
+                datetime: the first datetime's string representation in the query.
+        """
+        return self.first_date.strftime('%Y-%m-%d %H:%M:%S')
+
+    @property
+    def last_date_str(self):
+        """
+            Get the last datetime's string representation of the query.
+
+            Returns:
+                datetime: the last datetime's string representation in the query.
+        """
+        return self.last_date.strftime('%Y-%m-%d %H:%M:%S')
+
+    def first_date_set_eod(self):
+        """
+            Set the first date's h/m/s/ to EOD (23:59:59)
+        """
+        self._first_date = self._first_date.replace(hour=23, minute=59, second=59)
+
+    def last_date_set_eod(self):
+        """
+            Set the last date's h/m/s/ to EOD (23:59:59)
+        """
+        self._last_date = self._last_date.replace(hour=23, minute=59, second=59)
+
+    ##############################################
+    # End of datetime handling methods/properties.
+    ##############################################
 
     def get_db_type(self):
         """
@@ -326,8 +431,8 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
                             WHERE symbols.ticker = '{self.query.symbol}'
                             {timespan_query}
-                            AND "TimeStamp" >= {self.query.first_date}
-                            AND "TimeStamp" <= {self.query.last_date} ORDER BY "TimeStamp";"""
+                            AND "TimeStamp" >= {self.query.first_date_ts}
+                            AND "TimeStamp" <= {self.query.last_date_ts} ORDER BY "TimeStamp";"""
 
         try:
             self.query.cur.execute(select_quotes)
@@ -443,7 +548,7 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
         """
         num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.query.symbol}') AND
-                        "TimeStamp" >= {self.query.first_date} AND "TimeStamp" <= {self.query.last_date};"""
+                        "TimeStamp" >= {self.query.first_date_ts} AND "TimeStamp" <= {self.query.last_date_ts};"""
 
         try:
             self.query.cur.execute(num_query)
@@ -587,7 +692,7 @@ class ReadWriteData(ReadOnlyData):
                 FdataError: sql error happened.
         """
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}')
-                            AND "TimeStamp" >= {self.query.first_date} AND "TimeStamp" <= {self.query.last_date};"""
+                            AND "TimeStamp" >= {self.query.first_date_ts} AND "TimeStamp" <= {self.query.last_date_ts};"""
 
         try:
             self.query.cur.execute(remove_quotes)

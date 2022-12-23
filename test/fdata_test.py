@@ -103,8 +103,8 @@ class Test(unittest.TestCase):
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
                             WHERE symbols.ticker = '{self.read_data.query.symbol}'
                             AND timespans.title = 'Day'
-                            AND "TimeStamp" >= {self.read_data.query.first_date}
-                            AND "TimeStamp" <= {self.read_data.query.last_date} ORDER BY "TimeStamp";"""
+                            AND "TimeStamp" >= {self.read_data.query.first_date_ts}
+                            AND "TimeStamp" <= {self.read_data.query.last_date_ts} ORDER BY "TimeStamp";"""
 
         when(self.read_data.query.cur).execute(sql_query).thenReturn()
 
@@ -168,7 +168,7 @@ class Test(unittest.TestCase):
     def test_17_get_symbol_quotes_num_dt(self):
         sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.read_data.query.symbol}') AND
-                        "TimeStamp" >= {self.read_data.query.first_date} AND "TimeStamp" <= {self.read_data.query.last_date};"""
+                        "TimeStamp" >= {self.read_data.query.first_date_ts} AND "TimeStamp" <= {self.read_data.query.last_date_ts};"""
 
         when(self.read_data.query.cur).execute(sql_query).thenReturn()
 
@@ -351,7 +351,7 @@ class Test(unittest.TestCase):
 
     def test_10_check_remove_quotes(self):
             sql_query = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}')
-                            AND "TimeStamp" >= {self.query.first_date} AND "TimeStamp" <= {self.query.last_date};"""
+                            AND "TimeStamp" >= {self.query.first_date_ts} AND "TimeStamp" <= {self.query.last_date_ts};"""
 
             when(self.write_data.query.cur).execute(sql_query).thenReturn()
 

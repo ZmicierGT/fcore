@@ -70,74 +70,68 @@ class Test(unittest.TestCase):
     def tearDown(self):
         unstub()
 
-    def test_0_check_date(self):
-        date1 = "1800-01-01" # Passes
-        date2 = "1900-01-01" # Passes
-        date3 = "2000-01-01" # Passes
-        date4 = "2040-01-01" # Passes
+    def test_0_get_dt(self):
+        date1 = "1800-01-01"  # Passes
+        date2 = "1900-01-01"  # Passes
+        date3 = "2000-01-01"  # Passes
+        date4 = "2040-01-01"  # Passes
 
-        date5 = "2020-01-40" # Fails
-        date6 = "2020-01-40 12:55" # Fails
+        date5 = "2020-01-40"  # Fails
 
-        res1, ts1 = futils.check_date(date1)
-        res2, ts2 = futils.check_date(date2)
-        res3, ts3 = futils.check_date(date3)
-        res4, ts4 = futils.check_date(date4)
+        datetime1 = "2020-01-20 12:55"  # Passes
+        datetime2 = "2022-10-10 23:59:59"  # Passes
+        datetime3 = "2022-10-10 23:59:79"  # Fails
 
-        res5, ts5 = futils.check_date(date5)
-        res6, ts6 = futils.check_date(date6)
+        ts1 = 1  # Passes
+        ts2 = 999999999999999999999  # Fails
+        ts3 = -999999999999999999999  # Fails
 
-        self.assertTrue(res1)
-        self.assertTrue(res2)
-        self.assertTrue(res3)
-        self.assertTrue(res4)
+        dt1 = futils.get_dt(date1)
+        dt2 = futils.get_dt(date2)
+        dt3 = futils.get_dt(date3)
+        dt4 = futils.get_dt(date4)
+
+        self.assertRaises(ValueError, futils.get_dt, date5)
+
+        dt6 = futils.get_dt(datetime1)
+        dt7 = futils.get_dt(datetime2)
+        self.assertRaises(ValueError, futils.get_dt, datetime3)
+
+        dt8 = futils.get_dt(ts1)
+        self.assertRaises(ValueError, futils.get_dt, ts2)
+        self.assertRaises(ValueError, futils.get_dt, ts3)
+
+        self.assertEqual(int(dt1.timestamp()), -5364662400)
+        self.assertEqual(int(dt2.timestamp()), -2208988800)
+        self.assertEqual(int(dt3.timestamp()), 946684800)
+        self.assertEqual(int(dt4.timestamp()), 2208988800)
+
+        self.assertEqual(str(dt6), '2020-01-20 12:55:00+00:00')
+        self.assertEqual(str(dt7), '2022-10-10 23:59:59+00:00')
+
+        self.assertEqual(int(dt8.timestamp()), 1)
+
+    def test_1_check_get_ts_from_str(self):
+        date1 = "1800-01-01"  # Passes
+        date2 = "2040-01-01"  # Passes
+        date3 = "2020-01-40"  # Fails
+
+        datetime1 = "2020-01-20 12:55"  # Passes
+        datetime2 = "2022-10-10 23:59:59"  # Passes
+        datetime3 = "2022-10-10 23:59:79"  # Fails
+
+        ts1 = futils.get_ts_from_str(date1)
+        ts2 = futils.get_ts_from_str(date2)
+        self.assertRaises(ValueError, futils.get_ts_from_str, date3)
+
+        ts3 = futils.get_ts_from_str(datetime1)
+        ts4 = futils.get_ts_from_str(datetime2)
+        self.assertRaises(ValueError, futils.get_ts_from_str, datetime3)
 
         self.assertEqual(ts1, -5364662400)
-        self.assertEqual(ts2, -2208988800)
-        self.assertEqual(ts3, 946684800)
-        self.assertEqual(ts4, 2208988800)
-
-        self.assertFalse(res5)
-        self.assertFalse(res6)
-
-        self.assertEqual(ts5, 0)
-        self.assertEqual(ts6, 0)
-
-    def test_1_check_datetime(self):
-        datetime1 = "2022-10-10 23:59:59" # Passes
-        datetime2 = "2022-10-10 23:59:79" # Fails
-        datetime3 = "2022-40-10 23:59:59" # Fails
-        datetime4 = "2000-01-01" # Passes
-
-        res1, ts1 = futils.check_datetime(datetime1)
-        res2, ts2 = futils.check_datetime(datetime2)
-        res3, ts3 = futils.check_datetime(datetime3)
-        res4, ts4 = futils.check_datetime(datetime4)
-
-        self.assertTrue(res1)
-        self.assertFalse(res2)
-        self.assertFalse(res3)
-        self.assertTrue(res4)
-
-        self.assertEqual(ts2, 0)
-        self.assertEqual(ts3, 0)
-
-        self.assertEqual(ts1, 1665446399)
-        self.assertEqual(ts4, 946684800)
-
-    def test_2_check_get_datetime(self):
-        dt_str1 = "2022-10-10 23:59:59" # Passes
-        dt_str2 = "2022-10-10 23:59:79" # Fails
-        dt_str3 = "2022-40-10 23:59:59" # Fails
-        dt_str4 = "2000-01-01" # Fails
-
-        dt1 = futils.get_datetime(dt_str1)
-
-        self.assertRaises(ValueError, futils.get_datetime, dt_str2)
-        self.assertRaises(ValueError, futils.get_datetime, dt_str3)
-        self.assertRaises(ValueError, futils.get_datetime, dt_str4)
-
-        self.assertEqual(dt1, datetime(2022, 10, 10, 23, 59, 59))
+        self.assertEqual(ts2, 2208988800)
+        self.assertEqual(ts3, 1579524900)
+        self.assertEqual(ts4, 1665446399)
 
     def test_3_check_parse_config(self):
         parser = mock(configparser.ConfigParser)
@@ -197,20 +191,13 @@ class Test(unittest.TestCase):
         expected_file = os.path.join(img_dir, "fig_1.png")
         files = []
 
-        #fig = mock(go.Figure())
-
         when(futils).exists(img_dir).thenReturn(True)
         when(glob).glob(os.path.join(img_dir, file_mask)).thenReturn(files)
-        #when(fig).write_image(expected_file).thenReturn()
 
         new_file = futils.gen_image_path()
 
         verify(futils, times=1).exists(img_dir)
-        #verify(os, times=1).chdir(img_dir)
         verify(glob, times=1).glob(os.path.join(img_dir, file_mask))
-        #verify(fig).write_image(expected_file)
-
-        #self.assertRaises(RuntimeError, futils.write_image, fig)
 
         assert new_file == expected_file
 

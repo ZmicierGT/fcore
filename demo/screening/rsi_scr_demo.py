@@ -16,15 +16,19 @@ if __name__ == "__main__":
     # Please note that free AlphaVantage keys do not support live quotes any more.
 
     query_btc = av.AVQuery()
-    query_btc.type = av.AVType.CryptoIntraday
+    # As intraday cryptocurrency has been disabled for free account, daily is used just for demonstration purposes.
+    # For actual purposes switch to CryptoIntraday if you have a subscription.
+    # TODO better to rewrite this demo to use yahoo finance data.
+    query_btc.type = av.AVType.CryptoDaily
     source_btc = av.AV(query_btc)
 
-    query_eth = av.AVQuery()
-    query_eth.type = av.AVType.CryptoIntraday
-    source_eth = av.AV(query_eth)
+    query_ltc = av.AVQuery()
+    # Same as above ^^
+    query_ltc.type = av.AVType.CryptoDaily
+    source_ltc = av.AV(query_ltc)
 
     btc = {'Title': 'BTC', 'Source': source_btc}
-    eth = {'Title': 'ETH', 'Source': source_eth}
+    ltc = {'Title': 'LTC', 'Source': source_ltc}
 
     # Minimum period for calculation
     period = 14
@@ -34,7 +38,7 @@ if __name__ == "__main__":
     support = 30
     resistance = 70
 
-    scr = RsiScr(symbols=[btc, eth],
+    scr = RsiScr(symbols=[btc, ltc],
                  period=period,
                  interval=interval,
                  support=support,

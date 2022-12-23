@@ -8,7 +8,7 @@ Distributed under Fcore License 1.0 (see license.md)
 from data import fvalues
 from data.fdata import FdataError
 
-from data.futils import check_datetime
+from data.futils import get_ts_from_str
 
 from datetime import datetime
 from datetime import timedelta
@@ -180,7 +180,7 @@ class BaseScr(metaclass=abc.ABCMeta):
             max_dt = symbol.get_source().get_max_datetime()
 
             # Use the last datetime to fetch the new quotes
-            symbol.get_source().query.first_date = check_datetime(max_dt)[1]
+            symbol.get_source().query.first_date = max_dt
 
             try:
                 symbol.get_source().insert_quotes(symbol.get_source().fetch_quotes())
@@ -315,4 +315,4 @@ class ScrData():
         try:
             self.get_source().insert_quotes(self.get_source().fetch_quotes())
         except FdataError as e:
-            raise ScrError(f"Can't get quotes: {e}") from e
+            raise ScrError(e) from e

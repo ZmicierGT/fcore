@@ -12,8 +12,8 @@ class Test(unittest.TestCase):
         query = polygon_cli.arg_parser(argv)
 
         self.assertEqual(query.symbol, "AAPL")
-        self.assertEqual(query.first_date, "2019-07-22")
-        self.assertEqual(query.last_date, "2020-08-30")
+        self.assertEqual(query.first_date_str, "2019-07-22 00:00:00")
+        self.assertEqual(query.last_date_str, "2020-08-30 00:00:00")
         self.assertEqual(query.update, "REPLACE")
         self.assertEqual(query.source_title, "Polygon.io")
         self.assertEqual(query.year_delta, "2")

@@ -64,22 +64,22 @@ def arg_parser(argv):
             print(f"The timespan is set to {query.timespan}")
 
         elif argument in ("-f", "--first_date"):
-            result, ts = futils.check_date(value)
-            if result is False:
-                print("\nThe date is incorrect.")
-                sys.exit(usage)
-            else:
-                query.first_date = ts
-                print(f"The first date is {value}")
+            try:
+                query.first_date = value
+            except ValueError as e:
+                print("\n" + usage)
+                sys.exit(f"\nThe date is incorrect: {e}")
+
+            print(f"The first date is {query.first_date_str}")
 
         elif argument in ("-l", "--last_date"):
-            result, ts = futils.check_date(value)
-            if result is False:
-                print("\nThe date is incorrect.")
-                sys.exit(usage)
-            else:
-                query.last_date = ts
-                print(f"The last date is {value}")
+            try:
+                query.last_date = value
+            except ValueError as e:
+                print("\n" + usage)
+                sys.exit(f"\nThe date is incorrect: {e}")
+
+            print(f"The last date is {query.first_date_str}")
 
         elif argument in ("-r", "--replace"):
             query.update = "REPLACE"

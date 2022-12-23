@@ -32,8 +32,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol="SPY", first_date="2020-09-01", last_date="2022-11-1")
         rows, num = YF(query).fetch_if_none(threshold)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length = len(rows)
 
@@ -48,8 +47,7 @@ if __name__ == "__main__":
     try:
         lstm.calculate()
     except IndicatorError as e:
-        print(f"Can't calculate LSTM. Likely you need to train the model at first by launching lstm_learn.py. {e}")
-        sys.exit(2)
+        sys.exit(f"Can't calculate LSTM. Likely you need to train the model at first by launching lstm_learn.py. {e}")
 
     results = lstm.get_results()
     length = len(results)

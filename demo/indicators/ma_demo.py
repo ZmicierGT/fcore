@@ -31,8 +31,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
         rows, num = YF(query).fetch_if_none(threshold)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length = len(rows)
 

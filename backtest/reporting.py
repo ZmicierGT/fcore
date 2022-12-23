@@ -68,41 +68,6 @@ class Report():
         self._annotation_height = 170
         self._annotation_width = 1000
 
-    # TODO TO REMOVE
-    def adjust_trades(self, data=None):
-        """
-            Set trade related data to None if there was no trades this day.
-            It may be used in some charting.
-
-            Args:
-                data(BTData): instance with backtesting results.
-        """
-        if data is None:
-            data = self._data
-
-        alt_data = copy.deepcopy(data)
-        for i in range(len(data.Symbols)):
-            for j in range(len(data.TotalTrades)):
-                price_openlong = data.Symbols[i].PriceOpenLong[j]
-                price_closelong = data.Symbols[i].PriceCloseLong[j]
-
-                price_openshort = data.Symbols[i].PriceOpenShort[j]
-                price_closeshort = data.Symbols[i].PriceCloseShort[j]
-
-                price_margin_req_long = data.Symbols[i].PriceMarginReqLong[j]
-                price_margin_req_short = data.Symbols[i].PriceMarginReqShort[j]
-
-                if np.isnan(price_openlong) and\
-                   np.isnan(price_closelong) and\
-                   np.isnan(price_openshort) and\
-                   np.isnan(price_closeshort) and\
-                   np.isnan(price_margin_req_long) and\
-                   np.isnan(price_margin_req_short):
-                    alt_data.Symbols[i].TradesNo = (j, None)
-                    alt_data.TotalTrades = (j, None)
-
-        return alt_data
-
     def get_charts_num(self, fig):
         """
             Get the number of subcharts in the fugure.

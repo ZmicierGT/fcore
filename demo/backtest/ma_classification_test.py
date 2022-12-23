@@ -48,8 +48,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
         rows_learn, num = YF(query).fetch_if_none(threshold_learn)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length_learn = len(rows_learn)
 
@@ -64,8 +63,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
         rows, num = YF(query).fetch_if_none(threshold_test)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length_test = len(rows)
 
@@ -87,8 +85,7 @@ if __name__ == "__main__":
         accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = classifier.get_learn_accuracy()
         f1_buy_learn, f1_sell_learn, total_f1_learn = classifier.get_learn_f1()
     except IndicatorError as e:
-        print(f"Can't train MA classification models: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't train MA classification models: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
     print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
@@ -128,8 +125,7 @@ if __name__ == "__main__":
         accuracy_buy_est, accuracy_sell_est, total_accuracy_est = classifier.get_est_accuracy()
         f1_buy_est, f1_sell_est, total_f1_est = classifier.get_est_f1()
     except BackTestError as e:
-        print(f"Can't perform backtesting: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't perform backtesting: {e}")
 
     print('\nBuy estimation accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
     print('Sell estimation accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
@@ -159,8 +155,7 @@ if __name__ == "__main__":
         ma.calculate()
         results_cmp = ma.get_results()
     except BackTestError as e:
-        print(f"Can't perform backtesting calculation: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't perform backtesting calculation: {e}")
 
     #################
     # Create a report

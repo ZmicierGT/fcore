@@ -31,8 +31,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol="SPY", first_date="2017-01-30", last_date="2022-8-1")
         rows, num = YF(query).fetch_if_none(threshold)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length = len(rows)
 
@@ -84,8 +83,7 @@ if __name__ == "__main__":
         ma.calculate()
         bh.calculate()
     except BackTestError as e:
-        print(f"Can't perform backtesting calculation: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't perform backtesting calculation: {e}")
 
     results_bh = bh.get_results()
     results = ma.get_results()

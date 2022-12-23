@@ -82,8 +82,7 @@ if __name__ == "__main__":
             query = YFQuery(symbol=symbol_learn, last_date=last_date)
             rows, num = YF(query).fetch_if_none(threshold)
         except FdataError as e:
-            print(e)
-            sys.exit(2)
+            sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
@@ -98,8 +97,7 @@ if __name__ == "__main__":
         query = YFQuery(symbol=symbol, first_date=first_date, last_date=last_date)
         est_rows, num = YF(query).fetch_if_none(test_threshold)
     except FdataError as e:
-        print(e)
-        sys.exit(2)
+        sys.exit(e)
 
     length = len(est_rows)
 
@@ -126,8 +124,7 @@ if __name__ == "__main__":
         accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.get_est_accuracy()
         f1_buy_est, f1_sell_est, total_f1_est = ma_cls.get_est_f1()
     except IndicatorError as e:
-        print(f"Can't calculate MA Classifier: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't calculate MA Classifier: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
     print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))

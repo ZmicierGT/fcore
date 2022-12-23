@@ -25,14 +25,12 @@ def arg_parser(argv):
              "Use -h command line option to see detailed help.\n")
 
     if len(argv) == 1:
-        print(usage)
-        sys.exit(2)
+        sys.exit(usage)
 
     try:
         arguments, values = getopt.getopt(argv[1:],"hd:s:t:f:l:r", ["help", "file=", "symbol=", "timespan=", "first_date=", "last_date=", "--replace"])
     except getopt.GetoptError:
-        print(usage)
-        sys.exit(2)
+        sys.exit(usage)
 
     query = yf.YFQuery()
 
@@ -49,7 +47,7 @@ def arg_parser(argv):
                   f"-f or --first_date - the first date of the data to get. Default is 1970-01-01.\n"
                    "-l or --last_date  - the last date to get data. Default is today (local date).\n"
                    "-r or --replace    - indicates if the existing records (based on timestamp) will be replaced.\n")
-            sys.exit(2)
+            sys.exit()
 
         elif argument in ("-d", "--file"):
             query.db_name = value
@@ -61,8 +59,7 @@ def arg_parser(argv):
 
         elif argument in ("-t", "--timespan"):
             if value not in ("day", "week", "month"):
-                print(usage)
-                sys.exit(2)
+                sys.exit(usage)
             query.timespan = value
             print(f"The timespan is set to {query.timespan}")
 
@@ -70,8 +67,7 @@ def arg_parser(argv):
             result, ts = futils.check_date(value)
             if result is False:
                 print("\nThe date is incorrect.")
-                print(usage)
-                sys.exit(2)
+                sys.exit(usage)
             else:
                 query.first_date = ts
                 print(f"The first date is {value}")
@@ -80,8 +76,7 @@ def arg_parser(argv):
             result, ts = futils.check_date(value)
             if result is False:
                 print("\nThe date is incorrect.")
-                print(usage)
-                sys.exit(2)
+                sys.exit(usage)
             else:
                 query.last_date = ts
                 print(f"The last date is {value}")
@@ -90,11 +85,10 @@ def arg_parser(argv):
             query.update = "REPLACE"
             print("Existing quotes will be updated.")
         else:
-            print(usage)
+            sys.exit(usage)
 
         if hasattr(query, "symbol") is False:
-            print("Symbol is not specified.")
-            sys.exit(2)
+            sys.exit("Symbol is not specified.")
 
     return query
 
@@ -107,9 +101,9 @@ if __name__ == "__main__":
 
         num_before, num_after = source.insert_quotes(source.fetch_quotes())
     except fdata.FdataError as e:
-        print(e)
-        sys.exit(2)
-    finally:
         query.db_close()
+        sys.exit(e)
+
+    query.db_close()
 
     print(f"The database is updated. The number of entries before update is {num_before}, the number of entries after the update is {num_after}")

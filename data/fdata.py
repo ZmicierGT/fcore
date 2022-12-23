@@ -39,6 +39,8 @@ class Query():
         # Setting the default values
         self.symbol = symbol
 
+        # Datetimes should be stored in one format (for example, datetime for utc timezone).
+        # Then DTs will be converted as needed according to query type (data souce, database and so on).
         if first_date == None:
             self.first_date = def_first_date
         else:

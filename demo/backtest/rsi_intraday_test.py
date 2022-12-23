@@ -44,8 +44,7 @@ if __name__ == "__main__":
             query = PolygonQuery(symbol=symbol, first_date=first_date, last_date=last_date, timespan=Timespans.Intraday)
             rows, num = Polygon(query).fetch_if_none(threshold)
         except FdataError as e:
-            print(e)
-            sys.exit(2)
+            sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
@@ -86,8 +85,7 @@ if __name__ == "__main__":
     try:
         rsi.calculate()
     except BackTestError as e:
-        print(f"Can't perform backtesting calculation: {e}")
-        sys.exit(2)
+        sys.exit(f"Can't perform backtesting calculation: {e}")
 
     results = rsi.get_results()
 

@@ -52,8 +52,7 @@ def arg_parser(argv):
              "Use -h command line option to see detailed help.")
 
     if len(argv) == 1:
-        print(usage)
-        sys.exit(2)
+        sys.exit(usage)
 
     try:
         arguments, values = getopt.getopt(argv[1:],"hd:s:f:l:qcra", 
@@ -67,8 +66,7 @@ def arg_parser(argv):
                                                     "remove"
                                                     "all_symbols"])
     except getopt.GetoptError:
-        print(usage)
-        sys.exit(2)
+        sys.exit(usage)
 
     query = QuotesQuery()
     query.timespan = Timespans.All
@@ -90,7 +88,7 @@ def arg_parser(argv):
                    "-r or --remove      - remove specified symbol for specified dates\n"
                    "-a or --all_symbols - list all symbol in the data file\n")
             query.db_close()
-            sys.exit(2)
+            sys.exit()
 
         elif argument in ("-d", "--db_name"):
             query.db_name = value
@@ -103,10 +101,9 @@ def arg_parser(argv):
         elif argument in ("-f", "--first_date"):
             result, ts = futils.check_datetime(value)
             if result is False:
-                print("\nThe date is incorrect.")
-                print(usage)
+                print("\n" + usage)
                 query.db_close()
-                sys.exit(2)
+                sys.exit("\nThe date is incorrect.")
             else:
                 print(f"The first date is {value}")
                 query.first_date = ts
@@ -114,10 +111,9 @@ def arg_parser(argv):
         elif argument in ("-l", "--last_date"):
             result, ts = futils.check_datetime(value)
             if result is False:
-                print("\nThe date is incorrect.")
-                print(usage)
+                print("\n" + usage)
                 query.db_close()
-                sys.exit(2)
+                sys.exit("\nThe date is incorrect.")
             else:
                 print(f"The last date is {value}")
                 if len(value) <= 10:
@@ -139,7 +135,7 @@ def arg_parser(argv):
             query.to_print_all = True
 
         else:
-            print(usage)
+            sys.exit(usage)
 
     return query
 
@@ -150,34 +146,31 @@ if __name__ == "__main__":
     if query.to_print_all == True:
         quotes.print_all_symbols(quotes.get_all_symbols())
         query.db_close()
-        sys.exit(2)
+        sys.exit()
 
     if query.to_print_quotes == True:
         if query.symbol == "":
-            print("No symbol specified")
             query.db_close()
-            sys.exit(2)
+            sys.exit("No symbol specified")
         
         quotes.print_quotes(quotes.get_quotes())
         query.db_close()
-        sys.exit(2)
+        sys.exit()
 
     if query.to_build_chart == True:
         if query.symbol == "":
-            print("No symbol specified")
             query.db_close()
-            sys.exit(2)
+            sys.exit("No symbol specified")
 
         new_file = futils.build_chart(quotes.get_quotes())
         print(f"{new_file} is written.")
         query.db_close()
-        sys.exit(2)
+        sys.exit()
 
     if query.to_remove_quotes == True:
         if query.symbol == "":
-            print("No symbol specified")
             query.db_close()
-            sys.exit(2)
+            sys.exit("No symbol specified")
 
         print(f"Number of quotes before removal: {quotes.get_quotes_num()}")
         quotes.remove_quotes()

@@ -13,6 +13,7 @@ from enum import IntEnum
 
 from data import fdata, futils
 from data.fvalues import Timespans
+from data.fdata import FdataError
 
 # Provides parameters for the query to Yahoo Finance
 class YFQuery(fdata.Query):
@@ -36,11 +37,6 @@ class YFQuery(fdata.Query):
             No need to convert the default timespan to Yahoo Finance timespan because they are the same.
         """
         return self.timespan
-
-class YFError(Exception):
-    """
-        Yahoo Finance exception class.
-    """
 
 class YFcsv(IntEnum):
     """
@@ -78,7 +74,7 @@ class YF(fdata.BaseFetchData):
                 list: quotes data
 
             Raises:
-                YFError: network error, no data obtained, can't parse json or the date is incorrect.
+                FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         request_timespan = "1d"
 
@@ -92,7 +88,7 @@ class YF(fdata.BaseFetchData):
         try:
             quotes_response = urllib.request.urlopen(quotes_url)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
-            raise YFError(f"Can't fetch quotes: {e}") from e
+            raise FdataError(f"Can't fetch quotes: {e}") from e
 
         raw_quote_data = quotes_response.read()
         quote_data = raw_quote_data.decode("utf8")
@@ -106,7 +102,7 @@ class YF(fdata.BaseFetchData):
         try:
             divs_response = urllib.request.urlopen(divs_url)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
-            raise YFError(f"Can't fetch quotes: {e}") from e
+            raise FdataError(f"Can't fetch quotes: {e}") from e
 
         raw_divs_data = divs_response.read()
         divs_data = raw_divs_data.decode("utf8")
@@ -124,7 +120,7 @@ class YF(fdata.BaseFetchData):
             result, ts = futils.check_date(date)
 
             if result == False:
-                raise YFError(f"The date {date} is incorrect.")
+                raise FdataError(f"The date {date} is incorrect.")
 
             div_dates.append(ts)
             div_amounts.append(div[YFdiv.Amount])
@@ -151,7 +147,7 @@ class YF(fdata.BaseFetchData):
             result, ts = futils.check_date(date)
 
             if result == False:
-                raise YFError(f"The date {date} is incorrect.")
+                raise FdataError(f"The date {date} is incorrect.")
 
             # Add 23:59:59 to non-intraday quotes
             quote_dict['t'] = ts + 86399
@@ -164,6 +160,6 @@ class YF(fdata.BaseFetchData):
             quotes_data.append(quote_dict)
 
         if len(quotes_data) == 0:
-            raise YFError("No data obtained.")
+            raise FdataError("No data obtained.")
 
         return quotes_data

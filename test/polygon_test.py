@@ -10,6 +10,7 @@ import json
 
 from data import polygon
 from data.futils import check_datetime
+from data.fdata import FdataError
 
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
@@ -24,7 +25,7 @@ class Test(unittest.TestCase):
 
         try:
             polygon_obj.fetch_quotes()
-        except polygon.PolygonError as e:
+        except FdataError as e:
             # This is expected
             pass
 

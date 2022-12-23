@@ -9,7 +9,7 @@ from data.futils import write_model
 from data.fdata import FdataError
 from data.fvalues import Quotes
 
-from data.yf import YFError, YFQuery, YF
+from data.yf import YFQuery, YF
 
 import sys
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         query = YFQuery(symbol="SPY", first_date="2010-08-30", last_date="2020-08-30")
         rows, num = YF(query).fetch_if_none(threshold)
-    except (YFError, FdataError) as e:
+    except FdataError as e:
         print(e)
         sys.exit(2)
 

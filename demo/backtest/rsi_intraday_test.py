@@ -12,7 +12,7 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.fvalues import Timespans
-from data.polygon import PolygonError, PolygonQuery, Polygon
+from data.polygon import PolygonQuery, Polygon
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -43,7 +43,7 @@ if __name__ == "__main__":
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             query = PolygonQuery(symbol=symbol, first_date=first_date, last_date=last_date, timespan=Timespans.Intraday)
             rows, num = Polygon(query).fetch_if_none(threshold)
-        except (PolygonError, FdataError) as e:
+        except FdataError as e:
             print(e)
             sys.exit(2)
 

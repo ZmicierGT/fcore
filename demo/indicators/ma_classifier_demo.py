@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from data.yf import YFQuery, YFError, YF
+from data.yf import YFQuery, YF
 from data.fdata import FdataError
 
 from data.fvalues import Quotes
@@ -81,7 +81,7 @@ if __name__ == "__main__":
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             query = YFQuery(symbol=symbol_learn, last_date=last_date)
             rows, num = YF(query).fetch_if_none(threshold)
-        except (YFError, FdataError) as e:
+        except FdataError as e:
             print(e)
             sys.exit(2)
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
         query = YFQuery(symbol=symbol, first_date=first_date, last_date=last_date)
         est_rows, num = YF(query).fetch_if_none(test_threshold)
-    except (YFError, FdataError) as e:
+    except FdataError as e:
         print(e)
         sys.exit(2)
 

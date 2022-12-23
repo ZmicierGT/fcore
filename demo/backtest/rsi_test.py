@@ -12,7 +12,7 @@ from backtest.stock import StockData
 from backtest.reporting import Report
 
 from data.fdata import FdataError
-from data.yf import YFError, YFQuery, YF
+from data.yf import YFQuery, YF
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -43,7 +43,7 @@ if __name__ == "__main__":
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             query = YFQuery(symbol=symbol, first_date=first_date, last_date=last_date)
             rows, num = YF(query).fetch_if_none(threshold)
-        except (YFError, FdataError) as e:
+        except FdataError as e:
             print(e)
             sys.exit(2)
 

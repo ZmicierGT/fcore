@@ -9,6 +9,7 @@ import requests
 import urllib
 
 from data import yf
+from data.fdata import FdataError
 
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
@@ -20,7 +21,7 @@ class Test(unittest.TestCase):
 
         try:
             yf_obj.fetch_quotes()
-        except yf.YFError as e:
+        except FdataError as e:
             # This is expected
             pass
 

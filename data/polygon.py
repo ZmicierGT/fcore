@@ -17,6 +17,7 @@ import requests
 import json
 
 from data import fdata
+from data.fdata import FdataError
 
 from data.fvalues import Timespans, def_first_date, def_last_date
 
@@ -36,6 +37,7 @@ class PolygonQuery(fdata.Query):
         self.year_delta = "2"
         self.api_key = "get_your_free_api_key_at_polygon.io"
 
+        # IF first/last datetimes are not provided, use the current datetime as the last and current - year_delta as first
         if self.first_date == def_first_date:
             self.first_date = datetime.now() - relativedelta(years=int(self.year_delta))
             self.first_date = self.first_date.replace(tzinfo=pytz.utc)
@@ -59,11 +61,6 @@ class PolygonQuery(fdata.Query):
         else:
             return self.timespan.lower()
 
-class PolygonError(Exception):
-    """
-        Polygon.IO exception class.
-    """
-
 class Polygon(fdata.BaseFetchData):
     """
         Poligon.IO API wrapper class.
@@ -80,7 +77,7 @@ class Polygon(fdata.BaseFetchData):
                 list: quotes data
 
             Raises:
-                PolygonError: Network error happened, no data obtained or can't parse json.
+                FdataError: Network error happened, no data obtained or can't parse json.
         """
         first_date = datetime.utcfromtimestamp(self.query.first_date)
         first_date.replace(tzinfo=pytz.utc)
@@ -95,16 +92,16 @@ class Polygon(fdata.BaseFetchData):
         try:
             response = requests.get(url, timeout=30)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
-            raise PolygonError(f"Can't fetch quotes: {e}") from e
+            raise FDataError(f"Can't fetch quotes: {e}") from e
         
         try:
             json_data = json.loads(response.text)
             json_results = json_data['results']
         except (json.JSONDecodeError, KeyError) as e:
-            raise PolygonError(f"Can't parse json or no symbol found. Maybe API key is missing? {e}") from e
+            raise FDataError(f"Can't parse json or no symbol found. Maybe API key is missing? {e}") from e
 
         if len(json_results) == 0:
-            raise PolygonError("No data obtained.")
+            raise FdataError("No data obtained.")
 
         for row in json_results:
             # No need in ms

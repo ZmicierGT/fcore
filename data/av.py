@@ -75,7 +75,7 @@ class AVQuery(fdata.Query):
             Converts universal timespan to AlphaVantage timespan.
 
             Raises:
-                AVError: incorrect timespan.
+                FdataError: incorrect timespan.
         """
         if self.timespan in (Timespans.Intraday, Timespans.OneMinute):
             return '1min'
@@ -88,12 +88,7 @@ class AVQuery(fdata.Query):
         elif self.timespan in (Timespans.OneHour):
             return '60min'
         else:
-            raise AVError(f"Unsupported timespan: {self.timespan}")
-
-class AVError(Exception):
-    """
-        AlphaVantage exception class.
-    """
+            raise FDataError(f"Unsupported timespan: {self.timespan}")
 
 class AV(fdata.BaseFetchData):
     """
@@ -111,7 +106,7 @@ class AV(fdata.BaseFetchData):
                 list: quotes data
 
             Raises:
-                AVError: incorrect API key(limit reached), http error happened or no data obtained.
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
         """
         if self.query.type not in (AVType.Crypto, AVType.CryptoIntraday, AVType.CryptoDaily, AVType.CryptoWeekly, AVType.CryptoMonthly):
             url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}$interval={self.query.get_timespan()}&apikey={self.query.api_key}"
@@ -121,21 +116,21 @@ class AV(fdata.BaseFetchData):
         try:
             response = requests.get(url, timeout=30)
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
-            raise AVError(f"Can't fetch quotes: {e}") from e
+            raise FdataError(f"Can't fetch quotes: {e}") from e
 
         json_data = response.json()
 
         try:
             key = list(json_data.keys())[1]
         except IndexError as e:
-            raise AVError(f"Can't get quotes. Maybe API key limit is reached: {e}") from e
+            raise FdataError(f"Can't get quotes. Maybe API key limit is reached: {e}") from e
 
         dict_results = json_data[key]
 
         datetimes = list(dict_results.keys())
 
         if len(datetimes) == 0:
-            raise AVError("No data obtained.")
+            raise FdataError("No data obtained.")
 
         quotes_data = []
 

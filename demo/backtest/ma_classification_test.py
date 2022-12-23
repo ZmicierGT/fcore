@@ -17,7 +17,7 @@ from backtest.reporting import Report
 from indicators.base import IndicatorError
 
 from data.fdata import FdataError
-from data.yf import YFError, YFQuery, YF
+from data.yf import YFQuery, YF
 
 import plotly.graph_objects as go
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         query = YFQuery(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
         rows_learn, num = YF(query).fetch_if_none(threshold_learn)
-    except (YFError, FdataError) as e:
+    except FdataError as e:
         print(e)
         sys.exit(2)
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         query = YFQuery(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
         rows, num = YF(query).fetch_if_none(threshold_test)
-    except (YFError, FdataError) as e:
+    except FdataError as e:
         print(e)
         sys.exit(2)
 

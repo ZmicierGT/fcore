@@ -16,8 +16,6 @@ from indicators.base import IndicatorError
 from enum import IntEnum
 
 import pandas as pd
-import pandas_ta as ta
-
 import numpy as np
 
 from sklearn.linear_model import LogisticRegression
@@ -311,7 +309,7 @@ class Classifier(BaseIndicator):
     ##################
 
     @abc.abstractmethod
-    def get_df():
+    def get_df(self):
         """
             Get the DataFrame for learning/estimation based on the initial DataFrame.
 
@@ -320,7 +318,7 @@ class Classifier(BaseIndicator):
         """
 
     @abc.abstractmethod
-    def add_signals():
+    def add_signals(self, df):
         """
             Add buy-sell signals to the DataFrame.
 

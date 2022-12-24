@@ -51,7 +51,7 @@ class Query():
         self.first_date = first_date
         self.last_date = last_date
 
-        self.update = "IGNORE"
+        self.update = update
         self.timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources

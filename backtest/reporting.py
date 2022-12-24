@@ -15,9 +15,6 @@ from PIL import ImageDraw
 
 from enum import IntEnum
 
-import numpy as np
-
-import copy
 import io
 
 from matplotlib import font_manager

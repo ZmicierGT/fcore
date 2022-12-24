@@ -151,7 +151,7 @@ class AV(fdata.BaseFetchData):
             try:
                 ts = get_ts_from_str(dt_str)
             except ValueError as e:
-                raise FdataError(f"Can't parse the datetime {dt_str}: {e}")
+                raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
 
             # Keep all non-intraday timestamps at 23:59:59
             if self.query.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):

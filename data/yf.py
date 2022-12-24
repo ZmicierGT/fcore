@@ -121,7 +121,7 @@ class YF(fdata.BaseFetchData):
             try:
                 ts = futils.get_ts_from_str(date)
             except ValueError as e:
-                raise FdataError(f"The date {date} is incorrect: {e}")
+                raise FdataError(f"The date {date} is incorrect: {e}") from e
 
             div_dates.append(ts)
             div_amounts.append(div[YFdiv.Amount])
@@ -149,7 +149,7 @@ class YF(fdata.BaseFetchData):
             try:
                 ts = futils.get_ts_from_str(date)
             except ValueError as e:
-                raise FdataError(f"The date {date} is incorrect: {e}")
+                raise FdataError(f"The date {date} is incorrect: {e}") from e
 
             # Add 23:59:59 to non-intraday quotes
             quote_dict['t'] = ts + 86399

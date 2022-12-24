@@ -8,8 +8,6 @@ Distributed under Fcore License 1.0 (see license.md)
 from data import fvalues
 from data.fdata import FdataError
 
-from data.futils import get_ts_from_str
-
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone

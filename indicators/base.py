@@ -44,7 +44,6 @@ class BaseIndicator(metaclass=abc.ABCMeta):
         """
             Abstract method to perform the tech calculation.
         """
-        pass
 
     def get_results(self):
         """

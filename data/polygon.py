@@ -97,7 +97,7 @@ class Polygon(fdata.BaseFetchData):
 
             try:
                 error = json_results = json_data['error']
-            except (json.JSONDecodeError, KeyError) as e:
+            except (json.JSONDecodeError, KeyError):
                 # Not relevant for error reporting
                 pass
 

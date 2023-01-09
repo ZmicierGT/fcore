@@ -83,7 +83,7 @@ class YF(fdata.BaseFetchData):
         elif self.query.timespan == Timespans.Month:
             request_timespan = "1mo"
 
-        quotes_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts * 1000}&period2={self.query.last_date_ts * 1000}&interval={request_timespan}&events=history&includeAdjustedClose=true"
+        quotes_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts}&period2={self.query.last_date_ts}&interval={request_timespan}&events=history&includeAdjustedClose=true"
 
         try:
             quotes_response = urllib.request.urlopen(quotes_url)
@@ -97,7 +97,7 @@ class YF(fdata.BaseFetchData):
         quotes = quote_data.splitlines()[1:]
 
         # Get dividends data
-        divs_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts * 1000}&period2={self.query.last_date_ts * 1000}&interval={request_timespan}&events=div&includeAdjustedClose=true"
+        divs_url = f"https://query1.finance.yahoo.com/v7/finance/download/{self.query.symbol}?period1={self.query.first_date_ts}&period2={self.query.last_date_ts}&interval={request_timespan}&events=div&includeAdjustedClose=true"
 
         try:
             divs_response = urllib.request.urlopen(divs_url)

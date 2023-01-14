@@ -96,7 +96,7 @@ def arg_parser(argv):
                 print("\n" + usage)
                 sys.exit(f"\nThe date is incorrect: {e}")
 
-            print(f"The first date is {query.first_date_str}")
+            print(f"The first date is {query.first_datetime_str}")
 
         elif argument in ("-l", "--last_date"):
             try:
@@ -105,7 +105,7 @@ def arg_parser(argv):
                 print("\n" + usage)
                 sys.exit(f"\nThe date is incorrect: {e}")
 
-            print(f"The last date is {query.last_date_str}")
+            print(f"The last date is {query.last_datetime_str}")
 
         elif argument in ("-r", "--replace"):
             query.update = "REPLACE"

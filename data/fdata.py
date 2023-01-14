@@ -137,7 +137,7 @@ class Query():
         return int(self.last_date.timestamp())
 
     @property
-    def first_date_str(self):
+    def first_datetime_str(self):
         """
             Get the first datetime's string representation of the query.
 
@@ -147,6 +147,26 @@ class Query():
         return self.first_date.strftime('%Y-%m-%d %H:%M:%S')
 
     @property
+    def last_datetime_str(self):
+        """
+            Get the last datetime's string representation of the query.
+
+            Returns:
+                datetime: the last datetime's string representation in the query.
+        """
+        return self.last_date.strftime('%Y-%m-%d')
+
+    @property
+    def first_date_str(self):
+        """
+            Get the first datetime's string representation of the query.
+
+            Returns:
+                datetime: the first datetime's string representation in the query.
+        """
+        return self.first_date.strftime('%Y-%m-%d')
+
+    @property
     def last_date_str(self):
         """
             Get the last datetime's string representation of the query.
@@ -154,7 +174,17 @@ class Query():
             Returns:
                 datetime: the last datetime's string representation in the query.
         """
-        return self.last_date.strftime('%Y-%m-%d %H:%M:%S')
+        return self.last_date.strftime('%Y-%m-%d')
+
+    @property
+    def first_datetime_str(self):
+        """
+            Get the first datetime's string representation of the query.
+
+            Returns:
+                datetime: the first datetime's string representation in the query.
+        """
+        return self.first_date.strftime('%Y-%m-%d %H:%M')
 
     def first_date_set_eod(self):
         """
@@ -734,7 +764,8 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
     def fetch_if_none(self, threshold):
         """
             Check is the required number of quotes exist in the database and fetch if not.
-            The data will be cached in the database.
+            The data will be cached in the database. This method will connect to the database automatically if needed.
+            At the end the connection status will be resumed.
 
             Args:
                 treshold(int): the minimum required number of quotes in the database.
@@ -743,6 +774,8 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
+        initially_connected = self.query.Connected
+
         if self.query.Connected == False:
             self.query.db_connect()
 
@@ -759,9 +792,24 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
             num = 0
 
         rows = self.get_quotes()
-        self.query.db_close()
+
+        if initially_connected is False:
+            self.query.db_close()
 
         return (rows, num)
+
+    def get_rt_data(self, to_cache=False):
+        """
+            Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
+            for a particular data source.
+
+            Args:
+                to_cache(bool): indicates if real time data should be cached in a database.
+
+            Returns:
+                list: real time data.
+        """
+        raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")
 
     @abc.abstractmethod
     def fetch_quotes(self):

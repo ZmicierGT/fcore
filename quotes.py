@@ -106,7 +106,7 @@ def arg_parser(argv):
                 query.db_close()
                 sys.exit(f"\nThe date is incorrect: {e}")
 
-            print(f"The first date is {query.first_date_str}")
+            print(f"The first date is {query.first_datetime_str}")
 
         elif argument in ("-l", "--last_date"):
             try:
@@ -118,7 +118,7 @@ def arg_parser(argv):
 
             query.last_date_set_eod()
 
-            print(f"The last date is {query.last_date_str}")
+            print(f"The last date is {query.last_datetime_str}")
 
         elif argument in ("-q", "--quotes"):
             query.to_print_quotes = True

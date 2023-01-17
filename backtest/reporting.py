@@ -97,6 +97,7 @@ class Report():
         if title is None:
             top = 30
 
+        # TODO Legend outside of the chart should be implemented.
         fig.update_layout(
             title_text=title,
             autosize=False,

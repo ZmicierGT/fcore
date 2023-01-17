@@ -12,18 +12,18 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.fvalues import Timespans
-from data.polygon import PolygonQuery, Polygon
+from data.yf import YFQuery, YF
 
 import plotly.graph_objects as go
 from plotly import subplots
 
 from itertools import repeat
 
+from datetime import datetime, timedelta
+
 import sys
 
-threshold = 350  # Quotes num threshold for the test
-first_date = "2022-07-11 14:30:00"  # First date to fetch quotes
-last_date = "2022-07-11 21:00:00"  # The last date to fetch quotes
+threshold = 1000  # Quotes num threshold for the test
 
 symbols = ['MSFT', 'AAPL']
 
@@ -38,17 +38,26 @@ if __name__ == "__main__":
     # Array for the fetched data for all symbols
     allrows = []
 
+    # As YF is used as the default data source, the data should be withing the last 30 days. Use the last week as the interval.
+    # TODO Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
+    now = datetime.now()
+    then = now - timedelta(days=7)
+
+    print("At least 1000 quotes for each symbol need to be fetched for the last week.")
+
     for symbol in symbols:
         try:
-            # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
-            query = PolygonQuery(symbol=symbol, first_date=first_date, last_date=last_date, timespan=Timespans.Intraday)
-            rows, num = Polygon(query).fetch_if_none(threshold)
+            # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
+            query = YFQuery(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Intraday)
+            rows, num = YF(query).fetch_if_none(threshold)
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
         else:
+            # Please note that data providers and database may tread the date differently. For example, YF in query fetches the data for the end day
+            # but sql database will fetch the data TILL the last day.
             print(f"No need to fetch quotes for {query.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)

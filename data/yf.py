@@ -29,11 +29,11 @@ class YFQuery(fdata.Query):
         """
             Initialize Yahoo Finance query class.
         """
+        self.timespan = Timespans.Day
         super().__init__(**kwargs)
 
         # Default values
         self.source_title = "YF"
-        self.timespan = Timespans.Day
 
     def get_timespan(self):
         """
@@ -77,7 +77,7 @@ class YF(fdata.BaseFetchData):
             Raises:
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
-        if self.query.first_date_ts != def_first_date and self.query.last_date_ts != def_last_date:
+        if self.query.first_date_ts != def_first_date or self.query.last_date_ts != def_last_date:
             data = yf.Ticker(self.query.symbol).history(interval=self.query.get_timespan(),
                                                         start=self.query.first_date_str,
                                                         end=self.query.last_date_str)

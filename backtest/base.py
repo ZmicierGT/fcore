@@ -22,6 +22,8 @@ from threading import Thread, Event
 
 from data.futils import thread_available
 
+import copy
+
 # Enum class for backtesting results data order.
 class BTDataEnum(IntEnum):
     """Enum to describe a list with backtesting result."""
@@ -811,31 +813,35 @@ class BackTestOperations():
         """
         return self._long_positions_cash * self.get_close() * self.data().get_margin_req()
 
+    # TODO false calls on long positions.
     def check_margin_requirements(self):
         """
             Check margin requirements related to this position only. Close the positions exceeding margin limit.
         """
         if self.get_margin_positions() > 0:
-            deficit = self.get_used_margin() - self.get_caller().get_margin_limit() - self.get_margin_limit()
+            deficit = self.get_caller().get_total_used_margin() - self.get_caller().get_margin_limit()
 
-            if deficit:
+            if deficit > 0:
                 # Close margin positions to meet margin requirement
                 shares_num = 0
 
+                # Copy the initial portfolio to restore if after the calculation
+                initial_portfolio = copy.deepcopy(self._portfolio)
+
                 # Estimate how many positions we need to close to meet the margin requirement
-                while deficit > 0:
+                while deficit > 0 and shares_num < self.get_margin_positions():
                     shares_num += 1
 
-                    try:
-                        portfolio_price = self._portfolio[self.get_margin_positions() - shares_num]
+                    last_price = self._portfolio.pop()
 
-                        if self.is_long():
-                            deficit -= self.get_sell_price() - portfolio_price
-                        else:
-                            deficit -= portfolio_price - self.get_buy_price()
-                    except IndexError:
-                        # Bankrupt
-                        break
+                    deficit = self.get_caller().get_total_used_margin() - self.get_caller().get_margin_limit()
+
+                    if self.is_long():
+                        deficit -= self.get_sell_price() - last_price
+                    else:
+                        deficit -= last_price - self.get_buy_price()
+
+                self._portfolio = initial_portfolio
 
                 # Close the positions which exceed margin requirement
                 self.close(shares_num, margin_call=True)
@@ -851,11 +857,17 @@ class BackTestOperations():
             Return:
                 int: the maximum of positions to open using cash only.
         """
-        shares_num_estimate = int((self.get_caller().get_cash() - self.get_total_fee()) / self.get_buy_price())
-        cash_available = self.get_caller().get_cash() - self.get_caller().get_commission() - self.get_share_fee() * shares_num_estimate
-        shares_num_cash = int((cash_available) / self.get_buy_price())
+        shares_num_estimate = int((self.get_caller().get_cash() - \
+                                   self.get_total_fee() - \
+                                   self.get_caller().get_total_used_margin()) / \
+                                   self.get_buy_price())
 
-        return shares_num_cash
+        cash_available = self.get_caller().get_cash() - \
+                         self.get_caller().get_commission() - \
+                         self.get_caller().get_total_used_margin() - \
+                         self.get_share_fee() * shares_num_estimate
+
+        return int((cash_available) / self.get_buy_price())
 
     def get_shares_num_margin(self):
         """
@@ -873,7 +885,7 @@ class BackTestOperations():
             Returns:
                 int: the total number of shares which we can buy using both cash and margin.
         """
-        return self.get_shares_num_cash() + self.get_shares_num_margin()
+        return max(0, self.get_shares_num_cash() + self.get_shares_num_margin())
 
     def open_long(self, num):
         """
@@ -924,7 +936,7 @@ class BackTestOperations():
             Returns:
                 int: the total number of shares which we can short.
         """
-        return int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price())
+        return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
 
     def open_short(self, num):
         """
@@ -1326,6 +1338,8 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
+# TODO Time frame should be implemented. In intraday calculations/charting, time outside of the frame won't be taken into account.
+# TODO Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,
@@ -1339,7 +1353,8 @@ class BackTest(metaclass=abc.ABCMeta):
                  margin_req=0,
                  margin_rec=0,
                  offset=0,
-                 timeout=10
+                 timeout=10,
+                 verbose=False
         ):
         """
             The main backtesting class.
@@ -1357,6 +1372,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
                 offset(int): the offset for the calculation.
                 timeout(int): timeout in seconds to cancel the calculation if some thread can not finish in time.
+                verbose(bool): indicates if to print the debug information during calculation.
 
             Raises:
                 BackTestError: incorrect arguments.
@@ -1876,7 +1892,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._total_trades
 
-    def get_margin_buying_power(self, fees=0):
+    def get_margin_based_on_cash(self, fees=0):
         """
             Get margin buying power based on the cash balance.
 
@@ -1934,7 +1950,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 float: the total available margin.
         """
-        return self.get_margin_buying_power(fees) + self.get_total_margin() - self.get_total_used_margin()
+        return self.get_margin_based_on_cash(fees) + self.get_total_margin() - self.get_total_used_margin()
 
     def get_total_deposits(self):
         """
@@ -2301,6 +2317,17 @@ class BackTest(metaclass=abc.ABCMeta):
         """
 
         return self.signal_buy() or self.signal_sell()
+
+    # TODO Implement verbosity tracepoints.
+    def log(text):
+        """
+            Print debug information.
+
+            Args:
+                text(str): text to print.
+        """
+        if self._verbose is True:
+            print(text)
 
     ##########################
     # Abstract methods

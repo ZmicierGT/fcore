@@ -14,20 +14,18 @@ from data import fdatabase
 from data.fvalues import Timespans, def_first_date, def_last_date
 from data.futils import get_dt
 
-# Enum class for database types
 class DbTypes(Enum):
     """
         Database types enum. Currently only SQLite is supported.
     """
     SQLite = "sqlite"
 
-# Exception class for general data errors
 class FdataError(Exception):
     """
         Base data exception class.
     """
 
-# Base query object class
+# TODO Query type should be omitted and joined with the base data class.
 class Query():
     """
         Base database query class.

@@ -5,6 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
+# TODO Check if there are unused functions here
+
 import abc
 
 from datetime import datetime
@@ -793,6 +795,9 @@ class BackTestOperations():
             Returns:
                 float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
         """
+        # TODO check why shares num margin may be a but less than actual buying power allows to buy.
+        # if self.get_shares_num_cash() > 0:
+        #     print(f"shares num cash - {self.get_shares_num_cash()} close - {self.get_close()} margin rec - {self.data().get_margin_rec()}")
         return self.get_shares_num_cash() * self.get_close() * self.data().get_margin_rec()
 
     def get_used_margin(self):
@@ -813,13 +818,12 @@ class BackTestOperations():
         """
         return self._long_positions_cash * self.get_close() * self.data().get_margin_req()
 
-    # TODO false calls on long positions.
     def check_margin_requirements(self):
         """
             Check margin requirements related to this position only. Close the positions exceeding margin limit.
         """
         if self.get_margin_positions() > 0:
-            deficit = self.get_caller().get_total_used_margin() - self.get_caller().get_margin_limit()
+            deficit = -abs(self.get_caller().get_total_buying_power())
 
             if deficit > 0:
                 # Close margin positions to meet margin requirement
@@ -834,7 +838,7 @@ class BackTestOperations():
 
                     last_price = self._portfolio.pop()
 
-                    deficit = self.get_caller().get_total_used_margin() - self.get_caller().get_margin_limit()
+                    deficit = -abs(self.get_caller().get_total_buying_power())
 
                     if self.is_long():
                         deficit -= self.get_sell_price() - last_price
@@ -907,27 +911,36 @@ class BackTestOperations():
         if num == 0:
             return
 
+        ex_buying_power = self.get_caller().get_total_buying_power()
+
         shares_num_cash = min(num, self.get_shares_num_cash())
         shares_num_margin = max(0, num - shares_num_cash)
+        total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
-        total_buying_fee = self.get_share_fee() * num + self.get_caller().get_commission()
         total_spread_expense = self.get_spread_deviation() * num
         total_cash_price = self.get_buy_price() * shares_num_cash
 
-        self.get_caller().add_cash(-abs(total_buying_fee + total_cash_price))
+        self.get_caller().add_cash(-abs(total_commission + total_cash_price))
         self._long_positions += num
         self._long_positions_cash += shares_num_cash
 
         self._portfolio.extend(repeat(self.get_buy_price(), shares_num_margin))
 
         # Add expenses for this trade
-        self.get_caller().add_commission_expense(total_buying_fee)
+        self.get_caller().add_commission_expense(total_commission)
         self.get_caller().add_spread_expense(total_spread_expense)
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
         self._price_open_long = self.get_buy_price()
+
+        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data().get_title()} with price "
+               f"{round(self.get_buy_price(), 2)} for {round(total_commission + num * self.get_buy_price(), 2)} in total when "
+               f"buying power was {round(ex_buying_power, 2)} and currently "
+               f"it is {round(self.get_caller().get_total_buying_power(), 2)}")
+
+        self.get_caller().log(log)
 
     def get_total_shares_num_short(self):
         """
@@ -936,7 +949,7 @@ class BackTestOperations():
             Returns:
                 int: the total number of shares which we can short.
         """
-        return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
+        return max(0, int(self.get_caller().get_total_buying_power(self.get_total_fee()) / self.get_sell_price()))
 
     def open_short(self, num):
         """
@@ -958,6 +971,9 @@ class BackTestOperations():
         if num == 0:
             return
 
+        ex_buying_power = self.get_caller().get_total_buying_power()
+        initial_commission = self.get_caller().get_commission_expense()
+
         # Assume that slightly negative cash balance is possible on a margin account
         self.get_caller().add_cash(-abs(self.get_share_fee() * num + self.get_caller().get_commission()))
         self._short_positions += num
@@ -971,6 +987,15 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
         self._price_open_short = self.get_sell_price()
+
+        total_commission = self.get_caller().get_commission_expense() - initial_commission
+
+        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.data().get_title()} with price "
+               f"{round(self.get_sell_price(), 2)} for {round(total_commission + num * self.get_sell_price(), 2)} in total when "
+               f"buying power was {round(ex_buying_power, 2)} and currently "
+               f"it is {round(self.get_caller().get_total_buying_power(), 2)}")
+
+        self.get_caller().log(log)
 
     # Open maxumum possible positions
     def open_long_max(self):
@@ -1035,12 +1060,12 @@ class BackTestOperations():
         if num > self._long_positions_cash:
             margin_positions = num - self._long_positions_cash
 
-        total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
-
         if margin_call:
             self._price_margin_req_long = self.get_sell_price()
         else:
             self._price_close_long = self.get_sell_price()
+
+        total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
         # Close cash long positions
         self.get_caller().add_cash(self.get_sell_price() * cash_positions)
@@ -1063,6 +1088,12 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
+        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data().get_title()} with price "
+               f"{round(self.get_sell_price(), 2)} for {round(total_commission + num * self.get_sell_price(), 2)} in total and "
+               f"buying power is now {round(self.get_caller().get_total_buying_power(), 2)}. Margin call is {margin_call}")
+
+        self.get_caller().log(log)
+
     def close_short(self, num, margin_call=False):
         """
             Close the number of short positions.
@@ -1079,6 +1110,8 @@ class BackTestOperations():
 
         if self._short_positions == 0:
             return
+
+        initial_commission = self.get_caller().get_commission_expense()
 
         delta = 0
 
@@ -1103,6 +1136,14 @@ class BackTestOperations():
             self._price_margin_req_short = self.get_buy_price()
         else:
             self._price_close_short = self.get_buy_price()
+
+        total_commission = self.get_caller().get_commission_expense() - initial_commission
+
+        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data().get_title()} with price "
+               f"{round(self.get_buy_price(), 2)} for {round(total_commission + num * self.get_buy_price(), 2)} in total and "
+               f"buying power is now {round(self.get_caller().get_total_buying_power(), 2)}. Margin call is {margin_call}")
+
+        self.get_caller().log(log)
 
     def close_all_long(self):
         """
@@ -1444,7 +1485,10 @@ class BackTest(metaclass=abc.ABCMeta):
         # Timeout for calculations
         if timeout < 0:
             raise BackTestError(f"timeout can't be less than 0. Specified value is {timeout}")
-        self.__timeout = timeout        
+        self.__timeout = timeout
+
+        # Indicate if we should print log entries to a console
+        self._verbose = verbose
 
         #############################
         # Now internal variables are listed which are used in a calculation. They are added to the results list
@@ -1952,6 +1996,18 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self.get_margin_based_on_cash(fees) + self.get_total_margin() - self.get_total_used_margin()
 
+    def get_total_buying_power(self, fees=0):
+        """
+            Get the total buying power.
+
+            Args:
+                fees(float): fees for a trade.
+
+            Returns:
+                float: the total buying power.
+        """
+        return self.get_cash() + self.get_available_margin() - fees
+
     def get_total_deposits(self):
         """
             Get the total depositted money (initial deposit plus all periodic).
@@ -2318,13 +2374,12 @@ class BackTest(metaclass=abc.ABCMeta):
 
         return self.signal_buy() or self.signal_sell()
 
-    # TODO Implement verbosity tracepoints.
-    def log(text):
+    def log(self, text):
         """
-            Print debug information.
+            Output debug information.
 
             Args:
-                text(str): text to print.
+                text(str): text to output.
         """
         if self._verbose is True:
             print(text)

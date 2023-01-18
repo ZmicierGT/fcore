@@ -10,7 +10,7 @@ import yf_cli
 
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
-        argv = ['./yf_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'month', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
+        argv = ['./yf_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'Month', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
 
         query = yf_cli.arg_parser(argv)
 

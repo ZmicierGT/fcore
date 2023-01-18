@@ -152,7 +152,7 @@ class Query():
             Returns:
                 datetime: the last datetime's string representation in the query.
         """
-        return self.last_date.strftime('%Y-%m-%d')
+        return self.last_date.strftime('%Y-%m-%d %H:%M:%S')
 
     @property
     def first_date_str(self):
@@ -173,16 +173,6 @@ class Query():
                 datetime: the last datetime's string representation in the query.
         """
         return self.last_date.strftime('%Y-%m-%d')
-
-    @property
-    def first_datetime_str(self):
-        """
-            Get the first datetime's string representation of the query.
-
-            Returns:
-                datetime: the first datetime's string representation in the query.
-        """
-        return self.first_date.strftime('%Y-%m-%d %H:%M')
 
     def first_date_set_eod(self):
         """

@@ -60,7 +60,7 @@ if __name__ == "__main__":
         period=period,
         margin_rec=0.9,
         margin_req=1,
-        verbose=True,
+        verbose=False,
     )
 
     # Buy and Hold to compare

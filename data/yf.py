@@ -5,10 +5,6 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-import http.client
-import urllib.error
-import urllib.request
-
 from enum import IntEnum
 
 from datetime import datetime
@@ -16,7 +12,7 @@ import pytz
 
 import yfinance as yf
 
-from data import fdata, futils
+from data import fdata
 from data.fvalues import Timespans, def_first_date, def_last_date
 from data.fdata import FdataError
 

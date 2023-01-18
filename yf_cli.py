@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """CLI for Yahoo Finance.
 
 The author is Zmicier Gotowka
@@ -21,7 +19,7 @@ def yf_parse_config(query):
 
 def arg_parser(argv):
     usage = (f"\nUsage: {argv[0]} [-h] [-d data file] -s symbol [-t timespan] [-f from] [-l to] [-r]\n"
-             f"Example: {argv[0]} -s AAPL -t day -f 2019-07-22 -l 2021-07-22\n"
+             f"Example: {argv[0]} -s AAPL -t Day -f 2019-07-22 -l 2021-07-22\n"
              "Use -h command line option to see detailed help.\n")
 
     if len(argv) == 1:
@@ -43,7 +41,7 @@ def arg_parser(argv):
             print("\nAvailable command line options are:\n\n"
                   f"-d or --db_name    - set db_name to store quotes (defauls is {query.db_name})\n"
                    "-s or --symbol     - symbol to retreive quotes\n"
-                   "-t or --timespan   - timespan (Day, Week, Month) for full quote history, Intraday for reduced, default is day.\n"
+                   "-t or --timespan   - timespan (Day, Week, Month) for full quote history, Intraday for reduced to 30 last days, default is day.\n"
                   f"-f or --first_date - the first date of the data to get. Default is 1970-01-01.\n"
                    "-l or --last_date  - the last date to get data. Default is today (local date).\n"
                    "-r or --replace    - indicates if the existing records (based on timestamp) will be replaced.\n")

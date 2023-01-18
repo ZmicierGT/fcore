@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """CLI for Polygon.IO API wrapper.
 
 The author is Zmicier Gotowka

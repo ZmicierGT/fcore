@@ -18,8 +18,6 @@ from enum import IntEnum
 
 import abc
 
-# TODO Screener should use the most recent quote in calculation (like Last Trade from Polygon).
-
 # Exception class for screener errors
 class ScrError(Exception):
     """
@@ -164,28 +162,14 @@ class BaseScr(metaclass=abc.ABCMeta):
         # Create query object for each symbol
         for symbol in self.get_symbols():
             # Connect to the database
-            symbol.get_source().query.db_connect()
-
             symbol.get_source().query.symbol = symbol.get_title()
             symbol.get_source().query.timespan = self.get_timespan()
 
             # Check if initial data was initialized
             if self.get_init_status() == False:
+                symbol.get_source().query.db_connect()
                 symbol.get_initial_data()
-                continue
-
-            # Get the last datetime
-            max_dt = symbol.get_source().get_max_datetime()
-
-            # Use the last datetime to fetch the new quotes
-            symbol.get_source().query.first_date = max_dt
-
-            try:
-                symbol.get_source().insert_quotes(symbol.get_source().fetch_quotes())
-            except FdataError as e:
-                raise ScrError(f"Can't get quotes: {e}") from e
-
-            symbol.get_source().query.db_close()
+                symbol.get_source().query.db_close()
 
         self.__set_init_status()
 
@@ -232,6 +216,9 @@ class ScrData():
         self.__max_datetime = None
         self.__quotes_num = None
 
+        # Data used in calculations
+        self._data = None
+
     def get_caller(self):
         """
             Get the caller's instance.
@@ -253,13 +240,15 @@ class ScrData():
         """
         self.get_source().query.db_connect()
 
-        data = self.get_source().get_last_quotes(period)
+        data = self.get_source().get_rt_data()
         self.__max_datetime = self.get_source().get_max_datetime()
         self.__quotes_num = self.get_source().get_symbol_quotes_num()
 
         self.get_source().query.db_close()
 
-        return data
+        self._data.append(data)
+
+        return self._data[len(self._data) - period:]
 
     def get_title(self):
         """
@@ -306,11 +295,14 @@ class ScrData():
         """
         # Get yesterday to fetch current quotes
         yesterday = datetime.now() - timedelta(days=1)
-        yesterday = yesterday.strftime('%Y-%m-%d')
 
         self.get_source().query.first_date = yesterday
+        self.get_source().query.last_date = yesterday + timedelta(days=2)
 
         try:
             self.get_source().insert_quotes(self.get_source().fetch_quotes())
+            data = self.get_source().get_quotes()
         except FdataError as e:
             raise ScrError(e) from e
+
+        self._data = data

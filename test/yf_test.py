@@ -65,3 +65,32 @@ class Test(unittest.TestCase):
                                       end=query.last_date_str)
 
         assert return_data == quotes_data
+
+    def test_1_get_rt_data(self):
+        query = yf.YFQuery()
+        query.symbol = 'SPY'
+
+        df = pd.DataFrame()
+
+        df['Open'] = [1, 2]
+        df['Close'] = [2, 3]
+        df['Adj Close'] = [3, 4]
+        df['High'] = [4, 5]
+        df['Low'] = [5, 6]
+        df['Volume'] = [0, 0]
+        df['DateTime'] = [datetime.now(), datetime.now()]
+
+        df.set_index('DateTime')
+
+        yf_obj = yf.YF(query)
+
+        # Mocking
+        when(yfinance).download(tickers=query.symbol, period='1d', interval='1m').thenReturn(df)
+
+        return_data = yf_obj.get_rt_data()
+
+        verify(yfinance, times=1).download(tickers=query.symbol, period='1d', interval='1m')
+
+        expected_result = ['SPY', None, 'YF', '1', 'Day', 2, 5, 6, 3, 4, 0, None, None, None]
+
+        assert return_data == expected_result

@@ -35,6 +35,9 @@ min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
+    print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
+    print("and exceptions due to network errors may happen.")
+
     # Array for the fetched data for all symbols
     allrows = []
 

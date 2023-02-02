@@ -736,6 +736,10 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
 
             Args:
                 rows(list): the list of quotes to insert.
+
+            Returns:
+                num_before(int): the number of quotes before the operation.
+                num_after(int): the number of quotes after the operatioon.
         """
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         self.add_symbol()

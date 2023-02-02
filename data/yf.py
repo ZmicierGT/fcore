@@ -10,7 +10,7 @@ from enum import IntEnum
 from datetime import datetime
 import pytz
 
-import yfinance as yf
+import yfinance as yfin
 
 from data import fdata
 from data.fvalues import Timespans, def_first_date, def_last_date
@@ -74,11 +74,11 @@ class YF(fdata.BaseFetchData):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         if self.query.first_date_ts != def_first_date or self.query.last_date_ts != def_last_date:
-            data = yf.Ticker(self.query.symbol).history(interval=self.query.get_timespan(),
+            data = yfin.Ticker(self.query.symbol).history(interval=self.query.get_timespan(),
                                                         start=self.query.first_date_str,
                                                         end=self.query.last_date_str)
         else:
-            data = yf.Ticker(self.query.symbol).history(interval=self.query.get_timespan(), period='max')
+            data = yfin.Ticker(self.query.symbol).history(interval=self.query.get_timespan(), period='max')
 
         length = len(data)
 
@@ -116,3 +116,36 @@ class YF(fdata.BaseFetchData):
             raise FdataError(f"Obtained and parsed data length does not match: {length} != {len(quotes_data)}.")
 
         return quotes_data
+
+    def get_rt_data(self, to_cache=False):
+        """
+            Get real time data. Used in screening.
+
+            Args:
+                to_cache(bool): indicates if real time data should be cached in a database.
+
+            Returns:
+                list: real time data.
+        """
+        data = yfin.download(tickers=self.query.symbol, period='1d', interval='1m')
+        row = data.iloc[-1]
+
+        result = [self.query.symbol,
+                  None,
+                  self.query.source_title,
+                  # TODO check if such datetime manipulations may have an impact depending on a locale.
+                  str(data.index[-1])[:16],
+                  self.query.timespan.value,
+                  row['Open'],
+                  row['High'],
+                  row['Low'],
+                  row['Close'],
+                  row['Adj Close'],
+                  row['Volume'],
+                  None,
+                  None,
+                  None]
+
+        # Todo caching should be implemented
+
+        return result

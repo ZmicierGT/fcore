@@ -10,30 +10,22 @@ from screener.base import ScrResult
 
 from data.fvalues import Timespans
 
-from data import av
+from data import yf
 
 if __name__ == "__main__":
-    # Please note that free AlphaVantage keys do not support live quotes any more.
+    query_btc = yf.YFQuery()
+    source_btc = yf.YF(query_btc)
 
-    query_btc = av.AVQuery()
-    # As intraday cryptocurrency has been disabled for free account, daily is used just for demonstration purposes.
-    # For actual purposes switch to CryptoIntraday if you have a subscription.
-    # TODO better to rewrite this demo to use yahoo finance data.
-    query_btc.type = av.AVType.CryptoDaily
-    source_btc = av.AV(query_btc)
+    query_ltc = yf.YFQuery()
+    source_ltc = yf.YF(query_ltc)
 
-    query_ltc = av.AVQuery()
-    # Same as above ^^
-    query_ltc.type = av.AVType.CryptoDaily
-    source_ltc = av.AV(query_ltc)
-
-    btc = {'Title': 'BTC', 'Source': source_btc}
-    ltc = {'Title': 'LTC', 'Source': source_ltc}
+    btc = {'Title': 'BTC-USD', 'Source': source_btc}
+    ltc = {'Title': 'LTC-USD', 'Source': source_ltc}
 
     # Minimum period for calculation
     period = 14
     # Interval to update quotes (in seconds)
-    interval = 120
+    interval = 60
 
     support = 30
     resistance = 70
@@ -45,6 +37,8 @@ if __name__ == "__main__":
                  resistance=resistance,
                  timespan=Timespans.Intraday)
 
+    print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
+    print("and exceptions due to network errors may happen.")
     print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 
     while True:

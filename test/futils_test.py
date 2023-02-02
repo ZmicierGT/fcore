@@ -133,32 +133,6 @@ class Test(unittest.TestCase):
         self.assertEqual(ts3, 1579524900)
         self.assertEqual(ts4, 1665446399)
 
-    def test_3_check_parse_config(self):
-        parser = mock(configparser.ConfigParser)
-        ini_file = "settings.ini"
-
-        query = fdata.Query()
-        query.source_title = "test"
-
-        expected_db_name = 'test.sqlite'
-        expected_db_type = 'sqlite'
-
-        settings = {
-            'db_name': expected_db_name,
-            'db_type': expected_db_type
-        }
-
-        when(configparser).ConfigParser().thenReturn(parser)
-        when(parser).read(ini_file).thenReturn()
-        when(parser).__getitem__(query.source_title).thenReturn(settings)
-
-        futils.parse_config(query)
-
-        verify(parser, times=1).read(ini_file)
-
-        assert query.db_name == expected_db_name
-        assert query.db_type == expected_db_type
-
     def test_10_write_image(self):
         img1 = go.Figure()
         img2 = Image.new('RGB', (50, 50))

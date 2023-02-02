@@ -38,7 +38,8 @@ if __name__ == "__main__":
                  timespan=Timespans.Intraday)
 
     print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
-    print("and exceptions due to network errors may happen.")
+    print("and exceptions due to network errors may happen.\n")
+
     print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 
     while True:

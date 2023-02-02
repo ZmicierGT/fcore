@@ -7,39 +7,8 @@ Distributed under Fcore License 1.0 (see license.md)
 
 import sys
 import getopt
-import configparser
 
-from data import polygon, futils, fdata
-
-# Parse ini-file section related to Polygon.IO
-def polygon_parse_config(query):
-    # Call base function
-    futils.parse_config(query)
-
-    # Read/write additional values from the settings.ini file
-    config_parser = configparser.ConfigParser()
-
-    # Get values from ini.file
-    ini_file = "settings.ini"
-
-    try:
-        config_parser.read(ini_file)
-        settings = config_parser[query.source_title]
-
-        query.year_delta = settings['year_delta']
-        query.api_key = settings['api_key']
-    except:
-        # Using default values from PolygonQuery constructor if configuration can't be read
-        # and save settings for future use.
-
-        config_parser.set(query.source_title, "year_delta", query.year_delta)
-        config_parser.set(query.source_title, "api_key", query.api_key)
-
-        with open(ini_file, 'w') as config_file:
-            config_parser.write(config_file)
-        config_file.close()
-
-    return query
+from data import polygon, fdata
 
 # Process command line arguments
 
@@ -57,10 +26,6 @@ def arg_parser(argv):
         sys.exit(usage)
 
     query = polygon.PolygonQuery()
-
-    # No need to execute it in UT
-    if ('unittest' in sys.modules) == False:
-        query = polygon_parse_config(query)
 
     for argument, value in arguments:
         if argument in ("-h", "--help", ""):

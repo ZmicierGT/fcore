@@ -71,11 +71,6 @@ def arg_parser(argv):
     query = QuotesQuery()
     query.timespan = Timespans.All
 
-    # No need to execute it in UT
-    if ('unittest' in sys.modules) == False:
-        futils.parse_config(query)
-        query.db_connect()
-
     for argument, value in arguments:
         if argument in ("-h", "--help", ""):
             print("\nAvailable command line options are:\n\n"

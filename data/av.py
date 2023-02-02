@@ -21,6 +21,8 @@ from enum import Enum
 
 from data.futils import get_ts_from_str
 
+import settings
+
 class AVType(str, Enum):
     """
         Enumeration with AlphaVantage functions.
@@ -76,8 +78,11 @@ class AVQuery(fdata.Query):
 
         # Default values
         self.source_title = "AlphaVantage"
-        self.api_key = "get_your_api_key_at_alphavantage.co" ## Please note that free keys do not support live quotes now.
+        self.api_key = settings.AV.api_key  # Please note that free keys do not support live quotes now.
         self.type = AVType.Daily
+
+        if self.api_key is None:
+            raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
 
     def get_timespan(self):
         """

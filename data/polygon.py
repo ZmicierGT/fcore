@@ -21,6 +21,8 @@ from data.fdata import FdataError
 
 from data.fvalues import Timespans, def_first_date, def_last_date
 
+import settings
+
 # Provides parameters for the query to Polygon.IO
 class PolygonQuery(fdata.Query):
     """
@@ -34,8 +36,11 @@ class PolygonQuery(fdata.Query):
 
         # Default values
         self.source_title = "Polygon.io"
-        self.year_delta = "2"
-        self.api_key = "get_your_free_api_key_at_polygon.io"
+        self.year_delta = settings.Polygon.year_delta
+        self.api_key = settings.Polygon.api_key
+
+        if self.api_key is None:
+            raise FdataError("API key is needed for this data source. Get your free API key at polygon.io and put it in setting.py")
 
         # IF first/last datetimes are not provided, use the current datetime as the last and current - year_delta as first
         if self.first_date_ts == def_first_date:

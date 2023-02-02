@@ -8,12 +8,7 @@ Distributed under Fcore License 1.0 (see license.md)
 import sys
 import getopt
 
-from data import yf, futils, fdata
-
-# Parse ini-file section related to YF
-def yf_parse_config(query):
-    # Call base function
-    futils.parse_config(query)
+from data import yf, fdata
 
 # Process command line arguments
 
@@ -31,10 +26,6 @@ def arg_parser(argv):
         sys.exit(usage)
 
     query = yf.YFQuery()
-
-    # No need to execute it in UT
-    if ('unittest' in sys.modules) == False:
-        yf_parse_config(query)
 
     for argument, value in arguments:
         if argument in ("-h", "--help", ""):

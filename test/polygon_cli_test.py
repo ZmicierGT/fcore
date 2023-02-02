@@ -16,7 +16,7 @@ class Test(unittest.TestCase):
         self.assertEqual(query.last_datetime_str, "2020-08-30 00:00:00")
         self.assertEqual(query.update, "REPLACE")
         self.assertEqual(query.source_title, "Polygon.io")
-        self.assertEqual(query.year_delta, "2")
+        self.assertEqual(query.year_delta, 2)
 
         self.assertEqual(query.db_name, "test.sqlite")
         self.assertEqual(query.db_type, "sqlite")

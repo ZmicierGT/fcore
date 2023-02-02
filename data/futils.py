@@ -4,9 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-
-import configparser
-
 from datetime import datetime, timedelta
 import pytz
 
@@ -82,39 +79,6 @@ def get_ts_from_str(value):
             int: timestamp.
     """
     return int(get_dt(value).timestamp())
-
-def parse_config(query):
-    """
-        Parse configuration file to fill query object.
-
-        Returns:
-            Query: Query instance with updated properties according to the config file content.
-    """
-    ini_file = "settings.ini"
-
-    config_parser = configparser.ConfigParser()
-
-    # If for any reason config can't be read, use standard values
-    try:
-        config_parser.read(ini_file)
-        settings = config_parser[query.source_title]
-
-        query.db_name = settings['db_name']
-        query.db_type = settings['db_type']
-    except Exception:
-        # Using default values from 'query' instance if configuration can't be read
-        # Other db setting are supposed to be in the different sections (when needed)
-        if not config_parser.has_section(query.source_title):
-            config_parser.add_section(query.source_title)
-            config_parser.set(query.source_title, "db_name", query.db_name)
-            config_parser.set(query.source_title, "db_type", query.db_type)
-
-        # Save configuration for future use
-        with open(ini_file, 'w') as config_file:
-            config_parser.write(config_file)
-        config_file.close()
-
-    return query
 
 def write_image(img):
     """

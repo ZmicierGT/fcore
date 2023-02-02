@@ -14,6 +14,8 @@ from data import fdatabase
 from data.fvalues import Timespans, def_first_date, def_last_date
 from data.futils import get_dt
 
+import settings
+
 class DbTypes(Enum):
     """
         Database types enum. Currently only SQLite is supported.
@@ -43,9 +45,11 @@ class Query():
         # Setting the default values
         self.symbol = symbol
 
+        # Underlying variables for getters/setter
         self._first_date = None
         self._last_date = None
 
+        # Getter/setter will be invoked
         self.first_date = first_date
         self.last_date = last_date
 
@@ -55,8 +59,10 @@ class Query():
         # Source title should be overridden in derived classes for particular data sources
         self.source_title = ""
 
-        self.db_type = "sqlite"
-        self.db_name = "data.sqlite"
+        # Default setting for the base data source
+        self.db_type = settings.Quotes.db_type
+        self.db_name = settings.Quotes.db_name
+
         self.database = None
         self.conn = None
         self.cur = None

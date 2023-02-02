@@ -36,7 +36,7 @@ height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
-    print("and exceptions due to network errors may happen.")
+    print("and exceptions due to network errors may happen.\n")
 
     # Array for the fetched data for all symbols
     allrows = []

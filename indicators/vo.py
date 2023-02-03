@@ -13,6 +13,7 @@ from enum import IntEnum
 import pandas as pd
 import pandas_ta as ta
 
+# TODO Switch the output type to Pandas DataFrame.
 class VOData(IntEnum):
     """
         Enum to represent Volume Oscillator results.

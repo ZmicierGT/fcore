@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from data.yf import YFQuery, YF
+from data.yf import YF
 from data.fdata import FdataError
 
 from data.fvalues import Quotes
@@ -79,32 +79,32 @@ if __name__ == "__main__":
     for symbol_learn, threshold in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
-            query = YFQuery(symbol=symbol_learn, last_date=last_date)
-            rows, num = YF(query).fetch_if_none(threshold)
+            source = YF(symbol=symbol_learn, last_date=last_date)
+            rows, num = source.fetch_if_none(threshold)
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
-            print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
+            print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
         else:
-            print(f"No need to fetch quotes for {query.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
+            print(f"No need to fetch quotes for {source.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)
 
     # Get quotes for estimations
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
-        query = YFQuery(symbol=symbol, first_date=first_date, last_date=last_date)
-        est_rows, num = YF(query).fetch_if_none(test_threshold)
+        source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
+        est_rows, num = source.fetch_if_none(test_threshold)
     except FdataError as e:
         sys.exit(e)
 
     length = len(est_rows)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {test_threshold}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {test_threshold}.")
 
     #################################
     # Train the model and get results
@@ -198,7 +198,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"MA Classifier example chart for {query.symbol}", length)
+    update_layout(fig, f"MA Classifier example chart for {source.symbol}", length)
 
     new_file = show_image(fig)
 

@@ -65,15 +65,12 @@ class AVResultsCD(str, Enum):
     Close = '4a. close (USD)'
     Volume = '5. volume'
 
-# Provides parameters for the query to Alpha Vantage
-class AVQuery(fdata.Query):
+class AV(fdata.BaseFetchData):
     """
-        AlphaVantage query class.
+        AlphaVantage API wrapper class.
     """
     def __init__(self, **kwargs):
-        """
-            Initialize AlphaVantage query class.
-        """
+        """Initialize the instance of AV class."""
         super().__init__(**kwargs)
 
         # Default values
@@ -86,7 +83,7 @@ class AVQuery(fdata.Query):
 
     def get_timespan(self):
         """
-            Get the timespan for the query.
+            Get the timespan.
 
             Converts universal timespan to AlphaVantage timespan.
 
@@ -106,14 +103,6 @@ class AVQuery(fdata.Query):
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan}")
 
-class AV(fdata.BaseFetchData):
-    """
-        AlphaVantage API wrapper class.
-    """
-    def __init__(self, query):
-        """Initialize the instance of AV class."""
-        super().__init__(query)
-
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -124,11 +113,11 @@ class AV(fdata.BaseFetchData):
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened or no data obtained.
         """
-        url = f"https://www.alphavantage.co/query?function={self.query.type}&symbol={self.query.symbol}&market=USD&interval={self.query.get_timespan()}&apikey={self.query.api_key}"
+        url = f"https://www.alphavantage.co/query?function={self.type}&symbol={self.symbol}&market=USD&interval={self.get_timespan()}&apikey={self.api_key}"
 
         AVResults = AVResultsCI
 
-        if self.query.type == AVType.CryptoDaily:
+        if self.type == AVType.CryptoDaily:
             AVResults = AVResultsCD
 
         try:
@@ -159,7 +148,7 @@ class AV(fdata.BaseFetchData):
                 raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
 
             # Keep all non-intraday timestamps at 23:59:59
-            if self.query.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
+            if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
                 # Keep all datetimes UTC adjusted
                 dt = datetime.utcfromtimestamp(ts)
                 dt = dt.replace(tzinfo=pytz.utc)

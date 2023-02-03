@@ -23,23 +23,21 @@ class Test(unittest.TestCase):
         unstub()
 
     def test_0_check_arg_parser(self):
-        query = yf.YFQuery()
-        query.symbol = 'SPY'
+        source = yf.YF()
+        source.symbol = 'SPY'
 
         last_date = datetime.now()
         first_date = last_date - timedelta(days=7)
         timespan = Timespans.Day
 
-        query.first_date = first_date
-        query.last_date = last_date
-        query.timespan = timespan
-
-        yf_obj = yf.YF(query)
+        source.first_date = first_date
+        source.last_date = last_date
+        source.timespan = timespan
 
         hist = History()
 
-        quotes_data = [{'v': 11, 'o': 1, 'c': 3, 'h': 5, 'l': 7, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 9, 't': query.first_date_ts}, \
-                       {'v': 12, 'o': 2, 'c': 4, 'h': 6, 'l': 8, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 10, 't': query.last_date_ts}]
+        quotes_data = [{'v': 11, 'o': 1, 'c': 3, 'h': 5, 'l': 7, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 9, 't': source.first_date_ts}, \
+                       {'v': 12, 'o': 2, 'c': 4, 'h': 6, 'l': 8, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 10, 't': source.last_date_ts}]
 
         df = pd.DataFrame({'Date': [first_date, last_date],
                            'Open': [1, 2],
@@ -52,23 +50,23 @@ class Test(unittest.TestCase):
         df = df.set_index('Date')
 
         # Mocking
-        when(yfinance).Ticker(query.symbol).thenReturn(hist)
-        when(hist).history(interval=query.get_timespan(), \
-                           start=query.first_date_str, \
-                           end=query.last_date_str).thenReturn(df)
+        when(yfinance).Ticker(source.symbol).thenReturn(hist)
+        when(hist).history(interval=source.get_timespan(), \
+                           start=source.first_date_str, \
+                           end=source.last_date_str).thenReturn(df)
 
-        return_data = yf_obj.fetch_quotes()
+        return_data = source.fetch_quotes()
 
-        verify(yfinance, times=1).Ticker(query.symbol)
-        verify(hist, times=1).history(interval=query.get_timespan(), \
-                                      start=query.first_date_str, \
-                                      end=query.last_date_str)
+        verify(yfinance, times=1).Ticker(source.symbol)
+        verify(hist, times=1).history(interval=source.get_timespan(), \
+                                      start=source.first_date_str, \
+                                      end=source.last_date_str)
 
         assert return_data == quotes_data
 
     def test_1_get_rt_data(self):
-        query = yf.YFQuery()
-        query.symbol = 'SPY'
+        source = yf.YF()
+        source.symbol = 'SPY'
 
         df = pd.DataFrame()
 
@@ -82,14 +80,12 @@ class Test(unittest.TestCase):
 
         df.set_index('DateTime')
 
-        yf_obj = yf.YF(query)
-
         # Mocking
-        when(yfinance).download(tickers=query.symbol, period='1d', interval='1m').thenReturn(df)
+        when(yfinance).download(tickers=source.symbol, period='1d', interval='1m').thenReturn(df)
 
-        return_data = yf_obj.get_rt_data()
+        return_data = source.get_rt_data()
 
-        verify(yfinance, times=1).download(tickers=query.symbol, period='1d', interval='1m')
+        verify(yfinance, times=1).download(tickers=source.symbol, period='1d', interval='1m')
 
         expected_result = ['SPY', None, 'YF', '1', 'Day', 2, 5, 6, 3, 4, 0, None, None, None]
 

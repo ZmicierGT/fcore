@@ -27,20 +27,24 @@ class FdataError(Exception):
         Base data exception class.
     """
 
-# TODO Query type should be omitted and joined with the base data class. Fix the related pylint warnings.
-class Query():
+class ReadOnlyData():
     """
-        Base database query class.
+        Base class for SQL 'read only' data operations and database integrity check.
     """
     def __init__(self,
                  symbol="",
                  first_date=def_first_date,
                  last_date=def_last_date,
-                 timespan=Timespans.Day,
-                 update=False,
-                 ):
+                 timespan=Timespans.Day
+                ):
         """
-            Initialize base database query class.
+            Initialize base database read only/integrity class.
+
+            Args:
+                symbol(str): the symbol to use.
+                first_date(datetime, str, int): the first date for queries.
+                last_date(datetime, str, int): the last date for queries.
+                timespan(Timespans): timespan to use in queries.
         """
         # Setting the default values
         self.symbol = symbol
@@ -49,13 +53,9 @@ class Query():
         self._first_date = None
         self._last_date = None
 
-        self._update = None
-
         # Getter/setter will be invoked
         self.first_date = first_date
         self.last_date = last_date
-
-        self.update = update
 
         self.timespan = timespan
 
@@ -82,17 +82,17 @@ class Query():
     @property
     def first_date(self):
         """
-            Get the first datetime of the query.
+            Get the first datetime.
 
             Returns:
-                datetime: the first datetime in the query.
+                datetime: the first datetime.
         """
         return self._first_date
 
     @first_date.setter
     def first_date(self, value):
         """
-            Set the first datetime of the query.
+            Set the first datetime.
 
             value(int, str, datetime): datetime representation to set.
 
@@ -104,17 +104,17 @@ class Query():
     @property
     def last_date(self):
         """
-            Get the last datetime of the query.
+            Get the last datetime.
 
             Returns:
-                datetime: the last datetime in the query.
+                datetime: the last datetime.
         """
         return self._last_date
 
     @last_date.setter
     def last_date(self, value):
         """
-            Set the last datetime of the query.
+            Set the last datetime.
 
             value(int, str, datetime): datetime representation to set.
 
@@ -126,60 +126,60 @@ class Query():
     @property
     def first_date_ts(self):
         """
-            Get the first datetime's timestamp of the query.
+            Get the first datetime's timestamp.
 
             Returns:
-                int: the first datetime's timestamp in the query.
+                int: the first datetime's timestamp in queries.
         """
         return int(self.first_date.timestamp())
 
     @property
     def last_date_ts(self):
         """
-            Get the last datetime's timestamp of the query.
+            Get the last datetime's timestamp.
 
             Returns:
-                int: the last datetime's timestamp in the query.
+                int: the last datetime's timestamp.
         """
         return int(self.last_date.timestamp())
 
     @property
     def first_datetime_str(self):
         """
-            Get the first datetime's string representation of the query.
+            Get the first datetime's string representation.
 
             Returns:
-                datetime: the first datetime's string representation in the query.
+                datetime: the first datetime's string representation.
         """
         return self.first_date.strftime('%Y-%m-%d %H:%M:%S')
 
     @property
     def last_datetime_str(self):
         """
-            Get the last datetime's string representation of the query.
+            Get the last datetime's string representation.
 
             Returns:
-                datetime: the last datetime's string representation in the query.
+                datetime: the last datetime's string representation.
         """
         return self.last_date.strftime('%Y-%m-%d %H:%M:%S')
 
     @property
     def first_date_str(self):
         """
-            Get the first datetime's string representation of the query.
+            Get the first datetime's string representation.
 
             Returns:
-                datetime: the first datetime's string representation in the query.
+                datetime: the first datetime's string representation.
         """
         return self.first_date.strftime('%Y-%m-%d')
 
     @property
     def last_date_str(self):
         """
-            Get the last datetime's string representation of the query.
+            Get the last datetime's string representation.
 
             Returns:
-                datetime: the last datetime's string representation in the query.
+                datetime: the last datetime's string representation.
         """
         return self.last_date.strftime('%Y-%m-%d')
 
@@ -198,22 +198,6 @@ class Query():
     ##############################################
     # End of datetime handling methods/properties.
     ##############################################
-
-    @property
-    def update(self):
-        if self._update == 'IGNORE':
-            return False
-        elif self._update == 'REPLACE':
-            return True
-        else:
-            raise FdataError("Unknown update value.")
-
-    @update.setter
-    def update(self, value):
-        if value is False:
-            self._update = 'IGNORE'
-        else:
-            self._update = 'REPLACE'
 
     def get_db_type(self):
         """
@@ -359,6 +343,7 @@ class Query():
             raise FdataError(f"Can't query table: {e}") from e
 
         # Check if timespans table has data
+        # TODO Extend the number of timespans. Add tick, minutes and so on.
         if len(rows) < 6:
             insert_timespans = f"""INSERT INTO timespans (title)
                                     VALUES
@@ -409,18 +394,9 @@ class Query():
         except self.Error as e:
             raise FdataError(f"Can't insert data to a table 'sources': {e}") from e
 
-class ReadOnlyData(metaclass=abc.ABCMeta):
-    """
-        Base class for SQL 'read only' data operations.
-    """
-    def __init__(self, query):
-        """
-            Initialize base read only data abstraction class.
-
-            Args:
-                query(Query): database query.
-        """
-        self.query = query
+    ##################################
+    # Read only methods to obtain data
+    ##################################
 
     def get_all_symbols(self):
         """
@@ -433,9 +409,9 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                 FdataError: sql error happened.
         """
         try:
-            self.query.cur.execute("SELECT ticker, ISIN, description FROM symbols;")
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
+            self.cur.execute("SELECT ticker, ISIN, description FROM symbols;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
         return rows
@@ -452,8 +428,8 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
         """
         timespan_query = ""
 
-        if self.query.timespan != Timespans.All:
-            timespan_query = "AND timespans.title = '" + self.query.timespan + "'"
+        if self.timespan != Timespans.All:
+            timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
         select_quotes = f"""SELECT ticker,
                                 ISIN,
@@ -469,18 +445,18 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                                 Dividends,
                                 Transactions,
                                 VWAP
-                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id 
-                            INNER JOIN sources ON quotes.source_id = sources.source_id 
+                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                            INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
-                            WHERE symbols.ticker = '{self.query.symbol}'
+                            WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
-                            AND "TimeStamp" >= {self.query.first_date_ts}
-                            AND "TimeStamp" <= {self.query.last_date_ts} ORDER BY "TimeStamp";"""
+                            AND "TimeStamp" >= {self.first_date_ts}
+                            AND "TimeStamp" <= {self.last_date_ts} ORDER BY "TimeStamp";"""
 
         try:
-            self.query.cur.execute(select_quotes)
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
+            self.cur.execute(select_quotes)
+            rows = self.cur.fetchall()
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
         return rows
@@ -500,8 +476,8 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
         """
         timespan_query = ""
 
-        if self.query.timespan != Timespans.All:
-            timespan_query = "AND timespans.title = '" + self.query.timespan + "'"
+        if self.timespan != Timespans.All:
+            timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
         select_quotes = f"""SELECT ticker,
                                 ISIN,
@@ -517,18 +493,18 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                                 Dividends,
                                 Transactions,
                                 VWAP
-                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id 
+                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN sources ON quotes.source_id = sources.source_id 
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
-                            WHERE symbols.ticker = '{self.query.symbol}'
+                            WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             ORDER BY "TimeStamp" DESC
                             LIMIT {num};"""
 
         try:
-            self.query.cur.execute(select_quotes)
-            rows = self.query.cur.fetchall()
-        except self.query.Error as e:
+            self.cur.execute(select_quotes)
+            rows = self.cur.fetchall()
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
         rows.reverse()
@@ -546,11 +522,11 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                 FdataError: sql error happened.
         """
         try:
-            self.query.cur.execute("SELECT COUNT(*) FROM quotes;")
-        except self.query.Error as e:
+            self.cur.execute("SELECT COUNT(*) FROM quotes;")
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
-        result = self.query.cur.fetchone()[0]
+        result = self.cur.fetchone()[0]
 
         if result is None:
             result = 0
@@ -568,11 +544,11 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                 FdataError: sql error happened.
         """
         try:
-            self.query.cur.execute(f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.query.symbol}');")
-        except self.query.Error as e:
+            self.cur.execute(f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');")
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
-        result = self.query.cur.fetchone()[0]
+        result = self.cur.fetchone()[0]
 
         if result is None:
             result = 0
@@ -590,15 +566,15 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
                 FdataError: sql error happened.
         """
         num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
-                        (SELECT symbol_id FROM symbols where ticker = '{self.query.symbol}') AND
-                        "TimeStamp" >= {self.query.first_date_ts} AND "TimeStamp" <= {self.query.last_date_ts};"""
+                        (SELECT symbol_id FROM symbols where ticker = '{self.symbol}') AND
+                        "TimeStamp" >= {self.first_date_ts} AND "TimeStamp" <= {self.last_date_ts};"""
 
         try:
-            self.query.cur.execute(num_query)
-        except self.query.Error as e:
+            self.cur.execute(num_query)
+        except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
-        result = self.query.cur.fetchone()[0]
+        result = self.cur.fetchone()[0]
 
         if result is None:
             result = 0
@@ -617,27 +593,59 @@ class ReadOnlyData(metaclass=abc.ABCMeta):
         """
         max_datetime_query = f"""SELECT MAX(datetime("TimeStamp", 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                                    WHERE symbols.ticker = '{self.query.symbol}'"""
+                                    WHERE symbols.ticker = '{self.symbol}'"""
 
         try:
-            self.query.cur.execute(max_datetime_query)
-        except self.query.Error as e:
+            self.cur.execute(max_datetime_query)
+        except self.Error as e:
             raise FdataError(f"Can't get max datetime: {e}") from e
 
-        return self.query.cur.fetchone()[0]
+        return self.cur.fetchone()[0]
+
+#############################
+# Read/Write operations class
+#############################
 
 class ReadWriteData(ReadOnlyData):
     """
         Base class for read/write SQL operations.
     """
-    def __init__(self, query):
+    def __init__(self, update=False, **kwargs):
         """
             Initialize read/write SQL abstraction class.
 
             Args:
-                query(Query): database query instance.
+                update(bool): indicates if existing quotes should be updated.
         """
-        super().__init__(query)
+        super().__init__(**kwargs)
+
+        # Underlying variable for getter/setter
+        self._update = None
+
+        # Indicates if existed quotes should be updated
+        self.update = update
+
+    @property
+    def update(self):
+        """
+            Getter for update.
+        """
+        if self._update == 'IGNORE':
+            return False
+        elif self._update == 'REPLACE':
+            return True
+        else:
+            raise FdataError("Unknown update value.")
+
+    @update.setter
+    def update(self, value):
+        """
+            Setter fo update.
+        """
+        if value is False:
+            self._update = 'IGNORE'
+        else:
+            self._update = 'REPLACE'
 
     def commit(self):
         """
@@ -647,8 +655,8 @@ class ReadWriteData(ReadOnlyData):
                 FdataError: sql error happened.
         """
         try:
-            self.query.conn.commit()
-        except self.query.Error as e:
+            self.conn.commit()
+        except self.Error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
     def add_symbol(self):
@@ -658,12 +666,12 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        insert_symbol = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.query.symbol}');"
+        insert_symbol = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.symbol}');"
 
         try:
-            self.query.cur.execute(insert_symbol)
-            self.query.conn.commit()
-        except self.query.Error as e:
+            self.cur.execute(insert_symbol)
+            self.conn.commit()
+        except self.Error as e:
             raise FdataError(f"Can't add ticker to a table 'symbols': {e}") from e
 
     def remove_symbol(self):
@@ -673,15 +681,15 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        delete_quotes = f"DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}');"
-        delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}');"
+        delete_quotes = f"DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
+        delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
 
         try:
-            self.query.cur.execute(delete_quotes)
-            self.query.cur.execute(delete_symbol)
-            self.query.conn.commit()
-        except self.query.Error as e:
-            raise FdataError(f"Can't remove {self.query.symbol}: {e}") from e
+            self.cur.execute(delete_quotes)
+            self.cur.execute(delete_symbol)
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't remove {self.symbol}: {e}") from e
 
     def add_quotes(self, quotes_dict):
         """
@@ -705,12 +713,12 @@ class ReadWriteData(ReadOnlyData):
             transactions = row['n']
             dividends = row['d']
 
-            insert_quote = f"""INSERT OR {self.query._update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
+            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
                                 VALUES (
-                                (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}'),
-                                (SELECT source_id FROM sources WHERE title = '{self.query.source_title}'),
+                                (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                 ({timestamp}),
-                                (SELECT timespan_id FROM timespans WHERE title = '{self.query.timespan}' COLLATE NOCASE),
+                                (SELECT timespan_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
                                 ({opened}),
                                 ({high}),
                                 ({low}),
@@ -723,8 +731,8 @@ class ReadWriteData(ReadOnlyData):
                             );"""
 
             try:
-                self.query.cur.execute(insert_quote)
-            except self.query.Error as e:
+                self.cur.execute(insert_quote)
+            except self.Error as e:
                 raise FdataError(f"Can't add ticker to a table 'symbols': {e}\n\nThe query is\n{insert_quote}") from e
 
     def remove_quotes(self):
@@ -734,26 +742,30 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}')
-                            AND "TimeStamp" >= {self.query.first_date_ts} AND "TimeStamp" <= {self.query.last_date_ts};"""
+        remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                            AND "TimeStamp" >= {self.first_date_ts} AND "TimeStamp" <= {self.last_date_ts};"""
 
         try:
-            self.query.cur.execute(remove_quotes)
-            self.query.conn.commit()
-        except self.query.Error as e:
+            self.cur.execute(remove_quotes)
+            self.conn.commit()
+        except self.Error as e:
             raise FdataError(f"Can't remove quotes from a table 'sources': {e}") from e
 
         # Check if symbol is removed completely
         if self.get_symbol_quotes_num() == 0:
             self.remove_symbol()
 
+##########################
+# Base data fetching class
+##########################
+
 class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def __init__(self, query):
+    def __init__(self, **kwargs):
         """Initialize the instance of BaseFetchData class."""
-        super().__init__(query)
+        super().__init__(**kwargs)
 
     def insert_quotes(self, rows):
         """
@@ -791,10 +803,10 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
-        initially_connected = self.query.Connected
+        initially_connected = self.Connected
 
-        if self.query.Connected == False:
-            self.query.db_connect()
+        if self.Connected == False:
+            self.db_connect()
 
         current_num = self.get_symbol_quotes_num_dt()
 
@@ -811,7 +823,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
         rows = self.get_quotes()
 
         if initially_connected is False:
-            self.query.db_close()
+            self.db_close()
 
         return (rows, num)
 

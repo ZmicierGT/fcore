@@ -159,17 +159,17 @@ class BaseScr(metaclass=abc.ABCMeta):
         if delta.seconds < self.get_interval():
             sleep(self.get_interval() - delta.seconds)
 
-        # Create query object for each symbol
+        # Create data source object for each symbol
         for symbol in self.get_symbols():
             # Connect to the database
-            symbol.get_source().query.symbol = symbol.get_title()
-            symbol.get_source().query.timespan = self.get_timespan()
+            symbol.get_source().symbol = symbol.get_title()
+            symbol.get_source().timespan = self.get_timespan()
 
             # Check if initial data was initialized
             if self.get_init_status() == False:
-                symbol.get_source().query.db_connect()
+                symbol.get_source().db_connect()
                 symbol.get_initial_data()
-                symbol.get_source().query.db_close()
+                symbol.get_source().db_close()
 
         self.__set_init_status()
 
@@ -238,13 +238,13 @@ class ScrData():
             Returns:
                 list: list with quotes for the screening.
         """
-        self.get_source().query.db_connect()
+        self.get_source().db_connect()
 
         data = self.get_source().get_rt_data()
         self.__max_datetime = self.get_source().get_max_datetime()
         self.__quotes_num = self.get_source().get_symbol_quotes_num()
 
-        self.get_source().query.db_close()
+        self.get_source().db_close()
 
         self._data.append(data)
 
@@ -296,8 +296,8 @@ class ScrData():
         # Get yesterday to fetch current quotes
         yesterday = datetime.now() - timedelta(days=1)
 
-        self.get_source().query.first_date = yesterday
-        self.get_source().query.last_date = yesterday + timedelta(days=2)
+        self.get_source().first_date = yesterday
+        self.get_source().last_date = yesterday + timedelta(days=2)
 
         try:
             self.get_source().insert_quotes(self.get_source().fetch_quotes())

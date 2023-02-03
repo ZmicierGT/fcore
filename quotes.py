@@ -11,10 +11,15 @@ import getopt
 from data import fdata, futils
 from data.fvalues import Timespans
 
-class QuotesQuery(fdata.Query):
-    def __init__(self):
-        super().__init__()
-        self.source_title = "Quotes"
+class QuotesData(fdata.ReadWriteData):
+    """
+        Base class for CLI quotes manipulation.
+    """
+    def __init__(self, **kwargs):
+        """
+            Initialize the base class of CLI quotes manipulations.
+        """
+        super().__init__(**kwargs)
 
         # Action should be only one
         self.to_print_all     = False
@@ -22,7 +27,6 @@ class QuotesQuery(fdata.Query):
         self.to_build_chart   = False
         self.to_remove_quotes = False
 
-class QuotesData(fdata.ReadWriteData):
     def print_all_symbols(self, rows):
         print("Ticker          ISIN          Description")
         print("-------------------------------------------")
@@ -48,14 +52,14 @@ class QuotesData(fdata.ReadWriteData):
 
 def arg_parser(argv):
     usage = (f"Usage: {argv[0]} [-h] [-d data file] [-s symbol] [-f from] [-l to] [-q] [-c] [-r] [-a]\n"
-            f"Example: {argv[0]} -s AAPL -f 2019-07-22 -l 2021-07-22 -q"
+            f"Example: {argv[0]} -s AAPL -f 2021-07-22 -l 2022-07-22 -q"
              "Use -h command line option to see detailed help.")
 
     if len(argv) == 1:
         sys.exit(usage)
 
     try:
-        arguments, values = getopt.getopt(argv[1:],"hd:s:f:l:qcra", 
+        arguments, _ = getopt.getopt(argv[1:],"hd:s:f:l:qcra",
                                                     ["help", 
                                                     "db_name=",
                                                     "symbol=",
@@ -68,13 +72,13 @@ def arg_parser(argv):
     except getopt.GetoptError:
         sys.exit(usage)
 
-    query = QuotesQuery()
-    query.timespan = Timespans.All
+    source = QuotesData()
+    source.timespan = Timespans.All
 
     for argument, value in arguments:
         if argument in ("-h", "--help", ""):
             print("\nAvailable command line options are:\n\n"
-                  f"-d or --db_name     - set db_name with the quotes (defauls is {query.db_name})\n"
+                  f"-d or --db_name     - set db_name with the quotes (defauls is {source.db_name})\n"
                    "-s or --symbol      - set symbol for the query\n"
                    "-f or --first_date  - the first date of the data to get. Default is the earliest available.\n"
                    "-l or --last_date   - the last date to get data. Default is today (local date).\n"
@@ -82,90 +86,92 @@ def arg_parser(argv):
                    "-c or --chart       - build a chart for specified symbol using specified dates\n"
                    "-r or --remove      - remove specified symbol for specified dates\n"
                    "-a or --all_symbols - list all symbol in the data file\n")
-            query.db_close()
+            source.db_close()
             sys.exit()
 
         elif argument in ("-d", "--db_name"):
-            query.db_name = value
-            print(f"Data file is set to: {query.db_name}")
+            source.db_name = value
+            print(f"Data file is set to: {source.db_name}")
 
         elif argument in ("-s", "--symbol"):
-            query.symbol = value
-            print(f"Chosen symbol is {query.symbol}")
+            source.symbol = value
+            print(f"Chosen symbol is {source.symbol}")
 
         elif argument in ("-f", "--first_date"):
             try:
-                query.first_date = value
+                source.first_date = value
             except ValueError as e:
                 print("\n" + usage)
-                query.db_close()
+                source.db_close()
                 sys.exit(f"\nThe date is incorrect: {e}")
 
-            print(f"The first date is {query.first_datetime_str}")
+            print(f"The first date is {source.first_datetime_str}")
 
         elif argument in ("-l", "--last_date"):
             try:
-                query.last_date = value
+                source.last_date = value
             except ValueError as e:
                 print("\n" + usage)
-                query.db_close()
+                source.db_close()
                 sys.exit(f"\nThe date is incorrect: {e}")
 
-            query.last_date_set_eod()
+            source.last_date_set_eod()
 
-            print(f"The last date is {query.last_datetime_str}")
+            print(f"The last date is {source.last_datetime_str}")
 
         elif argument in ("-q", "--quotes"):
-            query.to_print_quotes = True
+            source.to_print_quotes = True
 
         elif argument in ("-c", "--chart"):
-            query.to_build_chart = True
+            source.to_build_chart = True
 
         elif argument in ("-r", "--remove"):
-            query.to_remove_quotes = True
+            source.to_remove_quotes = True
 
         elif argument in ("-a", "--all_symbols"):
-            query.to_print_all = True
+            source.to_print_all = True
 
         else:
             sys.exit(usage)
 
-    return query
+    return source
 
 if __name__ == "__main__":
-    query = arg_parser(sys.argv)
-    quotes = QuotesData(query)
+    data_source = arg_parser(sys.argv)
 
-    if query.to_print_all == True:
-        quotes.print_all_symbols(quotes.get_all_symbols())
-        query.db_close()
+    data_source.db_connect()
+
+    if data_source.to_print_all == True:
+        data_source.print_all_symbols(data_source.get_all_symbols())
+        data_source.db_close()
         sys.exit()
 
-    if query.to_print_quotes == True:
-        if query.symbol == "":
-            query.db_close()
+    if data_source.to_print_quotes == True:
+        if data_source.symbol == "":
+            data_source.db_close()
             sys.exit("No symbol specified")
         
-        quotes.print_quotes(quotes.get_quotes())
-        query.db_close()
+        data_source.print_quotes(data_source.get_quotes())
+        data_source.db_close()
         sys.exit()
 
-    if query.to_build_chart == True:
-        if query.symbol == "":
-            query.db_close()
+    if data_source.to_build_chart == True:
+        if data_source.symbol == "":
+            data_source.db_close()
             sys.exit("No symbol specified")
 
-        new_file = futils.build_chart(quotes.get_quotes())
+        new_file = futils.build_chart(data_source.get_quotes())
+        # TODO Open the chart in a default image viewer
         print(f"{new_file} is written.")
-        query.db_close()
+        data_source.db_close()
         sys.exit()
 
-    if query.to_remove_quotes == True:
-        if query.symbol == "":
-            query.db_close()
+    if data_source.to_remove_quotes == True:
+        if data_source.symbol == "":
+            data_source.db_close()
             sys.exit("No symbol specified")
 
-        print(f"Number of quotes before removal: {quotes.get_quotes_num()}")
-        quotes.remove_quotes()
-        print(f"Number of quotes after removal: {quotes.get_quotes_num()}")
-        query.db_close()
+        print(f"Number of quotes before removal: {data_source.get_quotes_num()}")
+        data_source.remove_quotes()
+        print(f"Number of quotes after removal: {data_source.get_quotes_num()}")
+        data_source.db_close()

@@ -23,14 +23,13 @@ from data.fvalues import Timespans, def_first_date, def_last_date
 
 import settings
 
-# Provides parameters for the query to Polygon.IO
-class PolygonQuery(fdata.Query):
+class Polygon(fdata.BaseFetchData):
     """
-        Polygon.IO query class.
+        Polygon.IO wrapper class.
     """
     def __init__(self, **kwargs):
         """
-            Initialize Polygon.IO query class.
+            Initialize Polygon.IO wrapper class.
         """
         super().__init__(**kwargs)
 
@@ -57,7 +56,7 @@ class PolygonQuery(fdata.Query):
 
     def get_timespan(self):
         """
-            Get the timespan for the query.
+            Get the timespan.
 
             No need to convert the default timespan to Polygon.IO timespan because they are the same.
         """
@@ -65,14 +64,6 @@ class PolygonQuery(fdata.Query):
             return 'minute'
         else:
             return self.timespan.lower()
-
-class Polygon(fdata.BaseFetchData):
-    """
-        Poligon.IO API wrapper class.
-    """
-    def __init__(self, query):
-        """Initialize the instance of Polygon class."""
-        super().__init__(query)
 
     def fetch_quotes(self):
         """
@@ -84,10 +75,10 @@ class Polygon(fdata.BaseFetchData):
             Raises:
                 FdataError: Network error happened, no data obtained or can't parse json.
         """
-        first_date = self.query.first_date.date()
-        last_date = self.query.last_date.date()
+        first_date = self.first_date.date()
+        last_date = self.last_date.date()
 
-        url = f"https://api.polygon.io/v2/aggs/ticker/{self.query.symbol}/range/1/{self.query.get_timespan()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.query.api_key}"
+        url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
 
         try:
             response = requests.get(url, timeout=30)
@@ -115,7 +106,7 @@ class Polygon(fdata.BaseFetchData):
             # No need in ms
             ts = int(row['t'] / 1000)
             # Keep all non-intraday timestamps at 23:59:59
-            if self.query.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
+            if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
                 dt = datetime.utcfromtimestamp(ts)
                 dt = dt.replace(tzinfo=pytz.utc)
                 dt = dt.replace(hour=23, minute=59, second=59)

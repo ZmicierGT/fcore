@@ -12,7 +12,7 @@ from backtest.bh import BuyAndHold
 from backtest.reporting import Report
 
 from data.fdata import FdataError
-from data.yf import YFQuery, YF
+from data.yf import YF
 
 import plotly.graph_objects as go
 
@@ -28,20 +28,20 @@ if __name__ == "__main__":
     # Get quotes
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        query = YFQuery(symbol="SPY", first_date="2017-01-30", last_date="2022-8-1")
-        rows, num = YF(query).fetch_if_none(threshold)
+        source = YF(symbol="SPY", first_date="2017-01-30", last_date="2022-8-1")
+        rows, num = source.fetch_if_none(threshold)
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     quotes = StockData(rows=rows,
-                          title=query.symbol,
+                          title=source.symbol,
                           margin_rec=0.4,
                           margin_req=0.7,
                           spread=0.1,
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     # Buy and Hold to compare
 
     quotes_bh = StockData(rows=rows,
-                             title=query.symbol,
+                             title=source.symbol,
                              spread=0.1,
                             )
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     report = Report(data=results, width=max(length, min_width), margin=True)
 
     # Add a chart with quotes
-    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {query.symbol}")
+    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {source.symbol}")
 
     # Append MA values to the quotes chart
     fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))

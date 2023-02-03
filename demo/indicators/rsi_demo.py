@@ -14,7 +14,7 @@ from data.futils import show_image
 from data.fdata import FdataError
 from data.fvalues import Quotes
 
-from data.yf import YFQuery, YF
+from data.yf import YF
 
 import sys
 from itertools import repeat
@@ -32,17 +32,17 @@ if __name__ == "__main__":
     # Get quotes
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        query = YFQuery(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = YF(query).fetch_if_none(threshold)
+        source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
+        rows, num = source.fetch_if_none(threshold)
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # RSI calculation
     df = pd.DataFrame(rows)
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"RSI example chart for {query.symbol}", length)
+    update_layout(fig, f"RSI example chart for {source.symbol}", length)
 
     new_file = show_image(fig)
 

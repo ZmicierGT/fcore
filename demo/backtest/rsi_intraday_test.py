@@ -12,7 +12,7 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.fvalues import Timespans
-from data.yf import YFQuery, YF
+from data.yf import YF
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -51,17 +51,17 @@ if __name__ == "__main__":
     for symbol in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
-            query = YFQuery(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Intraday)
-            rows, num = YF(query).fetch_if_none(threshold)
+            source = YF(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Intraday)
+            rows, num = source.fetch_if_none(threshold)
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
-            print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {len(rows)}.")
+            print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
         else:
             # Please note that data providers and database may tread the date differently. For example, YF in query fetches the data for the end day
             # but sql database will fetch the data TILL the last day.
-            print(f"No need to fetch quotes for {query.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
+            print(f"No need to fetch quotes for {source.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)
 

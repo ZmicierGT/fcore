@@ -17,7 +17,7 @@ from backtest.reporting import Report
 from indicators.base import IndicatorError
 
 from data.fdata import FdataError
-from data.yf import YFQuery, YF
+from data.yf import YF
 
 import plotly.graph_objects as go
 
@@ -45,32 +45,32 @@ if __name__ == "__main__":
     # Get quotes for learning
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        query = YFQuery(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
-        rows_learn, num = YF(query).fetch_if_none(threshold_learn)
+        source = YF(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
+        rows_learn, num = source.fetch_if_none(threshold_learn)
     except FdataError as e:
         sys.exit(e)
 
     length_learn = len(rows_learn)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_learn}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_learn}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length_learn} quotes in the database and it is >= the threshold level of {threshold_learn}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length_learn} quotes in the database and it is >= the threshold level of {threshold_learn}.")
 
     # Get quotes for testing
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        query = YFQuery(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
-        rows, num = YF(query).fetch_if_none(threshold_test)
+        source = YF(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
+        rows, num = source.fetch_if_none(threshold_test)
     except FdataError as e:
         sys.exit(e)
 
     length_test = len(rows)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length_test}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_test}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length_test} quotes in the database and it is >= the threshold level of {threshold_test}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length_test} quotes in the database and it is >= the threshold level of {threshold_test}.")
 
     # Train the models
 

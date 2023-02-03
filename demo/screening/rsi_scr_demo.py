@@ -13,11 +13,8 @@ from data.fvalues import Timespans
 from data import yf
 
 if __name__ == "__main__":
-    query_btc = yf.YFQuery()
-    source_btc = yf.YF(query_btc)
-
-    query_ltc = yf.YFQuery()
-    source_ltc = yf.YF(query_ltc)
+    source_btc = yf.YF()
+    source_ltc = yf.YF()
 
     btc = {'Title': 'BTC-USD', 'Source': source_btc}
     ltc = {'Title': 'LTC-USD', 'Source': source_ltc}

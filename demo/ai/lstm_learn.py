@@ -9,7 +9,7 @@ from data.futils import write_model
 from data.fdata import FdataError
 from data.fvalues import Quotes
 
-from data.yf import YFQuery, YF
+from data.yf import YF
 
 import sys
 
@@ -35,17 +35,17 @@ if __name__ == "__main__":
 
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        query = YFQuery(symbol="SPY", first_date="2010-08-30", last_date="2020-08-30")
-        rows, num = YF(query).fetch_if_none(threshold)
+        source = YF(symbol="SPY", first_date="2010-08-30", last_date="2020-08-30")
+        rows, num = source.fetch_if_none(threshold)
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
     if num > 0:
-        print(f"Fetched {num} quotes for {query.symbol}. Total number of quotes used is {length}.")
+        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
     else:
-        print(f"No need to fetch quotes for {query.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
+        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Prepare a DataFrame of close pricess
 

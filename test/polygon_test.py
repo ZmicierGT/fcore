@@ -17,17 +17,16 @@ class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
         settings.Polygon.api_key = 'test'
 
-        query = polygon.PolygonQuery()
-        query.first_date = "2020-06-16"
-        query.last_date = "2022-06-16"
-        polygon_obj = polygon.Polygon(query)
+        source = polygon.Polygon()
+        source.first_date = "2020-06-16"
+        source.last_date = "2022-06-16"
 
         # Mocking
         requests.get = mock.MagicMock()
         json.loads = mock.MagicMock()
 
         try:
-            polygon_obj.fetch_quotes()
+            source.fetch_quotes()
         except FdataError as e:
             # This is expected
             pass

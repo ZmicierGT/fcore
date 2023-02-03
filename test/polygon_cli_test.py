@@ -12,18 +12,18 @@ class Test(unittest.TestCase):
         argv = ['./polygon_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'intraday', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
 
         settings.Polygon.api_key = 'test'
-        query = polygon_cli.arg_parser(argv)
+        source = polygon_cli.arg_parser(argv)
 
-        self.assertEqual(query.symbol, "AAPL")
-        self.assertEqual(query.first_datetime_str, "2019-07-22 00:00:00")
-        self.assertEqual(query.last_datetime_str, "2020-08-30 00:00:00")
-        self.assertEqual(query.update, True)
-        self.assertEqual(query.source_title, "Polygon.io")
-        self.assertEqual(query.year_delta, 2)
+        self.assertEqual(source.symbol, "AAPL")
+        self.assertEqual(source.first_datetime_str, "2019-07-22 00:00:00")
+        self.assertEqual(source.last_datetime_str, "2020-08-30 00:00:00")
+        self.assertEqual(source.update, True)
+        self.assertEqual(source.source_title, "Polygon.io")
+        self.assertEqual(source.year_delta, 2)
 
-        self.assertEqual(query.db_name, "test.sqlite")
-        self.assertEqual(query.db_type, "sqlite")
-        self.assertEqual(query.database, None)
-        self.assertEqual(query.conn, None)
-        self.assertEqual(query.cur, None)
-        self.assertEqual(query.Error, None)
+        self.assertEqual(source.db_name, "test.sqlite")
+        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.database, None)
+        self.assertEqual(source.conn, None)
+        self.assertEqual(source.cur, None)
+        self.assertEqual(source.Error, None)

@@ -6,3 +6,4 @@ models
 data.sqlite
 .python-version
 notes.txt
+settings.py

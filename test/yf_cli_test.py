@@ -17,7 +17,7 @@ class Test(unittest.TestCase):
         self.assertEqual(query.symbol, "AAPL")
         self.assertEqual(query.first_date_ts, 1563753600)
         self.assertEqual(query.last_date_ts, 1598745600)
-        self.assertEqual(query.update, "REPLACE")
+        self.assertEqual(query.update, True)
         self.assertEqual(query.source_title, "YF")
 
         self.assertEqual(query.db_name, "test.sqlite")
@@ -36,7 +36,7 @@ class Test(unittest.TestCase):
         self.assertEqual(query.symbol, "SPY")
         self.assertEqual(query.first_date_ts, -2147483648)
         self.assertEqual(query.last_date_ts, 9999999999)
-        self.assertEqual(query.update, "IGNORE")
+        self.assertEqual(query.update, False)
         self.assertEqual(query.source_title, "YF")
 
         self.assertEqual(query.db_name, "data.sqlite")

@@ -37,7 +37,7 @@ class Query():
                  first_date=def_first_date,
                  last_date=def_last_date,
                  timespan=Timespans.Day,
-                 update="IGNORE",
+                 update=False,
                  ):
         """
             Initialize base database query class.
@@ -49,15 +49,18 @@ class Query():
         self._first_date = None
         self._last_date = None
 
+        self._update = None
+
         # Getter/setter will be invoked
         self.first_date = first_date
         self.last_date = last_date
 
         self.update = update
+
         self.timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources
-        self.source_title = ""
+        self.source_title = ''
 
         # Default setting for the base data source
         self.db_type = settings.Quotes.db_type
@@ -195,6 +198,22 @@ class Query():
     ##############################################
     # End of datetime handling methods/properties.
     ##############################################
+
+    @property
+    def update(self):
+        if self._update == 'IGNORE':
+            return False
+        elif self._update == 'REPLACE':
+            return True
+        else:
+            raise FdataError("Unknown update value.")
+
+    @update.setter
+    def update(self, value):
+        if value is False:
+            self._update = 'IGNORE'
+        else:
+            self._update = 'REPLACE'
 
     def get_db_type(self):
         """
@@ -686,7 +705,7 @@ class ReadWriteData(ReadOnlyData):
             transactions = row['n']
             dividends = row['d']
 
-            insert_quote = f"""INSERT OR {self.query.update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
+            insert_quote = f"""INSERT OR {self.query._update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
                                 VALUES (
                                 (SELECT symbol_id FROM symbols WHERE ticker = '{self.query.symbol}'),
                                 (SELECT source_id FROM sources WHERE title = '{self.query.source_title}'),

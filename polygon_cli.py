@@ -71,7 +71,7 @@ def arg_parser(argv):
             print(f"The last date is {query.last_datetime_str}")
 
         elif argument in ("-r", "--replace"):
-            query.update = "REPLACE"
+            query.update = True
             print("Existing quotes will be updated.")
         else:
             sys.exit(usage)

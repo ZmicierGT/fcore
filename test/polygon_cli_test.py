@@ -5,16 +5,19 @@ sys.path.append('../')
 
 import polygon_cli
 
+import settings
+
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
         argv = ['./polygon_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'intraday', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
 
+        settings.Polygon.api_key = 'test'
         query = polygon_cli.arg_parser(argv)
 
         self.assertEqual(query.symbol, "AAPL")
         self.assertEqual(query.first_datetime_str, "2019-07-22 00:00:00")
         self.assertEqual(query.last_datetime_str, "2020-08-30 00:00:00")
-        self.assertEqual(query.update, "REPLACE")
+        self.assertEqual(query.update, True)
         self.assertEqual(query.source_title, "Polygon.io")
         self.assertEqual(query.year_delta, 2)
 

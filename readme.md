@@ -8,7 +8,9 @@
 
 Please note that Fcore is a tool which helps you to easily implement and test your own financial strategies but it does not provide any 'out of the box' investment solutions. Consider all the provided strategies as a programming examples which help you to implement your own strategies.
 
-Currently the project is in the active development stage and is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The reporitory uses two branches: 'main' and 'devel'. The 'main' branch is usually stable but as a verification process is not fully established yet, sometimes bugs may be committed there. The 'devel' branch is used for 'intermediate' development commits and it is not indended to be stable or even working. The 'general idea' of the project will remain the same but interfaces still may change.
+Currently the project is in the active development stage and is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The 'general idea' of the project will remain the same but interfaces still may change.
+
+The reporitory uses two branches: 'main' and 'devel'. The 'main' branch is usually stable but as a verification process is not fully established yet, sometimes bugs may be committed there. The 'devel' branch is used for 'intermediate' development commits and it is not indended to be stable or even working.
 
 Overall, the next development steps are (planned to finish in Autumn 2023):
 - Continue to adopt the project to use various data sources and store the fundamental data in a unified way. Data sources are Yahoo Finance (for demonstration purposes only), Polygon.IO, AlphaVantahe and Finnhub.io.

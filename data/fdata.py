@@ -27,7 +27,7 @@ class FdataError(Exception):
         Base data exception class.
     """
 
-# TODO Query type should be omitted and joined with the base data class.
+# TODO Query type should be omitted and joined with the base data class. Fix the related pylint warnings.
 class Query():
     """
         Base database query class.

@@ -1913,7 +1913,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._spread_expense += expense
 
-    # TODO Check why it is not used
     def get_margin_req(self):
         """
             Get the required margin ratio for the cash balance. For example, if the cash balance is 1000 and required margin ratio
@@ -1973,7 +1972,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 float: margin holding power based on cash.
         """
-        return self.get_cash() * self.get_margin_rec()
+        return self.get_cash() * self.get_margin_req()
 
     def get_total_used_margin(self):
         """

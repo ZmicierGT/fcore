@@ -14,7 +14,7 @@ from data import polygon, fdata
 
 def arg_parser(argv):
     usage = (f"\nUsage: {argv[0]} [-h] [-d data file] -s symbol [-t timespan] [-f from] [-l to] [-r]\n"
-             f"Example: {argv[0]} -s AAPL -t day -f 2021-07-22 -l 2022-07-22\n"
+             f"Example: {argv[0]} -s AAPL -t Day -f 2021-07-22 -l 2022-07-22\n"
              "Use -h command line option to see detailed help.\n")
 
     if len(argv) == 1:
@@ -32,7 +32,7 @@ def arg_parser(argv):
             print("\nAvailable command line options are:\n\n"
                   f"-d or --db_name    - set db_name to store quotes (defauls is {source.db_name})\n"
                    "-s or --symbol     - symbol to retreive quotes\n"
-                   "-t or --timespan   - timespan (either Day or Intraday, in case of intraday minute quotes are requested), default is day.\n"
+                   "-t or --timespan   - timespan (either Day or Minute), default is Day.\n"
                   f"-f or --first_date - the first date of the data to get. Default is {source.year_delta} years ago (local date).\n"
                    "-l or --last_date  - the last date to get data. Default is today (local date).\n"
                    "-r or --replace    - indicates if the existing records (based on timestamp) will be replaced.\n")
@@ -47,7 +47,7 @@ def arg_parser(argv):
             print(f"The symbol is set to {source.symbol}")
 
         elif argument in ("-t", "--timespan"):
-            if value.capitalize() not in ("Day", "Intraday"):
+            if value.capitalize() not in ("Day", "Minute"):
                 sys.exit(usage)
             source.timespan = value.capitalize()
             print(f"The timespan is set to {source.timespan}")

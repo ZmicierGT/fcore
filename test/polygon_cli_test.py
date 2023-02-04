@@ -9,7 +9,7 @@ import settings
 
 class Test(unittest.TestCase):
     def test_0_check_arg_parser(self):
-        argv = ['./polygon_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'intraday', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
+        argv = ['./polygon_cli.py', '-s', 'AAPL', '-d', 'test.sqlite', '-t', 'Minute', '-f', '2019-07-22', '-l', '2020-08-30', '-r']
 
         settings.Polygon.api_key = 'test'
         source = polygon_cli.arg_parser(argv)

@@ -32,7 +32,7 @@ def arg_parser(argv):
             print("\nAvailable command line options are:\n\n"
                   f"-d or --db_name    - set db_name to store quotes (defauls is {source.db_name})\n"
                    "-s or --symbol     - symbol to retreive quotes\n"
-                   "-t or --timespan   - timespan (Day, Week, Month) for full quote history, Intraday for reduced to 30 last days, default is day.\n"
+                   "-t or --timespan   - timespan (Day, Week, Month) for full quote history, Minute for reduced to 30 last days, default is Day.\n"
                   f"-f or --first_date - the first date of the data to get. Default is 1970-01-01.\n"
                    "-l or --last_date  - the last date to get data. Default is today (local date).\n"
                    "-r or --replace    - indicates if the existing records (based on timestamp) will be replaced.\n")
@@ -47,7 +47,7 @@ def arg_parser(argv):
             print(f"The symbol is set to {source.symbol}")
 
         elif argument in ("-t", "--timespan"):
-            if value not in ("Day", "Week", "Month", "Intraday"):
+            if value not in ("Day", "Week", "Month", "Day"):
                 sys.exit(usage)
             source.timespan = value
             print(f"The timespan is set to {source.timespan}")

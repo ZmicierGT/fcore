@@ -30,18 +30,38 @@ class YF(fdata.BaseFetchData):
         """
             Get the timespan for queries.
 
-            No need to convert the default timespan to Yahoo Finance timespan because they are the same.
+            Raises:
+                FdataError: incorrect/unsupported timespan requested.
+
+            Returns:
+                str: timespan for YF query.
         """
-        request_timespan = "1d"
-
-        if self.timespan == Timespans.Week:
-            request_timespan = "1w"
+        if self.timespan == Timespans.Minute:
+            return '1m'
+        elif self.timespan == Timespans.TwoMinutes:
+            return '2m'
+        elif self.timespan == Timespans.FiveMinutes:
+            return '5m'
+        elif self.timespan == Timespans.FifteenMinutes:
+            return '15m'
+        elif self.timespan == Timespans.ThirtyMinutes:
+            return '30m'
+        elif self.timespan == Timespans.Hour:
+            return '1h'
+        elif self.timespan == Timespans.NinetyMinutes:
+            return '90m'
+        elif self.timespan == Timespans.Day:
+            return '1d'
+        elif self.timespan == Timespans.FiveDays:
+            return '5d'
+        elif self.timespan == Timespans.Week:
+            return "1wk"
         elif self.timespan == Timespans.Month:
-            request_timespan = "1mo"
-        elif self.timespan == Timespans.Intraday:
-            request_timespan = "1m"
-
-        return request_timespan
+            return '1mo'
+        elif self.timespan == Timespans.Quarter:
+            return '3mo'
+        else:
+            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan}")
 
     def fetch_quotes(self):
         """

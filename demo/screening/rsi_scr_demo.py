@@ -32,7 +32,7 @@ if __name__ == "__main__":
                  interval=interval,
                  support=support,
                  resistance=resistance,
-                 timespan=Timespans.Intraday)
+                 timespan=Timespans.Minute)
 
     print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
     print("and exceptions due to network errors may happen.\n")

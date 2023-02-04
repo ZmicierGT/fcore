@@ -56,14 +56,24 @@ class Polygon(fdata.BaseFetchData):
 
     def get_timespan(self):
         """
-            Get the timespan.
+            Get the timespan for queries.
 
-            No need to convert the default timespan to Polygon.IO timespan because they are the same.
+            Raises:
+                FdataError: incorrect/unsupported timespan requested.
+
+            Returns:
+                str: timespan for Polygon query.
         """
-        if self.timespan == Timespans.Intraday:
-            return 'minute'
-        else:
+        if self.timespan in [Timespans.Minute,
+                             Timespans.Hour,
+                             Timespans.Day,
+                             Timespans.Week,
+                             Timespans.Month,
+                             Timespans.Quarter,
+                             Timespans.Year]:
             return self.timespan.lower()
+        else:
+            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan}")
 
     def fetch_quotes(self):
         """

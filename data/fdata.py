@@ -345,14 +345,17 @@ class ReadOnlyData():
         # Check if timespans table has data
         # TODO Extend the number of timespans. Add tick, minutes and so on.
         if len(rows) < 6:
+            # Prepare the query with all supported timespans
+            ts = ""
+
+            for timespan in Timespans:
+                if timespan != Timespans.All:
+                    ts += f"('{timespan.value}'),"
+
+            ts = ts[:len(ts) - 2]
+
             insert_timespans = f"""INSERT INTO timespans (title)
-                                    VALUES
-                                    ('{Timespans.Unknown}'),
-                                    ('{Timespans.Intraday}'),
-                                    ('{Timespans.Day}'),
-                                    ('{Timespans.Week}'),
-                                    ('{Timespans.Month}'),
-                                    ('{Timespans.Year}');"""
+                                    VALUES {ts});"""
 
             try:
                 self.cur.execute(insert_timespans)
@@ -494,7 +497,7 @@ class ReadOnlyData():
                                 Transactions,
                                 VWAP
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                            INNER JOIN sources ON quotes.source_id = sources.source_id 
+                            INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}

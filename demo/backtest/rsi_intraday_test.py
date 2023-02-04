@@ -51,7 +51,7 @@ if __name__ == "__main__":
     for symbol in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
-            source = YF(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Intraday)
+            source = YF(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Minute)
             rows, num = source.fetch_if_none(threshold)
         except FdataError as e:
             sys.exit(e)

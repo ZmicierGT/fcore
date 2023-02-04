@@ -34,17 +34,21 @@ class Timespans(str, Enum):
     """
         Enum class for timespans.
     """
-    All = "All"
+    All = "All"  # Indicates that all data should be polled (regarding the timespan).
     Unknown = "Unknown"
-    Intraday = "Intraday"
-    OneMinute = "OneMinute"
-    FiveMinutes = "FiveMinutes"
-    TenMinutes = "TenMinutes"
-    FifteenMinutes = "FifteenMinutes"
-    TwentyMinutes = "TwentyMinutes"
-    ThirtyMinutes = "ThirtyMinutes"
-    OneHour = "OneHour"
+    Tick = "Tick"
+    Minute = "Minute"
+    TwoMinutes = "2_Minutes"  # YF only
+    FiveMinutes = "5_Minutes"  # All except Polygon
+    TenMinutes = "10_Minutes"  # Currently not used by any supported data source. Kept for future.
+    FifteenMinutes = "15_Minutes"  # All except Polygon
+    TwentyMinutes = "20_Minutes"  # Currently not used by any supported data source. Kept for future.
+    ThirtyMinutes = "30_Minutes"  # All except Polygon
+    Hour = "Hour"  # All
+    NinetyMinutes = "90_Minutes"  # YF only
     Day = "Day"
+    FiveDays = "5_Days"  # YF only
     Week = "Week"
     Month = "Month"
+    Quarter = "Quarter"  # Polygon and YF
     Year = "Year"

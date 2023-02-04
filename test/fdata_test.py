@@ -272,14 +272,17 @@ class Test(unittest.TestCase):
         sql_query9 = "SELECT * FROM timespans;"
         when(self.write_data.cur).execute(sql_query9).thenReturn()
 
-        sql_query10 = """INSERT INTO timespans (title)
-                                    VALUES
-                                    ('Unknown'),
-                                    ('Intraday'),
-                                    ('Day'),
-                                    ('Week'),
-                                    ('Month'),
-                                    ('Year');"""
+        # Prepare the query with all supported timespans
+        ts = ""
+
+        for timespan in Timespans:
+            if timespan != Timespans.All:
+                ts += f"('{timespan.value}'),"
+
+        ts = ts[:len(ts) - 2]
+
+        sql_query10 = f"""INSERT INTO timespans (title)
+                                    VALUES {ts});"""
         when(self.write_data.cur).execute(sql_query10).thenReturn()
 
         when(self.write_data.cur).fetchall().thenReturn([])

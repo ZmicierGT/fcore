@@ -88,18 +88,23 @@ class AV(fdata.BaseFetchData):
             Converts universal timespan to AlphaVantage timespan.
 
             Raises:
-                FdataError: incorrect timespan.
+                FdataError: incorrect/unsupported timespan requested.
+
+            Returns:
+                str: timespan for AV query.
         """
-        if self.timespan in (Timespans.Intraday, Timespans.OneMinute):
+        if self.timespan == Timespans.Minute:
             return '1min'
-        elif self.timespan in (Timespans.FiveMinutes):
+        elif self.timespan == Timespans.FiveMinutes:
             return '5min'
-        elif self.timespan in (Timespans.FifteenMinutes):
+        elif self.timespan == Timespans.FifteenMinutes:
             return '15min'
-        elif self.timespan in (Timespans.ThirtyMinutes):
+        elif self.timespan == Timespans.ThirtyMinutes:
             return '30min'
-        elif self.timespan in (Timespans.OneHour):
+        elif self.timespan == Timespans.Hour:
             return '60min'
+        elif self.timespan == Timespans.Day:
+            return ''  # Daily quotes are obtained with different function and there is no timespan parameter.
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan}")
 

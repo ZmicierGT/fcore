@@ -17,9 +17,9 @@ from data import fdata
 from data.fvalues import Timespans
 from data.fdata import FdataError
 
-from enum import Enum
+import pandas as pd
 
-from data.futils import get_ts_from_str
+from data.futils import get_dt
 
 import settings
 
@@ -71,11 +71,11 @@ class AVStock(fdata.BaseFetchData):
         """
             The method to fetch quotes.
 
-            Returns:
-                list: quotes data
-
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
+
+            Returns:
+                list: quotes data
         """
         # At first, need to set a function depending on a timespan.
         if self.timespan == Timespans.Day:
@@ -122,13 +122,9 @@ class AVStock(fdata.BaseFetchData):
 
         for dt_str in datetimes:
             try:
-                ts = get_ts_from_str(dt_str)
+                dt = get_dt(dt_str)  # Get UTC-adjusted datetime
             except ValueError as e:
                 raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
-
-            # Keep all datetimes UTC adjusted
-            dt = datetime.utcfromtimestamp(ts)
-            dt = dt.replace(tzinfo=pytz.utc)
 
             # The current quote to process
             quote = dict_results[dt_str]
@@ -165,3 +161,139 @@ class AVStock(fdata.BaseFetchData):
             quotes_data.append(quote_dict)
 
         return quotes_data
+
+    def fetch_fundamentals(self, function):
+        """
+            Fetch stock fundamentals
+
+            Args:
+                function(str): the function to use
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
+
+            Returns:
+                list: fundamental data
+        """
+        url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
+
+        # Get fundamental data
+        try:
+            response = requests.get(url, timeout=30)
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+            raise FdataError(f"Can't fetch fundamental data: {e}") from e
+
+        json_data = response.json()
+
+        annual_reports = pd.json_normalize(json_data['annualReports'])
+        quarterly_reports = pd.json_normalize(json_data['quarterlyReports'])
+
+        annual_reports['period'] = 'Year'
+        quarterly_reports['period'] = 'Quarter'
+
+        # Merge and sort reports
+        reports = pd.concat([annual_reports, quarterly_reports], ignore_index=True)
+        reports = reports.sort_values(by=['fiscalDateEnding'], ignore_index=True)
+
+        # Delete reported currency
+        reports = reports.drop(labels="reportedCurrency", axis=1)
+
+        # Replace string datetime to timestamp
+        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: get_dt(x))
+        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
+
+        # Convert dataframe to dictionary
+        fundamental_results = reports.T.to_dict().values()
+
+        return fundamental_results
+
+
+    def fetch_income_statement(self):
+        """
+            Fetches the income statement.
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
+
+            Returns:
+                list: fundamental data
+        """
+        return self.fetch_fundamentals('INCOME_STATEMENT')
+
+    def fetch_balance_sheet(self):
+        """
+            Fetches the balance sheet.
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
+
+            Returns:
+                list: fundamental data
+        """
+        return self.fetch_fundamentals('BALANCE_SHEET')
+
+    def fetch_cash_flow(self):
+        """
+            Fetches the cash flow.
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
+
+            Returns:
+                list: fundamental data
+        """
+        return self.fetch_fundamentals('CASH_FLOW')
+
+    def fetch_earnings(self):
+        """
+            Fetch stock earnings
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened or no data obtained.
+
+            Returns:
+                list: earnings data
+        """
+        url = f'https://www.alphavantage.co/query?function=EARNINGS&symbol={self.symbol}&apikey={self.api_key}'
+
+        # Get earnings data
+        try:
+            response = requests.get(url, timeout=30)
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+            raise FdataError(f"Can't fetch earnings data: {e}") from e
+
+        json_data = response.json()
+
+        annual_earnings = pd.json_normalize(json_data['annualEarnings'])
+        quarterly_earnings = pd.json_normalize(json_data['quarterlyEarnings'])
+
+        annual_earnings['period'] = 'Year'
+        quarterly_earnings['period'] = 'Quarter'
+
+        # These columns are not available in annual earnings reports
+        annual_earnings['reportedDate'] = None
+        annual_earnings['estimatedEPS'] = None
+        annual_earnings['surprise'] = None
+        annual_earnings['surprisePercentage'] = None
+
+        # Convert reported date to UTC-adjusted timestamp
+        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: get_dt(x))
+        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
+
+        # Merge and sort earnings reports
+        earnings = pd.concat([annual_earnings, quarterly_earnings], ignore_index=True)
+        earnings = earnings.sort_values(by=['fiscalDateEnding'], ignore_index=True)
+
+        # Replace string datetime to timestamp
+        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
+        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
+
+        print(earnings)
+
+        # Convert dataframe to dictionary
+        earnings_results = earnings.T.to_dict().values()
+
+        return earnings_results

@@ -103,7 +103,7 @@ class Test(unittest.TestCase):
         sql_query = f"""SELECT ticker,
                                 ISIN,
                                 sources.title,
-                                datetime("TimeStamp", 'unixepoch'),
+                                datetime(time_stamp, 'unixepoch'),
                                 timespans.title,
                                 "Open",
                                 High,
@@ -119,8 +119,8 @@ class Test(unittest.TestCase):
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
                             WHERE symbols.ticker = '{self.read_data.symbol}'
                             AND timespans.title = 'Day'
-                            AND "TimeStamp" >= {self.read_data.first_date_ts}
-                            AND "TimeStamp" <= {self.read_data.last_date_ts} ORDER BY "TimeStamp";"""
+                            AND time_stamp >= {self.read_data.first_date_ts}
+                            AND time_stamp <= {self.read_data.last_date_ts} ORDER BY time_stamp;"""
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
 
@@ -135,7 +135,7 @@ class Test(unittest.TestCase):
         sql_query = f"""SELECT ticker,
                                 ISIN,
                                 sources.title,
-                                datetime("TimeStamp", 'unixepoch'),
+                                datetime(time_stamp, 'unixepoch'),
                                 timespans.title,
                                 "Open",
                                 High,
@@ -151,7 +151,7 @@ class Test(unittest.TestCase):
                             INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
                             WHERE symbols.ticker = '{self.read_data.symbol}'
                             AND timespans.title = 'Day'
-                            ORDER BY "TimeStamp" DESC
+                            ORDER BY time_stamp DESC
                             LIMIT {num};"""
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
@@ -184,7 +184,7 @@ class Test(unittest.TestCase):
     def test_17_get_symbol_quotes_num_dt(self):
         sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}') AND
-                        "TimeStamp" >= {self.read_data.first_date_ts} AND "TimeStamp" <= {self.read_data.last_date_ts};"""
+                        time_stamp >= {self.read_data.first_date_ts} AND time_stamp <= {self.read_data.last_date_ts};"""
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
 
@@ -194,7 +194,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).fetchone()
 
     def test_14_get_max_datetime(self):
-        sql_query = f"""SELECT MAX(datetime("TimeStamp", 'unixepoch')) FROM quotes
+        sql_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                                     WHERE symbols.ticker = '{self.read_data.symbol}'"""
 
@@ -215,7 +215,7 @@ class Test(unittest.TestCase):
                             quote_id INTEGER PRIMARY KEY,
                             symbol_id INTEGER NOT NULL,
                             source_id INTEGER NOT NULL,
-                            "TimeStamp" INTEGER NOT NULL,
+                            time_stamp INTEGER NOT NULL,
                             timespan_id INTEGER NOT NULL,
                             Open REAL,
                             High REAL,
@@ -235,7 +235,7 @@ class Test(unittest.TestCase):
                             CONSTRAINT fk_timespan
                                 FOREIGN KEY (timespan_id)
                                 REFERENCES timespans(timespan_id),
-                            UNIQUE(symbol_id, "TimeStamp", timespan_id)
+                            UNIQUE(symbol_id, time_stamp, timespan_id)
                             );"""
         when(self.write_data.cur).execute(sql_query2).thenReturn()
 
@@ -345,7 +345,7 @@ class Test(unittest.TestCase):
 
         quotes = [quote_dict]
 
-        sql_query = f"""INSERT OR {self.write_data._update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
+        sql_query = f"""INSERT OR {self.write_data._update} INTO quotes (symbol_id, source_id, time_stamp, timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
                                 VALUES (
                                 (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}'),
                                 (SELECT source_id FROM sources WHERE title = '{self.write_data.source_title}'),
@@ -370,7 +370,7 @@ class Test(unittest.TestCase):
 
     def test_10_check_remove_quotes(self):
             sql_query = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}')
-                            AND "TimeStamp" >= {self.write_data.first_date_ts} AND "TimeStamp" <= {self.write_data.last_date_ts};"""
+                            AND time_stamp >= {self.write_data.first_date_ts} AND time_stamp <= {self.write_data.last_date_ts};"""
 
             when(self.write_data.cur).execute(sql_query).thenReturn()
 

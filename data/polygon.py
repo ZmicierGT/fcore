@@ -102,7 +102,7 @@ class Polygon(fdata.BaseFetchData):
             error = e
 
             try:
-                error = json_results = json_data['error']
+                error = json_data['error']
             except (json.JSONDecodeError, KeyError):
                 # Not relevant for error reporting
                 pass
@@ -112,17 +112,31 @@ class Polygon(fdata.BaseFetchData):
         if len(json_results) == 0:
             raise FdataError("No data obtained.")
 
-        for row in json_results:
+        quotes_data = []
+
+        for quote in json_results:
             # No need in ms
-            ts = int(row['t'] / 1000)
+            ts = int(quote['t'] / 1000)
             # Keep all non-intraday timestamps at 23:59:59
             if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
                 dt = datetime.utcfromtimestamp(ts)
                 dt = dt.replace(tzinfo=pytz.utc)
                 dt = dt.replace(hour=23, minute=59, second=59)
                 ts = int(datetime.timestamp(dt))
-            row['t'] = ts
-            row['d'] = "NULL"
-            row['cl'] = "NULL"
 
-        return json_results
+            quote_dict = {
+                'ts': ts,
+                'open': quote['o'],
+                'high': quote['h'],
+                'low': quote['l'],
+                'adj_close': quote['c'],
+                'raw_close': 'NULL',
+                'volume': quote['v'],
+                'divs': 'NULL',
+                'transactions': quote['n'],
+                'split': 'NULL'
+            }
+
+            quotes_data.append(quote_dict)
+
+        return quotes_data

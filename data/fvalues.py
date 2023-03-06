@@ -16,19 +16,17 @@ class Quotes(IntEnum):
         Enum class for the database query result.
     """
     Symbol = 0
-    ISIN = 1
-    Source = 2
-    DateTime = 3
-    Timespan = 4
-    Open = 5
-    High = 6
-    Low = 7
-    Close = 8
-    AdjClose = 9
-    Volume = 10
-    Dividends = 11
-    Transactions = 12
-    VWAP = 13
+    Source = 1
+    DateTime = 2
+    Timespan = 3
+    Open = 4
+    High = 5
+    Low = 6
+    AdjClose = 7
+    RawClose = 8
+    Volume = 9
+    Dividends = 10
+    SplitCoefficient = 11
 
 class Timespans(str, Enum):
     """

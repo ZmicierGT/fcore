@@ -130,33 +130,36 @@ class AVStock(fdata.BaseFetchData):
             quote = dict_results[dt_str]
 
             quote_dict = {
-                't': None,
-                'o': quote['1. open'],
-                'h': quote['2. high'],
-                'l': quote['3. low'],
-                'c': None,
-                'cl': None,
-                'v': None,
-                'd': None,
-                'n': None,
-                'vw': None
+                'ts': 'NULL',
+                'open': quote['1. open'],
+                'high': quote['2. high'],
+                'low': quote['3. low'],
+                'adj_close': 'NULL',
+                'raw_close': 'NULL',
+                'volume': 'NULL',
+                'divs': 'NULL',
+                'transactions': 'NULL',
+                'split': 'NULL'
             }
 
             # Set the entries depending if the quote is intraday
             if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month):
-                quote_dict['c'] = quote['5. adjusted close']
-                quote_dict['cl'] = quote['4. close']
-                quote_dict['v'] = quote['6. volume']
-                quote_dict['d'] = quote['7. dividend amount']
+                quote_dict['adj_close'] = quote['5. adjusted close']
+                quote_dict['raw_close'] = quote['4. close']
+                quote_dict['volume'] = quote['6. volume']
+                quote_dict['divs'] = quote['7. dividend amount']
+                quote_dict['split'] = quote['8. split coefficient']
 
                 # Keep all non-intraday timestamps at 23:59:59
                 dt = dt.replace(hour=23, minute=59, second=59)
             else:
-                quote_dict['c'] = quote['4. close']
-                quote_dict['v'] = quote['5. volume']
+                quote_dict['adj_close'] = quote['4. close']
+                quote_dict['volume'] = quote['5. volume']
+                quote_dict['raw_close'] = quote['4. close']
+                quote_dict['split'] = 1  # Split coefficient is always 1 for intraday
 
             # Set the timestamp
-            quote_dict['t'] = int(datetime.timestamp(dt))
+            quote_dict['ts'] = int(datetime.timestamp(dt))
 
             quotes_data.append(quote_dict)
 
@@ -341,7 +344,7 @@ class AVStock(fdata.BaseFetchData):
         ts = int(dt.timestamp())
 
         result = [self.symbol,
-                  None,
+                  'NULL',
                   self.source_title,
                   ts,
                   # TODO check if it is ok to set timespan this way and if it may cause some db operations issues
@@ -352,8 +355,8 @@ class AVStock(fdata.BaseFetchData):
                   quote['05. price'],  # Consider that Close and AdjClose is the same for intraday timespans
                   quote['05. price'],
                   quote['06. volume'],
-                  None,
-                  None,
-                  None]
+                  'NULL',
+                  'NULL',
+                  'NULL']
 
         return result

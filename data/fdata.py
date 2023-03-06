@@ -217,6 +217,13 @@ class ReadOnlyData():
             self.database.db_connect()
             self.Connected = True
 
+            # Enable foreign keys
+            # Check if we need to create table 'quotes'
+            try:
+                self.cur.execute("PRAGMA foreign_keys=on;")
+            except self.Error as e:
+                raise FdataError(f"Can't enable foreign keys: {e}") from e
+
             # Check the database integrity
             self.check_database()
 
@@ -238,46 +245,6 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
-        # Check if we need to create table 'quotes'
-        try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        if len(rows) == 0:
-            create_quotes = """CREATE TABLE quotes (
-                            quote_id INTEGER PRIMARY KEY,
-                            symbol_id INTEGER NOT NULL,
-                            source_id INTEGER NOT NULL,
-                            "TimeStamp" INTEGER NOT NULL,
-                            timespan_id INTEGER NOT NULL,
-                            Open REAL,
-                            High REAL,
-                            Low REAL,
-                            Close REAL,
-                            AdjClose REAL NOT NULL,
-                            Volume INTEGER,
-                            Dividends REAL,
-                            Transactions INTEGER,
-                            VWAP REAL,
-                            CONSTRAINT fk_symols
-                                FOREIGN KEY (symbol_id)
-                                REFERENCES symbols(symbol_id),
-                            CONSTRAINT fk_sources
-                                FOREIGN KEY (source_id)
-                                REFERENCES sources(source_id),
-                            CONSTRAINT fk_timespan
-                                FOREIGN KEY (timespan_id)
-                                REFERENCES timespans(timespan_id),
-                            UNIQUE(symbol_id, "TimeStamp", timespan_id)
-                            );"""
-
-            try:
-                self.cur.execute(create_quotes)
-            except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
-
         # Check if we need to create table 'symbols'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';")
@@ -287,9 +254,9 @@ class ReadOnlyData():
 
         if len(rows) == 0:
             create_symbols = """CREATE TABLE symbols(
-                                symbol_id INTEGER PRIMARY KEY,
+                                symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ticker TEXT NOT NULL UNIQUE,
-                                ISIN TEXT UNIQUE,
+                                isin TEXT UNIQUE,
                                 description TEXT
                                 );"""
 
@@ -307,7 +274,7 @@ class ReadOnlyData():
 
         if len(rows) == 0:
             create_sources = """CREATE TABLE sources(
-                                source_id INTEGER PRIMARY KEY,
+                                source_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 title TEXT NOT NULL UNIQUE,
                                 description TEXT
                                 );"""
@@ -326,7 +293,7 @@ class ReadOnlyData():
 
         if len(rows) == 0:
             create_timespans = """CREATE TABLE timespans(
-                                    timespan_id INTEGER PRIMARY KEY,
+                                    time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     title TEXT NOT NULL UNIQUE
                                 );"""
 
@@ -362,6 +329,71 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
 
+        # Check if we need to create table 'quotes'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_quotes = """CREATE TABLE quotes (
+                            quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            symbol_id INTEGER NOT NULL,
+                            source_id INTEGER NOT NULL,
+                            time_stamp INTEGER NOT NULL,
+                            time_span_id INTEGER NOT NULL,
+                            opened REAL,
+                            high REAL,
+                            low REAL,
+                            closed REAL NOT NULL,
+                            volume INTEGER,
+                            transactions INTEGER,
+                                CONSTRAINT fk_timespans
+                                    FOREIGN KEY (time_span_id)
+                                    REFERENCES timespans(time_span_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_source
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_symbols
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                            UNIQUE(symbol_id, time_stamp, time_span_id)
+                            );"""
+
+            try:
+                self.cur.execute(create_quotes)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if we need to create a table stock core
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_symbols = """CREATE TABLE stock_core(
+                                stock_core_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                quote_id NOT NULL UNIQUE,
+                                raw_close REAL,
+                                dividends REAL,
+                                split_coefficient REAL,
+                                CONSTRAINT fk_quotes,
+                                    FOREIGN KEY (quote_id)
+                                    REFERENCES quotes(quote_id)
+                                    ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_symbols)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
     def check_source(self):
         """
             Check if the current source exists in the table 'sources'
@@ -388,7 +420,7 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
-        insert_source = f"INSERT INTO sources (title) VALUES ('{self.source_title}')"
+        insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.source_title}')"
 
         try:
             self.cur.execute(insert_source)
@@ -411,7 +443,7 @@ class ReadOnlyData():
                 FdataError: sql error happened.
         """
         try:
-            self.cur.execute("SELECT ticker, ISIN, description FROM symbols;")
+            self.cur.execute("SELECT ticker, isin, description FROM symbols;")
             rows = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
@@ -434,26 +466,25 @@ class ReadOnlyData():
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
         select_quotes = f"""SELECT ticker,
-                                ISIN,
                                 sources.title,
-                                datetime("TimeStamp", 'unixepoch'),
+                                datetime(time_stamp, 'unixepoch'),
                                 timespans.title,
-                                "Open",
-                                High,
-                                Low,
-                                "Close",
-                                AdjClose,
-                                Volume,
-                                Dividends,
-                                Transactions,
-                                VWAP
+                                opened,
+                                high,
+                                low,
+                                closed,
+                                raw_close,
+                                volume,
+                                dividends,
+                                split_coefficient
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN sources ON quotes.source_id = sources.source_id
-                            INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
+                            INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+                            INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
-                            AND "TimeStamp" >= {self.first_date_ts}
-                            AND "TimeStamp" <= {self.last_date_ts} ORDER BY "TimeStamp";"""
+                            AND time_stamp >= {self.first_date_ts}
+                            AND time_stamp <= {self.last_date_ts} ORDER BY time_stamp;"""
 
         try:
             self.cur.execute(select_quotes)
@@ -482,25 +513,24 @@ class ReadOnlyData():
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
         select_quotes = f"""SELECT ticker,
-                                ISIN,
                                 sources.title,
-                                datetime("TimeStamp", 'unixepoch'),
+                                datetime(time_stamp, 'unixepoch'),
                                 timespans.title,
-                                "Open",
-                                High,
-                                Low,
-                                "Close",
-                                AdjClose,
-                                Volume,
-                                Dividends,
-                                Transactions,
-                                VWAP
+                                opened,
+                                high,
+                                low,
+                                closed,
+                                raw_close,
+                                volume,
+                                dividends,
+                                split_coefficient
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN sources ON quotes.source_id = sources.source_id
-                            INNER JOIN timespans ON quotes.timespan_id = timespans.timespan_id
+                            INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+                            INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
-                            ORDER BY "TimeStamp" DESC
+                            ORDER BY time_stamp DESC
                             LIMIT {num};"""
 
         try:
@@ -569,7 +599,7 @@ class ReadOnlyData():
         """
         num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.symbol}') AND
-                        "TimeStamp" >= {self.first_date_ts} AND "TimeStamp" <= {self.last_date_ts};"""
+                        time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 
         try:
             self.cur.execute(num_query)
@@ -593,7 +623,7 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
-        max_datetime_query = f"""SELECT MAX(datetime("TimeStamp", 'unixepoch')) FROM quotes
+        max_datetime_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                                     WHERE symbols.ticker = '{self.symbol}'"""
 
@@ -680,14 +710,14 @@ class ReadWriteData(ReadOnlyData):
         """
             Remove a symbol completely.
 
+            All corresponding records in quotes table will be deleted because of foreign key linking (cascade deletion).
+
             Raises:
                 FdataError: sql error happened.
         """
-        delete_quotes = f"DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
         delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
 
         try:
-            self.cur.execute(delete_quotes)
             self.cur.execute(delete_symbol)
             self.conn.commit()
         except self.Error as e:
@@ -704,38 +734,52 @@ class ReadWriteData(ReadOnlyData):
                 FdataError: sql error happened.
         """
         for row in quotes_dict:
-            volume = row['v']
-            VWAP = row['vw']
-            opened = row['o']
-            adjclose = row['c']
-            close = row['cl']
-            high = row['h']
-            low = row['l']
-            timestamp = row['t']
-            transactions = row['n']
-            dividends = row['d']
+            volume = row['volume']
+            opened = row['open']
+            adjclose = row['adj_close']
+            rawclose = row['raw_close']
+            high = row['high']
+            low = row['low']
+            timestamp = row['ts']
+            transactions = row['transactions']
+            dividends = row['divs']
+            split_coefficient = row['split']
 
-            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, "TimeStamp", timespan_id, "Open", High, Low, Close, AdjClose, Volume, Transactions, VWAP, Dividends)
+            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, time_stamp, time_span_id, opened, high, low, closed, volume, transactions)
                                 VALUES (
                                 (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                 (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                 ({timestamp}),
-                                (SELECT timespan_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
+                                (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
                                 ({opened}),
                                 ({high}),
                                 ({low}),
-                                ({close}),
                                 ({adjclose}),
                                 ({volume}),
-                                ({transactions}),
-                                ({VWAP}),
-                                ({dividends})
+                                ({transactions})
                             );"""
 
             try:
                 self.cur.execute(insert_quote)
             except self.Error as e:
                 raise FdataError(f"Can't add ticker to a table 'symbols': {e}\n\nThe query is\n{insert_quote}") from e
+
+            quote_id = self.cur.lastrowid
+
+            if quote_id != 0:
+                insert_core = f"""INSERT OR {self._update} INTO stock_core (quote_id, raw_close, dividends, split_coefficient)
+                                VALUES (
+                                    ({quote_id}),
+                                    ({rawclose}),
+                                    ({dividends}),
+                                    ({split_coefficient})
+                                )
+                """
+
+                try:
+                    self.cur.execute(insert_core)
+                except self.Error as e:
+                    raise FdataError(f"Can't add data to a table 'stock_core': {e}\n\nThe query is\n{insert_core}") from e
 
     def remove_quotes(self):
         """
@@ -744,8 +788,9 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        # Cascade delete will remove the corresponding entries in stock_core table as well
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-                            AND "TimeStamp" >= {self.first_date_ts} AND "TimeStamp" <= {self.last_date_ts};"""
+                            AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 
         try:
             self.cur.execute(remove_quotes)
@@ -781,7 +826,8 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
                 num_after(int): the number of quotes after the operatioon.
         """
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        self.add_symbol()
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
 
         num_before = self.get_quotes_num()
 

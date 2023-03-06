@@ -74,9 +74,15 @@ class YF(fdata.BaseFetchData):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
+            last_date = self.last_date
+            current_date = datetime.now().replace(tzinfo=pytz.utc)
+
+            if last_date > current_date:
+                last_date = current_date
+
             data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(),
                                                         start=self.first_date_str,
-                                                        end=self.last_date_str)
+                                                        end=last_date)
         else:
             data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(), period='max')
 
@@ -97,17 +103,25 @@ class YF(fdata.BaseFetchData):
                 # Add 23:59:59 to non-intraday quotes
                 quote_dict['t'] = ts + 86399
 
+                # Stock split coefficient 0 (reported by default) should be set to 1 as it makes more sense
+                stock_splits = data['Stock Splits'][ind]
+                if stock_splits == 0:
+                    stock_splits = 1
+            else:
+                # Stock splits has no sense intraday
+                stock_splits = 1
+
             quote_dict = {
-                "v": data['Volume'][ind],
-                "o": data['Open'][ind],
-                "c": data['Close'][ind],
-                "h": data['High'][ind],
-                "l": data['Low'][ind],
-                "cl": "NULL",
-                "n": "NULL",
-                "vw": "NULL",
-                "d": data['Dividends'][ind],
-                "t": ts
+                'volume': data['Volume'][ind],
+                'open': data['Open'][ind],
+                'adj_close': data['Close'][ind],
+                'high': data['High'][ind],
+                'low': data['Low'][ind],
+                'raw_close': 'NULL',
+                'transactions': 'NULL',
+                'divs': data['Dividends'][ind],
+                'split': stock_splits,
+                'ts': ts
             }
 
             quotes_data.append(quote_dict)
@@ -132,7 +146,7 @@ class YF(fdata.BaseFetchData):
         row = data.iloc[-1]
 
         result = [self.symbol,
-                  None,
+                  'NULL',
                   self.source_title,
                   # TODO check if such datetime manipulations may have an impact depending on a locale.
                   str(data.index[-1])[:16],
@@ -144,9 +158,9 @@ class YF(fdata.BaseFetchData):
                   row['Close'],
                   row['Adj Close'],
                   row['Volume'],
-                  None,
-                  None,
-                  None]
+                  'NULL',
+                  'NULL',
+                  'NULL']
 
         # TODO caching should be implemented
 

@@ -200,7 +200,10 @@ class AVStock(fdata.BaseFetchData):
 
         # Replace string datetime to timestamp
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: get_dt(x))
-        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        # TODO Check if it is correct
+        # Lets consider that close price of this day is already afffected by reports
+        # so we won't align report time to the end of the day
+        # reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Convert dataframe to dictionary
@@ -208,7 +211,7 @@ class AVStock(fdata.BaseFetchData):
 
         return fundamental_results
 
-
+    # TODO these methods should be abstract in the base class
     def fetch_income_statement(self):
         """
             Fetches the income statement.
@@ -279,7 +282,10 @@ class AVStock(fdata.BaseFetchData):
 
         # Convert reported date to UTC-adjusted timestamp
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: get_dt(x))
-        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        # TODO Check if it is correct
+        # Lets consider that close price of this day is already afffected by reports
+        # so we won't align report time to the end of the day
+        # quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Merge and sort earnings reports
@@ -288,7 +294,10 @@ class AVStock(fdata.BaseFetchData):
 
         # Replace string datetime to timestamp
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
-        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
+        # TODO Check if it is correct
+        # Lets consider that close price of this day is already afffected by reports
+        # so we won't align report time to the end of the day
+        # earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         print(earnings)
@@ -297,3 +306,54 @@ class AVStock(fdata.BaseFetchData):
         earnings_results = earnings.T.to_dict().values()
 
         return earnings_results
+
+    # TODO this method should be abstract in the base class
+    # TODO to implement
+    def get_recent_data(self, to_cache=False):
+        """
+            Get delayed quote.
+
+            Args:
+                to_cache(bool): indicates if real time data should be cached in a database.
+
+            Raises:
+                FdataErorr: markets are closed or network error has happened.
+
+            Returns:
+                list: real time data.
+        """
+        url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={self.symbol}&apikey={self.api_key}'
+
+        # Get recent quote
+        try:
+            response = requests.get(url, timeout=30)
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+            raise FdataError(f"Can't fetch earnings data: {e}") from e
+
+        # Get json
+        json_data = response.json()
+        quote = json_data['Global Quote']
+
+        # Use the current time as a timestamp
+        dt = datetime.now()
+        # Always keep datetimes in UTC time zone!
+        dt = dt.replace(tzinfo=pytz.utc)
+        ts = int(dt.timestamp())
+
+        result = [self.symbol,
+                  None,
+                  self.source_title,
+                  ts,
+                  # TODO check if it is ok to set timespan this way and if it may cause some db operations issues
+                  Timespans.Tick.value,
+                  quote['02. open'],
+                  quote['03. high'],
+                  quote['04. low'],
+                  quote['05. price'],  # Consider that Close and AdjClose is the same for intraday timespans
+                  quote['05. price'],
+                  quote['06. volume'],
+                  None,
+                  None,
+                  None]
+
+        return result

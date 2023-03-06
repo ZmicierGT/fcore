@@ -117,9 +117,10 @@ class YF(fdata.BaseFetchData):
 
         return quotes_data
 
-    def get_rt_data(self, to_cache=False):
+    # TODO this method should be abstract in the base class
+    def get_recent_data(self, to_cache=False):
         """
-            Get real time data. Used in screening.
+            Get pseudo real time data. Used in screening demonstration.
 
             Args:
                 to_cache(bool): indicates if real time data should be cached in a database.
@@ -135,7 +136,8 @@ class YF(fdata.BaseFetchData):
                   self.source_title,
                   # TODO check if such datetime manipulations may have an impact depending on a locale.
                   str(data.index[-1])[:16],
-                  self.timespan.value,
+                  # TODO check if it is ok to set timespan this way and if it may cause some db operations issues
+                  Timespans.Tick.value,
                   row['Open'],
                   row['High'],
                   row['Low'],

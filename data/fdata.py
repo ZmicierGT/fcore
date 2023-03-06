@@ -343,7 +343,6 @@ class ReadOnlyData():
             raise FdataError(f"Can't query table: {e}") from e
 
         # Check if timespans table has data
-        # TODO Extend the number of timespans. Add tick, minutes and so on.
         if len(rows) < 6:
             # Prepare the query with all supported timespans
             ts = ""
@@ -830,7 +829,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
 
         return (rows, num)
 
-    def get_rt_data(self, to_cache=False):
+    def get_recent_data(self, to_cache=False):
         """
             Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
             for a particular data source.

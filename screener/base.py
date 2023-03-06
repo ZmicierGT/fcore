@@ -240,7 +240,7 @@ class ScrData():
         """
         self.get_source().db_connect()
 
-        data = self.get_source().get_rt_data()
+        data = self.get_source().get_recent_data()
         self.__max_datetime = self.get_source().get_max_datetime()
         self.__quotes_num = self.get_source().get_symbol_quotes_num()
 

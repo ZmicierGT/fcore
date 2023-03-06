@@ -64,7 +64,7 @@ class Test(unittest.TestCase):
 
         assert return_data == quotes_data
 
-    def test_1_get_rt_data(self):
+    def test_1_get_recent_data(self):
         source = yf.YF()
         source.symbol = 'SPY'
 
@@ -83,10 +83,10 @@ class Test(unittest.TestCase):
         # Mocking
         when(yfinance).download(tickers=source.symbol, period='1d', interval='1m').thenReturn(df)
 
-        return_data = source.get_rt_data()
+        return_data = source.get_recent_data()
 
         verify(yfinance, times=1).download(tickers=source.symbol, period='1d', interval='1m')
 
-        expected_result = ['SPY', None, 'YF', '1', 'Day', 2, 5, 6, 3, 4, 0, None, None, None]
+        expected_result = ['SPY', None, 'YF', '1', 'Tick', 2, 5, 6, 3, 4, 0, None, None, None]
 
         assert return_data == expected_result

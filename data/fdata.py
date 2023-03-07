@@ -16,6 +16,8 @@ from data.futils import get_dt
 
 import settings
 
+import time
+
 class DbTypes(Enum):
     """
         Database types enum. Currently only SQLite is supported.
@@ -265,6 +267,14 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
 
+            # Create index for ticker
+            create_ticker_idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
+
+            try:
+                self.cur.execute(create_ticker_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for ticker: {e}") from e
+
         # Check if we need to create table 'sources'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sources';")
@@ -284,6 +294,14 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
 
+            # Create index for source title
+            create_source_title_idx = "CREATE INDEX idx_source_title ON sources(title);"
+
+            try:
+                self.cur.execute(create_source_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for source title: {e}") from e
+
         # Check if we need to create table 'timespans'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';")
@@ -301,6 +319,14 @@ class ReadOnlyData():
                 self.cur.execute(create_timespans)
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for timespan title
+            create_timespan_title_idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
+
+            try:
+                self.cur.execute(create_timespan_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for timespan title: {e}") from e
 
         # Check if timespans table is empty
         try:
@@ -369,6 +395,14 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
 
+            # Create indexes for quotes
+            create_quotes_idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
+
+            try:
+                self.cur.execute(create_quotes_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for quotes table: {e}") from e
+
         # Check if we need to create a table stock core
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';")
@@ -379,7 +413,7 @@ class ReadOnlyData():
         if len(rows) == 0:
             create_symbols = """CREATE TABLE stock_core(
                                 stock_core_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                quote_id NOT NULL UNIQUE,
+                                quote_id INTEGER NOT NULL UNIQUE,
                                 raw_close REAL,
                                 dividends REAL,
                                 split_coefficient REAL,
@@ -393,6 +427,14 @@ class ReadOnlyData():
                 self.cur.execute(create_symbols)
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for quote_id
+            create_quoteid_idx = "CREATE INDEX idx_quote ON quotes(quote_id);"
+
+            try:
+                self.cur.execute(create_quoteid_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for quote id: {e}") from e
 
     def check_source(self):
         """
@@ -477,18 +519,20 @@ class ReadOnlyData():
                                 volume,
                                 dividends,
                                 split_coefficient
-                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                            FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
+                            INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
-                            INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {self.last_date_ts} ORDER BY time_stamp;"""
-
+        print(select_quotes)
         try:
+            before = time.perf_counter()
             self.cur.execute(select_quotes)
             rows = self.cur.fetchall()
+            print(f"Time taken: {time.perf_counter() - before}")
         except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
@@ -524,10 +568,10 @@ class ReadOnlyData():
                                 volume,
                                 dividends,
                                 split_coefficient
-                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                            FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
+                            INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
-                            INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             ORDER BY time_stamp DESC

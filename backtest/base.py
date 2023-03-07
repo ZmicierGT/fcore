@@ -98,7 +98,9 @@ class BackTestData():
                  spread=0,
                  margin_fee=0,
                  trend_change_period=0,
-                 trend_change_percent=0
+                 trend_change_percent=0,
+                 timespan=None,
+                 source=None
                 ):
         """Initializes BackTestData class.
 
@@ -113,6 +115,8 @@ class BackTestData():
                     Default is 0.
                 trend_change_percent(float): indicates the change of the quote in percent when the trend for the symbol is considered as changed
                     immediately. Default is 0.
+                timespan(Timespan): time span used in data.
+                source(string): data source.
 
             Raises:
                 BackTestError: inaproppriate values were provided.                 
@@ -161,6 +165,12 @@ class BackTestData():
 
         # Title of the financial instrument
         self._title = title
+
+        # Time span used in data
+        self._timespan = timespan
+
+        # Data source
+        self._source = source
 
     #####################
     # Thread safe methods

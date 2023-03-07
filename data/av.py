@@ -23,7 +23,7 @@ from data.futils import get_dt
 
 import settings
 
-# TODO Add unit test for this module
+# TODO LOW Add unit test for this module
 
 class AVStock(fdata.BaseFetchData):
     """
@@ -203,10 +203,6 @@ class AVStock(fdata.BaseFetchData):
 
         # Replace string datetime to timestamp
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: get_dt(x))
-        # TODO Check if it is correct
-        # Lets consider that close price of this day is already afffected by reports
-        # so we won't align report time to the end of the day
-        # reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Convert dataframe to dictionary
@@ -214,7 +210,7 @@ class AVStock(fdata.BaseFetchData):
 
         return fundamental_results
 
-    # TODO these methods should be abstract in the base class
+    # TODO MID these methods should be abstract in the base class
     def fetch_income_statement(self):
         """
             Fetches the income statement.
@@ -285,10 +281,6 @@ class AVStock(fdata.BaseFetchData):
 
         # Convert reported date to UTC-adjusted timestamp
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: get_dt(x))
-        # TODO Check if it is correct
-        # Lets consider that close price of this day is already afffected by reports
-        # so we won't align report time to the end of the day
-        # quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Merge and sort earnings reports
@@ -297,10 +289,6 @@ class AVStock(fdata.BaseFetchData):
 
         # Replace string datetime to timestamp
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
-        # TODO Check if it is correct
-        # Lets consider that close price of this day is already afffected by reports
-        # so we won't align report time to the end of the day
-        # earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: x.replace(hour=23, minute=59, second=59))
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         print(earnings)
@@ -310,8 +298,7 @@ class AVStock(fdata.BaseFetchData):
 
         return earnings_results
 
-    # TODO this method should be abstract in the base class
-    # TODO to implement
+    # TODO MID This method should be abstract in the base class
     def get_recent_data(self, to_cache=False):
         """
             Get delayed quote.

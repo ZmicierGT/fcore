@@ -131,7 +131,7 @@ class YF(fdata.BaseFetchData):
 
         return quotes_data
 
-    # TODO this method should be abstract in the base class
+    # TODO MID this method should be abstract in the base class
     def get_recent_data(self, to_cache=False):
         """
             Get pseudo real time data. Used in screening demonstration.
@@ -145,7 +145,7 @@ class YF(fdata.BaseFetchData):
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m')
         row = data.iloc[-1]
 
-        result = [str(data.index[-1])[:16],  # TODO check if such datetime manipulations may have an impact depending on a locale.
+        result = [str(data.index[-1])[:16],  # TODO LOW check if such datetime manipulations may have an impact depending on a locale.
                   row['Open'],
                   row['High'],
                   row['Low'],
@@ -156,6 +156,6 @@ class YF(fdata.BaseFetchData):
                   'NULL',
                   'NULL']
 
-        # TODO caching should be implemented
+        # TODO LOW caching should be implemented
 
         return result

@@ -19,7 +19,7 @@ class Quotes(IntEnum):
     Open = 1
     High = 2
     Low = 3
-    AdjClose = 4
+    AdjClose = 4  # TODO MID Change it do just Close
     RawClose = 5
     Volume = 6
     Dividends = 7

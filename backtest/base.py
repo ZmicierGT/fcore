@@ -889,7 +889,7 @@ class BackTestOperations():
         """
         return int(self.get_future_margin_buying_power() / self.get_buy_price())
 
-    # TODO check if this max() is needed.
+    # TODO LOW check if this max() is needed.
     def get_total_shares_num(self):
         """
             Get total number of shares which we may buy.
@@ -1406,8 +1406,8 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
-# TODO Time frame should be implemented. In intraday calculations/charting, time outside of the frame won't be taken into account.
-# TODO Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
+# TODO LOW Time frame should be implemented. In intraday calculations/charting, time outside of the frame won't be taken into account.
+# TODO LOW Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,
@@ -1882,7 +1882,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 other_expense(float): other expense to add to the statistics.
         """
         self._other_expense += other_expense
-        # TODO Need to check here if balance may go negative on a non-margin account.
+        # TODO LOW Need to check here if balance may go negative on a non-margin account.
         # Currently it is not relevant because the stock is the only financial intrument where other expenses may be applied
         # and it happens only on a margin account (dividend expenses while holding a short position).
         self.add_cash(-abs(other_expense))
@@ -2047,7 +2047,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self.get_margin_limit_based_on_cash() + self.get_total_margin_limit_by_instruments() - self.get_total_used_margin()
 
-    # TODO Need to think if it is rational (and how it is used).
+    # TODO LOW Need to think if it is rational (and how it is used).
     def get_total_buying_power(self, fees=0):
         """
             Get the total buying power.

@@ -161,7 +161,7 @@ if __name__ == "__main__":
             sys.exit("No symbol specified")
 
         new_file = futils.build_chart(data_source.get_quotes())
-        # TODO Open the chart in a default image viewer
+        # TODO LOW Open the chart in a default image viewer
         print(f"{new_file} is written.")
         data_source.db_close()
         sys.exit()

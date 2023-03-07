@@ -361,6 +361,7 @@ class ReadOnlyData():
             raise FdataError(f"Can't query table: {e}") from e
 
         if len(rows) == 0:
+            # TODO MID Consider adding security type here
             create_quotes = """CREATE TABLE quotes (
                             quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             symbol_id INTEGER NOT NULL,

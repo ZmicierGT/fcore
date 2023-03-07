@@ -45,6 +45,7 @@ if __name__ == "__main__":
     # TODO Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
     now = datetime.now()
     then = now - timedelta(days=7)
+    # TODO check why it does not work
 
     print("At least 1000 quotes for each symbol need to be fetched for the last week.")
 

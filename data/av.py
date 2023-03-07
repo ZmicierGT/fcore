@@ -343,12 +343,7 @@ class AVStock(fdata.BaseFetchData):
         dt = dt.replace(tzinfo=pytz.utc)
         ts = int(dt.timestamp())
 
-        result = [self.symbol,
-                  'NULL',
-                  self.source_title,
-                  ts,
-                  # TODO check if it is ok to set timespan this way and if it may cause some db operations issues
-                  Timespans.Tick.value,
+        result = [ts,
                   quote['02. open'],
                   quote['03. high'],
                   quote['04. low'],

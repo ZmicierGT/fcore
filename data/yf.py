@@ -145,13 +145,7 @@ class YF(fdata.BaseFetchData):
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m')
         row = data.iloc[-1]
 
-        result = [self.symbol,
-                  'NULL',
-                  self.source_title,
-                  # TODO check if such datetime manipulations may have an impact depending on a locale.
-                  str(data.index[-1])[:16],
-                  # TODO check if it is ok to set timespan this way and if it may cause some db operations issues
-                  Timespans.Tick.value,
+        result = [str(data.index[-1])[:16],  # TODO check if such datetime manipulations may have an impact depending on a locale.
                   row['Open'],
                   row['High'],
                   row['Low'],

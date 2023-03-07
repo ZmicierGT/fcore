@@ -16,8 +16,6 @@ from data.futils import get_dt
 
 import settings
 
-import time
-
 class DbTypes(Enum):
     """
         Database types enum. Currently only SQLite is supported.
@@ -507,10 +505,7 @@ class ReadOnlyData():
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
-        select_quotes = f"""SELECT ticker,
-                                sources.title,
-                                datetime(time_stamp, 'unixepoch'),
-                                timespans.title,
+        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
                                 opened,
                                 high,
                                 low,
@@ -518,21 +513,19 @@ class ReadOnlyData():
                                 raw_close,
                                 volume,
                                 dividends,
-                                split_coefficient
+                                split_coefficient,
+                                transactions
                             FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                            INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {self.last_date_ts} ORDER BY time_stamp;"""
-        print(select_quotes)
+
         try:
-            before = time.perf_counter()
             self.cur.execute(select_quotes)
             rows = self.cur.fetchall()
-            print(f"Time taken: {time.perf_counter() - before}")
         except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
 
@@ -556,10 +549,7 @@ class ReadOnlyData():
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
-        select_quotes = f"""SELECT ticker,
-                                sources.title,
-                                datetime(time_stamp, 'unixepoch'),
-                                timespans.title,
+        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
                                 opened,
                                 high,
                                 low,
@@ -567,10 +557,10 @@ class ReadOnlyData():
                                 raw_close,
                                 volume,
                                 dividends,
-                                split_coefficient
+                                split_coefficient,
+                                transactions
                             FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                            INNER JOIN sources ON quotes.source_id = sources.source_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}

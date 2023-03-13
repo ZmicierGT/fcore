@@ -78,11 +78,13 @@ class YF(fdata.BaseFetchData):
             current_date = datetime.now().replace(tzinfo=pytz.utc)
 
             if last_date > current_date:
-                last_date = current_date
+                last_date_str = current_date.strftime('%Y-%m-%d')
+            else:
+                last_date_str = self.last_date_str
 
             data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(),
                                                         start=self.first_date_str,
-                                                        end=last_date)
+                                                        end=last_date_str)
         else:
             data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(), period='max')
 

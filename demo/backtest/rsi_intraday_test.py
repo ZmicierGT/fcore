@@ -20,6 +20,7 @@ from plotly import subplots
 from itertools import repeat
 
 from datetime import datetime, timedelta
+import pytz
 
 import sys
 
@@ -43,15 +44,14 @@ if __name__ == "__main__":
 
     # As YF is used as the default data source, the data should be withing the last 30 days. Use the last week as the interval.
     # TODO LOW Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
-    now = datetime.now()
-    then = now - timedelta(days=7)  # TODO HIGH check why it does not work
+    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=7)
 
     print("At least 1000 quotes for each symbol need to be fetched for the last week.")
 
     for symbol in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
-            source = YF(symbol=symbol, first_date=then, last_date=now, timespan=Timespans.Minute)
+            source = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute)
             rows, num = source.fetch_if_none(threshold)
         except FdataError as e:
             sys.exit(e)

@@ -18,6 +18,7 @@ from data.fvalues import Timespans, SecTypes
 from data.fdata import FdataError
 
 import pandas as pd
+import numpy as np
 
 from data.futils import get_dt
 
@@ -38,7 +39,12 @@ class AVStock(fdata.BaseFetchData):
         self.api_key = settings.AV.api_key
         self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
 
-        self.sectype = SecTypes.Stock  # TODO MID Distinguish stock and ETF
+        self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF
+
+        # Cached earnings to estimate reporting dates.
+        self.earnings = None
+        self.earnings_first_date = None
+        self.earnings_last_date = None
 
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
@@ -168,7 +174,6 @@ class AVStock(fdata.BaseFetchData):
 
         return quotes_data
 
-    # TODO HIGH calculate reporting date for all fundamentals
     def fetch_fundamentals(self, function):
         """
             Fetch stock fundamentals
@@ -182,6 +187,10 @@ class AVStock(fdata.BaseFetchData):
             Returns:
                 list: fundamental data
         """
+        # Check if earnings data is cached for this interval. If not, fetch it.
+        if self.earnings_cached() is False:
+            self.fetch_earnings()
+
         url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get fundamental data
@@ -192,8 +201,11 @@ class AVStock(fdata.BaseFetchData):
 
         json_data = response.json()
 
-        annual_reports = pd.json_normalize(json_data['annualReports'])
-        quarterly_reports = pd.json_normalize(json_data['quarterlyReports'])
+        try:
+            annual_reports = pd.json_normalize(json_data['annualReports'])
+            quarterly_reports = pd.json_normalize(json_data['quarterlyReports'])
+        except KeyError as e:
+            raise FdataError(f"Can't parse results. Likely because of API key limit: {e}") from e
 
         annual_reports['period'] = 'Year'
         quarterly_reports['period'] = 'Quarter'
@@ -208,6 +220,14 @@ class AVStock(fdata.BaseFetchData):
         # Replace string datetime to timestamp
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: get_dt(x))
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
+
+        # Add reporting date from earnings data
+        # TODO LOW make it shorted (using map, for example)
+        adj_earnings = self.earnings[self.earnings['fiscalDateEnding'] >= reports['fiscalDateEnding'].iloc[0]]
+        adj_earnings = adj_earnings.reset_index(drop=True)
+
+        reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
+            adj_earnings['reportedDate'], None)
 
         # Convert dataframe to dictionary
         fundamental_results = reports.T.to_dict().values()
@@ -261,6 +281,10 @@ class AVStock(fdata.BaseFetchData):
             Returns:
                 list: earnings data
         """
+        # Check if earnings are already cached for this interval
+        if self.earnings_cached():
+            return self.earnings.T.to_dict().values()
+
         url = f'https://www.alphavantage.co/query?function=EARNINGS&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get earnings data
@@ -271,8 +295,11 @@ class AVStock(fdata.BaseFetchData):
 
         json_data = response.json()
 
-        annual_earnings = pd.json_normalize(json_data['annualEarnings'])
-        quarterly_earnings = pd.json_normalize(json_data['quarterlyEarnings'])
+        try:
+            annual_earnings = pd.json_normalize(json_data['annualEarnings'])
+            quarterly_earnings = pd.json_normalize(json_data['quarterlyEarnings'])
+        except KeyError as e:
+            raise FdataError(f"Can't parse results. Likely because of API key limit: {e}") from e
 
         annual_earnings['period'] = 'Year'
         quarterly_earnings['period'] = 'Quarter'
@@ -287,6 +314,9 @@ class AVStock(fdata.BaseFetchData):
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: get_dt(x))
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
+        annual_earnings['reportedDate'] = annual_earnings['fiscalDateEnding'].\
+            map(quarterly_earnings.set_index('fiscalDateEnding')['reportedDate'])
+
         # Merge and sort earnings reports
         earnings = pd.concat([annual_earnings, quarterly_earnings], ignore_index=True)
         earnings = earnings.sort_values(by=['fiscalDateEnding'], ignore_index=True)
@@ -295,7 +325,9 @@ class AVStock(fdata.BaseFetchData):
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
-        print(earnings)
+        self.earnings = earnings
+        self.earnings_first_date = self.first_date
+        self.earnings_last_date = self.last_date
 
         # Convert dataframe to dictionary
         earnings_results = earnings.T.to_dict().values()
@@ -346,3 +378,15 @@ class AVStock(fdata.BaseFetchData):
                   'NULL']
 
         return result
+
+    def earnings_cached(self):
+        """
+            Check if earnings are cached for the current interval.
+            Reporting dates present in earnings reports only. They are needed to estimate reporting dates for
+            other fundamentals.
+
+            Returns:
+                bool: indicates if earnings are cached.
+        """
+        return self.earnings is None and self.earnings_first_date == self.first_date \
+            and self.earnings_last_date == self.last_date

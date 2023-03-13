@@ -14,7 +14,7 @@ import requests
 
 from data import fdata
 
-from data.fvalues import Timespans
+from data.fvalues import Timespans, SecTypes
 from data.fdata import FdataError
 
 import pandas as pd
@@ -37,6 +37,8 @@ class AVStock(fdata.BaseFetchData):
         self.source_title = "AlphaVantage"
         self.api_key = settings.AV.api_key
         self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
+
+        self.sectype = SecTypes.Stock  # TODO MID Distinguish stock and ETF
 
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
@@ -139,7 +141,8 @@ class AVStock(fdata.BaseFetchData):
                 'volume': 'NULL',
                 'divs': 'NULL',
                 'transactions': 'NULL',
-                'split': 'NULL'
+                'split': 'NULL',
+                'sectype': self.sectype.value
             }
 
             # Set the entries depending if the quote is intraday

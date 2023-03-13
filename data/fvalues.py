@@ -48,3 +48,11 @@ class Timespans(str, Enum):
     Month = "Month"
     Quarter = "Quarter"  # Polygon and YF
     Year = "Year"
+
+class SecTypes(str, Enum):
+    """
+        Enum class for security types.
+    """
+    All = "All"
+    Unknown = "Unknown"
+    Stock = "Stock"

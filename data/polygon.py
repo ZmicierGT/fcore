@@ -19,7 +19,7 @@ import json
 from data import fdata
 from data.fdata import FdataError
 
-from data.fvalues import Timespans, def_first_date, def_last_date
+from data.fvalues import Timespans, SecTypes, def_first_date, def_last_date
 
 import settings
 
@@ -37,6 +37,8 @@ class Polygon(fdata.BaseFetchData):
         self.source_title = "Polygon.io"
         self.year_delta = settings.Polygon.year_delta
         self.api_key = settings.Polygon.api_key
+
+        self.sectype = SecTypes.Unknown  # Multiple security types may be obtaines by similar Polygon API calls
 
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at polygon.io and put it in setting.py")
@@ -134,7 +136,8 @@ class Polygon(fdata.BaseFetchData):
                 'volume': quote['v'],
                 'divs': 'NULL',
                 'transactions': quote['n'],
-                'split': 'NULL'
+                'split': 'NULL',
+                'sectype': self.sectype.value
             }
 
             quotes_data.append(quote_dict)

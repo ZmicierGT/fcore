@@ -10,7 +10,7 @@ import pytz
 import yfinance as yfin
 
 from data import fdata
-from data.fvalues import Timespans, def_first_date, def_last_date
+from data.fvalues import Timespans, SecTypes, def_first_date, def_last_date
 from data.fdata import FdataError
 
 class YF(fdata.BaseFetchData):
@@ -25,6 +25,8 @@ class YF(fdata.BaseFetchData):
 
         # Default values
         self.source_title = "YF"
+
+        self.sectype = SecTypes.Unknown  # Multiple security types may be obtaines by similar YF queries
 
     def get_timespan(self):
         """
@@ -123,7 +125,8 @@ class YF(fdata.BaseFetchData):
                 'transactions': 'NULL',
                 'divs': data['Dividends'][ind],
                 'split': stock_splits,
-                'ts': ts
+                'ts': ts,
+                'sectype': self.sectype.value
             }
 
             quotes_data.append(quote_dict)

@@ -11,7 +11,7 @@ import abc
 
 from data import fdatabase
 
-from data.fvalues import Timespans, def_first_date, def_last_date
+from data.fvalues import Timespans, SecTypes, def_first_date, def_last_date
 from data.futils import get_dt
 
 import settings
@@ -58,6 +58,8 @@ class ReadOnlyData():
         self.last_date = last_date
 
         self.timespan = timespan
+
+        self.sectype = SecTypes.All
 
         # Source title should be overridden in derived classes for particular data sources
         self.source_title = ''
@@ -334,24 +336,77 @@ class ReadOnlyData():
             raise FdataError(f"Can't query table: {e}") from e
 
         # Check if timespans table has data
-        if len(rows) < 6:
+        if len(rows) < len(Timespans) - 1:
             # Prepare the query with all supported timespans
-            ts = ""
+            timespans = ""
 
             for timespan in Timespans:
                 if timespan != Timespans.All:
-                    ts += f"('{timespan.value}'),"
+                    timespans += f"('{timespan.value}'),"
 
-            ts = ts[:len(ts) - 2]
+            timespans = timespans[:len(timespans) - 2]
 
-            insert_timespans = f"""INSERT INTO timespans (title)
-                                    VALUES {ts});"""
+            insert_timespans = f"""INSERT OR IGNORE INTO timespans (title)
+                                    VALUES {timespans});"""
 
             try:
                 self.cur.execute(insert_timespans)
                 self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
+
+        # Check if we need to create table 'sectypes'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_sectypes = """CREATE TABLE sectypes(
+                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_sectypes)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for sectype title
+            create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
+
+            try:
+                self.cur.execute(create_sectype_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for sectype title: {e}") from e
+
+        # Check if sectypes table is empty
+        try:
+            self.cur.execute("SELECT * FROM sectypes;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        # Check if sectypes table has data
+        if len(rows) < len(SecTypes) - 1:
+            # Prepare the query with all supported sectypes
+            sec_types = ""
+
+            for sectype in SecTypes:
+                if sectype != SecTypes.All:
+                    sec_types += f"('{sectype.value}'),"
+
+            sec_types = sec_types[:len(sec_types) - 2]
+
+            insert_sectypes = f"""INSERT OR IGNORE INTO sectypes (title)
+                                    VALUES {sec_types});"""
+
+            try:
+                self.cur.execute(insert_sectypes)
+                self.conn.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'sectypes': {e}\n{insert_sectypes}") from e
 
         # Check if we need to create table 'quotes'
         try:
@@ -361,13 +416,13 @@ class ReadOnlyData():
             raise FdataError(f"Can't query table: {e}") from e
 
         if len(rows) == 0:
-            # TODO MID Consider adding security type here
             create_quotes = """CREATE TABLE quotes (
                             quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             symbol_id INTEGER NOT NULL,
                             source_id INTEGER NOT NULL,
                             time_stamp INTEGER NOT NULL,
                             time_span_id INTEGER NOT NULL,
+                            sec_type_id INTEGER NOT NULL,
                             opened REAL,
                             high REAL,
                             low REAL,
@@ -377,6 +432,10 @@ class ReadOnlyData():
                                 CONSTRAINT fk_timespans
                                     FOREIGN KEY (time_span_id)
                                     REFERENCES timespans(time_span_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sectypes
+                                    FOREIGN KEY (sec_type_id)
+                                    REFERENCES sectypes(sec_type_id)
                                     ON DELETE CASCADE
                                 CONSTRAINT fk_source
                                     FOREIGN KEY (source_id)
@@ -506,6 +565,11 @@ class ReadOnlyData():
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
+        sectype_query = ""
+
+        if self.sectype != SecTypes.All:
+            sectype_query = "AND sectypes.title = '" + self.sectype + "'"
+
         select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
                                 opened,
                                 high,
@@ -521,6 +585,7 @@ class ReadOnlyData():
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
+                            {sectype_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {self.last_date_ts} ORDER BY time_stamp;"""
 
@@ -550,6 +615,11 @@ class ReadOnlyData():
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
+        sectype_query = ""
+
+        if self.sectype != SecTypes.All:
+            sectype_query = "AND sectypes.title = '" + self.sectype + "'"
+
         select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
                                 opened,
                                 high,
@@ -565,6 +635,7 @@ class ReadOnlyData():
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
+                            {sectype_query}
                             ORDER BY time_stamp DESC
                             LIMIT {num};"""
 
@@ -779,13 +850,15 @@ class ReadWriteData(ReadOnlyData):
             transactions = row['transactions']
             dividends = row['divs']
             split_coefficient = row['split']
+            sectype = row['sectype']
 
-            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, time_stamp, time_span_id, opened, high, low, closed, volume, transactions)
+            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, time_stamp, time_span_id, sec_type_id, opened, high, low, closed, volume, transactions)
                                 VALUES (
                                 (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                 (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                 ({timestamp}),
                                 (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
+                                (SELECT sec_type_id FROM sectypes WHERE title = '{self.sectype}' COLLATE NOCASE),
                                 ({opened}),
                                 ({high}),
                                 ({low}),

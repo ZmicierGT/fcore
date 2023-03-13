@@ -168,6 +168,7 @@ class AVStock(fdata.BaseFetchData):
 
         return quotes_data
 
+    # TODO HIGH calculate reporting date for all fundamentals
     def fetch_fundamentals(self, function):
         """
             Fetch stock fundamentals

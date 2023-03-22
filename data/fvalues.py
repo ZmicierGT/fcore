@@ -64,3 +64,12 @@ class Currency(str, Enum):
     All = "All"
     Unknown = "Unknown"
     Stock = "USD"
+
+class ReportPeriod(str, Enum):
+    """
+        Enum class for reports period.
+    """
+    All = "All"
+    Unknown = "Unknown"
+    Quarter = "Quarter"
+    Year = "Year"

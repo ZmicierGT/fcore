@@ -20,6 +20,8 @@ from data.fdata import FdataError
 import pandas as pd
 import numpy as np
 
+import json
+
 from data.futils import get_dt
 
 import settings
@@ -116,7 +118,7 @@ class AVStock(fdata.BaseFetchData):
         # Get quotes data
         try:
             response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch quotes: {e}") from e
 
         json_data = response.json()
@@ -176,7 +178,6 @@ class AVStock(fdata.BaseFetchData):
 
         return quotes_data
 
-    # TODO HIGH "None" in AV responce should be replaced by SQL 'NULL'
     def fetch_fundamentals(self, function):
         """
             Fetch stock fundamentals
@@ -195,11 +196,12 @@ class AVStock(fdata.BaseFetchData):
             self.fetch_earnings()
 
         url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
+        print(url)
 
         # Get fundamental data
         try:
             response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch fundamental data: {e}") from e
 
         json_data = response.json()
@@ -231,6 +233,9 @@ class AVStock(fdata.BaseFetchData):
 
         reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
             adj_earnings['reportedDate'], None)
+
+        # Replace AV "None" to SQL 'NULL'
+        reports = reports.replace(['None'], 'NULL')
 
         # Convert dataframe to dictionary
         fundamental_results = reports.T.to_dict().values()
@@ -328,6 +333,9 @@ class AVStock(fdata.BaseFetchData):
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
+        # Replace AV "None" to SQL 'NULL'
+        earnings = earnings.replace(['None'], 'NULL')
+
         self.earnings = earnings
         self.earnings_first_date = self.first_date
         self.earnings_last_date = self.last_date
@@ -356,7 +364,7 @@ class AVStock(fdata.BaseFetchData):
         # Get recent quote
         try:
             response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch earnings data: {e}") from e
 
         # Get json

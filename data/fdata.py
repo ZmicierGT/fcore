@@ -11,13 +11,13 @@ import abc
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecTypes, Currency, def_first_date, def_last_date
+from data.fvalues import Timespans, SecTypes, Currency, ReportPeriod, def_first_date, def_last_date
 from data.futils import get_dt
 
 import settings
 
 # Current database compatibility version
-DB_VERSION = 2
+DB_VERSION = 3
 
 class DbTypes(Enum):
     """
@@ -25,6 +25,7 @@ class DbTypes(Enum):
     """
     SQLite = "sqlite"
 
+# TODO MID Add extended output in case of exception: table_name, query
 class FdataError(Exception):
     """
         Base data exception class.
@@ -607,6 +608,63 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create index for quote id in stock_core: {e}") from e
 
+        #############################
+        # Fundamental data
+        #############################
+
+        # Check if we need to create table 'report_periods'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_periods';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_report_periods = """CREATE TABLE report_periods(
+                                    period_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_report_periods)
+            except self.Error as e:
+                raise FdataError(f"Can't create table 'report_periods': {e}") from e
+
+            # Create index for sectype title
+            create_report_period_title_idx = "CREATE INDEX idx_report_period_title ON report_periods(title);"
+
+            try:
+                self.cur.execute(create_report_period_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for report period title: {e}") from e
+
+        # Check if report_periods table is empty
+        try:
+            self.cur.execute("SELECT * FROM report_periods;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        # Check if reports_periods table has data
+        if len(rows) < len(ReportPeriod) - 1:
+            # Prepare the query with all supported report periods
+            report_periods = ""
+
+            for report_period in ReportPeriod:
+                if report_period != ReportPeriod.All:
+                    report_periods += f"('{report_period.value}'),"
+
+            report_periods = report_periods[:len(report_periods) - 2]
+
+            insert_report_periods = f"""INSERT OR IGNORE INTO report_periods (title)
+                                    VALUES {report_periods});"""
+
+            try:
+                self.cur.execute(insert_report_periods)
+                self.conn.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
+
         # Check if we need to create a table income_statement
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';")
@@ -618,7 +676,8 @@ class ReadOnlyData():
             create_is = """CREATE TABLE income_statement(
                                 is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 symbol_id INTEGER NOT NULL,
-                                reporting_date INTEGER NOT NULL,
+                                reported_date INTEGER NOT NULL,
+                                reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 gross_profit INTEGER,
                                 total_revenue INTEGER,
@@ -649,7 +708,7 @@ class ReadOnlyData():
                                     REFERENCES quotes(symbol_id)
                                     ON DELETE CASCADE
                                 CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reporting_date)
+                                    FOREIGN KEY (reported_date)
                                     REFERENCES quotes(time_stamp)
                                 );"""
 
@@ -659,12 +718,12 @@ class ReadOnlyData():
                 raise FdataError(f"Can't create table: {e}") from e
 
             # Create index for symbol_id
-            create_symbol_time_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reporting_date);"
+            create_symbol_time_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reported_date);"
 
             try:
                 self.cur.execute(create_symbol_time_is_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reporting_date id in income_statement: {e}") from e
+                raise FdataError(f"Can't create index for symbol_id, reported_date id in income_statement: {e}") from e
 
         # Check if we need to create a table balance_sheet
         try:
@@ -677,7 +736,8 @@ class ReadOnlyData():
             create_bs = """CREATE TABLE balance_sheet(
                                 bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 symbol_id INTEGER NOT NULL,
-                                reporting_date INTEGER NOT NULL,
+                                reported_date INTEGER NOT NULL,
+                                reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 total_assets INTEGER,
                                 total_current_assets INTEGER,
@@ -720,7 +780,7 @@ class ReadOnlyData():
                                     REFERENCES quotes(symbol_id)
                                     ON DELETE CASCADE
                                 CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reporting_date)
+                                    FOREIGN KEY (reported_date)
                                     REFERENCES quotes(time_stamp)
                                 );"""
 
@@ -730,12 +790,12 @@ class ReadOnlyData():
                 raise FdataError(f"Can't create table: {e}") from e
 
             # Create index for symbol_id
-            create_symbol_time_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reporting_date);"
+            create_symbol_time_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reported_date);"
 
             try:
                 self.cur.execute(create_symbol_time_bs_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reporting_date in balance_sheet: {e}") from e
+                raise FdataError(f"Can't create index for symbol_id, reported_date in balance_sheet: {e}") from e
 
         # Check if we need to create a table cash_flow
         try:
@@ -748,7 +808,8 @@ class ReadOnlyData():
             create_cf = """CREATE TABLE cash_flow(
                                 cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 symbol_id INTEGER NOT NULL,
-                                reporting_date INTEGER NOT NULL,
+                                reported_date INTEGER NOT NULL,
+                                reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 operating_cashflow INTEGER,
                                 payments_for_pperating_activities INTEGER,
@@ -782,7 +843,7 @@ class ReadOnlyData():
                                     REFERENCES quotes(symbol_id)
                                     ON DELETE CASCADE
                                 CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reporting_date)
+                                    FOREIGN KEY (reported_date)
                                     REFERENCES quotes(time_stamp)
                                 );"""
 
@@ -792,12 +853,51 @@ class ReadOnlyData():
                 raise FdataError(f"Can't create table: {e}") from e
 
             # Create index for symbol_id
-            create_symbol_time_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reporting_date);"
+            create_symbol_time_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reported_date);"
 
             try:
                 self.cur.execute(create_symbol_time_cf_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reporting_date in cash_flow: {e}") from e
+                raise FdataError(f"Can't create index for symbol_id, reported_date in cash_flow: {e}") from e
+
+        # Check if we need to create a table earnings
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='earnings';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_earnings = """CREATE TABLE earnings(
+                                    earnings_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    symbol_id INTEGER NOT NULL,
+                                    reported_date INTEGER NOT NULL,
+                                    reported_period INTEGER NOT NULL,
+                                    reported_eps INTEGER NOT NULL,
+                                    estimated_eps INTEGER,
+                                    surprise INTEGER,
+                                    surprise_percentage INTEGER
+                                    CONSTRAINT fk_symbols,
+                                        FOREIGN KEY (symbol_id)
+                                        REFERENCES quotes(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_quotes,
+                                        FOREIGN KEY (reported_date)
+                                        REFERENCES quotes(time_stamp)
+                                );"""
+
+            try:
+                self.cur.execute(create_earnings)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for symbol_id
+            create_symbol_time_is_idx = "CREATE INDEX idx_earnings ON earnings(symbol_id, reported_date);"
+
+            try:
+                self.cur.execute(create_symbol_time_is_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for symbol_id, reported_date id in earnings: {e}") from e
 
     def check_source(self):
         """
@@ -1177,6 +1277,8 @@ class ReadWriteData(ReadOnlyData):
                 except self.Error as e:
                     raise FdataError(f"Can't add data to a table 'stock_core': {e}\n\nThe query is\n{insert_core}") from e
 
+    # TODO HIGH implement methods for adding fundamental data to db
+
     def remove_quotes(self):
         """
             Remove quotes from the database.
@@ -1184,7 +1286,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        # Cascade delete will remove the corresponding entries in stock_core table as well
+        # Cascade delete will remove the corresponding entries in stock_core and fundamentals tables as well
+        # TODO MID test if all deleted properly once again
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
                             AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 
@@ -1210,6 +1313,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
         """Initialize the instance of BaseFetchData class."""
         super().__init__(**kwargs)
 
+    # TODO Check if it is needed or maybe should be merged with add_quotes
     def insert_quotes(self, rows):
         """
             Insert fetched and parsed quotes to the database.
@@ -1234,6 +1338,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
 
         return (num_before, num_after)
 
+    # TODO HIGH It should be implemented for fundamentals as well
     def fetch_if_none(self, threshold):
         """
             Check is the required number of quotes exist in the database and fetch if not.

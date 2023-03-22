@@ -95,7 +95,7 @@ class Polygon(fdata.BaseFetchData):
 
         try:
             response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch quotes: {e}") from e
         
         try:

@@ -408,6 +408,7 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'sectypes': {e}\n{insert_sectypes}") from e
 
+        # TODO HIGH add currency here
         # Check if we need to create table 'quotes'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
@@ -461,7 +462,7 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create index for quotes table: {e}") from e
 
-        # Check if we need to create a table stock core
+        # Check if we need to create a table stock_core
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';")
             rows = self.cur.fetchall()
@@ -469,7 +470,7 @@ class ReadOnlyData():
             raise FdataError(f"Can't query table: {e}") from e
 
         if len(rows) == 0:
-            create_symbols = """CREATE TABLE stock_core(
+            create_core = """CREATE TABLE stock_core(
                                 stock_core_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 quote_id INTEGER NOT NULL UNIQUE,
                                 raw_close REAL,
@@ -482,17 +483,209 @@ class ReadOnlyData():
                                 );"""
 
             try:
-                self.cur.execute(create_symbols)
+                self.cur.execute(create_core)
             except self.Error as e:
                 raise FdataError(f"Can't create table: {e}") from e
 
             # Create index for quote_id
-            create_quoteid_idx = "CREATE INDEX idx_quote ON quotes(quote_id);"
+            create_quoteid_idx = "CREATE INDEX idx_quote ON stock_core(quote_id);"
 
             try:
                 self.cur.execute(create_quoteid_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for quote id: {e}") from e
+                raise FdataError(f"Can't create index for quote id in stock_core: {e}") from e
+
+        # Check if we need to create a table income_statement
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_is = """CREATE TABLE income_statement(
+                                is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                symbol_id INTEGER NOT NULL,
+                                reporting_date INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                gross_profit INTEGER,
+                                total_revenue INTEGER,
+                                cost_of_revenue INTEGER,
+                                cost_of_goods_and_services_sold INTEGER,
+                                operating_income INTEGER,
+                                selling_general_and_administrative INTEGER,
+                                research_and_development INTEGER,
+                                operating_expenses INTEGER,
+                                investment_income_net INTEGER,
+								net_interest_income INTEGER,
+								interest_income INTEGER,
+								interest_expense INTEGER,
+								non_interest_income INTEGER,
+								other_non_operating_income INTEGER,
+								depreciation INTEGER,
+								depreciation_and_amortization INTEGER,
+								income_before_tax INTEGER,
+								income_tax_expense INTEGER,
+								interest_and_debt_expense INTEGER,
+								net_income_from_continuing_operations INTEGER,
+								comprehensive_income_net_of_tax INTEGER,
+								ebit INTEGER,
+								ebitda INTEGER,
+								net_income INTEGER
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES quotes(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_quotes,
+                                    FOREIGN KEY (reporting_date)
+                                    REFERENCES quotes(time_stamp)
+                                );"""
+
+            try:
+                self.cur.execute(create_is)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for symbol_id
+            create_symbol_time_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reporting_date);"
+
+            try:
+                self.cur.execute(create_symbol_time_is_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for symbol_id, reporting_date id in income_statement: {e}") from e
+
+        # Check if we need to create a table balance_sheet
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='balance_sheet';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_bs = """CREATE TABLE balance_sheet(
+                                bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                symbol_id INTEGER NOT NULL,
+                                reporting_date INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                total_assets INTEGER,
+                                total_current_assets INTEGER,
+                                cash_and_cash_equivalents_at_carrying_value INTEGER,
+                                cash_and_short_term_investments INTEGER,
+                                inventory INTEGER,
+                                current_net_receivables INTEGER,
+                                total_non_current_assets INTEGER,
+                                property_plant_equipment INTEGER,
+                                accumulated_depreciation_amortization_ppe INTEGER,
+								intangible_assets INTEGER,
+								intangible_assets_excluding_goodwill INTEGER,
+								goodwill INTEGER,
+								investments INTEGER,
+								long_term_investments INTEGER,
+								short_term_investments INTEGER,
+								other_current_assets INTEGER,
+								other_non_current_assets INTEGER,
+								total_liabilities INTEGER,
+								total_current_liabilities INTEGER,
+								current_accounts_payable INTEGER,
+								deferred_revenue INTEGER,
+								current_debt INTEGER,
+								short_term_debt INTEGER,
+								total_non_current_liabilities INTEGER,
+								capital_lease_obligations INTEGER,
+								long_term_debt INTEGER,
+								current_long_term_debt INTEGER,
+								long_term_debt_noncurrent INTEGER,
+								short_long_term_debt_total INTEGER,
+								other_current_liabilities INTEGER,
+								other_non_current_liabilities INTEGER,
+								total_shareholder_equity INTEGER,
+								treasury_stock INTEGER,
+								retained_earnings INTEGER,
+								common_stock INTEGER,
+								common_stock_shares_outstanding INTEGER
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES quotes(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_quotes,
+                                    FOREIGN KEY (reporting_date)
+                                    REFERENCES quotes(time_stamp)
+                                );"""
+
+            try:
+                self.cur.execute(create_bs)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for symbol_id
+            create_symbol_time_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reporting_date);"
+
+            try:
+                self.cur.execute(create_symbol_time_bs_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for symbol_id, reporting_date in balance_sheet: {e}") from e
+
+        # Check if we need to create a table cash_flow
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cash_flow';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_cf = """CREATE TABLE cash_flow(
+                                cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                symbol_id INTEGER NOT NULL,
+                                reporting_date INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                operating_cashflow INTEGER,
+                                payments_for_pperating_activities INTEGER,
+                                proceeds_from_operating_activities INTEGER,
+                                change_in_operating_liabilities INTEGER,
+                                change_in_operating_assets INTEGER,
+                                depreciation_depletion_and_amortization INTEGER,
+                                capital_expenditures INTEGER,
+                                change_in_receivables INTEGER,
+                                change_in_inventory INTEGER,
+								profit_loss INTEGER,
+								cashflow_from_investment INTEGER,
+								cashflow_from_financing INTEGER,
+								proceeds_from_repayments_of_short_term_debt INTEGER,
+								payments_for_repurchase_of_common_stock INTEGER,
+								payments_for_repurchase_of_equity INTEGER,
+								payments_for_repurchase_of_preferred_stock INTEGER,
+								dividend_payout INTEGER,
+								dividend_payout_common_stock INTEGER,
+								dividend_payout_preferred_stock INTEGER,
+								proceeds_from_issuance_of_common_stock INTEGER,
+								proceeds_from_isssuance_of_long_term_debt_and_capital_securities_net INTEGER,
+								proceeds_from_issuance_of_preferred_stock INTEGER,
+								proceeds_from_repurchase_of_equity INTEGER,
+								proceeds_from_sale_of_treasury_stock INTEGER,
+								change_in_cash_and_cash_equivalents INTEGER,
+								change_in_exchange_rate INTEGER,
+								net_income INTEGER
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES quotes(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_quotes,
+                                    FOREIGN KEY (reporting_date)
+                                    REFERENCES quotes(time_stamp)
+                                );"""
+
+            try:
+                self.cur.execute(create_cf)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+            # Create index for symbol_id
+            create_symbol_time_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reporting_date);"
+
+            try:
+                self.cur.execute(create_symbol_time_cf_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for symbol_id, reporting_date in cash_flow: {e}") from e
 
     def check_source(self):
         """
@@ -583,6 +776,7 @@ class ReadOnlyData():
                             FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             {sectype_query}
@@ -633,6 +827,7 @@ class ReadOnlyData():
                             FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             {sectype_query}

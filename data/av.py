@@ -174,6 +174,7 @@ class AVStock(fdata.BaseFetchData):
 
         return quotes_data
 
+    # TODO HIGH "None" in AV responce should be replaced by SQL 'NULL'
     def fetch_fundamentals(self, function):
         """
             Fetch stock fundamentals

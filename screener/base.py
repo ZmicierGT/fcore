@@ -147,6 +147,7 @@ class BaseScr(metaclass=abc.ABCMeta):
     def __set_init_status(self):
         self.__init_status = True
 
+    # TODO LOW Think of nogil multithreading has a sense here
     def do_cycle(self):
         """
             Fetch the latest quotes and perform the calculation.

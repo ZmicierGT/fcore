@@ -27,6 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import accuracy_score, f1_score
 
+# TODO LOW Add the ability to pass the learning instance as an argument
 class Algorithm(IntEnum):
     """Enum with the supported algorithms."""
     LR = 0

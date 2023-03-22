@@ -14,7 +14,7 @@ import requests
 
 from data import fdata
 
-from data.fvalues import Timespans, SecTypes
+from data.fvalues import Timespans, SecTypes, Currency
 from data.fdata import FdataError
 
 import pandas as pd
@@ -40,6 +40,7 @@ class AVStock(fdata.BaseFetchData):
         self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
 
         self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF
+        self.currency = Currency.Unknown  # Currencies are not supported yet
 
         # Cached earnings to estimate reporting dates.
         self.earnings = None
@@ -148,7 +149,8 @@ class AVStock(fdata.BaseFetchData):
                 'divs': 'NULL',
                 'transactions': 'NULL',
                 'split': 'NULL',
-                'sectype': self.sectype.value
+                'sectype': self.sectype.value,
+                'currency': self.currency.value
             }
 
             # Set the entries depending if the quote is intraday

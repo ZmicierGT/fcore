@@ -11,10 +11,13 @@ import abc
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecTypes, def_first_date, def_last_date
+from data.fvalues import Timespans, SecTypes, Currency, def_first_date, def_last_date
 from data.futils import get_dt
 
 import settings
+
+# Current database compatibility version
+DB_VERSION = 2
 
 class DbTypes(Enum):
     """
@@ -59,7 +62,9 @@ class ReadOnlyData():
 
         self.timespan = timespan
 
+        # Get all security types nominated in all currencies by default
         self.sectype = SecTypes.All
+        self.currency = Currency.All
 
         # Source title should be overridden in derived classes for particular data sources
         self.source_title = ''
@@ -247,6 +252,56 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        # Check if we need to create table 'environment'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='environment';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_environment = """CREATE TABLE environment(
+                                    version INTEGER NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_environment)
+            except self.Error as e:
+                raise FdataError(f"Can't create table: {e}") from e
+
+        # Check if environment table is empty
+        try:
+            self.cur.execute("SELECT * FROM environment;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query environment table: {e}") from e
+
+        # Check if environment table has data
+        if len(rows) > 1:  # This table should have one row only
+            raise FdataError(f"The environment table is broken. Please, delete the database file {settings.Quotes.db_name} or change db patch in settings.py")
+        elif len(rows) == 0:
+            # Insert the environment data to the table
+            insert_environment = f"""INSERT INTO environment (version)
+                                    VALUES ({DB_VERSION});"""
+
+            try:
+                self.cur.execute(insert_environment)
+                self.conn.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'environment': {e}") from e
+        else:  # One row present in the table so it is expected
+            environment_query = "SELECT version FROM environment;"
+
+            try:
+                self.cur.execute(environment_query)
+            except self.Error as e:
+                raise FdataError(f"Can't query table 'environment': {e}") from e
+
+            version = self.cur.fetchone()[0]
+
+            if version != DB_VERSION:
+                raise FdataError(f"DB Version is unexpected. Please, delete the database file {settings.Quotes.db_name} or change db patch in settings.py")
+
         # Check if we need to create table 'symbols'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';")
@@ -408,7 +463,59 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'sectypes': {e}\n{insert_sectypes}") from e
 
-        # TODO HIGH add currency here
+        # Check if we need to create table 'currency'
+        try:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='currency';")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        if len(rows) == 0:
+            create_currency = """CREATE TABLE currency(
+                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_currency)
+            except self.Error as e:
+                raise FdataError(f"Can't create table 'currency': {e}") from e
+
+            # Create index for sectype title
+            create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
+
+            try:
+                self.cur.execute(create_currency_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for currency title: {e}") from e
+
+        # Check if currency table is empty
+        try:
+            self.cur.execute("SELECT * FROM currency;")
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't query table: {e}") from e
+
+        # Check if currency table has data
+        if len(rows) < len(Currency) - 1:
+            # Prepare the query with all supported currencies
+            currencies = ""
+
+            for currency in Currency:
+                if currency != Currency.All:
+                    currencies += f"('{currency.value}'),"
+
+            currencies = currencies[:len(currencies) - 2]
+
+            insert_currency = f"""INSERT OR IGNORE INTO currency (title)
+                                    VALUES {currencies});"""
+
+            try:
+                self.cur.execute(insert_currency)
+                self.conn.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'currency': {e}\n{insert_currency}") from e
+
         # Check if we need to create table 'quotes'
         try:
             self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
@@ -424,6 +531,7 @@ class ReadOnlyData():
                             time_stamp INTEGER NOT NULL,
                             time_span_id INTEGER NOT NULL,
                             sec_type_id INTEGER NOT NULL,
+                            currency_id INTEGER NOT NULL,
                             opened REAL,
                             high REAL,
                             low REAL,
@@ -445,6 +553,10 @@ class ReadOnlyData():
                                 CONSTRAINT fk_symbols
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_currency
+                                    FOREIGN KEY (currency_id)
+                                    REFERENCES currency(currency_id)
                                     ON DELETE CASCADE
                             UNIQUE(symbol_id, time_stamp, time_span_id)
                             );"""
@@ -743,9 +855,12 @@ class ReadOnlyData():
 
         return rows
 
-    def get_quotes(self):
+    def get_quotes(self, num=0):
         """
             Get quotes for specified symbol, dates and timespan (if any).
+
+            Args:
+                num(int): the number of rows to get. 0 gets all the quotes.
 
             Returns:
                 list: list with quotes data.
@@ -753,15 +868,29 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        # Timespan subquery
         timespan_query = ""
 
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan + "'"
 
+        # Sectype subquery
         sectype_query = ""
 
         if self.sectype != SecTypes.All:
             sectype_query = "AND sectypes.title = '" + self.sectype + "'"
+
+        # Currency subquery
+        currency_query = ""
+
+        if self.currency != Currency.All:
+            currency_query = "AND currency.title = '" + self.currency + "'"
+
+        # Quotes number subquery
+        num_query = ""
+
+        if num > 0:
+            num_query = f"LIMIT {num}"
 
         select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
                                 opened,
@@ -777,70 +906,21 @@ class ReadOnlyData():
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
+                            INNER JOIN currency ON quotes.currency_id = currency.currency_id
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             {sectype_query}
+                            {currency_query}
                             AND time_stamp >= {self.first_date_ts}
-                            AND time_stamp <= {self.last_date_ts} ORDER BY time_stamp;"""
+                            AND time_stamp <= {self.last_date_ts}
+                            ORDER BY time_stamp
+                            {num_query};"""
 
         try:
             self.cur.execute(select_quotes)
             rows = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't query table: {e}") from e
-
-        return rows
-
-    def get_last_quotes(self, num):
-        """
-            Return a requested number of newest quotes in the database.
-
-            Args:
-                num(int): the number of rows to get.
-
-            Returns:
-                list: the list with the requested number of newest quotes.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        timespan_query = ""
-
-        if self.timespan != Timespans.All:
-            timespan_query = "AND timespans.title = '" + self.timespan + "'"
-
-        sectype_query = ""
-
-        if self.sectype != SecTypes.All:
-            sectype_query = "AND sectypes.title = '" + self.sectype + "'"
-
-        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
-                                opened,
-                                high,
-                                low,
-                                closed,
-                                raw_close,
-                                volume,
-                                dividends,
-                                split_coefficient,
-                                transactions
-                            FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
-                            INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                            INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
-                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
-                            WHERE symbols.ticker = '{self.symbol}'
-                            {timespan_query}
-                            {sectype_query}
-                            ORDER BY time_stamp DESC
-                            LIMIT {num};"""
-
-        try:
-            self.cur.execute(select_quotes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
-
-        rows.reverse()
 
         return rows
 
@@ -1046,14 +1126,27 @@ class ReadWriteData(ReadOnlyData):
             dividends = row['divs']
             split_coefficient = row['split']
             sectype = row['sectype']
+            currency = row['currency']
 
-            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id, source_id, time_stamp, time_span_id, sec_type_id, opened, high, low, closed, volume, transactions)
+            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
+                                                                     source_id,
+                                                                     time_stamp,
+                                                                     time_span_id,
+                                                                     sec_type_id,
+                                                                     currency_id,
+                                                                     opened,
+                                                                     high,
+                                                                     low,
+                                                                     closed,
+                                                                     volume,
+                                                                     transactions)
                                 VALUES (
                                 (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                 (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                 ({timestamp}),
                                 (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
-                                (SELECT sec_type_id FROM sectypes WHERE title = '{self.sectype}' COLLATE NOCASE),
+                                (SELECT sec_type_id FROM sectypes WHERE title = '{sectype}' COLLATE NOCASE),
+                                (SELECT currency_id FROM currency WHERE title = '{currency}' COLLATE NOCASE),
                                 ({opened}),
                                 ({high}),
                                 ({low}),

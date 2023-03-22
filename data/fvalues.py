@@ -56,3 +56,11 @@ class SecTypes(str, Enum):
     All = "All"
     Unknown = "Unknown"
     Stock = "Stock"
+
+class Currency(str, Enum):
+    """
+        Enum class for currencies.
+    """
+    All = "All"
+    Unknown = "Unknown"
+    Stock = "USD"

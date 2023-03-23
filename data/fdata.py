@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO HIGH Base security data and stock data should be put in different classed
+# TODO HIGH Base security data and stock data should be put in different classes
 from enum import Enum
 
 import abc
@@ -939,14 +939,15 @@ class ReadOnlyData():
 
         return rows
 
-    # TODO HIGH Implement it for fundamentals as well. Think in what form it is better to present the data:
-    # one big dataset, separate datasets and so on.
-    def get_quotes(self, num=0):
+    def get_quotes(self, num=0, columns=[], joins=[]):
         """
-            Get quotes for specified symbol, dates and timespan (if any).
+            Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
+            linked by symbol_id may be requested (like fundamental data)
 
             Args:
                 num(int): the number of rows to get. 0 gets all the quotes.
+                columns(list of tuple): additional pairs of (table, column) to query.
+                joins(list): additional joins to get data from other tables.
 
             Returns:
                 list: list with quotes data.
@@ -978,7 +979,24 @@ class ReadOnlyData():
         if num > 0:
             num_query = f"LIMIT {num}"
 
-        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch'),
+        additional_columns = ""
+
+        if len(columns) > 0:
+            # Generate the subqueries for additional columns
+            for column in columns:
+                additional_columns += f""", (SELECT {column[1]}
+                                                FROM {column[0]}
+                                                WHERE reported_date <= time_stamp
+                                                AND symbol_id = quotes.symbol_id
+                                                ORDER BY reported_date DESC LIMIT 1) AS {column[1]}\n"""
+
+        additional_joins = ""
+
+        # Generate the string with additional joins
+        for join in joins:
+            additional_joins += join + '\n'
+
+        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
                                 opened,
                                 high,
                                 low,
@@ -988,11 +1006,13 @@ class ReadOnlyData():
                                 dividends,
                                 split_coefficient,
                                 transactions
+                                {additional_columns}
                             FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
                             INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
                             INNER JOIN currency ON quotes.currency_id = currency.currency_id
+                            {additional_joins}
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             {sectype_query}

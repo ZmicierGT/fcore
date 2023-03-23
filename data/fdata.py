@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO HIGH Base security data and stock data should be put in different classes
+# TODO MID Base security data and stock data should be put in different classes
 from enum import Enum
 
 import abc

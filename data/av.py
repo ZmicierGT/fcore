@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-
 from datetime import datetime
 import pytz
 
@@ -33,7 +32,7 @@ class AVStock(fdata.BaseFetchData):
         AlphaVantage API wrapper class.
     """
     def __init__(self, **kwargs):
-        """Initialize the instance of AV class."""
+        """Initialize the instance of AVStock class."""
         super().__init__(**kwargs)
 
         # Default values
@@ -41,7 +40,7 @@ class AVStock(fdata.BaseFetchData):
         self.api_key = settings.AV.api_key
         self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
 
-        self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF
+        self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF for AV
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         # Cached earnings to estimate reporting dates.

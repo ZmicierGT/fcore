@@ -945,6 +945,8 @@ class ReadOnlyData():
 
         return rows
 
+    # TODO HIGH Implement it for fundamentals as well. Think in what form it is better to present the data:
+    # one big dataset, separate datasets and so on.
     def get_quotes(self, num=0):
         """
             Get quotes for specified symbol, dates and timespan (if any).
@@ -1204,6 +1206,12 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_quotes_num()
+
         for row in quotes_dict:
             volume = row['volume']
             opened = row['open']
@@ -1266,6 +1274,12 @@ class ReadWriteData(ReadOnlyData):
                     self.cur.execute(insert_core)
                 except self.Error as e:
                     raise FdataError(f"Can't add data to a table 'stock_core': {e}\n\nThe query is\n{insert_core}") from e
+
+        self.commit()
+
+        num_after = self.get_quotes_num()
+
+        return (num_before, num_after)
 
     def remove_quotes(self):
         """
@@ -1733,32 +1747,9 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
         """Initialize the instance of BaseFetchData class."""
         super().__init__(**kwargs)
 
-    # TODO HIGH Check if it is needed or maybe should be merged with add_quotes
-    def insert_quotes(self, rows):
-        """
-            Insert fetched and parsed quotes to the database.
-
-            Args:
-                rows(list): the list of quotes to insert.
-
-            Returns:
-                num_before(int): the number of quotes before the operation.
-                num_after(int): the number of quotes after the operatioon.
-        """
-        # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
-            self.add_symbol()
-
-        num_before = self.get_quotes_num()
-
-        self.add_quotes(rows)
-        self.commit()
-
-        num_after = self.get_quotes_num()
-
-        return (num_before, num_after)
-
-    # TODO HIGH It should be implemented for fundamentals as well
+    # TODO LOW Check if it should be implemented for fundamentals as well. The current approach is that all
+    # fundamental data should be obtained because reporting intervals are rather long and previous report data
+    # which was published 2 months ago may be essential if you examine just one week of current security behavior.
     def fetch_if_none(self, threshold):
         """
             Check is the required number of quotes exist in the database and fetch if not.
@@ -1781,7 +1772,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
 
         # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
         if current_num < threshold:
-            num_before, num_after = self.insert_quotes(self.fetch_quotes())
+            num_before, num_after = self.add_quotes(self.fetch_quotes())
             num = num_after - num_before
 
             if num == 0:

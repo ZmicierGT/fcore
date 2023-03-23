@@ -392,13 +392,14 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_13_check_insert_quotes(self):
+    # TODO LOW add insert_quotes was removed, it is needed to be alteres
+    def test_13_check_add_quotes(self):
         when(self.fetch_data).add_symbol().thenReturn()
         when(self.fetch_data).get_quotes_num().thenReturn(1)
         when(self.fetch_data).add_quotes(self.results).thenReturn()
         when(self.fetch_data).commit().thenReturn()
 
-        before, after = self.fetch_data.insert_quotes(self.results)
+        before, after = self.fetch_data.add_quotes(self.results)
 
         assert before == 1
         assert after == 1
@@ -417,7 +418,7 @@ class Test(unittest.TestCase):
         when(self.fetch_data).add_quotes(nums).thenReturn()
         when(self.fetch_data).get_symbol_quotes_num_dt().thenReturn(100)
         when(self.fetch_data).fetch_quotes().thenReturn(nums)
-        when(self.fetch_data).insert_quotes(nums).thenReturn(nums)
+        when(self.fetch_data).add_quotes(nums).thenReturn(nums)
         when(self.fetch_data).get_quotes().thenReturn(self.results)
         when(self.fetch_data).db_close().thenReturn()
 

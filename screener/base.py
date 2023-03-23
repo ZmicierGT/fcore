@@ -301,7 +301,7 @@ class ScrData():
         self.get_source().last_date = yesterday + timedelta(days=2)
 
         try:
-            self.get_source().insert_quotes(self.get_source().fetch_quotes())
+            self.get_source().add_quotes(self.get_source().fetch_quotes())
             data = self.get_source().get_quotes()
         except FdataError as e:
             raise ScrError(e) from e

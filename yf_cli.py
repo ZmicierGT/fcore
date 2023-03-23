@@ -87,7 +87,7 @@ if __name__ == "__main__":
     try:
         data_source.db_connect()
 
-        num_before, num_after = data_source.insert_quotes(data_source.fetch_quotes())
+        num_before, num_after = data_source.add_quotes(data_source.fetch_quotes())
     except fdata.FdataError as err:
         data_source.db_close()
         sys.exit(err)

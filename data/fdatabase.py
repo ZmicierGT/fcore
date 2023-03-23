@@ -60,8 +60,17 @@ class SQLiteConn(DBConn):
         except Error as e:
             raise FdatabaseError(f"An error has happened when trying to connect to a {self.source.db_name}: {e}") from e
 
+        # Set the row factory
+        self.source.conn.row_factory = sqlite3.Row
+
         self.source.cur = self.source.conn.cursor()
         self.source.Error = Error
+
+        # Enable foreign keys
+        try:
+            self.source.cur.execute("PRAGMA foreign_keys=on;")
+        except self.source.Error as e:
+            raise FdatabaseError(f"Can't enable foreign keys: {e}") from e
 
     # Close the connection
     def db_close(self):

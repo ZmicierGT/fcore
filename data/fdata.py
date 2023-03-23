@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO MID Base security data and stock data should be put in different classed
+# TODO HIGH Base security data and stock data should be put in different classed
 from enum import Enum
 
 import abc
@@ -221,17 +221,11 @@ class ReadOnlyData():
         """
             Connect to the databse.
         """
-        if DbTypes('sqlite') == DbTypes.SQLite:
+        # TODO LOW Get rid of value here
+        if self.db_type == DbTypes.SQLite.value:
             self.database = fdatabase.SQLiteConn(self)
             self.database.db_connect()
             self.Connected = True
-
-            # Enable foreign keys
-            # Check if we need to create table 'quotes'
-            try:
-                self.cur.execute("PRAGMA foreign_keys=on;")
-            except self.Error as e:
-                raise FdataError(f"Can't enable foreign keys: {e}") from e
 
             # Check the database integrity
             self.check_database()

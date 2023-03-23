@@ -28,6 +28,7 @@ class QuotesData(fdata.ReadWriteData):
         self.to_remove_quotes = False
 
     def print_all_symbols(self, rows):
+        # TODO LOW alter the header
         print("Ticker          ISIN          Description")
         print("-------------------------------------------")
 
@@ -43,10 +44,10 @@ class QuotesData(fdata.ReadWriteData):
             print(f"{row[0]:<16}{isin:<14}{desc}")
 
     def print_quotes(self, rows):
-        print("Symbol, ISIN, Source, Date/Time, Timespan, Open, High, Low, Close, AdjClose, Volume, Dividends, Transactions, VWAP")
+        print("Date, Open, High, Low, AdjClose, RawClose, Volume, Dividends, SplitCoefficient, TransactionsNo")
 
         for row in rows:
-            print(row)
+            print(list(row))
 
 # Process command line arguments
 

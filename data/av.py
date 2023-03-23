@@ -196,7 +196,6 @@ class AVStock(fdata.BaseFetchData):
             self.fetch_earnings()
 
         url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
-        print(url)
 
         # Get fundamental data
         try:
@@ -335,6 +334,8 @@ class AVStock(fdata.BaseFetchData):
 
         # Replace AV "None" to SQL 'NULL'
         earnings = earnings.replace(['None'], 'NULL')
+        # Replave Python None to SQL 'NULL'
+        earnings = earnings.fillna(value='NULL')
 
         self.earnings = earnings
         self.earnings_first_date = self.first_date

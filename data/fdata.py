@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-
+# TODO MID Base security data and stock data should be put in different classed
 from enum import Enum
 
 import abc
@@ -17,7 +17,7 @@ from data.futils import get_dt
 import settings
 
 # Current database compatibility version
-DB_VERSION = 3
+DB_VERSION = 4
 
 class DbTypes(Enum):
     """
@@ -82,6 +82,7 @@ class ReadOnlyData():
         self.Error = None
 
         # Flag which indicates if the database is connected
+        # TODO LOW Switch to private and create a method to check if db is connected
         self.Connected = False
 
     ########################################################
@@ -705,11 +706,8 @@ class ReadOnlyData():
 								net_income INTEGER
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
-                                    REFERENCES quotes(symbol_id)
+                                    REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reported_date)
-                                    REFERENCES quotes(time_stamp)
                                 );"""
 
             try:
@@ -768,7 +766,7 @@ class ReadOnlyData():
 								current_long_term_debt INTEGER,
 								long_term_debt_noncurrent INTEGER,
 								short_long_term_debt_total INTEGER,
-								other_current_liabilities INTEGER,
+								other_noncurrent_liabilities INTEGER,
 								other_non_current_liabilities INTEGER,
 								total_shareholder_equity INTEGER,
 								treasury_stock INTEGER,
@@ -777,11 +775,8 @@ class ReadOnlyData():
 								common_stock_shares_outstanding INTEGER
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
-                                    REFERENCES quotes(symbol_id)
+                                    REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reported_date)
-                                    REFERENCES quotes(time_stamp)
                                 );"""
 
             try:
@@ -812,7 +807,7 @@ class ReadOnlyData():
                                 reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 operating_cashflow INTEGER,
-                                payments_for_pperating_activities INTEGER,
+                                payments_for_operating_activities INTEGER,
                                 proceeds_from_operating_activities INTEGER,
                                 change_in_operating_liabilities INTEGER,
                                 change_in_operating_assets INTEGER,
@@ -831,7 +826,7 @@ class ReadOnlyData():
 								dividend_payout_common_stock INTEGER,
 								dividend_payout_preferred_stock INTEGER,
 								proceeds_from_issuance_of_common_stock INTEGER,
-								proceeds_from_isssuance_of_long_term_debt_and_capital_securities_net INTEGER,
+								proceeds_from_issuance_of_long_term_debt_and_capital_securities_net INTEGER,
 								proceeds_from_issuance_of_preferred_stock INTEGER,
 								proceeds_from_repurchase_of_equity INTEGER,
 								proceeds_from_sale_of_treasury_stock INTEGER,
@@ -840,11 +835,8 @@ class ReadOnlyData():
 								net_income INTEGER
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
-                                    REFERENCES quotes(symbol_id)
+                                    REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (reported_date)
-                                    REFERENCES quotes(time_stamp)
                                 );"""
 
             try:
@@ -873,17 +865,15 @@ class ReadOnlyData():
                                     symbol_id INTEGER NOT NULL,
                                     reported_date INTEGER NOT NULL,
                                     reported_period INTEGER NOT NULL,
+                                    fiscal_date_ending INTEGER NOT NULL,
                                     reported_eps INTEGER NOT NULL,
                                     estimated_eps INTEGER,
                                     surprise INTEGER,
                                     surprise_percentage INTEGER
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
-                                        REFERENCES quotes(symbol_id)
+                                        REFERENCES symbols(symbol_id)
                                         ON DELETE CASCADE
-                                    CONSTRAINT fk_quotes,
-                                        FOREIGN KEY (reported_date)
-                                        REFERENCES quotes(time_stamp)
                                 );"""
 
             try:
@@ -1277,8 +1267,6 @@ class ReadWriteData(ReadOnlyData):
                 except self.Error as e:
                     raise FdataError(f"Can't add data to a table 'stock_core': {e}\n\nThe query is\n{insert_core}") from e
 
-    # TODO HIGH implement methods for adding fundamental data to db
-
     def remove_quotes(self):
         """
             Remove quotes from the database.
@@ -1287,7 +1275,7 @@ class ReadWriteData(ReadOnlyData):
                 FdataError: sql error happened.
         """
         # Cascade delete will remove the corresponding entries in stock_core and fundamentals tables as well
-        # TODO MID test if all deleted properly once again
+        # TODO MID test if all deleted properly using cascade delete once again
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
                             AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 
@@ -1301,6 +1289,438 @@ class ReadWriteData(ReadOnlyData):
         if self.get_symbol_quotes_num() == 0:
             self.remove_symbol()
 
+    ##########################
+    # Fundamental data methods
+    ##########################
+
+    def add_income_statement(self, reports):
+        """
+            Add income_statement entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): income statements entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of income statements reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_income_statement_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO income_statement (symbol_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										gross_profit,
+										total_revenue,
+										cost_of_revenue,
+										cost_of_goods_and_services_sold,
+										operating_income,
+										selling_general_and_administrative,
+										research_and_development,
+										operating_expenses,
+										investment_income_net,
+										net_interest_income,
+										interest_income,
+										interest_expense,
+										non_interest_income,
+										other_non_operating_income,
+										depreciation,
+										depreciation_and_amortization,
+										income_before_tax,
+										income_tax_expense,
+										interest_and_debt_expense,
+										net_income_from_continuing_operations,
+										comprehensive_income_net_of_tax,
+										ebit,
+										ebitda,
+										net_income)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['grossProfit']},
+											{report['totalRevenue']},
+											{report['costOfRevenue']},
+											{report['costofGoodsAndServicesSold']},
+											{report['operatingIncome']},
+											{report['sellingGeneralAndAdministrative']},
+											{report['researchAndDevelopment']},
+											{report['operatingExpenses']},
+											{report['investmentIncomeNet']},
+											{report['netInterestIncome']},
+											{report['interestIncome']},
+											{report['interestExpense']},
+											{report['nonInterestIncome']},
+											{report['otherNonOperatingIncome']},
+											{report['depreciation']},
+											{report['depreciationAndAmortization']},
+											{report['incomeBeforeTax']},
+											{report['incomeTaxExpense']},
+											{report['interestAndDebtExpense']},
+											{report['netIncomeFromContinuingOperations']},
+											{report['comprehensiveIncomeNetOfTax']},
+											{report['ebit']},
+											{report['ebitda']},
+											{report['netIncome']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add ticker to a table 'income_statement': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        return(num_before, self.get_income_statement_num())
+
+    def get_income_statement_num(self):
+        """Get the number of income statement entries.
+
+            Returns:
+                int: the number of income statements in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        get_num = "SELECT COUNT(*) FROM income_statement;"
+
+        try:
+            self.cur.execute(get_num)
+        except self.Error as e:
+            raise FdataError(f"Can't query table 'income_statement': {e}\n\nThe query is\n{get_num}") from e
+
+        result = self.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
+    def add_balance_sheet(self, reports):
+        """
+            Add balance sheet entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): balance sheet entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of income statements reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_balance_sheet_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										total_assets,
+										total_current_assets,
+										cash_and_cash_equivalents_at_carrying_value,
+										cash_and_short_term_investments,
+										inventory,
+										current_net_receivables,
+										total_non_current_assets,
+										property_plant_equipment,
+										accumulated_depreciation_amortization_ppe,
+										intangible_assets,
+										intangible_assets_excluding_goodwill,
+										goodwill,
+										investments,
+										long_term_investments,
+										short_term_investments,
+										other_current_assets,
+										other_non_current_assets,
+										total_liabilities,
+										total_current_liabilities,
+										current_accounts_payable,
+										deferred_revenue,
+										current_debt,
+										short_term_debt,
+										total_non_current_liabilities,
+                                        capital_lease_obligations,
+                                        long_term_debt,
+                                        current_long_term_debt,
+                                        long_term_debt_noncurrent,
+                                        short_long_term_debt_total,
+                                        other_noncurrent_liabilities,
+                                        total_shareholder_equity,
+                                        treasury_stock,
+                                        retained_earnings,
+                                        common_stock,
+                                        common_stock_shares_outstanding)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['totalAssets']},
+											{report['totalCurrentAssets']},
+											{report['cashAndCashEquivalentsAtCarryingValue']},
+											{report['cashAndShortTermInvestments']},
+											{report['inventory']},
+											{report['currentNetReceivables']},
+											{report['totalNonCurrentAssets']},
+											{report['propertyPlantEquipment']},
+											{report['accumulatedDepreciationAmortizationPPE']},
+											{report['intangibleAssets']},
+											{report['intangibleAssetsExcludingGoodwill']},
+											{report['goodwill']},
+											{report['investments']},
+											{report['longTermInvestments']},
+											{report['shortTermInvestments']},
+											{report['otherCurrentAssets']},
+											{report['otherNonCurrentAssets']},
+											{report['totalLiabilities']},
+											{report['totalCurrentLiabilities']},
+											{report['currentAccountsPayable']},
+											{report['deferredRevenue']},
+											{report['currentDebt']},
+											{report['shortTermDebt']},
+											{report['totalNonCurrentLiabilities']},
+                                            {report['capitalLeaseObligations']},
+											{report['longTermDebt']},
+											{report['currentLongTermDebt']},
+											{report['longTermDebtNoncurrent']},
+											{report['shortLongTermDebtTotal']},
+											{report['otherNonCurrentLiabilities']},
+											{report['totalShareholderEquity']},
+											{report['treasuryStock']},
+											{report['retainedEarnings']},
+											{report['commonStock']},
+											{report['commonStockSharesOutstanding']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add ticker to a table 'balance_sheet': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        return(num_before, self.get_balance_sheet_num())
+
+    def get_balance_sheet_num(self):
+        """Get the number of balance sheet reports.
+
+            Returns:
+                int: the number of balance sheets in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        get_num = "SELECT COUNT(*) FROM balance_sheet;"
+
+        try:
+            self.cur.execute(get_num)
+        except self.Error as e:
+            raise FdataError(f"Can't query table 'balance_sheet': {e}\n\nThe query is\n{get_num}") from e
+
+        result = self.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
+    def add_cash_flow(self, reports):
+        """
+            Add cash flow entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): cash flow entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of cash flow reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_cash_flow_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO cash_flow (symbol_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										operating_cashflow,
+										payments_for_operating_activities,
+										proceeds_from_operating_activities,
+										change_in_operating_liabilities,
+										change_in_operating_assets,
+										depreciation_depletion_and_amortization,
+										capital_expenditures,
+										change_in_receivables,
+										change_in_inventory,
+										profit_loss,
+										cashflow_from_investment,
+										cashflow_from_financing,
+										proceeds_from_repayments_of_short_term_debt,
+										payments_for_repurchase_of_common_stock,
+										payments_for_repurchase_of_equity,
+										payments_for_repurchase_of_preferred_stock,
+										dividend_payout,
+										dividend_payout_common_stock,
+										dividend_payout_preferred_stock,
+										proceeds_from_issuance_of_common_stock,
+										proceeds_from_issuance_of_long_term_debt_and_capital_securities_net,
+										proceeds_from_issuance_of_preferred_stock,
+										proceeds_from_repurchase_of_equity,
+										proceeds_from_sale_of_treasury_stock,
+                                        change_in_cash_and_cash_equivalents,
+                                        change_in_exchange_rate,
+                                        net_income)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['operatingCashflow']},
+											{report['paymentsForOperatingActivities']},
+											{report['proceedsFromOperatingActivities']},
+											{report['changeInOperatingLiabilities']},
+											{report['changeInOperatingAssets']},
+											{report['depreciationDepletionAndAmortization']},
+											{report['capitalExpenditures']},
+											{report['changeInReceivables']},
+											{report['changeInInventory']},
+											{report['profitLoss']},
+											{report['cashflowFromInvestment']},
+											{report['cashflowFromFinancing']},
+											{report['proceedsFromRepaymentsOfShortTermDebt']},
+											{report['paymentsForRepurchaseOfCommonStock']},
+											{report['paymentsForRepurchaseOfEquity']},
+											{report['paymentsForRepurchaseOfPreferredStock']},
+											{report['dividendPayout']},
+											{report['dividendPayoutCommonStock']},
+											{report['dividendPayoutPreferredStock']},
+											{report['proceedsFromIssuanceOfCommonStock']},
+											{report['proceedsFromIssuanceOfLongTermDebtAndCapitalSecuritiesNet']},
+											{report['proceedsFromIssuanceOfPreferredStock']},
+											{report['proceedsFromRepurchaseOfEquity']},
+											{report['proceedsFromSaleOfTreasuryStock']},
+                                            {report['changeInCashAndCashEquivalents']},
+											{report['changeInExchangeRate']},
+											{report['netIncome']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add ticker to a table 'cash_flow': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        return(num_before, self.get_cash_flow_num())
+
+    def get_cash_flow_num(self):
+        """Get the number of cash flow reports.
+
+            Returns:
+                int: the number of cash flow entries in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        get_num = "SELECT COUNT(*) FROM cash_flow;"
+
+        try:
+            self.cur.execute(get_num)
+        except self.Error as e:
+            raise FdataError(f"Can't query table 'cash_flow': {e}\n\nThe query is\n{get_num}") from e
+
+        result = self.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
+    def add_earnings(self, reports):
+        """
+            Add earnings entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): earnings entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of earnings reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_earnings_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO earnings (symbol_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										reported_eps,
+                                        estimated_eps,
+                                        surprise,
+                                        surprise_percentage)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['reportedEPS']},
+											{report['estimatedEPS']},
+											{report['surprise']},
+											{report['surprisePercentage']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add ticker to a table 'earnings': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        return(num_before, self.get_earnings_num())
+
+    def get_earnings_num(self):
+        """Get the number of earnings reports.
+
+            Returns:
+                int: the number of earnings entries in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        get_num = "SELECT COUNT(*) FROM earnings;"
+
+        try:
+            self.cur.execute(get_num)
+        except self.Error as e:
+            raise FdataError(f"Can't query table 'earnings': {e}\n\nThe query is\n{get_num}") from e
+
+        result = self.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
 ##########################
 # Base data fetching class
 ##########################
@@ -1313,7 +1733,7 @@ class BaseFetchData(ReadWriteData, metaclass=abc.ABCMeta):
         """Initialize the instance of BaseFetchData class."""
         super().__init__(**kwargs)
 
-    # TODO Check if it is needed or maybe should be merged with add_quotes
+    # TODO HIGH Check if it is needed or maybe should be merged with add_quotes
     def insert_quotes(self, rows):
         """
             Insert fetched and parsed quotes to the database.

@@ -19,11 +19,12 @@ import json
 from data import fdata
 from data.fdata import FdataError
 
-from data.fvalues import Timespans, SecTypes, Currency, def_first_date, def_last_date
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 
 import settings
 
-class Polygon(fdata.BaseFetchData):
+# TODO HIGH Distinguish stock with other types
+class Polygon(fdata.StockFetcher):
     """
         Polygon.IO wrapper class.
     """
@@ -38,7 +39,7 @@ class Polygon(fdata.BaseFetchData):
         self.year_delta = settings.Polygon.year_delta
         self.api_key = settings.Polygon.api_key
 
-        self.sectype = SecTypes.Unknown  # Multiple security types may be obtaines by similar Polygon API calls
+        self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar Polygon API calls
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         if self.api_key is None:

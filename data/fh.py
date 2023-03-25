@@ -7,19 +7,17 @@ Distributed under Fcore License 1.0 (see license.md)
 from datetime import datetime
 import pytz
 
-import json
-
 import finnhub
 
-from data.fvalues import SecTypes, Currency
-from data import fdata
+from data.fvalues import SecType, Currency
+from data import stock
 from data.fdata import FdataError
 
 import settings
 
 # TODO LOW Add unit test for this module
 
-class FHStock(fdata.BaseFetchData):
+class FHStock(stock.StockFetcher):
     """
         Finnhub API wrapper class.
     """
@@ -31,7 +29,7 @@ class FHStock(fdata.BaseFetchData):
         self.source_title = "Finnhub"
         self.api_key = settings.Finnhub.api_key
 
-        self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF for FH
+        self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for FH
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
     def fetch_quotes(self):

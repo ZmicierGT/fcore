@@ -11,7 +11,7 @@ import getopt
 from data import fdata, futils
 from data.fvalues import Timespans
 
-class QuotesData(fdata.ReadWriteData):
+class QuotesData(fdata.RWStockData):
     """
         Base class for CLI quotes manipulation.
     """

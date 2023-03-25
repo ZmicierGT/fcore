@@ -9,11 +9,12 @@ import pytz
 
 import yfinance as yfin
 
-from data import fdata
-from data.fvalues import Timespans, SecTypes, Currency, def_first_date, def_last_date
+from data import stock
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 from data.fdata import FdataError
 
-class YF(fdata.BaseFetchData):
+# TODO HIGH Distinguish stock with other types
+class YF(stock.StockFetcher):
     """
         Yahoo Finance wrapper class.
     """
@@ -26,7 +27,7 @@ class YF(fdata.BaseFetchData):
         # Default values
         self.source_title = "YF"
 
-        self.sectype = SecTypes.Unknown  # Multiple security types may be obtaines by similar YF queries
+        self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
     def get_timespan(self):

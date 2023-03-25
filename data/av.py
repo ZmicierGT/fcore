@@ -11,9 +11,9 @@ import http.client
 import urllib.error
 import requests
 
-from data import fdata
+from data import stock
 
-from data.fvalues import Timespans, SecTypes, Currency
+from data.fvalues import Timespans, SecType, Currency
 from data.fdata import FdataError
 
 import pandas as pd
@@ -27,7 +27,7 @@ import settings
 
 # TODO LOW Add unit test for this module
 
-class AVStock(fdata.BaseFetchData):
+class AVStock(stock.StockFetcher):
     """
         AlphaVantage API wrapper class.
     """
@@ -40,7 +40,7 @@ class AVStock(fdata.BaseFetchData):
         self.api_key = settings.AV.api_key
         self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
 
-        self.sectype = SecTypes.Stock  # TODO LOW Distinguish stock and ETF for AV
+        self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for AV
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         # Cached earnings to estimate reporting dates.

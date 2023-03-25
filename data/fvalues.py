@@ -10,6 +10,8 @@ from enum import IntEnum, Enum
 def_first_date = -2147483648
 def_last_date = 9999999999
 
+# TODO LOW remove plurals here
+
 # Enum class for standard data query rows order
 class Quotes(IntEnum):
     """
@@ -49,7 +51,7 @@ class Timespans(str, Enum):
     Quarter = "Quarter"  # Polygon and YF
     Year = "Year"
 
-class SecTypes(str, Enum):
+class SecType(str, Enum):
     """
         Enum class for security types.
     """

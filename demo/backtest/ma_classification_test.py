@@ -24,6 +24,7 @@ import plotly.graph_objects as go
 import sys
 
 # Variables for testing
+# TODO HIGH Distinguish stock with outher sec types
 symbol = 'SPY'
 period = 50  # Period for MA calculation
 change_period = 2  # Number of cycles to consider the trend as changed if there was no signal
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     # Get quotes for learning
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        source = YF(symbol="SPY", first_date="2000-1-1", last_date="2020-8-1")
+        source = YF(symbol=symbol, first_date="2000-1-1", last_date="2020-8-1")
         rows_learn, num = source.fetch_if_none(threshold_learn)
     except FdataError as e:
         sys.exit(e)
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     # Get quotes for testing
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        source = YF(symbol="SPY", first_date="2020-8-2", last_date="2022-11-1")
+        source = YF(symbol=symbol, first_date="2020-8-2", last_date="2022-11-1")
         rows, num = source.fetch_if_none(threshold_test)
     except FdataError as e:
         sys.exit(e)

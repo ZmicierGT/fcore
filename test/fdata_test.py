@@ -5,14 +5,13 @@ from mockito import when, mock, verify, unstub
 import sys
 sys.path.append('../')
 
-from data.fdata import ReadOnlyData, ReadWriteData, BaseFetchData
-from data.fdatabase import SQLiteConn
+from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher
 from data.fvalues import Timespans
 
 import sqlite3
 from sqlite3 import Cursor, Connection
 
-class FetchData(BaseFetchData):
+class FetchData(BaseFetcher):
     # Implement abstract method
     def fetch_quotes(self):
         pass

@@ -24,7 +24,6 @@ import plotly.graph_objects as go
 import sys
 
 # Variables for testing
-# TODO HIGH Distinguish stock with outher sec types
 symbol = 'SPY'
 period = 50  # Period for MA calculation
 change_period = 2  # Number of cycles to consider the trend as changed if there was no signal

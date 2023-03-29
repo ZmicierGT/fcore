@@ -16,15 +16,14 @@ import requests
 
 import json
 
-from data import fdata
+from data import stock
 from data.fdata import FdataError
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 
 import settings
 
-# TODO HIGH Distinguish stock with other types
-class Polygon(fdata.StockFetcher):
+class Polygon(stock.StockFetcher):
     """
         Polygon.IO wrapper class.
     """

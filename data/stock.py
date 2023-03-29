@@ -132,6 +132,7 @@ class ROStockData(ReadOnlyData):
         if len(rows) == 0:
             create_is = """CREATE TABLE income_statement(
                                 is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
                                 reported_date INTEGER NOT NULL,
                                 reported_period INTEGER NOT NULL,
@@ -164,6 +165,10 @@ class ROStockData(ReadOnlyData):
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
                                 );"""
 
             try:
@@ -189,6 +194,7 @@ class ROStockData(ReadOnlyData):
         if len(rows) == 0:
             create_bs = """CREATE TABLE balance_sheet(
                                 bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
                                 reported_date INTEGER NOT NULL,
                                 reported_period INTEGER NOT NULL,
@@ -233,6 +239,10 @@ class ROStockData(ReadOnlyData):
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
                                 );"""
 
             try:
@@ -258,6 +268,7 @@ class ROStockData(ReadOnlyData):
         if len(rows) == 0:
             create_cf = """CREATE TABLE cash_flow(
                                 cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
                                 reported_date INTEGER NOT NULL,
                                 reported_period INTEGER NOT NULL,
@@ -293,6 +304,10 @@ class ROStockData(ReadOnlyData):
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
                                 );"""
 
             try:
@@ -318,6 +333,7 @@ class ROStockData(ReadOnlyData):
         if len(rows) == 0:
             create_earnings = """CREATE TABLE earnings(
                                     earnings_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    source_id INTEGER NOT NULL,
                                     symbol_id INTEGER NOT NULL,
                                     reported_date INTEGER NOT NULL,
                                     reported_period INTEGER NOT NULL,
@@ -329,6 +345,10 @@ class ROStockData(ReadOnlyData):
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
                                         REFERENCES symbols(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_sources,
+                                        FOREIGN KEY (source_id)
+                                        REFERENCES sources(source_id)
                                         ON DELETE CASCADE
                                 );"""
 
@@ -437,6 +457,31 @@ class ROStockData(ReadOnlyData):
 
         return result
 
+    def get_quotes(self, num=0, columns=[], joins=[], queries=[]):
+        """
+            Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
+            linked by symbol_id may be requested (like fundamental data)
+
+            Args:
+                num(int): the number of rows to get. 0 gets all the quotes.
+                columns(list of tuple): additional pairs of (table, column) to query.
+                joins(list): additional joins to get data from other tables.
+                queries(list): additional queries from other tables (like funamental, global economic data).
+
+            Returns:
+                list: list with quotes data.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        columns.append('raw_close')
+        columns.append('dividends')
+        columns.append('split_coefficient')
+
+        joins.append('INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id')
+
+        return super().get_quotes(num=num, columns=columns, joins=joins, queries=queries)
+
 class RWStockData(ROStockData, ReadWriteData):
     """
         Base class for read/write stock data SQL operations.
@@ -473,7 +518,7 @@ class RWStockData(ROStockData, ReadWriteData):
                 insert_core = f"""INSERT OR {self._update} INTO stock_core (quote_id, raw_close, dividends, split_coefficient)
                                 VALUES (
                                     ({quote_id}),
-                                    ({quote['divs']}),
+                                    ({quote['raw_close']}),
                                     ({quote['divs']}),
                                     ({quote['split']})
                                 )
@@ -515,6 +560,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         for report in reports:
             insert_report = f"""INSERT OR {self._update} INTO income_statement (symbol_id,
+                                        source_id,
 										reported_date,
 										reported_period,
 										fiscal_date_ending,
@@ -544,6 +590,7 @@ class RWStockData(ROStockData, ReadWriteData):
 										net_income)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
 											{report['reportedDate']},
 											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
 											{report['fiscalDateEnding']},
@@ -602,6 +649,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         for report in reports:
             insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
+                                        source_id,
 										reported_date,
 										reported_period,
 										fiscal_date_ending,
@@ -642,6 +690,7 @@ class RWStockData(ROStockData, ReadWriteData):
                                         common_stock_shares_outstanding)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
 											{report['reportedDate']},
 											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
 											{report['fiscalDateEnding']},
@@ -711,6 +760,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         for report in reports:
             insert_report = f"""INSERT OR {self._update} INTO cash_flow (symbol_id,
+                                        source_id,
 										reported_date,
 										reported_period,
 										fiscal_date_ending,
@@ -743,6 +793,7 @@ class RWStockData(ROStockData, ReadWriteData):
                                         net_income)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
 											{report['reportedDate']},
 											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
 											{report['fiscalDateEnding']},
@@ -804,6 +855,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         for report in reports:
             insert_report = f"""INSERT OR {self._update} INTO earnings (symbol_id,
+                                        source_id,
 										reported_date,
 										reported_period,
 										fiscal_date_ending,
@@ -813,6 +865,7 @@ class RWStockData(ROStockData, ReadWriteData):
                                         surprise_percentage)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
 											{report['reportedDate']},
 											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
 											{report['fiscalDateEnding']},

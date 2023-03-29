@@ -399,5 +399,5 @@ class AVStock(stock.StockFetcher):
             Returns:
                 bool: indicates if earnings are cached.
         """
-        return self.earnings is None and self.earnings_first_date == self.first_date \
+        return self.earnings is not None and self.earnings_first_date == self.first_date \
             and self.earnings_last_date == self.last_date

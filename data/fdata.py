@@ -17,7 +17,7 @@ from data.futils import get_dt
 import settings
 
 # Current database compatibility version
-DB_VERSION = 4
+DB_VERSION = 5
 
 class DbTypes(Enum):
     """
@@ -626,7 +626,7 @@ class ReadOnlyData():
 
         return rows
 
-    def get_quotes(self, num=0, columns=[], joins=[]):
+    def get_quotes(self, num=0, columns=[], joins=[], queries=[]):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -635,6 +635,7 @@ class ReadOnlyData():
                 num(int): the number of rows to get. 0 gets all the quotes.
                 columns(list of tuple): additional pairs of (table, column) to query.
                 joins(list): additional joins to get data from other tables.
+                queries(list): additional queries from other tables (like funamental, global economic data).
 
             Returns:
                 list: list with quotes data.
@@ -669,13 +670,22 @@ class ReadOnlyData():
         additional_columns = ""
 
         if len(columns) > 0:
-            # Generate the subqueries for additional columns
             for column in columns:
-                additional_columns += f""", (SELECT {column[1]}
-                                                FROM {column[0]}
+                additional_columns += ", " + column
+
+        additional_queries = ""
+
+        if len(queries) > 0:
+            # Generate the subqueries for additional data
+            for query in queries:
+                data_column = query[1]
+                table = query[0]
+
+                additional_queries += f""", (SELECT {data_column}
+                                                FROM {table}
                                                 WHERE reported_date <= time_stamp
                                                 AND symbol_id = quotes.symbol_id
-                                                ORDER BY reported_date DESC LIMIT 1) AS {column[1]}\n"""
+                                                ORDER BY reported_date DESC LIMIT 1) AS {data_column}\n"""
 
         additional_joins = ""
 
@@ -688,14 +698,11 @@ class ReadOnlyData():
                                 high,
                                 low,
                                 closed,
-                                raw_close,
                                 volume,
-                                dividends,
-                                split_coefficient,
                                 transactions
                                 {additional_columns}
-                            FROM quotes INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id
-                            INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                                {additional_queries}
+                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
                             INNER JOIN currency ON quotes.currency_id = currency.currency_id
@@ -889,6 +896,7 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        # Cascade delete will remove the corresponding entries in stock_core and fundamentals tables as well
         delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
 
         try:
@@ -979,8 +987,6 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        # Cascade delete will remove the corresponding entries in stock_core and fundamentals tables as well
-        # TODO HIGH test if all deleted properly using cascade delete once again
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
                             AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 

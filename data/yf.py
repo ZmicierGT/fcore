@@ -13,7 +13,6 @@ from data import stock
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 from data.fdata import FdataError
 
-# TODO HIGH Distinguish stock with other types
 class YF(stock.StockFetcher):
     """
         Yahoo Finance wrapper class.

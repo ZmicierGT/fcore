@@ -282,7 +282,6 @@ class ReadOnlyData():
 
             try:
                 self.cur.execute(insert_environment)
-                self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'environment': {e}") from e
         else:  # One row present in the table so it is expected
@@ -402,7 +401,6 @@ class ReadOnlyData():
 
             try:
                 self.cur.execute(insert_timespans)
-                self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
 
@@ -455,7 +453,6 @@ class ReadOnlyData():
 
             try:
                 self.cur.execute(insert_sectypes)
-                self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'sectypes': {e}\n{insert_sectypes}") from e
 
@@ -508,7 +505,6 @@ class ReadOnlyData():
 
             try:
                 self.cur.execute(insert_currency)
-                self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'currency': {e}\n{insert_currency}") from e
 
@@ -569,6 +565,8 @@ class ReadOnlyData():
                 self.cur.execute(create_quotes_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index for quotes table: {e}") from e
+
+            self.conn.commit()
 
     def check_source(self):
         """

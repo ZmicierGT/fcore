@@ -140,7 +140,6 @@ class YF(stock.StockFetcher):
 
         return quotes_data
 
-    # TODO MID this method should be abstract in the base class
     def get_recent_data(self, to_cache=False):
         """
             Get pseudo real time data. Used in screening demonstration.
@@ -171,3 +170,15 @@ class YF(stock.StockFetcher):
         # TODO LOW caching should be implemented
 
         return result
+
+    def fetch_income_statement(self):
+        raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_balance_sheet(self):
+        raise FdataError(f"Balance sheet data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_cash_flow(self):
+        raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_earnings(self):
+        raise FdataError(f"Earnings statement data is not supported (yet) for the source {type(self).__name__}")

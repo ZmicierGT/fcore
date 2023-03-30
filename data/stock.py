@@ -6,7 +6,7 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 # TODO HIGH Implement UT for stock data module
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod
+from data.fvalues import SecType, ReportPeriod, five_hundred_days
 
 import abc
 
@@ -34,10 +34,12 @@ class ROStockData(ReadOnlyData):
 
         # Check if we need to create a table stock_core
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';")
+            check_stock_core = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';"
+
+            self.cur.execute(check_stock_core)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'stock_core': {e}\n{check_stock_core}") from e
 
         if len(rows) == 0:
             create_core = """CREATE TABLE stock_core(
@@ -55,7 +57,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_core)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'stock_core': {e}\n{create_core}") from e
 
             # Create index for quote_id
             create_quoteid_idx = "CREATE INDEX idx_quote ON stock_core(quote_id);"
@@ -63,7 +65,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_quoteid_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for quote id in stock_core: {e}") from e
+                raise FdataError(f"Can't create index for stock_core(quote_id) in stock_core: {e}") from e
 
         #############################
         # Fundamental data
@@ -71,10 +73,12 @@ class ROStockData(ReadOnlyData):
 
         # Check if we need to create table 'report_periods'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_periods';")
+            check_report_periods = "SELECT name FROM sqlite_master WHERE type='table' AND name='report_periods';"
+
+            self.cur.execute(check_report_periods)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{check_report_periods}") from e
 
         if len(rows) == 0:
             create_report_periods = """CREATE TABLE report_periods(
@@ -85,7 +89,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_report_periods)
             except self.Error as e:
-                raise FdataError(f"Can't create table 'report_periods': {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{create_report_periods}") from e
 
             # Create index for sectype title
             create_report_period_title_idx = "CREATE INDEX idx_report_period_title ON report_periods(title);"
@@ -93,14 +97,16 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_report_period_title_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for report period title: {e}") from e
+                raise FdataError(f"Can't create index for report_periods(title): {e}") from e
 
         # Check if report_periods table is empty
         try:
-            self.cur.execute("SELECT * FROM report_periods;")
+            all_report_periods = "SELECT * FROM report_periods;"
+
+            self.cur.execute(all_report_periods)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{all_report_periods}") from e
 
         # Check if reports_periods table has data
         if len(rows) < len(ReportPeriod) - 1:
@@ -124,10 +130,12 @@ class ROStockData(ReadOnlyData):
 
         # Check if we need to create a table income_statement
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';")
+            check_income_statement = "SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';"
+
+            self.cur.execute(check_income_statement)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'income_statement': {e}\n{check_income_statement}") from e
 
         if len(rows) == 0:
             create_is = """CREATE TABLE income_statement(
@@ -160,7 +168,8 @@ class ROStockData(ReadOnlyData):
 								comprehensive_income_net_of_tax INTEGER,
 								ebit INTEGER,
 								ebitda INTEGER,
-								net_income INTEGER
+								net_income INTEGER,
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
@@ -174,7 +183,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_is)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'income_statement': {e}\n{create_is}") from e
 
             # Create index for symbol_id
             create_symbol_time_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reported_date);"
@@ -182,14 +191,16 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_symbol_time_is_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reported_date id in income_statement: {e}") from e
+                raise FdataError(f"Can't create index income_statement(symbol_id, reported_date): {e}") from e
 
         # Check if we need to create a table balance_sheet
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='balance_sheet';")
+            check_balance_sheet = "SELECT name FROM sqlite_master WHERE type='table' AND name='balance_sheet';"
+
+            self.cur.execute(check_balance_sheet)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'balance_sheet': {e}\n{check_balance_sheet}") from e
 
         if len(rows) == 0:
             create_bs = """CREATE TABLE balance_sheet(
@@ -234,7 +245,8 @@ class ROStockData(ReadOnlyData):
 								treasury_stock INTEGER,
 								retained_earnings INTEGER,
 								common_stock INTEGER,
-								common_stock_shares_outstanding INTEGER
+								common_stock_shares_outstanding INTEGER,
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
@@ -248,7 +260,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_bs)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'balance_sheet': {e}\n{create_bs}") from e
 
             # Create index for symbol_id
             create_symbol_time_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reported_date);"
@@ -256,14 +268,16 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_symbol_time_bs_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reported_date in balance_sheet: {e}") from e
+                raise FdataError(f"Can't create index balance_sheet(symbol_id, reported_date): {e}") from e
 
         # Check if we need to create a table cash_flow
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cash_flow';")
+            check_cash_flow = "SELECT name FROM sqlite_master WHERE type='table' AND name='cash_flow';"
+
+            self.cur.execute(check_cash_flow)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'cash_flow': {e}\n{check_cash_flow}") from e
 
         if len(rows) == 0:
             create_cf = """CREATE TABLE cash_flow(
@@ -299,7 +313,8 @@ class ROStockData(ReadOnlyData):
 								proceeds_from_sale_of_treasury_stock INTEGER,
 								change_in_cash_and_cash_equivalents INTEGER,
 								change_in_exchange_rate INTEGER,
-								net_income INTEGER
+								net_income INTEGER,
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
@@ -313,7 +328,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_cf)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'cash_flow': {e}\n{create_cf}") from e
 
             # Create index for symbol_id
             create_symbol_time_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reported_date);"
@@ -321,14 +336,16 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_symbol_time_cf_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reported_date in cash_flow: {e}") from e
+                raise FdataError(f"Can't create index cash_flow(symbol_id, reported_date): {e}") from e
 
         # Check if we need to create a table earnings
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='earnings';")
+            check_earnings = "SELECT name FROM sqlite_master WHERE type='table' AND name='earnings';"
+
+            self.cur.execute(check_earnings)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'earnings': {e}\n{check_earnings}") from e
 
         if len(rows) == 0:
             create_earnings = """CREATE TABLE earnings(
@@ -341,7 +358,8 @@ class ROStockData(ReadOnlyData):
                                     reported_eps INTEGER NOT NULL,
                                     estimated_eps INTEGER,
                                     surprise INTEGER,
-                                    surprise_percentage INTEGER
+                                    surprise_percentage INTEGER,
+                                    UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
                                         REFERENCES symbols(symbol_id)
@@ -355,7 +373,7 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_earnings)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'earnings': {e}\n{create_earnings}") from e
 
             # Create index for symbol_id
             create_symbol_time_is_idx = "CREATE INDEX idx_earnings ON earnings(symbol_id, reported_date);"
@@ -363,10 +381,10 @@ class ROStockData(ReadOnlyData):
             try:
                 self.cur.execute(create_symbol_time_is_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for symbol_id, reported_date id in earnings: {e}") from e
+                raise FdataError(f"Can't create index earnings(symbol_id, reported_date): {e}") from e
 
     def get_income_statement_num(self):
-        """Get the number of income statement entries.
+        """Get the number of income statement reports for specified interval (+- 500 days) for a stock.
 
             Returns:
                 int: the number of income statements in the database.
@@ -374,8 +392,12 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        get_num = "SELECT COUNT(*) FROM income_statement;"
+        self.check_if_connected()
 
+        get_num = f"""SELECT COUNT(is_report_id) FROM income_statement
+	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
+                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
+                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
         try:
             self.cur.execute(get_num)
         except self.Error as e:
@@ -389,7 +411,7 @@ class ROStockData(ReadOnlyData):
         return result
 
     def get_balance_sheet_num(self):
-        """Get the number of balance sheet reports.
+        """Get the number of balance sheet reports for specified interval (+- 500 days) for a stock.
 
             Returns:
                 int: the number of balance sheets in the database.
@@ -397,7 +419,12 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        get_num = "SELECT COUNT(*) FROM balance_sheet;"
+        self.check_if_connected()
+
+        get_num = f"""SELECT COUNT(bs_report_id) FROM balance_sheet
+	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
+                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
+                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
 
         try:
             self.cur.execute(get_num)
@@ -412,7 +439,7 @@ class ROStockData(ReadOnlyData):
         return result
 
     def get_cash_flow_num(self):
-        """Get the number of cash flow reports.
+        """Get the number of cash flow reports for specified interval (+- 500 days) for a stock.
 
             Returns:
                 int: the number of cash flow entries in the database.
@@ -420,7 +447,12 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        get_num = "SELECT COUNT(*) FROM cash_flow;"
+        self.check_if_connected()
+
+        get_num = f"""SELECT COUNT(cf_report_id) FROM cash_flow
+	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
+                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
+                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
 
         try:
             self.cur.execute(get_num)
@@ -435,7 +467,7 @@ class ROStockData(ReadOnlyData):
         return result
 
     def get_earnings_num(self):
-        """Get the number of earnings reports.
+        """Get the number of earnings reports for specified interval (+- 500 days) for a stock.
 
             Returns:
                 int: the number of earnings entries in the database.
@@ -443,7 +475,12 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        get_num = "SELECT COUNT(*) FROM earnings;"
+        self.check_if_connected()
+
+        get_num = f"""SELECT COUNT(earnings_report_id) FROM earnings
+	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
+                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
+                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
 
         try:
             self.cur.execute(get_num)
@@ -474,6 +511,8 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         if isinstance(columns, list) is False:
             columns = []
 
@@ -505,6 +544,8 @@ class RWStockData(ROStockData, ReadWriteData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -552,6 +593,8 @@ class RWStockData(ROStockData, ReadWriteData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -641,6 +684,8 @@ class RWStockData(ROStockData, ReadWriteData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -752,6 +797,8 @@ class RWStockData(ROStockData, ReadWriteData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -847,6 +894,8 @@ class RWStockData(ROStockData, ReadWriteData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -883,29 +932,131 @@ class RWStockData(ROStockData, ReadWriteData):
 
         return(num_before, self.get_earnings_num())
 
-# The current approach is that all
-# fundamental data should be obtained because reporting intervals are rather long and previous report data
-# which was published 2 months ago may be essential if you examine just one week of current security behavior.
 class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    # TODO HIGH Implement fetch_if_none for fundamental data. All available data will be fetched if the requested interval is not covered.
-    def get_recent_data(self, to_cache=False):
+    # TODO HIGH Validate if it works correctly
+    def _fetch_fundamentals_if_none(self, threshold, num_method, add_method, fetch_method):
         """
-            Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
-            for a particular data source.
+            Fetch all the available fundamental reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
 
             Args:
-                to_cache(bool): indicates if real time data should be cached in a database.
+                treshold(int): the minimum required number of quotes in the database.
+                num_method(method): method to get the current reports number.
+                add_method(method): method to add the reports to the database.
+                fetch_method(method): method to fetch the reports.
 
             Returns:
-                list: real time data.
+                array: the fetched reports.
+                int: the number of fetched reports.
         """
-        raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        current_num = num_method()
+
+        # Fetch reports if there are less than a threshold number of records in the database
+        # for a selected timespan (+- 500 days)
+        if current_num < threshold:
+            num_before, num_after = add_method(fetch_method())
+            num = num_after - num_before
+
+            if num < threshold:
+                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval. Decrease the threshold.")
+        else:
+            num = 0
+
+        rows = self.get_quotes()
+
+        if initially_connected is False:
+            self.db_close()
+
+        return (rows, num)
+
+    def fetch_income_statement_if_none(self, threshold):
+        """
+            Fetch all the available income statement reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
+
+            Args:
+                treshold(int): the minimum required number of quotes in the database.
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_fundamentals_if_none(threshold=threshold,
+                                                num_method=self.get_income_statement_num,
+                                                add_method=self.add_income_statement,
+                                                fetch_method=self.fetch_income_statement)
+
+    def fetch_balance_sheet_if_none(self, threshold):
+        """
+            Fetch all the available balance sheet reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
+
+            Args:
+                treshold(int): the minimum required number of quotes in the database.
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_fundamentals_if_none(threshold=threshold,
+                                                num_method=self.get_balance_sheet_num,
+                                                add_method=self.add_balance_sheet,
+                                                fetch_method=self.fetch_balance_sheet)
+
+    def fetch_income_statement_if_none(self, threshold):
+        """
+            Fetch all the available income statement reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
+
+            Args:
+                treshold(int): the minimum required number of quotes in the database.
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_fundamentals_if_none(threshold=threshold,
+                                                num_method=self.get_income_statement_num,
+                                                add_method=self.add_income_statement,
+                                                fetch_method=self.fetch_income_statement)
+
+    def fetch_cash_flow_if_none(self, threshold):
+        """
+            Fetch all the available cash flow reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
+
+            Args:
+                treshold(int): the minimum required number of quotes in the database.
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_fundamentals_if_none(threshold=threshold,
+                                                num_method=self.get_cash_flow_num,
+                                                add_method=self.add_cash_flow,
+                                                fetch_method=self.fetch_cash_flow)
 
     @abc.abstractmethod
-    def fetch_quotes(self):
-        """
-            Abstract method to fetch quotes.
-        """
+    def fetch_income_statement(self):
+        """Abstract method to fetch income statement"""
+
+    @abc.abstractmethod
+    def fetch_balance_sheet(self):
+        """Abstract method to fetch balance sheet"""
+
+    @abc.abstractmethod
+    def fetch_cash_flow(self):
+        """Abstract method to fetch cash flow"""
+
+    @abc.abstractmethod
+    def fetch_earnings(self):
+        """Abstract method to fetch earnings"""

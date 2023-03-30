@@ -14,9 +14,8 @@ from data.futils import get_dt
 import settings
 
 # Current database compatibility version
-DB_VERSION = 5
+DB_VERSION = 6
 
-# TODO MID Add extended output in case of exception: table_name, query
 class FdataError(Exception):
     """
         Base data exception class.
@@ -73,8 +72,7 @@ class ReadOnlyData():
         self.Error = None
 
         # Flag which indicates if the database is connected
-        # TODO LOW Switch to private and create a method to check if db is connected
-        self.Connected = False
+        self._connected = False
 
     ########################################################
     # Get/set datetimes (depending on the input value type).
@@ -208,6 +206,17 @@ class ReadOnlyData():
         """
         return self.db_type
 
+    def is_connected(self):
+        """Returns True/False if db is connected."""
+        return self._connected
+
+    def check_if_connected(self):
+        """
+            Raise an exception if db is not connected.
+        """
+        if self.is_connected() is False:
+            raise FdataError("The database is not connected. Invoke db_connect() at first.")
+
     def db_connect(self):
         """
             Connect to the databse.
@@ -215,7 +224,7 @@ class ReadOnlyData():
         if self.db_type == DbTypes.SQLite:
             self.database = fdatabase.SQLiteConn(self)
             self.database.db_connect()
-            self.Connected = True
+            self._connected = True
 
             # Check the database integrity
             self.check_database()
@@ -227,8 +236,10 @@ class ReadOnlyData():
         """
             Close the database connection.
         """
+        self.check_if_connected()
+
         self.database.db_close()
-        self.Connected = False
+        self._connected = False
 
     def check_database(self):
         """
@@ -238,12 +249,16 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Check if we need to create table 'environment'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='environment';")
+            check_environment = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
+
+            self.cur.execute(check_environment)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{check_environment}") from e
 
         if len(rows) == 0:
             create_environment = """CREATE TABLE environment(
@@ -253,14 +268,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_environment)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{create_environment}") from e
 
         # Check if environment table is empty
         try:
-            self.cur.execute("SELECT * FROM environment;")
+            all_environment = "SELECT * FROM environment;"
+
+            self.cur.execute(all_environment)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query environment table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{all_environment}") from e
 
         # Check if environment table has data
         if len(rows) > 1:  # This table should have one row only
@@ -273,14 +290,14 @@ class ReadOnlyData():
             try:
                 self.cur.execute(insert_environment)
             except self.Error as e:
-                raise FdataError(f"Can't insert data to a table 'environment': {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{insert_environment}") from e
         else:  # One row present in the table so it is expected
             environment_query = "SELECT version FROM environment;"
 
             try:
                 self.cur.execute(environment_query)
             except self.Error as e:
-                raise FdataError(f"Can't query table 'environment': {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{environment_query}") from e
 
             version = self.cur.fetchone()[0]
 
@@ -289,10 +306,12 @@ class ReadOnlyData():
 
         # Check if we need to create table 'symbols'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';")
+            check_symbols = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
+
+            self.cur.execute(check_symbols)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{check_symbols}") from e
 
         if len(rows) == 0:
             create_symbols = """CREATE TABLE symbols(
@@ -305,7 +324,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_symbols)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{create_symbols}") from e
 
             # Create index for ticker
             create_ticker_idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
@@ -313,14 +332,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_ticker_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for ticker: {e}") from e
+                raise FdataError(f"Can't create index for symbols(ticker): {e}") from e
 
         # Check if we need to create table 'sources'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sources';")
+            check_sources = "SELECT name FROM sqlite_master WHERE type='table' AND name='sources';"
+
+            self.cur.execute(check_sources)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{check_sources}") from e
 
         if len(rows) == 0:
             create_sources = """CREATE TABLE sources(
@@ -332,7 +353,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_sources)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{create_sources}") from e
 
             # Create index for source title
             create_source_title_idx = "CREATE INDEX idx_source_title ON sources(title);"
@@ -340,14 +361,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_source_title_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for source title: {e}") from e
+                raise FdataError(f"Can't create index for sources(title): {e}") from e
 
         # Check if we need to create table 'timespans'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';")
+            check_timespans = "SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';"
+
+            self.cur.execute(check_timespans)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{check_timespans}") from e
 
         if len(rows) == 0:
             create_timespans = """CREATE TABLE timespans(
@@ -358,7 +381,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_timespans)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{create_timespans}") from e
 
             # Create index for timespan title
             create_timespan_title_idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
@@ -366,14 +389,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_timespan_title_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for timespan title: {e}") from e
+                raise FdataError(f"Can't create index for timespans(title): {e}") from e
 
         # Check if timespans table is empty
         try:
-            self.cur.execute("SELECT * FROM timespans;")
+            all_timespans = "SELECT * FROM timespans;"
+
+            self.cur.execute(all_timespans)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{all_timespans}") from e
 
         # Check if timespans table has data
         if len(rows) < len(Timespans) - 1:
@@ -392,14 +417,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(insert_timespans)
             except self.Error as e:
-                raise FdataError(f"Can't insert data to a table 'timespans': {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
         # Check if we need to create table 'sectypes'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';")
+            check_sectypes = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
+
+            self.cur.execute(check_sectypes)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{check_sectypes}") from e
 
         if len(rows) == 0:
             create_sectypes = """CREATE TABLE sectypes(
@@ -410,7 +437,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_sectypes)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
 
             # Create index for sectype title
             create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
@@ -418,14 +445,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_sectype_title_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for sectype title: {e}") from e
+                raise FdataError(f"Can't create index for sectypes(title): {e}") from e
 
         # Check if sectypes table is empty
         try:
-            self.cur.execute("SELECT * FROM sectypes;")
+            all_sectypes = "SELECT * FROM sectypes;"
+
+            self.cur.execute(all_sectypes)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{all_sectypes}") from e
 
         # Check if sectypes table has data
         if len(rows) < len(SecType) - 1:
@@ -444,14 +473,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(insert_sectypes)
             except self.Error as e:
-                raise FdataError(f"Can't insert data to a table 'sectypes': {e}\n{insert_sectypes}") from e
+                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
 
         # Check if we need to create table 'currency'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='currency';")
+            check_currency = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
+
+            self.cur.execute(check_currency)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{check_currency}") from e
 
         if len(rows) == 0:
             create_currency = """CREATE TABLE currency(
@@ -462,7 +493,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_currency)
             except self.Error as e:
-                raise FdataError(f"Can't create table 'currency': {e}") from e
+                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
 
             # Create index for sectype title
             create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
@@ -470,14 +501,15 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_currency_title_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for currency title: {e}") from e
+                raise FdataError(f"Can't create index for currency(title): {e}") from e
 
         # Check if currency table is empty
         try:
-            self.cur.execute("SELECT * FROM currency;")
+            all_currency = "SELECT * FROM currency;"
+            self.cur.execute(all_currency)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{all_currency}") from e
 
         # Check if currency table has data
         if len(rows) < len(Currency) - 1:
@@ -496,14 +528,16 @@ class ReadOnlyData():
             try:
                 self.cur.execute(insert_currency)
             except self.Error as e:
-                raise FdataError(f"Can't insert data to a table 'currency': {e}\n{insert_currency}") from e
+                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
 
         # Check if we need to create table 'quotes'
         try:
-            self.cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';")
+            check_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
+
+            self.cur.execute(check_quotes)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{check_quotes}") from e
 
         if len(rows) == 0:
             create_quotes = """CREATE TABLE quotes (
@@ -546,7 +580,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_quotes)
             except self.Error as e:
-                raise FdataError(f"Can't create table: {e}") from e
+                raise FdataError(f"Can't create table quotes: {e}") from e
 
             # Create indexes for quotes
             create_quotes_idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
@@ -554,7 +588,7 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_quotes_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for quotes table: {e}") from e
+                raise FdataError(f"Can't create indexes for quotes table: {e}") from e
 
             self.conn.commit()
 
@@ -568,11 +602,15 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         try:
-            self.cur.execute(f"SELECT title FROM sources WHERE title = '{self.source_title}';")
+            source_exists = f"SELECT title FROM sources WHERE title = '{self.source_title}';"
+
+            self.cur.execute(source_exists)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{source_exists}") from e
 
         # Check if sources table has the required row
         return len(rows)
@@ -584,13 +622,15 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.source_title}')"
 
         try:
             self.cur.execute(insert_source)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't insert data to a table 'sources': {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{insert_source}") from e
 
     ##################################
     # Read only methods to obtain data
@@ -606,11 +646,15 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         try:
-            self.cur.execute("SELECT ticker, isin, description FROM symbols;")
+            get_all_symbols = "SELECT ticker, isin, description FROM symbols;"
+
+            self.cur.execute(get_all_symbols)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{get_all_symbols}") from e
 
         return rows
 
@@ -631,6 +675,8 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Timespan subquery
         timespan_query = ""
 
@@ -709,7 +755,7 @@ class ReadOnlyData():
             self.cur.execute(select_quotes)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
 
         return rows
 
@@ -723,10 +769,14 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
+        quotes_num = "SELECT COUNT(*) FROM quotes;"
+
         try:
-            self.cur.execute("SELECT COUNT(*) FROM quotes;")
+            self.cur.execute(quotes_num)
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{quotes_num}") from e
 
         result = self.cur.fetchone()[0]
 
@@ -745,10 +795,14 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
+        sym_quotes_num = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"
+
         try:
-            self.cur.execute(f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');")
+            self.cur.execute(sym_quotes_num)
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{sym_quotes_num}") from e
 
         result = self.cur.fetchone()[0]
 
@@ -767,6 +821,8 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.symbol}') AND
                         time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
@@ -774,7 +830,7 @@ class ReadOnlyData():
         try:
             self.cur.execute(num_query)
         except self.Error as e:
-            raise FdataError(f"Can't query table: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{num_query}") from e
 
         result = self.cur.fetchone()[0]
 
@@ -793,6 +849,8 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         max_datetime_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                                     WHERE symbols.ticker = '{self.symbol}'"""
@@ -800,7 +858,7 @@ class ReadOnlyData():
         try:
             self.cur.execute(max_datetime_query)
         except self.Error as e:
-            raise FdataError(f"Can't get max datetime: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{max_datetime_query}") from e
 
         return self.cur.fetchone()[0]
 
@@ -856,6 +914,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         try:
             self.conn.commit()
         except self.Error as e:
@@ -868,13 +928,15 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         insert_symbol = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.symbol}');"
 
         try:
             self.cur.execute(insert_symbol)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't add ticker to a table 'symbols': {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{insert_symbol}") from e
 
     def remove_symbol(self):
         """
@@ -885,6 +947,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Cascade delete will remove the corresponding entries in stock_core and fundamentals tables as well
         delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
 
@@ -892,7 +956,7 @@ class ReadWriteData(ReadOnlyData):
             self.cur.execute(delete_symbol)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't remove {self.symbol}: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{delete_symbol}") from e
 
     def _add_base_quote_data(self, quote):
         """
@@ -907,6 +971,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
                                                                     source_id,
                                                                     time_stamp,
@@ -954,6 +1020,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_symbol_quotes_num() == 0:
             self.add_symbol()
@@ -976,6 +1044,8 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        self.check_if_connected()
+
         remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
                             AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
 
@@ -983,7 +1053,7 @@ class ReadWriteData(ReadOnlyData):
             self.cur.execute(remove_quotes)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't remove quotes from a table 'sources': {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{remove_quotes}") from e
 
         # Check if symbol is removed completely
         if self.get_symbol_quotes_num() == 0:
@@ -1013,9 +1083,9 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
-        initially_connected = self.Connected
+        initially_connected = self.is_connected()
 
-        if self.Connected == False:
+        if self.is_connected() is False:
             self.db_connect()
 
         current_num = self.get_symbol_quotes_num_dt()
@@ -1037,6 +1107,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         return (rows, num)
 
+    @abc.abstractmethod
     def get_recent_data(self, to_cache=False):
         """
             Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
@@ -1048,7 +1119,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Returns:
                 list: real time data.
         """
-        raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")
 
     @abc.abstractmethod
     def fetch_quotes(self):

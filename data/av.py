@@ -177,7 +177,7 @@ class AVStock(stock.StockFetcher):
 
         return quotes_data
 
-    def fetch_fundamentals(self, function):
+    def _fetch_fundamentals(self, function):
         """
             Fetch stock fundamentals
 
@@ -240,7 +240,6 @@ class AVStock(stock.StockFetcher):
 
         return fundamental_results
 
-    # TODO MID these methods should be abstract in the base class
     def fetch_income_statement(self):
         """
             Fetches the income statement.
@@ -251,7 +250,7 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: fundamental data
         """
-        return self.fetch_fundamentals('INCOME_STATEMENT')
+        return self._fetch_fundamentals('INCOME_STATEMENT')
 
     def fetch_balance_sheet(self):
         """
@@ -263,7 +262,7 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: fundamental data
         """
-        return self.fetch_fundamentals('BALANCE_SHEET')
+        return self._fetch_fundamentals('BALANCE_SHEET')
 
     def fetch_cash_flow(self):
         """
@@ -275,7 +274,7 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: fundamental data
         """
-        return self.fetch_fundamentals('CASH_FLOW')
+        return self._fetch_fundamentals('CASH_FLOW')
 
     def fetch_earnings(self):
         """
@@ -345,7 +344,6 @@ class AVStock(stock.StockFetcher):
 
         return earnings_results
 
-    # TODO MID This method should be abstract in the base class
     def get_recent_data(self, to_cache=False):
         """
             Get delayed quote.

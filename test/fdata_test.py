@@ -18,6 +18,9 @@ class FetchData(BaseFetcher):
     def fetch_quotes(self):
         pass
 
+    def get_recent_data(self, to_cache=False):
+        pass
+
 class Test(unittest.TestCase):
     def setUp(self):
         self.read_data = ReadOnlyData()
@@ -30,6 +33,8 @@ class Test(unittest.TestCase):
         self.read_data.first_date = 0
         self.read_data.last_date = 1
         self.read_data.timespan = Timespans.Day
+
+        self.read_data._connected = True
 
         self.test_db = 'test.sqlite'
         self.result = "result"
@@ -50,6 +55,8 @@ class Test(unittest.TestCase):
         self.write_data.last_date = 1
         self.write_data.timespan = Timespans.Day
 
+        self.write_data._connected = True
+
         when(self.write_data.conn).cursor().thenReturn(self.write_data.cur)
         when(self.write_data.cur).fetchone().thenReturn(self.result)
         when(self.write_data.cur).fetchall().thenReturn(self.results)
@@ -65,6 +72,8 @@ class Test(unittest.TestCase):
         self.fetch_data.first_date = 0
         self.fetch_data.last_date = 1
         self.fetch_data.timespan = Timespans.Day
+
+        self.fetch_data._connected = True
 
     def tearDown(self):
         unstub()
@@ -102,7 +111,7 @@ class Test(unittest.TestCase):
 
         self.read_data.db_connect()
 
-        assert self.read_data.Connected == True
+        assert self.read_data._connected == True
 
         verify(self.read_data, times=1).check_database()
         verify(self.read_data, times=1).check_source()
@@ -119,7 +128,7 @@ class Test(unittest.TestCase):
 
         self.read_data.db_close()
 
-        assert self.read_data.Connected == False
+        assert self.read_data.is_connected() == False
 
         verify(self.read_data.database, times=1).db_close()
 
@@ -585,7 +594,6 @@ class Test(unittest.TestCase):
     def test_21_check_fetch_if_none(self):
         nums = (0, 200)
 
-        when(self.fetch_data).db_connect().thenReturn()
         when(self.fetch_data.cur).execute("SELECT COUNT(*) FROM quotes;").thenReturn()
         when(self.fetch_data.cur).execute("INSERT OR IGNORE INTO symbols (ticker) VALUES ('AAPL');").thenReturn()
         when(self.fetch_data).add_quotes(nums).thenReturn()
@@ -593,15 +601,12 @@ class Test(unittest.TestCase):
         when(self.fetch_data).fetch_quotes().thenReturn(nums)
         when(self.fetch_data).add_quotes(nums).thenReturn(nums)
         when(self.fetch_data).get_quotes().thenReturn(self.results)
-        when(self.fetch_data).db_close().thenReturn()
 
         rows, num = self.fetch_data.fetch_if_none(110)
 
         assert num == 200
         assert rows == self.results
 
-        verify(self.fetch_data, times=1).db_connect()
         verify(self.fetch_data, times=1).get_symbol_quotes_num_dt()
         verify(self.fetch_data, times=1).fetch_quotes()
         verify(self.fetch_data, times=1).get_quotes()
-        verify(self.fetch_data, times=1).db_close()

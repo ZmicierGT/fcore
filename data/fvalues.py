@@ -7,8 +7,10 @@ Distributed under Fcore License 1.0 (see license.md)
 
 from enum import IntEnum, Enum
 
-def_first_date = -2147483648
-def_last_date = 9999999999
+def_first_date = -2147483648  # Earliest supported timestamp
+def_last_date = 9999999999  # Latest supported timestamp
+
+five_hundred_days = 47520000  # Number of seconds in 500 days
 
 # TODO LOW remove plurals here
 
@@ -21,7 +23,7 @@ class Quotes(IntEnum):
     Open = 1
     High = 2
     Low = 3
-    AdjClose = 4  # TODO MID Change it do just Close
+    AdjClose = 4  # TODO MID Different enums for different sec types. This should be changed to just Close.
     Volume = 5
     RawClose = 6
     Dividends = 7

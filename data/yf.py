@@ -7,6 +7,8 @@ Distributed under Fcore License 1.0 (see license.md)
 from datetime import datetime
 import pytz
 
+import pandas as pd
+
 import yfinance as yfin
 
 from data import stock
@@ -152,7 +154,10 @@ class YF(stock.StockFetcher):
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m')
         row = data.iloc[-1]
 
-        result = [str(data.index[-1])[:16],  # TODO LOW check if such datetime manipulations may have an impact depending on a locale.
+        dt = data.index[-1].to_pydatetime().replace(tzinfo=pytz.utc)
+        ts = datetime.timestamp(dt)
+
+        result = [int(ts),
                   row['Open'],
                   row['High'],
                   row['Low'],

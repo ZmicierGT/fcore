@@ -205,7 +205,6 @@ class MAClassifier(Classifier):
             dfi['sell-false'] = df['sell-false']
             dfi['hilo-diff'] = df['hilo-diff']
 
-            #df_main = df_main.append(dfi)
             df_main = pd.concat([df_main, dfi], ignore_index=True)
 
         results_buy, results_sell = self.get_buy_sell_results(df_main)
@@ -213,6 +212,13 @@ class MAClassifier(Classifier):
         # Create separate DataFrames for buy and sell learning
         df_buy = df_main[(df_main['buy-true'] == 1) | (df_main['buy-false'] == 1)]
         df_sell = df_main[(df_main['sell-true'] == 1) | (df_main['sell-false'] == 1)]
+
+        # Replace nans with mean values
+        means_buy = df_buy.mean()
+        means_sell = df_sell.mean()
+
+        df_buy = df_buy.fillna(means_buy)
+        df_sell = df_sell.fillna(means_sell)
 
         # Train the model
 

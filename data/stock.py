@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO HIGH Fix UT for fdata
+# TODO HIGH Implement UT for stock data module
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
 from data.fvalues import SecType, ReportPeriod
 
@@ -457,7 +457,7 @@ class ROStockData(ReadOnlyData):
 
         return result
 
-    def get_quotes(self, num=0, columns=[], joins=[], queries=[]):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -474,9 +474,15 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
+        if isinstance(columns, list) is False:
+            columns = []
+
         columns.append('raw_close')
         columns.append('dividends')
         columns.append('split_coefficient')
+
+        if isinstance(joins, list) is False:
+            joins = []
 
         joins.append('INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id')
 
@@ -486,12 +492,6 @@ class RWStockData(ROStockData, ReadWriteData):
     """
         Base class for read/write stock data SQL operations.
     """
-    def __init__(self, **kwargs):
-        """
-            Initialize read/write stock data abstraction class.
-        """
-        super().__init__(**kwargs)
-
     def add_quotes(self, quotes_dict):
         """
             Add quotes to the database.
@@ -890,10 +890,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def __init__(self, **kwargs):
-        """Initialize the instance of StockFetcher class."""
-        super().__init__(**kwargs)
-
+    # TODO HIGH Implement fetch_if_none for fundamental data. All available data will be fetched if the requested interval is not covered.
     def get_recent_data(self, to_cache=False):
         """
             Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible

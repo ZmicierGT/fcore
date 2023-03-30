@@ -7,6 +7,7 @@ import yfinance
 import pandas as pd
 
 from datetime import datetime, timedelta
+import pytz
 
 from mockito import when, verify, unstub
 
@@ -22,12 +23,13 @@ class Test(unittest.TestCase):
     def tearDown(self):
         unstub()
 
-    def test_0_check_arg_parser(self):
+    def test_1_check_fetch_quotes(self):
         source = yf.YF()
         source.symbol = 'SPY'
 
-        last_date = datetime.now()
-        first_date = last_date - timedelta(days=7)
+        first_date = datetime(2022, 11, 28, 23, 55, 59).replace(tzinfo=pytz.utc)
+        last_date = datetime(2022, 12, 28, 23, 55, 59).replace(tzinfo=pytz.utc)
+
         timespan = Timespans.Day
 
         source.first_date = first_date
@@ -36,8 +38,37 @@ class Test(unittest.TestCase):
 
         hist = History()
 
-        quotes_data = [{'v': 11, 'o': 1, 'c': 3, 'h': 5, 'l': 7, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 9, 't': source.first_date_ts}, \
-                       {'v': 12, 'o': 2, 'c': 4, 'h': 6, 'l': 8, 'cl': 'NULL', 'n': 'NULL', 'vw': 'NULL', 'd': 10, 't': source.last_date_ts}]
+        quote_dict1 = {
+            'volume': 11,
+            'open': 1,
+            'adj_close': 3,
+            'high': 5,
+            'low': 7,
+            'raw_close': 'NULL',
+            'transactions': 'NULL',
+            'divs': 9,
+            'split': 1,
+            'ts': source.first_date_ts,
+            'sectype': source.sectype.value,
+            'currency': source.currency.value
+        }
+
+        quote_dict2 = {
+            'volume': 12,
+            'open': 2,
+            'adj_close': 4,
+            'high': 6,
+            'low': 8,
+            'raw_close': 'NULL',
+            'transactions': 'NULL',
+            'divs': 10,
+            'split': 1,
+            'ts': source.last_date_ts,
+            'sectype': source.sectype.value,
+            'currency': source.currency.value
+        }
+
+        quotes_data = [quote_dict1, quote_dict2]
 
         df = pd.DataFrame({'Date': [first_date, last_date],
                            'Open': [1, 2],
@@ -64,11 +95,16 @@ class Test(unittest.TestCase):
 
         assert return_data == quotes_data
 
-    def test_1_get_recent_data(self):
+    def test_2_get_recent_data(self):
         source = yf.YF()
-        source.symbol = 'SPY'
+
+        ts1 = pd.Timestamp('2023-03-29 09:31:00-0400')
+        ts2 = pd.Timestamp('2023-03-29 15:59:00-0400')
 
         df = pd.DataFrame()
+
+        df['Datetime'] = [ts1, ts2]
+        df = df.set_index('Datetime')
 
         df['Open'] = [1, 2]
         df['Close'] = [2, 3]
@@ -76,9 +112,6 @@ class Test(unittest.TestCase):
         df['High'] = [4, 5]
         df['Low'] = [5, 6]
         df['Volume'] = [0, 0]
-        df['DateTime'] = [datetime.now(), datetime.now()]
-
-        df.set_index('DateTime')
 
         # Mocking
         when(yfinance).download(tickers=source.symbol, period='1d', interval='1m').thenReturn(df)
@@ -87,6 +120,6 @@ class Test(unittest.TestCase):
 
         verify(yfinance, times=1).download(tickers=source.symbol, period='1d', interval='1m')
 
-        expected_result = ['SPY', None, 'YF', '1', 'Tick', 2, 5, 6, 3, 4, 0, None, None, None]
+        expected_result = [1680105540, 2, 5, 6, 3, 4, 0, 'NULL', 'NULL', 'NULL']
 
         assert return_data == expected_result

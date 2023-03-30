@@ -236,16 +236,16 @@ class Test(unittest.TestCase):
 
         test_list = [
             {
-                3:1,
-                9:2
+                0:1,
+                4:2
             },
             {
-                3:3,
-                9:4
+                0:3,
+                4:4
             },
             {
-                3:5,
-                9:6
+                0:5,
+                4:6
             }
         ]
 
@@ -276,9 +276,9 @@ class Test(unittest.TestCase):
         assert new_file == expected_file
 
     def test_7_get_dt_offset(self):
-        test_rows = [['AAPL', None, 'YF', '1986-12-30 23:59:59', 'Day', 0.180804, 0.185268, 0.180246, None, 0.183036, 148153600, None, None, None],
-                     ['AAPL', None, 'YF', '1986-12-31 23:59:59', 'Day', 0.183036, 0.18471, 0.180246, None, 0.180804, 132563200, None, None, None],
-                     ['AAPL', None, 'YF', '1987-01-02 23:59:59', 'Day', 0.180246, 0.183594, 0.179129, None, 0.182478, 120870400, None, None, None]]
+        test_rows = [['1986-12-30 23:59:59'],
+                     ['1986-12-31 23:59:59'],
+                     ['1987-01-02 23:59:59']]
 
         dt_offset = futils.get_dt_offset(test_rows, '1986-12-31 23:59:59')
 

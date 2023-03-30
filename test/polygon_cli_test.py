@@ -5,6 +5,8 @@ sys.path.append('../')
 
 import polygon_cli
 
+from data.fvalues import DbTypes
+
 import settings
 
 class Test(unittest.TestCase):
@@ -22,7 +24,7 @@ class Test(unittest.TestCase):
         self.assertEqual(source.year_delta, 2)
 
         self.assertEqual(source.db_name, "test.sqlite")
-        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.db_type, DbTypes.SQLite)
         self.assertEqual(source.database, None)
         self.assertEqual(source.conn, None)
         self.assertEqual(source.cur, None)

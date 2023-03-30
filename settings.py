@@ -5,12 +5,14 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
+from data.fvalues import DbTypes
+
 class Quotes():
     """
         Settings for the default quotes storage.
     """
     db_name = 'data.sqlite'
-    db_type = 'sqlite'
+    db_type = DbTypes.SQLite
 
 # Settings for derivative data sources. They'll be applied after the settings above.
 

@@ -3,6 +3,8 @@ import unittest
 import sys
 sys.path.append('../')
 
+from data.fvalues import DbTypes
+
 import quotes
 
 class Test(unittest.TestCase):
@@ -23,7 +25,7 @@ class Test(unittest.TestCase):
         self.assertEqual(source.source_title, "")
 
         self.assertEqual(source.db_name, "data.sqlite")
-        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.db_type, DbTypes.SQLite)
         self.assertEqual(source.database, None)
         self.assertEqual(source.conn, None)
         self.assertEqual(source.cur, None)
@@ -46,7 +48,7 @@ class Test(unittest.TestCase):
         self.assertEqual(source.source_title, "")
 
         self.assertEqual(source.db_name, "test.sqlite")
-        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.db_type, DbTypes.SQLite)
         self.assertEqual(source.database, None)
         self.assertEqual(source.conn, None)
         self.assertEqual(source.cur, None)
@@ -69,7 +71,7 @@ class Test(unittest.TestCase):
         self.assertEqual(source.source_title, "")
 
         self.assertEqual(source.db_name, "data.sqlite")
-        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.db_type, DbTypes.SQLite)
         self.assertEqual(source.database, None)
         self.assertEqual(source.conn, None)
         self.assertEqual(source.cur, None)
@@ -92,7 +94,7 @@ class Test(unittest.TestCase):
         self.assertEqual(source.source_title, "")
 
         self.assertEqual(source.db_name, "data.sqlite")
-        self.assertEqual(source.db_type, "sqlite")
+        self.assertEqual(source.db_type, DbTypes.SQLite)
         self.assertEqual(source.database, None)
         self.assertEqual(source.conn, None)
         self.assertEqual(source.cur, None)

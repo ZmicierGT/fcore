@@ -24,7 +24,11 @@ class Test(unittest.TestCase):
         when(sqlite3).connect(self.source.db_name).thenReturn(self.source.conn)
         when(self.source.conn).cursor().thenReturn(self.source.cur)
 
+        sql_query = "PRAGMA foreign_keys=on;"
+        when(self.source.cur).execute(sql_query).thenReturn()
+
         self.db.db_connect()
 
         verify(sqlite3, times=1).connect(self.source.db_name)
         verify(self.source.conn, times=1).cursor()
+        verify(self.source.cur, times=1).execute(sql_query)

@@ -6,10 +6,12 @@ import sys
 sys.path.append('../')
 
 from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION
-from data.fvalues import Timespans, SecType, Currency
+from data.fvalues import Timespans, SecType, Currency, DbTypes
 
-import sqlite3
 from sqlite3 import Cursor, Connection
+
+from datetime import datetime
+import pytz
 
 class FetchData(BaseFetcher):
     # Implement abstract method
@@ -69,121 +71,59 @@ class Test(unittest.TestCase):
 
     # Read data methods test
 
-    def test_0_check_base_query_connect(self):
-        sql_query = "SELECT title FROM sources WHERE title = '';"
-        when(self.read_data.cur).execute(sql_query).thenReturn()
-
-        assert self.read_data.check_source() == len(self.results)
-
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchall()
-
-    def test_16_check_source(self):
-        sql_query = f"SELECT title FROM sources WHERE title = '{self.read_data.source_title}';"
-
-        when(self.read_data.cur).execute(sql_query).thenReturn()
-
-        assert self.read_data.check_source() == len(self.results)
-
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchall()
-
-    def test_1_check_get_all_symbols(self):
-        sql_query = "SELECT ticker, isin, description FROM symbols;"
-
-        when(self.read_data.cur).execute(sql_query).thenReturn()
-
-        assert self.read_data.get_all_symbols() == self.results
-
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchall()
-
-    def test_3_check_get_quotes(self):
-        additional_columns = ""
-        additional_queries = ""
-        additional_joins = ""
-        timespan_query = "AND timespans.title = 'Day'"
-        sectype_query = ""
-        currency_query = ""
-        num_query = ""
-
-        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
-                                opened,
-                                high,
-                                low,
-                                closed,
-                                volume,
-                                transactions
-                                {additional_columns}
-                                {additional_queries}
-                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                            INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
-                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
-                            INNER JOIN currency ON quotes.currency_id = currency.currency_id
-                            {additional_joins}
-                            WHERE symbols.ticker = '{self.read_data.symbol}'
-                            {timespan_query}
-                            {sectype_query}
-                            {currency_query}
-                            AND time_stamp >= {self.read_data.first_date_ts}
-                            AND time_stamp <= {self.read_data.last_date_ts}
-                            ORDER BY time_stamp
-                            {num_query};"""
-
-        when(self.read_data.cur).execute(sql_query).thenReturn()
-
-        assert self.read_data.get_quotes() == self.results
-
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchall()
+    def test_1_check_datetime_properties(self):
+        data = ReadOnlyData()
         
-    def test_4_get_quotes_num(self):
-        sql_query = "SELECT COUNT(*) FROM quotes;"
+        data.first_date = datetime(2022, 11, 28, 23, 55, 59).replace(tzinfo=pytz.utc)
+        data.last_date = datetime(2022, 12, 28, 23, 55, 59).replace(tzinfo=pytz.utc)
 
-        when(self.read_data.cur).execute(sql_query).thenReturn()
+        assert data.first_date_ts == 1669679759
+        assert data.last_date_ts == 1672271759
 
-        assert self.read_data.get_quotes_num() == 'r'
+        assert data.first_datetime_str == '2022-11-28 23:55:59'
+        assert data.last_datetime_str == '2022-12-28 23:55:59'
 
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchone()
+        assert data.first_date_str == '2022-11-28'
+        assert data.last_date_str == '2022-12-28'
 
-    def test_5_get_symbol_quotes_num(self):
-        sql_query = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}');"
+        data.first_date_set_eod()
+        data.last_date_set_eod()
 
-        when(self.read_data.cur).execute(sql_query).thenReturn()
+        assert data.first_datetime_str == '2022-11-28 23:59:59'
+        assert data.last_datetime_str == '2022-12-28 23:59:59'
 
-        assert self.read_data.get_symbol_quotes_num() == 'r'
+    def test_2_check_get_db_type(self):
+        assert self.read_data.get_db_type() == DbTypes.SQLite
 
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchone()
+    def test_3_check_db_connect(self):
+        when(self.read_data).check_database().thenReturn()
+        when(self.read_data).check_source().thenReturn(False)
+        when(self.read_data).add_source().thenReturn()
 
-    def test_17_get_symbol_quotes_num_dt(self):
-        sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
-                        (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}') AND
-                        time_stamp >= {self.read_data.first_date_ts} AND time_stamp <= {self.read_data.last_date_ts};"""
+        self.read_data.db_connect()
 
-        when(self.read_data.cur).execute(sql_query).thenReturn()
+        assert self.read_data.Connected == True
 
-        assert self.read_data.get_symbol_quotes_num_dt() == 'r'
+        verify(self.read_data, times=1).check_database()
+        verify(self.read_data, times=1).check_source()
+        verify(self.read_data, times=1).add_source()
 
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchone()
+    def test_4_check_db_close(self):
+        when(self.read_data).check_database().thenReturn()
+        when(self.read_data).check_source().thenReturn(False)
+        when(self.read_data).add_source().thenReturn()
 
-    def test_14_get_max_datetime(self):
-        sql_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
-                                    INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                                    WHERE symbols.ticker = '{self.read_data.symbol}'"""
+        self.read_data.db_connect()
 
-        when(self.read_data.cur).execute(sql_query).thenReturn()
+        when(self.read_data.database).db_close().thenReturn()
 
-        assert self.read_data.get_max_datetime() == 'r'
+        self.read_data.db_close()
 
-        verify(self.read_data.cur, times=1).execute(sql_query)
-        verify(self.read_data.cur, times=1).fetchone()
+        assert self.read_data.Connected == False
 
-    # Write data methods test
+        verify(self.read_data.database, times=1).db_close()
 
-    def test_6_check_database(self):
+    def test_5_check_database(self):
         when(self.write_data.cur).fetchall().thenReturn([], [])
 
         sql_query1 = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
@@ -397,12 +337,136 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=11).fetchall()
         verify(self.write_data.conn, times=1).commit()
 
-    def test_7_check_commit(self):
+    def test_6_check_source(self):
+        sql_query = f"SELECT title FROM sources WHERE title = '{self.read_data.source_title}';"
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.check_source() == len(self.results)
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchall()
+
+    def test_7_check_add_source(self):
+        sql_query = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.write_data.source_title}')"
+
+        when(self.write_data.cur).execute(sql_query).thenReturn()
+
+        self.write_data.add_source()
+
+        verify(self.write_data.cur, times=1).execute(sql_query)
+        verify(self.write_data.conn, times=1).commit()
+
+    def test_8_check_get_all_symbols(self):
+        sql_query = "SELECT ticker, isin, description FROM symbols;"
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_all_symbols() == self.results
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchall()
+
+    def test_9_check_get_quotes(self):
+        additional_columns = ""
+        additional_queries = ""
+        additional_joins = ""
+        timespan_query = "AND timespans.title = 'Day'"
+        sectype_query = ""
+        currency_query = ""
+        num_query = ""
+
+        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
+                                opened,
+                                high,
+                                low,
+                                closed,
+                                volume,
+                                transactions
+                                {additional_columns}
+                                {additional_queries}
+                            FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                            INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
+                            INNER JOIN currency ON quotes.currency_id = currency.currency_id
+                            {additional_joins}
+                            WHERE symbols.ticker = '{self.read_data.symbol}'
+                            {timespan_query}
+                            {sectype_query}
+                            {currency_query}
+                            AND time_stamp >= {self.read_data.first_date_ts}
+                            AND time_stamp <= {self.read_data.last_date_ts}
+                            ORDER BY time_stamp
+                            {num_query};"""
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_quotes() == self.results
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchall()
+        
+    def test_10_get_quotes_num(self):
+        sql_query = "SELECT COUNT(*) FROM quotes;"
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_quotes_num() == 'r'
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchone()
+
+    def test_11_get_symbol_quotes_num(self):
+        sql_query = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}');"
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_symbol_quotes_num() == 'r'
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchone()
+
+    def test_12_get_symbol_quotes_num_dt(self):
+        sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
+                        (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}') AND
+                        time_stamp >= {self.read_data.first_date_ts} AND time_stamp <= {self.read_data.last_date_ts};"""
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_symbol_quotes_num_dt() == 'r'
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchone()
+
+    def test_13_get_max_datetime(self):
+        sql_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
+                                    INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+                                    WHERE symbols.ticker = '{self.read_data.symbol}'"""
+
+        when(self.read_data.cur).execute(sql_query).thenReturn()
+
+        assert self.read_data.get_max_datetime() == 'r'
+
+        verify(self.read_data.cur, times=1).execute(sql_query)
+        verify(self.read_data.cur, times=1).fetchone()
+
+    #######################
+    # Read/Write operations
+    #######################
+
+    def test_14_check_update(self):
+        self.write_data.update = True
+        assert self.write_data._update == 'REPLACE'
+
+        self.write_data.update = False
+        assert self.write_data._update == 'IGNORE'
+
+    def test_15_check_commit(self):
         self.write_data.commit()
 
         verify(self.write_data.conn, times=1).commit()
 
-    def test_8_check_add_symbol(self):
+    def test_16_check_add_symbol(self):
         sql_query = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.write_data.symbol}');"
         when(self.write_data.cur).execute(sql_query).thenReturn()
 
@@ -411,7 +475,7 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_8_check_remove_symbol(self):
+    def test_17_check_remove_symbol(self):
         sql_query = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}');"
         when(self.write_data.cur).execute(sql_query).thenReturn()
 
@@ -420,10 +484,7 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_9_check_add_quotes(self):
-        sql_query1 = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.write_data.symbol}');"
-        when(self.write_data.cur).execute(sql_query1).thenReturn()
-
+    def test_18_add_base_quote_data(self):
         quote_dict = {
             'volume': 1,
             'open': 2,
@@ -437,11 +498,7 @@ class Test(unittest.TestCase):
             'currency': self.write_data.currency.value
         }
 
-        quotes = [quote_dict]
-
-        when(self.write_data).get_quotes_num().thenReturn(1)
-
-        sql_query2 = f"""INSERT OR {self.write_data._update} INTO quotes (symbol_id,
+        sql_query = f"""INSERT OR {self.write_data._update} INTO quotes (symbol_id,
                                                                     source_id,
                                                                     time_stamp,
                                                                     time_span_id,
@@ -468,19 +525,50 @@ class Test(unittest.TestCase):
                             ({quote_dict['transactions']})
                         );"""
 
-        when(self.write_data.cur).execute(sql_query2).thenReturn()
+        when(self.write_data.cur).execute(sql_query).thenReturn()
+
+        self.write_data.cur.lastrowid = 10
+
+        lastrowid = self.write_data._add_base_quote_data(quote_dict)
+
+        assert lastrowid == self.write_data.cur.lastrowid
+
+        verify(self.write_data.cur, times=1).execute(sql_query)
+
+    def test_19_check_add_quotes(self):
+        quote_dict = {
+            'volume': 1,
+            'open': 2,
+            'adj_close': 3,
+            'high': 4,
+            'low': 5,
+            'raw_close': 6,
+            'transactions': 7,
+            'ts': 8,
+            'sectype': self.write_data.sectype.value,
+            'currency': self.write_data.currency.value
+        }
+
+        quotes = [quote_dict]
+
+        when(self.write_data).get_symbol_quotes_num().thenReturn(1)
+        when(self.write_data).get_quotes_num().thenReturn(1)
+        when(self.write_data)._add_base_quote_data(quote_dict).thenReturn(1)
+        when(self.write_data).commit().thenReturn()
 
         self.write_data.cur.lastrowid = 10
 
         before, after = self.write_data.add_quotes(quotes)
 
-        verify(self.write_data.cur, times=1).execute(sql_query1)
-        verify(self.write_data.cur, times=1).execute(sql_query2)
+        verify(self.write_data, times=1).get_symbol_quotes_num()
+        verify(self.write_data, times=2).get_quotes_num()
+        verify(self.write_data, times=1)._add_base_quote_data(quote_dict)
+        verify(self.write_data, times=1).commit()
 
         assert before == 1
         assert after == 1
 
-    def test_10_check_remove_quotes(self):
+    def test_20_check_remove_quotes(self):
             sql_query = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}')
                             AND time_stamp >= {self.write_data.first_date_ts} AND time_stamp <= {self.write_data.last_date_ts};"""
 
@@ -494,17 +582,7 @@ class Test(unittest.TestCase):
             verify(self.write_data.cur, times=1).execute(sql_query)
             verify(self.write_data.conn, times=1).commit()
 
-    def test_11_check_add_source(self):
-        sql_query = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.write_data.source_title}')"
-
-        when(self.write_data.cur).execute(sql_query).thenReturn()
-
-        self.write_data.add_source()
-
-        verify(self.write_data.cur, times=1).execute(sql_query)
-        verify(self.write_data.conn, times=1).commit()
-
-    def test_18_check_fetch_if_none(self):
+    def test_21_check_fetch_if_none(self):
         nums = (0, 200)
 
         when(self.fetch_data).db_connect().thenReturn()

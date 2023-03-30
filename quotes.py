@@ -8,10 +8,10 @@ Distributed under Fcore License 1.0 (see license.md)
 import sys
 import getopt
 
-from data import fdata, futils
+from data import stock, futils
 from data.fvalues import Timespans
 
-class QuotesData(fdata.RWStockData):
+class QuotesData(stock.RWStockData):
     """
         Base class for CLI quotes manipulation.
     """
@@ -28,7 +28,6 @@ class QuotesData(fdata.RWStockData):
         self.to_remove_quotes = False
 
     def print_all_symbols(self, rows):
-        # TODO LOW alter the header
         print("Ticker          ISIN          Description")
         print("-------------------------------------------")
 
@@ -87,7 +86,6 @@ def arg_parser(argv):
                    "-c or --chart       - build a chart for specified symbol using specified dates\n"
                    "-r or --remove      - remove specified symbol for specified dates\n"
                    "-a or --all_symbols - list all symbol in the data file\n")
-            source.db_close()
             sys.exit()
 
         elif argument in ("-d", "--db_name"):
@@ -103,7 +101,6 @@ def arg_parser(argv):
                 source.first_date = value
             except ValueError as e:
                 print("\n" + usage)
-                source.db_close()
                 sys.exit(f"\nThe date is incorrect: {e}")
 
             print(f"The first date is {source.first_datetime_str}")
@@ -113,7 +110,6 @@ def arg_parser(argv):
                 source.last_date = value
             except ValueError as e:
                 print("\n" + usage)
-                source.db_close()
                 sys.exit(f"\nThe date is incorrect: {e}")
 
             source.last_date_set_eod()

@@ -221,7 +221,7 @@ class AVStock(stock.StockFetcher):
         reports = reports.drop(labels="reportedCurrency", axis=1)
 
         # Replace string datetime to timestamp
-        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: get_dt(x))
+        reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(get_dt)
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Add reporting date from earnings data
@@ -317,7 +317,7 @@ class AVStock(stock.StockFetcher):
         annual_earnings['surprisePercentage'] = None
 
         # Convert reported date to UTC-adjusted timestamp
-        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: get_dt(x))
+        quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(get_dt)
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
         annual_earnings['reportedDate'] = annual_earnings['fiscalDateEnding'].\
@@ -328,7 +328,7 @@ class AVStock(stock.StockFetcher):
         earnings = earnings.sort_values(by=['fiscalDateEnding'], ignore_index=True)
 
         # Replace string datetime to timestamp
-        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: get_dt(x))
+        earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(get_dt)
         earnings['fiscalDateEnding'] = earnings['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Replace AV "None" to SQL 'NULL'
@@ -360,7 +360,7 @@ class AVStock(stock.StockFetcher):
                 list: real time data.
         """
         url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={self.symbol}&apikey={self.api_key}'
-
+        print(url)
         # Get recent quote
         try:
             response = requests.get(url, timeout=30)
@@ -369,7 +369,11 @@ class AVStock(stock.StockFetcher):
 
         # Get json
         json_data = response.json()
-        quote = json_data['Global Quote']
+
+        try:
+            quote = json_data['Global Quote']
+        except KeyError as e:
+            raise FdataError(f"Can't parse data. Maybe API key limit is reached: {e}") from e
 
         # Use the current time as a timestamp
         dt = datetime.now()

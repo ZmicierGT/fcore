@@ -4,26 +4,17 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO HIGH Fix UT for fdata
-from enum import Enum
-
 import abc
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes
 from data.futils import get_dt
 
 import settings
 
 # Current database compatibility version
 DB_VERSION = 5
-
-class DbTypes(Enum):
-    """
-        Database types enum. Currently only SQLite is supported.
-    """
-    SQLite = "sqlite"
 
 # TODO MID Add extended output in case of exception: table_name, query
 class FdataError(Exception):
@@ -215,14 +206,13 @@ class ReadOnlyData():
             Returns:
                 DbTypes: database type.
         """
-        return DbTypes("sqlite")
+        return self.db_type
 
     def db_connect(self):
         """
             Connect to the databse.
         """
-        # TODO LOW Get rid of value here
-        if self.db_type == DbTypes.SQLite.value:
+        if self.db_type == DbTypes.SQLite:
             self.database = fdatabase.SQLiteConn(self)
             self.database.db_connect()
             self.Connected = True
@@ -624,7 +614,7 @@ class ReadOnlyData():
 
         return rows
 
-    def get_quotes(self, num=0, columns=[], joins=[], queries=[]):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -667,13 +657,13 @@ class ReadOnlyData():
 
         additional_columns = ""
 
-        if len(columns) > 0:
+        if isinstance(columns, list):
             for column in columns:
                 additional_columns += ", " + column
 
         additional_queries = ""
 
-        if len(queries) > 0:
+        if isinstance(queries, list) > 0:
             # Generate the subqueries for additional data
             for query in queries:
                 data_column = query[1]
@@ -687,9 +677,10 @@ class ReadOnlyData():
 
         additional_joins = ""
 
-        # Generate the string with additional joins
-        for join in joins:
-            additional_joins += join + '\n'
+        if isinstance(joins, list):
+            # Generate the string with additional joins
+            for join in joins:
+                additional_joins += join + '\n'
 
         select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
                                 opened,

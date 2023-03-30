@@ -22,8 +22,8 @@ class Quotes(IntEnum):
     High = 2
     Low = 3
     AdjClose = 4  # TODO MID Change it do just Close
-    RawClose = 5
-    Volume = 6
+    Volume = 5
+    RawClose = 6
     Dividends = 7
     SplitCoefficient = 8
     Transactions = 9
@@ -75,3 +75,9 @@ class ReportPeriod(str, Enum):
     Unknown = "Unknown"
     Quarter = "Quarter"
     Year = "Year"
+
+class DbTypes(Enum):
+    """
+        Database types enum. Currently only SQLite is supported.
+    """
+    SQLite = "sqlite"

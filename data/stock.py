@@ -936,7 +936,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    # TODO HIGH Validate if it works correctly
     def _fetch_fundamentals_if_none(self, threshold, num_method, add_method, fetch_method):
         """
             Fetch all the available fundamental reports if data entries do not meet the specified threshold for

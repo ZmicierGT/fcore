@@ -202,7 +202,10 @@ class AVStock(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch fundamental data: {e}") from e
 
-        json_data = response.json()
+        try:
+            json_data = response.json()
+        except json.decoder.JSONDecodeError as e:
+            raise FdataError(f"Can't parse JSON. Likely API key limit reached: {e}") from e
 
         try:
             annual_reports = pd.json_normalize(json_data['annualReports'])
@@ -225,7 +228,7 @@ class AVStock(stock.StockFetcher):
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
         # Add reporting date from earnings data
-        # TODO LOW make it shorted (using map, for example)
+        # TODO LOW make it shorter (using map, for example)
         adj_earnings = self.earnings[self.earnings['fiscalDateEnding'] >= reports['fiscalDateEnding'].iloc[0]]
         adj_earnings = adj_earnings.reset_index(drop=True)
 
@@ -298,7 +301,10 @@ class AVStock(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch earnings data: {e}") from e
 
-        json_data = response.json()
+        try:
+            json_data = response.json()
+        except json.decoder.JSONDecodeError as e:
+            raise FdataError(f"Can't parse JSON. Likely API key limit reached: {e}") from e
 
         try:
             annual_earnings = pd.json_normalize(json_data['annualEarnings'])
@@ -306,21 +312,22 @@ class AVStock(stock.StockFetcher):
         except KeyError as e:
             raise FdataError(f"Can't parse results. Likely because of API key limit: {e}") from e
 
-        annual_earnings['period'] = 'Year'
-        quarterly_earnings['period'] = 'Quarter'
-
-        # These columns are not available in annual earnings reports
-        annual_earnings['reportedDate'] = None
-        annual_earnings['estimatedEPS'] = None
-        annual_earnings['surprise'] = None
-        annual_earnings['surprisePercentage'] = None
-
         # Convert reported date to UTC-adjusted timestamp
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(get_dt)
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
-        annual_earnings['reportedDate'] = annual_earnings['fiscalDateEnding'].\
-            map(quarterly_earnings.set_index('fiscalDateEnding')['reportedDate'])
+        # Add reporting date to annual earnings
+        quarterly_earnings = quarterly_earnings.set_index('fiscalDateEnding')
+        annual_earnings = annual_earnings.set_index('fiscalDateEnding')
+
+        annual_earnings = pd.merge(annual_earnings, quarterly_earnings, left_index=True, right_index=True)
+        annual_earnings = annual_earnings.drop(['estimatedEPS', 'surprise', 'surprisePercentage', 'reportedEPS_y'], axis=1)
+
+        annual_earnings = annual_earnings.reset_index()
+        quarterly_earnings = quarterly_earnings.reset_index()
+
+        annual_earnings['period'] = 'Year'
+        quarterly_earnings['period'] = 'Quarter'
 
         # Merge and sort earnings reports
         earnings = pd.concat([annual_earnings, quarterly_earnings], ignore_index=True)
@@ -358,7 +365,7 @@ class AVStock(stock.StockFetcher):
                 list: real time data.
         """
         url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={self.symbol}&apikey={self.api_key}'
-        print(url)
+
         # Get recent quote
         try:
             response = requests.get(url, timeout=30)

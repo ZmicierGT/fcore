@@ -5,7 +5,7 @@ from mockito import when, mock, verify, unstub
 import sys
 sys.path.append('../')
 
-from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION
+from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION, FdataError
 from data.fvalues import Timespans, SecType, Currency, DbTypes
 
 from sqlite3 import Cursor, Connection
@@ -13,15 +13,243 @@ from sqlite3 import Cursor, Connection
 from datetime import datetime
 import pytz
 
+class DataMocker():
+    """
+        Data abstraction mocking class.
+    """
+    def check_database_preparation(self, data_instance):
+        """
+            Mocking funciton for check_database()
+
+            Args:
+                data_instance(ReadOnlyData): db abstraction instance.
+
+            Returns:
+                list: list of mocked queries.
+        """
+        queries = []
+
+        when(data_instance.cur).fetchall().thenReturn([], [])
+
+        sql_query1 = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
+        when(data_instance.cur).execute(sql_query1).thenReturn()
+        queries.append(sql_query1)
+
+        sql_query2 = """CREATE TABLE environment(
+                                    version INTEGER NOT NULL UNIQUE
+                                );"""
+        when(data_instance.cur).execute(sql_query2).thenReturn()
+        queries.append(sql_query2)
+
+        sql_query3 = "SELECT * FROM environment;"
+        when(data_instance.cur).execute(sql_query3).thenReturn()
+        queries.append(sql_query3)
+
+        sql_query4 = f"""INSERT INTO environment (version)
+                                    VALUES ({DB_VERSION});"""
+        when(data_instance.cur).execute(sql_query4).thenReturn()
+        queries.append(sql_query4)
+
+        sql_query5 = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
+        when(data_instance.cur).execute(sql_query5).thenReturn()
+        queries.append(sql_query5)
+
+        sql_query6 = """CREATE TABLE symbols(
+                                symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                ticker TEXT NOT NULL UNIQUE,
+                                isin TEXT UNIQUE,
+                                description TEXT
+                                );"""
+        when(data_instance.cur).execute(sql_query6).thenReturn()
+        queries.append(sql_query6)
+
+        sql_query6idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
+        when(data_instance.cur).execute(sql_query6idx).thenReturn()
+        queries.append(sql_query6idx)
+
+        sql_query7 = "SELECT name FROM sqlite_master WHERE type='table' AND name='sources';"
+        when(data_instance.cur).execute(sql_query7).thenReturn()
+        queries.append(sql_query7)
+
+        sql_query8 = """CREATE TABLE sources(
+                                source_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                title TEXT NOT NULL UNIQUE,
+                                description TEXT
+                                );"""
+        when(data_instance.cur).execute(sql_query8).thenReturn()
+        queries.append(sql_query8)
+
+        sql_query8idx = "CREATE INDEX idx_source_title ON sources(title);"
+        when(data_instance.cur).execute(sql_query8idx).thenReturn()
+        queries.append(sql_query8idx)
+
+        # Timespans
+
+        sql_query9 = "SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';"
+        when(data_instance.cur).execute(sql_query9).thenReturn()
+        queries.append(sql_query9)
+
+        sql_query10 = """CREATE TABLE timespans(
+                                    time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+        when(data_instance.cur).execute(sql_query10).thenReturn()
+        queries.append(sql_query10)
+
+
+        sql_query10idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
+        when(data_instance.cur).execute(sql_query10idx).thenReturn()
+        queries.append(sql_query10idx)
+
+        sql_query11 = "SELECT * FROM timespans;"
+        when(data_instance.cur).execute(sql_query11).thenReturn()
+        queries.append(sql_query11)
+
+        # Prepare the query with all supported timespans
+        ts = ""
+
+        for timespan in Timespans:
+            if timespan != Timespans.All:
+                ts += f"('{timespan.value}'),"
+
+        ts = ts[:len(ts) - 2]
+
+        sql_query12 = f"""INSERT OR IGNORE INTO timespans (title)
+                                    VALUES {ts});"""
+        when(data_instance.cur).execute(sql_query12).thenReturn()
+        queries.append(sql_query12)
+
+        # Sectypes
+
+        sql_query13 = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
+        when(data_instance.cur).execute(sql_query13).thenReturn()
+        queries.append(sql_query13)
+
+        sql_query14 = """CREATE TABLE sectypes(
+                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+        when(data_instance.cur).execute(sql_query14).thenReturn()
+        queries.append(sql_query14)
+
+        sql_query14idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
+        when(data_instance.cur).execute(sql_query14idx).thenReturn()
+        queries.append(sql_query14idx)
+
+        sql_query15 = "SELECT * FROM sectypes;"
+        when(data_instance.cur).execute(sql_query15).thenReturn()
+        queries.append(sql_query15)
+
+        # Prepare the query with all supported sectypes
+        st = ""
+
+        for sec_type in SecType:
+            if sec_type != SecType.All:
+                st += f"('{sec_type.value}'),"
+
+        st = st[:len(st) - 2]
+
+        sql_query16 = f"""INSERT OR IGNORE INTO sectypes (title)
+                                    VALUES {st});"""
+        when(data_instance.cur).execute(sql_query16).thenReturn()
+        queries.append(sql_query16)
+
+        # Currency
+
+        sql_query17 = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
+        when(data_instance.cur).execute(sql_query17).thenReturn()
+        queries.append(sql_query17)
+
+        sql_query18 = """CREATE TABLE currency(
+                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+        when(data_instance.cur).execute(sql_query18).thenReturn()
+        queries.append(sql_query18)
+
+        sql_query18idx = "CREATE INDEX idx_currency_title ON currency(title);"
+        when(data_instance.cur).execute(sql_query18idx).thenReturn()
+        queries.append(sql_query18idx)
+
+        sql_query19 = "SELECT * FROM currency;"
+        when(data_instance.cur).execute(sql_query19).thenReturn()
+        queries.append(sql_query19)
+
+        # Prepare the query with all supported currencies
+        c = ""
+
+        for currency in Currency:
+            if currency != Currency.All:
+                c += f"('{currency.value}'),"
+
+        c = c[:len(c) - 2]
+
+        sql_query20 = f"""INSERT OR IGNORE INTO currency (title)
+                                    VALUES {c});"""
+        when(data_instance.cur).execute(sql_query20).thenReturn()
+        queries.append(sql_query20)
+
+        sql_query21 = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
+        when(data_instance.cur).execute(sql_query21).thenReturn()
+        queries.append(sql_query21)
+
+        sql_query22 = """CREATE TABLE quotes (
+                            quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            symbol_id INTEGER NOT NULL,
+                            source_id INTEGER NOT NULL,
+                            time_stamp INTEGER NOT NULL,
+                            time_span_id INTEGER NOT NULL,
+                            sec_type_id INTEGER NOT NULL,
+                            currency_id INTEGER NOT NULL,
+                            opened REAL,
+                            high REAL,
+                            low REAL,
+                            closed REAL NOT NULL,
+                            volume INTEGER,
+                            transactions INTEGER,
+                                CONSTRAINT fk_timespans
+                                    FOREIGN KEY (time_span_id)
+                                    REFERENCES timespans(time_span_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sectypes
+                                    FOREIGN KEY (sec_type_id)
+                                    REFERENCES sectypes(sec_type_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_source
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_symbols
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_currency
+                                    FOREIGN KEY (currency_id)
+                                    REFERENCES currency(currency_id)
+                                    ON DELETE CASCADE
+                            UNIQUE(symbol_id, time_stamp, time_span_id)
+                            );"""
+        when(data_instance.cur).execute(sql_query22).thenReturn()
+        queries.append(sql_query22)
+
+        sql_query22idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
+        when(data_instance.cur).execute(sql_query22idx).thenReturn()
+        queries.append(sql_query22idx)
+
+        when(data_instance.conn).commit().thenReturn()
+
+        return queries
+
+# TODO MID check why data.sqlite is created by the test
 class FetchData(BaseFetcher):
-    # Implement abstract method
+    # Implement abstract methods
     def fetch_quotes(self):
         pass
 
     def get_recent_data(self, to_cache=False):
         pass
 
-class Test(unittest.TestCase):
+class FdataTest(unittest.TestCase, DataMocker):
     def setUp(self):
         self.read_data = ReadOnlyData()
 
@@ -101,10 +329,22 @@ class Test(unittest.TestCase):
         assert data.first_datetime_str == '2022-11-28 23:59:59'
         assert data.last_datetime_str == '2022-12-28 23:59:59'
 
-    def test_2_check_get_db_type(self):
+    def test_2_check_is_connected(self):
+        assert self.read_data.is_connected() == True
+
+    def test_3_chech_if_connected(self):
+        self.read_data.check_if_connected()
+
+        self.read_data._connected = False
+
+        self.assertRaises(FdataError, self.read_data.check_if_connected)
+
+        self.read_data._connected = True
+
+    def test_4_check_get_db_type(self):
         assert self.read_data.get_db_type() == DbTypes.SQLite
 
-    def test_3_check_db_connect(self):
+    def test_5_check_db_connect(self):
         when(self.read_data).check_database().thenReturn()
         when(self.read_data).check_source().thenReturn(False)
         when(self.read_data).add_source().thenReturn()
@@ -117,7 +357,8 @@ class Test(unittest.TestCase):
         verify(self.read_data, times=1).check_source()
         verify(self.read_data, times=1).add_source()
 
-    def test_4_check_db_close(self):
+    def test_6_check_db_close(self):
+        # TODO MID All expectations of mocks should be checked.
         when(self.read_data).check_database().thenReturn()
         when(self.read_data).check_source().thenReturn(False)
         when(self.read_data).add_source().thenReturn()
@@ -132,221 +373,18 @@ class Test(unittest.TestCase):
 
         verify(self.read_data.database, times=1).db_close()
 
-    def test_5_check_database(self):
-        when(self.write_data.cur).fetchall().thenReturn([], [])
+    def test_7_check_database(self):
+        queries = self.check_database_preparation(self.read_data)
 
-        sql_query1 = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
-        when(self.write_data.cur).execute(sql_query1).thenReturn()
+        self.read_data.check_database()
 
-        sql_query2 = """CREATE TABLE environment(
-                                    version INTEGER NOT NULL UNIQUE
-                                );"""
-        when(self.write_data.cur).execute(sql_query2).thenReturn()
+        for query in queries:
+            verify(self.read_data.cur, times=1).execute(query)
 
-        sql_query3 = "SELECT * FROM environment;"
-        when(self.write_data.cur).execute(sql_query3).thenReturn()
+        verify(self.read_data.cur, times=11).fetchall()
+        verify(self.read_data.conn, times=1).commit()
 
-        sql_query4 = f"""INSERT INTO environment (version)
-                                    VALUES ({DB_VERSION});"""
-        when(self.write_data.cur).execute(sql_query4).thenReturn()
-
-        sql_query5 = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
-        when(self.write_data.cur).execute(sql_query5).thenReturn()
-
-        sql_query6 = """CREATE TABLE symbols(
-                                symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                ticker TEXT NOT NULL UNIQUE,
-                                isin TEXT UNIQUE,
-                                description TEXT
-                                );"""
-        when(self.write_data.cur).execute(sql_query6).thenReturn()
-
-        sql_query6idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
-        when(self.write_data.cur).execute(sql_query6idx).thenReturn()
-
-        sql_query7 = "SELECT name FROM sqlite_master WHERE type='table' AND name='sources';"
-        when(self.write_data.cur).execute(sql_query7).thenReturn()
-
-        sql_query8 = """CREATE TABLE sources(
-                                source_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                title TEXT NOT NULL UNIQUE,
-                                description TEXT
-                                );"""
-        when(self.write_data.cur).execute(sql_query8).thenReturn()
-
-        sql_query8idx = "CREATE INDEX idx_source_title ON sources(title);"
-        when(self.write_data.cur).execute(sql_query8idx).thenReturn()
-
-        # Timespans
-
-        sql_query9 = "SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';"
-        when(self.write_data.cur).execute(sql_query9).thenReturn()
-
-        sql_query10 = """CREATE TABLE timespans(
-                                    time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
-        when(self.write_data.cur).execute(sql_query10).thenReturn()
-
-
-        sql_query10idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
-        when(self.write_data.cur).execute(sql_query10idx).thenReturn()
-
-        sql_query11 = "SELECT * FROM timespans;"
-        when(self.write_data.cur).execute(sql_query11).thenReturn()
-
-        # Prepare the query with all supported timespans
-        ts = ""
-
-        for timespan in Timespans:
-            if timespan != Timespans.All:
-                ts += f"('{timespan.value}'),"
-
-        ts = ts[:len(ts) - 2]
-
-        sql_query12 = f"""INSERT OR IGNORE INTO timespans (title)
-                                    VALUES {ts});"""
-        when(self.write_data.cur).execute(sql_query12).thenReturn()
-
-        # Sectypes
-
-        sql_query13 = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
-        when(self.write_data.cur).execute(sql_query13).thenReturn()
-
-        sql_query14 = """CREATE TABLE sectypes(
-                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
-        when(self.write_data.cur).execute(sql_query14).thenReturn()
-
-        sql_query14idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
-        when(self.write_data.cur).execute(sql_query14idx).thenReturn()
-
-        sql_query15 = "SELECT * FROM sectypes;"
-        when(self.write_data.cur).execute(sql_query15).thenReturn()
-
-        # Prepare the query with all supported sectypes
-        st = ""
-
-        for sec_type in SecType:
-            if sec_type != SecType.All:
-                st += f"('{sec_type.value}'),"
-
-        st = st[:len(st) - 2]
-
-        sql_query16 = f"""INSERT OR IGNORE INTO sectypes (title)
-                                    VALUES {st});"""
-        when(self.write_data.cur).execute(sql_query16).thenReturn()
-
-        # Currency
-
-        sql_query17 = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
-        when(self.write_data.cur).execute(sql_query17).thenReturn()
-
-        sql_query18 = """CREATE TABLE currency(
-                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
-        when(self.write_data.cur).execute(sql_query18).thenReturn()
-
-        sql_query18idx = "CREATE INDEX idx_currency_title ON currency(title);"
-        when(self.write_data.cur).execute(sql_query18idx).thenReturn()
-
-        sql_query19 = "SELECT * FROM currency;"
-        when(self.write_data.cur).execute(sql_query19).thenReturn()
-
-        # Prepare the query with all supported currencies
-        c = ""
-
-        for currency in Currency:
-            if currency != Currency.All:
-                c += f"('{currency.value}'),"
-
-        c = c[:len(c) - 2]
-
-        sql_query20 = f"""INSERT OR IGNORE INTO currency (title)
-                                    VALUES {c});"""
-        when(self.write_data.cur).execute(sql_query20).thenReturn()
-
-        sql_query21 = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
-        when(self.write_data.cur).execute(sql_query21).thenReturn()
-
-        sql_query22 = """CREATE TABLE quotes (
-                            quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            symbol_id INTEGER NOT NULL,
-                            source_id INTEGER NOT NULL,
-                            time_stamp INTEGER NOT NULL,
-                            time_span_id INTEGER NOT NULL,
-                            sec_type_id INTEGER NOT NULL,
-                            currency_id INTEGER NOT NULL,
-                            opened REAL,
-                            high REAL,
-                            low REAL,
-                            closed REAL NOT NULL,
-                            volume INTEGER,
-                            transactions INTEGER,
-                                CONSTRAINT fk_timespans
-                                    FOREIGN KEY (time_span_id)
-                                    REFERENCES timespans(time_span_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_sectypes
-                                    FOREIGN KEY (sec_type_id)
-                                    REFERENCES sectypes(sec_type_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_source
-                                    FOREIGN KEY (source_id)
-                                    REFERENCES sources(source_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_symbols
-                                    FOREIGN KEY (symbol_id)
-                                    REFERENCES symbols(symbol_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_currency
-                                    FOREIGN KEY (currency_id)
-                                    REFERENCES currency(currency_id)
-                                    ON DELETE CASCADE
-                            UNIQUE(symbol_id, time_stamp, time_span_id)
-                            );"""
-        when(self.write_data.cur).execute(sql_query22).thenReturn()
-
-        sql_query22idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
-        when(self.write_data.cur).execute(sql_query22idx).thenReturn()
-
-        self.write_data.check_database()
-
-        verify(self.write_data.cur, times=1).execute(sql_query1)
-        verify(self.write_data.cur, times=1).execute(sql_query2)
-        verify(self.write_data.cur, times=1).execute(sql_query3)
-        verify(self.write_data.cur, times=1).execute(sql_query4)
-        verify(self.write_data.cur, times=1).execute(sql_query5)
-        verify(self.write_data.cur, times=1).execute(sql_query6)
-        verify(self.write_data.cur, times=1).execute(sql_query6idx)
-        verify(self.write_data.cur, times=1).execute(sql_query7)
-        verify(self.write_data.cur, times=1).execute(sql_query8)
-        verify(self.write_data.cur, times=1).execute(sql_query8idx)
-        verify(self.write_data.cur, times=1).execute(sql_query9)
-        verify(self.write_data.cur, times=1).execute(sql_query10)
-        verify(self.write_data.cur, times=1).execute(sql_query10idx)
-        verify(self.write_data.cur, times=1).execute(sql_query11)
-        verify(self.write_data.cur, times=1).execute(sql_query12)
-        verify(self.write_data.cur, times=1).execute(sql_query13)
-        verify(self.write_data.cur, times=1).execute(sql_query14)
-        verify(self.write_data.cur, times=1).execute(sql_query14idx)
-        verify(self.write_data.cur, times=1).execute(sql_query15)
-        verify(self.write_data.cur, times=1).execute(sql_query16)
-        verify(self.write_data.cur, times=1).execute(sql_query17)
-        verify(self.write_data.cur, times=1).execute(sql_query18)
-        verify(self.write_data.cur, times=1).execute(sql_query18idx)
-        verify(self.write_data.cur, times=1).execute(sql_query19)
-        verify(self.write_data.cur, times=1).execute(sql_query20)
-        verify(self.write_data.cur, times=1).execute(sql_query21)
-        verify(self.write_data.cur, times=1).execute(sql_query22)
-        verify(self.write_data.cur, times=1).execute(sql_query22idx)
-
-        verify(self.write_data.cur, times=11).fetchall()
-        verify(self.write_data.conn, times=1).commit()
-
-    def test_6_check_source(self):
+    def test_8_check_source(self):
         sql_query = f"SELECT title FROM sources WHERE title = '{self.read_data.source_title}';"
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
@@ -356,7 +394,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchall()
 
-    def test_7_check_add_source(self):
+    def test_9_check_add_source(self):
         sql_query = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.write_data.source_title}')"
 
         when(self.write_data.cur).execute(sql_query).thenReturn()
@@ -366,7 +404,7 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_8_check_get_all_symbols(self):
+    def test_10_check_get_all_symbols(self):
         sql_query = "SELECT ticker, isin, description FROM symbols;"
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
@@ -376,7 +414,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchall()
 
-    def test_9_check_get_quotes(self):
+    def test_11_check_get_quotes(self):
         additional_columns = ""
         additional_queries = ""
         additional_joins = ""
@@ -415,7 +453,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchall()
         
-    def test_10_get_quotes_num(self):
+    def test_12_get_quotes_num(self):
         sql_query = "SELECT COUNT(*) FROM quotes;"
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
@@ -425,7 +463,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchone()
 
-    def test_11_get_symbol_quotes_num(self):
+    def test_13_get_symbol_quotes_num(self):
         sql_query = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}');"
 
         when(self.read_data.cur).execute(sql_query).thenReturn()
@@ -435,7 +473,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchone()
 
-    def test_12_get_symbol_quotes_num_dt(self):
+    def test_14_get_symbol_quotes_num_dt(self):
         sql_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
                         (SELECT symbol_id FROM symbols where ticker = '{self.read_data.symbol}') AND
                         time_stamp >= {self.read_data.first_date_ts} AND time_stamp <= {self.read_data.last_date_ts};"""
@@ -447,7 +485,7 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchone()
 
-    def test_13_get_max_datetime(self):
+    def test_15_get_max_datetime(self):
         sql_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
                                     INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                                     WHERE symbols.ticker = '{self.read_data.symbol}'"""
@@ -459,23 +497,23 @@ class Test(unittest.TestCase):
         verify(self.read_data.cur, times=1).execute(sql_query)
         verify(self.read_data.cur, times=1).fetchone()
 
+    def test_16_check_commit(self):
+        self.write_data.commit()
+
+        verify(self.write_data.conn, times=1).commit()
+
     #######################
     # Read/Write operations
     #######################
 
-    def test_14_check_update(self):
+    def test_17_check_update(self):
         self.write_data.update = True
         assert self.write_data._update == 'REPLACE'
 
         self.write_data.update = False
         assert self.write_data._update == 'IGNORE'
 
-    def test_15_check_commit(self):
-        self.write_data.commit()
-
-        verify(self.write_data.conn, times=1).commit()
-
-    def test_16_check_add_symbol(self):
+    def test_18_check_add_symbol(self):
         sql_query = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.write_data.symbol}');"
         when(self.write_data.cur).execute(sql_query).thenReturn()
 
@@ -484,7 +522,7 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_17_check_remove_symbol(self):
+    def test_19_check_remove_symbol(self):
         sql_query = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}');"
         when(self.write_data.cur).execute(sql_query).thenReturn()
 
@@ -493,7 +531,7 @@ class Test(unittest.TestCase):
         verify(self.write_data.cur, times=1).execute(sql_query)
         verify(self.write_data.conn, times=1).commit()
 
-    def test_18_add_base_quote_data(self):
+    def test_20_add_base_quote_data(self):
         quote_dict = {
             'volume': 1,
             'open': 2,
@@ -544,16 +582,15 @@ class Test(unittest.TestCase):
 
         verify(self.write_data.cur, times=1).execute(sql_query)
 
-    def test_19_check_add_quotes(self):
+    def test_21_check_add_quotes(self):
         quote_dict = {
             'volume': 1,
             'open': 2,
             'adj_close': 3,
             'high': 4,
             'low': 5,
-            'raw_close': 6,
-            'transactions': 7,
-            'ts': 8,
+            'transactions': 6,
+            'ts': 7,
             'sectype': self.write_data.sectype.value,
             'currency': self.write_data.currency.value
         }
@@ -565,8 +602,6 @@ class Test(unittest.TestCase):
         when(self.write_data)._add_base_quote_data(quote_dict).thenReturn(1)
         when(self.write_data).commit().thenReturn()
 
-        self.write_data.cur.lastrowid = 10
-
         before, after = self.write_data.add_quotes(quotes)
 
         verify(self.write_data, times=1).get_symbol_quotes_num()
@@ -577,7 +612,7 @@ class Test(unittest.TestCase):
         assert before == 1
         assert after == 1
 
-    def test_20_check_remove_quotes(self):
+    def test_22_check_remove_quotes(self):
             sql_query = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}')
                             AND time_stamp >= {self.write_data.first_date_ts} AND time_stamp <= {self.write_data.last_date_ts};"""
 
@@ -591,7 +626,7 @@ class Test(unittest.TestCase):
             verify(self.write_data.cur, times=1).execute(sql_query)
             verify(self.write_data.conn, times=1).commit()
 
-    def test_21_check_fetch_if_none(self):
+    def test_23_check_fetch_if_none(self):
         nums = (0, 200)
 
         when(self.fetch_data.cur).execute("SELECT COUNT(*) FROM quotes;").thenReturn()

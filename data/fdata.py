@@ -6,6 +6,8 @@ Distributed under Fcore License 1.0 (see license.md)
 """
 import abc
 
+import time
+
 from data import fdatabase
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes
@@ -862,6 +864,20 @@ class ReadOnlyData():
 
         return self.cur.fetchone()[0]
 
+    def commit(self):
+        """
+            Commit the change to the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        try:
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't commit: {e}") from e
+
 #############################
 # Read/Write operations class
 #############################
@@ -906,20 +922,6 @@ class ReadWriteData(ReadOnlyData):
             self._update = 'IGNORE'
         else:
             self._update = 'REPLACE'
-
-    def commit(self):
-        """
-            Commit the change to the database.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        self.check_if_connected()
-
-        try:
-            self.conn.commit()
-        except self.Error as e:
-            raise FdataError(f"Can't commit: {e}") from e
 
     def add_symbol(self):
         """
@@ -1070,7 +1072,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         """Initialize the instance of BaseFetcher class."""
         super().__init__(**kwargs)
 
-    def fetch_if_none(self, threshold):
+    def fetch_if_none(self, threshold, pause=0):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
@@ -1078,6 +1080,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
             Args:
                 treshold(int): the minimum required number of quotes in the database.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched data.
@@ -1092,6 +1095,8 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
         if current_num < threshold:
+            time.sleep(pause)
+
             num_before, num_after = self.add_quotes(self.fetch_quotes())
             num = num_after - num_before
 

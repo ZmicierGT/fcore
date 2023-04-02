@@ -4,11 +4,12 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-# TODO HIGH Implement UT for stock data module
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
 from data.fvalues import SecType, ReportPeriod, five_hundred_days
 
 import abc
+
+import time
 
 class ROStockData(ReadOnlyData):
     """
@@ -124,7 +125,6 @@ class ROStockData(ReadOnlyData):
 
             try:
                 self.cur.execute(insert_report_periods)
-                self.conn.commit()
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
 
@@ -279,6 +279,7 @@ class ROStockData(ReadOnlyData):
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'cash_flow': {e}\n{check_cash_flow}") from e
 
+        # TODO LOW Get rid of tabulations above
         if len(rows) == 0:
             create_cf = """CREATE TABLE cash_flow(
                                 cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -383,8 +384,11 @@ class ROStockData(ReadOnlyData):
             except self.Error as e:
                 raise FdataError(f"Can't create index earnings(symbol_id, reported_date): {e}") from e
 
-    def get_income_statement_num(self):
+    def _get_fundamentals_num(self, table):
         """Get the number of income statement reports for specified interval (+- 500 days) for a stock.
+
+            Args:
+                table(string): the table with reports.
 
             Returns:
                 int: the number of income statements in the database.
@@ -394,14 +398,14 @@ class ROStockData(ReadOnlyData):
         """
         self.check_if_connected()
 
-        get_num = f"""SELECT COUNT(is_report_id) FROM income_statement
+        get_num = f"""SELECT COUNT(*) FROM {table}
 	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
                         AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
                         AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
         try:
             self.cur.execute(get_num)
         except self.Error as e:
-            raise FdataError(f"Can't query table 'income_statement': {e}\n\nThe query is\n{get_num}") from e
+            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_num}") from e
 
         result = self.cur.fetchone()[0]
 
@@ -409,6 +413,17 @@ class ROStockData(ReadOnlyData):
             result = 0
 
         return result
+
+    def get_income_statement_num(self):
+        """Get the number of income statement reports for specified interval (+- 500 days) for a stock.
+
+            Returns:
+                int: the number of income statements in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_fundamentals_num('income_statement')
 
     def get_balance_sheet_num(self):
         """Get the number of balance sheet reports for specified interval (+- 500 days) for a stock.
@@ -419,24 +434,7 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
-
-        get_num = f"""SELECT COUNT(bs_report_id) FROM balance_sheet
-	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
-                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
-                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
-
-        try:
-            self.cur.execute(get_num)
-        except self.Error as e:
-            raise FdataError(f"Can't query table 'balance_sheet': {e}\n\nThe query is\n{get_num}") from e
-
-        result = self.cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
+        return self._get_fundamentals_num('balance_sheet')
 
     def get_cash_flow_num(self):
         """Get the number of cash flow reports for specified interval (+- 500 days) for a stock.
@@ -447,24 +445,7 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
-
-        get_num = f"""SELECT COUNT(cf_report_id) FROM cash_flow
-	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
-                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
-                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
-
-        try:
-            self.cur.execute(get_num)
-        except self.Error as e:
-            raise FdataError(f"Can't query table 'cash_flow': {e}\n\nThe query is\n{get_num}") from e
-
-        result = self.cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
+        return self._get_fundamentals_num('cash_flow')
 
     def get_earnings_num(self):
         """Get the number of earnings reports for specified interval (+- 500 days) for a stock.
@@ -475,24 +456,7 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
-
-        get_num = f"""SELECT COUNT(earnings_report_id) FROM earnings
-	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
-                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
-                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
-
-        try:
-            self.cur.execute(get_num)
-        except self.Error as e:
-            raise FdataError(f"Can't query table 'earnings': {e}\n\nThe query is\n{get_num}") from e
-
-        result = self.cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
+        return self._get_fundamentals_num('earnings')
 
     def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
@@ -511,8 +475,6 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
-
         if isinstance(columns, list) is False:
             columns = []
 
@@ -562,8 +524,7 @@ class RWStockData(ROStockData, ReadWriteData):
                                     ({quote['raw_close']}),
                                     ({quote['divs']}),
                                     ({quote['split']})
-                                )
-                """
+                                );"""
 
                 try:
                     self.cur.execute(insert_core)
@@ -936,7 +897,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def _fetch_fundamentals_if_none(self, threshold, num_method, add_method, fetch_method):
+    def _fetch_fundamentals_if_none(self, threshold, num_method, add_method, fetch_method, queries=None, pause=0):
         """
             Fetch all the available fundamental reports if data entries do not meet the specified threshold for
             specified interval (+- 500 days).
@@ -946,6 +907,8 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 num_method(method): method to get the current reports number.
                 add_method(method): method to add the reports to the database.
                 fetch_method(method): method to fetch the reports.
+                queries(list): additional data to get.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
@@ -961,6 +924,8 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         # Fetch reports if there are less than a threshold number of records in the database
         # for a selected timespan (+- 500 days)
         if current_num < threshold:
+            time.sleep(pause)
+
             num_before, num_after = add_method(fetch_method())
             num = num_after - num_before
 
@@ -969,20 +934,22 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         else:
             num = 0
 
-        rows = self.get_quotes()
+        rows = self.get_quotes(queries=queries)
 
         if initially_connected is False:
             self.db_close()
 
         return (rows, num)
 
-    def fetch_income_statement_if_none(self, threshold):
+    def fetch_income_statement_if_none(self, threshold, queries=None, pause=0):
         """
             Fetch all the available income statement reports if data entries do not meet the specified threshold for
             specified interval (+- 500 days).
 
             Args:
-                treshold(int): the minimum required number of quotes in the database.
+                treshold(int): the minimum required number of reports in the database.
+                queries(list): additional data to get.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
@@ -991,15 +958,19 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_fundamentals_if_none(threshold=threshold,
                                                 num_method=self.get_income_statement_num,
                                                 add_method=self.add_income_statement,
-                                                fetch_method=self.fetch_income_statement)
+                                                fetch_method=self.fetch_income_statement,
+                                                queries=queries,
+                                                pause=pause)
 
-    def fetch_balance_sheet_if_none(self, threshold):
+    def fetch_balance_sheet_if_none(self, threshold, queries=None, pause=0):
         """
             Fetch all the available balance sheet reports if data entries do not meet the specified threshold for
             specified interval (+- 500 days).
 
             Args:
-                treshold(int): the minimum required number of quotes in the database.
+                treshold(int): the minimum required number of reports in the database.
+                queries(list): additional data to get.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
@@ -1008,32 +979,19 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_fundamentals_if_none(threshold=threshold,
                                                 num_method=self.get_balance_sheet_num,
                                                 add_method=self.add_balance_sheet,
-                                                fetch_method=self.fetch_balance_sheet)
+                                                fetch_method=self.fetch_balance_sheet,
+                                                queries=queries,
+                                                pause=pause)
 
-    def fetch_income_statement_if_none(self, threshold):
-        """
-            Fetch all the available income statement reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
-
-            Args:
-                treshold(int): the minimum required number of quotes in the database.
-
-            Returns:
-                array: the fetched reports.
-                int: the number of fetched reports.
-        """
-        return self._fetch_fundamentals_if_none(threshold=threshold,
-                                                num_method=self.get_income_statement_num,
-                                                add_method=self.add_income_statement,
-                                                fetch_method=self.fetch_income_statement)
-
-    def fetch_cash_flow_if_none(self, threshold):
+    def fetch_cash_flow_if_none(self, threshold, queries=None, pause=0):
         """
             Fetch all the available cash flow reports if data entries do not meet the specified threshold for
             specified interval (+- 500 days).
 
             Args:
-                treshold(int): the minimum required number of quotes in the database.
+                treshold(int): the minimum required number of reports in the database.
+                queries(list): additional data to get.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
@@ -1042,7 +1000,30 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_fundamentals_if_none(threshold=threshold,
                                                 num_method=self.get_cash_flow_num,
                                                 add_method=self.add_cash_flow,
-                                                fetch_method=self.fetch_cash_flow)
+                                                fetch_method=self.fetch_cash_flow,
+                                                queries=queries,
+                                                pause=pause)
+
+    def fetch_earnings_if_none(self, threshold, queries=None, pause=0):
+        """
+            Fetch all the available earnings reports if data entries do not meet the specified threshold for
+            specified interval (+- 500 days).
+
+            Args:
+                treshold(int): the minimum required number of reports in the database.
+                queries(list): additional data to get.
+                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_fundamentals_if_none(threshold=threshold,
+                                                num_method=self.get_earnings_num,
+                                                add_method=self.add_earnings,
+                                                fetch_method=self.fetch_earnings,
+                                                queries=queries,
+                                                pause=pause)
 
     @abc.abstractmethod
     def fetch_income_statement(self):

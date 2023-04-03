@@ -74,7 +74,7 @@ if __name__ == "__main__":
     # Array for the fetched data for all symbols
     allrows = []
 
-    print("Fetchig the required quotes for model calculation. Press CTRL-C and restart if it stucks.")
+    print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
     for symbol_learn, threshold in symbols:
         try:

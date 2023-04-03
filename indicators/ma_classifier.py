@@ -30,12 +30,12 @@ class MAClassifier(Classifier):
             Initialize MA Classifier implementation class.
 
             Args:
-                period(int): long period for MA calculation (must match the period used for model calculation).
+                period(int): long period for MA calculation (must match the period used for model training).
                 rows(list): quotes for calculation.
                 model_buy(): model to estimate buy signals.
                 model_sell(): model to estimate sell signals.
                 data_to_learn([array]) data to train the models. Either models or data to learn need to be specified.
-                is_simple(bool): indicated is SMA or EMA should be used (must match the MA type used for model calculation).
+                is_simple(bool): indicated is SMA or EMA should be used (must match the MA type used for model training).
                 true_ratio(float): ratio when signal is considered as true in cycle_num. For example, if true_ratio is 0.03 and cycle_num is 5,
                                 then the signal will be considered as true if there was a 0.03 change in ma/quote ratio in the following 5 cycles
                                 after getting the signal from MA.

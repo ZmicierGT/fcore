@@ -99,10 +99,7 @@ if __name__ == "__main__":
 
     quotes = StockData(rows=rows,
                           title=symbol,
-                        #   margin_rec=0.4,
-                        #   margin_req=0.7,
                           spread=0.1,
-                        #   margin_fee=1,
                           trend_change_period=change_period,
                           trend_change_percent=change_percent
                          )

@@ -1101,7 +1101,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             num = num_after - num_before
 
             if num == 0:
-                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval. Decrease the threshold.")
+                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {self.get_symbol_quotes_num_dt()} quotes got). Decrease the threshold.")
         else:
             num = 0
 

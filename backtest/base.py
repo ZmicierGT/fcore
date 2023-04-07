@@ -282,7 +282,7 @@ class BackTestData():
             and it represents an operations performed on a certain symbol in the portfolio.
 
             Args:
-                caller(BaseBackTest): caller class instance.
+                caller(BackTest): caller class instance.
 
             Returns:
                 BackTestOperations: Class instance to perform the operations on the data for a particular symbol.
@@ -1408,6 +1408,7 @@ class BTSymbol(BTBaseData):
 
 # TODO LOW Time frame should be implemented. In intraday calculations/charting, time outside of the frame won't be taken into account.
 # TODO LOW Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
+# TODO LOW Add margin expenses
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,

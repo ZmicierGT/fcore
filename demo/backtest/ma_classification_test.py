@@ -33,8 +33,8 @@ true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. 
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 algorithm = Algorithm.LDA  # The default algorithm to use
 
-threshold_learn = 5178  # Quotes num threshold for the learning
-threshold_test = 567  # Quotes num threshold for the test
+threshold_learn = 5284  # Quotes num threshold for the learning
+threshold_test = 565  # Quotes num threshold for the test
 
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # Get quotes for learning
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        source = YF(symbol=symbol, first_date="2000-1-1", last_date="2020-8-1")
+        source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
         rows_learn, num = source.fetch_if_none(threshold_learn)
     except FdataError as e:
         sys.exit(e)
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # Get quotes for testing
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        source = YF(symbol=symbol, first_date="2020-8-2", last_date="2022-11-1")
+        source = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
         rows, num = source.fetch_if_none(threshold_test)
     except FdataError as e:
         sys.exit(e)
@@ -99,10 +99,10 @@ if __name__ == "__main__":
 
     quotes = StockData(rows=rows,
                           title=symbol,
-                          margin_rec=0.4,
-                          margin_req=0.7,
+                        #   margin_rec=0.4,
+                        #   margin_req=0.7,
                           spread=0.1,
-                          margin_fee=1,
+                        #   margin_fee=1,
                           trend_change_period=change_period,
                           trend_change_percent=change_percent
                          )

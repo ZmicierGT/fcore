@@ -5,8 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.vo import VO
-from indicators.vo import VOData
+from tools.vo import VO
+from tools.vo import VOData
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -16,7 +16,7 @@ from data.futils import show_image
 
 from data.fdata import FdataError
 from data.fvalues import Quotes
-from indicators.base import IndicatorError
+from tools.base import ToolError
 
 from data.yf import YF
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     try:
         vo.calculate()
-    except IndicatorError as e:
+    except ToolError as e:
         sys.exit(f"Can't calculate VO: {e}")
 
     results = vo.get_results()

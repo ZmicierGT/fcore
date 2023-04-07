@@ -8,8 +8,8 @@ Distributed under Fcore License 1.0 (see license.md)
 from backtest.ma import MA
 from backtest.base import BackTestError
 
-from indicators.ma_classifier import MAClassifier
-from indicators.base import IndicatorError
+from tools.ma_classifier import MAClassifier
+from tools.base import ToolError
 
 import pandas as pd
 import numpy as np
@@ -70,16 +70,16 @@ class MAClassification(MA):
 
         try:
             self._ma_cls.calculate()
-        except IndicatorError as e:
+        except ToolError as e:
             raise BackTestError(e) from e
 
         # Set MA values used by base testing class. Add empty values at the beginning or the column.
         ma = pd.DataFrame([np.nan] * self._period)
         # Append MA values to tech
-        ex.append_tech(pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True))
+        ex.append_calc_data(pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True))
 
         # Append MA Classifier values to Tech
-        ex.append_tech(self._ma_cls.get_results())
+        ex.append_calc_data(self._ma_cls.get_results())
 
     def classifier(self):
         """

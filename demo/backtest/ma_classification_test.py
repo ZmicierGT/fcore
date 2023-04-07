@@ -5,8 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.classifier import Algorithm
-from indicators.ma_classifier import MAClassifier
+from tools.classifier import Algorithm
+from tools.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification
 from backtest.ma import MA
@@ -14,7 +14,7 @@ from backtest.base import BackTestError
 from backtest.stock import StockData
 from backtest.reporting import Report
 
-from indicators.base import IndicatorError
+from tools.base import ToolError
 
 from data.fdata import FdataError
 from data.yf import YF
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         classifier.learn()
         accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = classifier.get_learn_accuracy()
         f1_buy_learn, f1_sell_learn, total_f1_learn = classifier.get_learn_f1()
-    except IndicatorError as e:
+    except ToolError as e:
         sys.exit(f"Can't train MA classification models: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))

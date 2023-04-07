@@ -1,4 +1,4 @@
-"""Module with the base class for custom classifier AI indicator.
+"""Module with the base class for custom classifier 'AI-indicator'.
 
 Classifier is an extension to a technical indicator/oscillator when signal is checked to be true/false by AI.
 All the signals are classified to 4 groups then: buy-true, buy-false, sell-true, sell-false.
@@ -10,8 +10,8 @@ Distributed under Fcore License 1.0 (see license.md)
 
 import abc
 
-from indicators.base import BaseIndicator
-from indicators.base import IndicatorError
+from tools.base import BaseTool
+from tools.base import ToolError
 
 from enum import IntEnum
 
@@ -37,7 +37,7 @@ class Algorithm(IntEnum):
     DTC = 4
     SVC = 5
 
-class Classifier(BaseIndicator):
+class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.
     """
@@ -66,13 +66,13 @@ class Classifier(BaseIndicator):
                 offset(int): offset for calculation.
 
             Raises:
-                IndicatorError: No model provided to make the estimation.
+                ToolError: No model provided to make the estimation.
         """
         super().__init__(rows)
 
         # Some type of model (path to serialized models or objects to models) must present.
         if (model_buy == None or model_sell == None) and data_to_learn == None:
-            raise IndicatorError("No models or data to learn provided to make the estimation.")
+            raise ToolError("No models or data to learn provided to make the estimation.")
 
         self._model_buy = model_buy
         self._model_sell = model_sell
@@ -99,7 +99,7 @@ class Classifier(BaseIndicator):
             Get precision of signal estimation. The function compares the actual results with the estimated ones.
 
             Raises:
-                IndicatorError: the calculation is not performed.
+                ToolError: the calculation is not performed.
 
             Returns:
                 float: buy accuracy
@@ -107,7 +107,7 @@ class Classifier(BaseIndicator):
                 float: cumulative accuracy
         """
         if len(self._results) == 0:
-            raise IndicatorError("The calculation is not performed.")
+            raise ToolError("The calculation is not performed.")
 
         results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
 
@@ -124,7 +124,7 @@ class Classifier(BaseIndicator):
             Get f1 score of signal estimation.
 
             Raises:
-                IndicatorError: the calculation is not performed.
+                ToolError: the calculation is not performed.
 
             Returns:
                 float: buy f1 score
@@ -132,7 +132,7 @@ class Classifier(BaseIndicator):
                 float: cumulative f1 score
         """
         if len(self._results) == 0:
-            raise IndicatorError("The calculation is not performed.")
+            raise ToolError("The calculation is not performed.")
 
         results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
 
@@ -160,7 +160,7 @@ class Classifier(BaseIndicator):
             In such case the exceeding estimated results will be trimmed.
 
             Raises:
-                IndicatorError: calculation is not performed.
+                ToolError: calculation is not performed.
 
             Returns:
                 numpy.array: adjusted actual signals to buy
@@ -169,7 +169,7 @@ class Classifier(BaseIndicator):
                 numpy.array: estimated signals to sell
         """
         if len(self._results) == 0:
-            raise IndicatorError("The calculation is not performed.")
+            raise ToolError("The calculation is not performed.")
 
         df = self.get_df()
         self.add_signals(df)
@@ -260,7 +260,7 @@ class Classifier(BaseIndicator):
             Get accuracies for learning. Learning should be performed at first to get a rational results. It does not work with pre-defined model.
 
             Raises:
-                IndicatorError: the learning wasn't performed.
+                ToolError: the learning wasn't performed.
 
             Returns:
                 float: buy accuracy
@@ -268,7 +268,7 @@ class Classifier(BaseIndicator):
                 float: cumulative accuracy
         """
         if self._accuracy_buy_learn == None or self._accuracy_sell_learn == None or self._total_accuracy_learn == None:
-            raise IndicatorError("The learning wasn't performed.")
+            raise ToolError("The learning wasn't performed.")
 
         return (self._accuracy_buy_learn, self._accuracy_sell_learn, self._total_accuracy_learn)
 
@@ -277,7 +277,7 @@ class Classifier(BaseIndicator):
             Get f1 ratio for learning. Learning should be performed at first to get a rational results. It does not work with pre-defined model.
 
             Raises:
-                IndicatorError: the learning wasn't performed.
+                ToolError: the learning wasn't performed.
 
             Returns:
                 float: buy f1 ratio
@@ -285,7 +285,7 @@ class Classifier(BaseIndicator):
                 float: cumulative f1 ratio
         """
         if self._f1_buy_learn == None or self._f1_sell_learn == None or self._total_f1_learn == None:
-            raise IndicatorError("The learning wasn't performed.")
+            raise ToolError("The learning wasn't performed.")
 
         return (self._f1_buy_learn, self._f1_sell_learn, self._total_f1_learn)
 
@@ -294,14 +294,14 @@ class Classifier(BaseIndicator):
             Get models for buy/sell signals.
 
             Raises:
-                IndicatorError: learning was not performed.
+                ToolError: learning was not performed.
 
             Returns:
                 model_buy: model to check buy signals
                 model_sell: model to check sell signals
         """
         if self._model_buy == None or self._model_sell == None:
-            raise IndicatorError("The learning was not performed.")
+            raise ToolError("The learning was not performed.")
 
         return (self._model_buy, self._model_sell)
 

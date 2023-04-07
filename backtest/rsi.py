@@ -83,7 +83,7 @@ class RSI(BackTest):
         """
         df = pd.DataFrame(ex.data().get_rows())
 
-        ex.append_tech(ta.rsi(df[Quotes.AdjClose], length = self._period))
+        ex.append_calc_data(ta.rsi(df[Quotes.AdjClose], length = self._period))
 
     def do_calculation(self):
         """
@@ -127,16 +127,16 @@ class RSI(BackTest):
             open_short = False
 
             for ex in self.all_exec():
-                if max_ex == None or ex.get_tech_val() > max_ex.get_tech_val():
+                if max_ex == None or ex.get_calc_data_val() > max_ex.get_calc_data_val():
                     max_ex = ex
 
-                if min_ex == None or ex.get_tech_val() < min_ex.get_tech_val():
+                if min_ex == None or ex.get_calc_data_val() < min_ex.get_calc_data_val():
                     min_ex = ex
 
             if (
-                max_ex.get_tech_val(offset=1) != None and
-                max_ex.get_tech_val(offset=1) > self.__resistance and
-                max_ex.get_tech_val() < self.__resistance
+                max_ex.get_calc_data_val(offset=1) != None and
+                max_ex.get_calc_data_val(offset=1) > self.__resistance and
+                max_ex.get_calc_data_val() < self.__resistance
                ):
 
                 max_ex.close_all_long()
@@ -145,9 +145,9 @@ class RSI(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_tech_val(offset=1) != None and
-                min_ex.get_tech_val(offset=1) < self.__support and
-                min_ex.get_tech_val() > self.__support
+                min_ex.get_calc_data_val(offset=1) != None and
+                min_ex.get_calc_data_val(offset=1) < self.__support and
+                min_ex.get_calc_data_val() > self.__support
                ):
 
                 min_ex.close_all_short()

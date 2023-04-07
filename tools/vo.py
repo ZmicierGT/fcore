@@ -5,8 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.base import BaseIndicator
-from indicators.base import IndicatorError
+from tools.base import BaseTool
+from tools.base import ToolError
 
 from enum import IntEnum
 
@@ -21,7 +21,7 @@ class VOData(IntEnum):
     LongSMAValue = 1
     ShortSMAValue = 2
 
-class VO(BaseIndicator):
+class VO(BaseTool):
     """
         Volume Oscillator impementation.
     """
@@ -51,18 +51,18 @@ class VO(BaseIndicator):
             Perform the calculation based on the provided data.
 
             Raises:
-                IndicatorError: incorrect periods provided or moving average misalignment.
+                ToolError: incorrect periods provided or moving average misalignment.
         """
         period_difference = self.__long_period - self.__short_period
 
         if period_difference <= 0:
-            raise IndicatorError(f"{self.__long_period} must be bigger than {self.__short_period}")
+            raise ToolError(f"{self.__long_period} must be bigger than {self.__short_period}")
 
         # Calculated SMAs for VO
 
         if self.__long_sma == None or self.__short_sma == None:
             if self.__long_sma != self.__short_sma:
-                raise IndicatorError("If short or long ema is not set, another should not be set as well.")
+                raise ToolError("If short or long ema is not set, another should not be set as well.")
 
         df = pd.DataFrame(self._rows)
 
@@ -73,12 +73,13 @@ class VO(BaseIndicator):
         length_short = len(self.__short_sma)
 
         if length_short != length:
-            raise IndicatorError(f"Long/Short EMAs results lengths are incorrect: {length_short} != {length}")
+            raise ToolError(f"Long/Short EMAs results lengths are incorrect: {length_short} != {length}")
 
         # Calculate VO
 
         self._results = []
 
+        # TODO MID rewrite it to use native pandas processing
         for i in range (0, length):
             long_value = self.__long_sma[i]
             short_value = self.__short_sma[i]

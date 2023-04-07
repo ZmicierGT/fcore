@@ -31,6 +31,7 @@ class YF(stock.StockFetcher):
         self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
+    # TODO MID Consider making it abstract and renaming to indicate that a string for query is obtained.
     def get_timespan(self):
         """
             Get the timespan for queries.
@@ -104,11 +105,10 @@ class YF(stock.StockFetcher):
         for ind in range(length):
             dt = data.index[ind]
             dt = dt.replace(tzinfo=pytz.utc)
-            ts = int(datetime.timestamp(dt))
 
-            if self.get_timespan() in [Timespans.Day, Timespans.Week, Timespans.Month]:
+            if self.timespan in [Timespans.Day, Timespans.Week, Timespans.Month]:
                 # Add 23:59:59 to non-intraday quotes
-                quote_dict['t'] = ts + 86399
+                dt = dt.replace(hour=23, minute=59, second=59)
 
                 # Stock split coefficient 0 (reported by default) should be set to 1 as it makes more sense
                 stock_splits = data['Stock Splits'][ind]
@@ -128,7 +128,7 @@ class YF(stock.StockFetcher):
                 'transactions': 'NULL',
                 'divs': data['Dividends'][ind],
                 'split': stock_splits,
-                'ts': ts,
+                'ts': int(datetime.timestamp(dt)),
                 'sectype': self.sectype.value,
                 'currency': self.currency.value
             }

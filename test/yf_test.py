@@ -47,8 +47,8 @@ class Test(unittest.TestCase):
             'raw_close': 'NULL',
             'transactions': 'NULL',
             'divs': 9,
-            'split': 1,
-            'ts': source.first_date_ts,
+            'split': 13,
+            'ts': 1669679999,
             'sectype': source.sectype.value,
             'currency': source.currency.value
         }
@@ -62,8 +62,8 @@ class Test(unittest.TestCase):
             'raw_close': 'NULL',
             'transactions': 'NULL',
             'divs': 10,
-            'split': 1,
-            'ts': source.last_date_ts,
+            'split': 14,
+            'ts': 1672271999,
             'sectype': source.sectype.value,
             'currency': source.currency.value
         }
@@ -76,7 +76,8 @@ class Test(unittest.TestCase):
                            'High': [5, 6],
                            'Low': [7, 8],
                            'Dividends': [9, 10],
-                           'Volume': [11, 12]
+                           'Volume': [11, 12],
+                           'Stock Splits': [13, 14]
                          })
         df = df.set_index('Date')
 

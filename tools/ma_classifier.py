@@ -5,8 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.base import IndicatorError
-from indicators.classifier import Classifier
+from tools.base import ToolError
+from tools.classifier import Classifier
 
 from data.fvalues import Quotes
 
@@ -44,7 +44,7 @@ class MAClassifier(Classifier):
                 offset(int): offset for calculation.
 
             Raises:
-                IndicatorError: No model provided to make the estimation.
+                ToolError: No model provided to make the estimation.
         """
         super().__init__(**kwargs)
 
@@ -56,10 +56,10 @@ class MAClassifier(Classifier):
             Perform the calculation based on the provided data.
 
             Raises:
-                IndicatorError: no data for test provided.
+                ToolError: no data for test provided.
         """
         if self._rows == None:
-            raise IndicatorError("No data for testing provided.")
+            raise ToolError("No data for testing provided.")
 
         # Check if we need to train the model at first
         if self._model_buy == None or self._model_sell == None:

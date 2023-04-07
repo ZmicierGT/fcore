@@ -1,4 +1,4 @@
-"""Module with the base class for all custom indicators/oscillators/AI models.
+"""Module with the base class for all custom data-tools.
 
 The author is Zmicier Gotowka
 
@@ -7,14 +7,13 @@ Distributed under Fcore License 1.0 (see license.md)
 
 import abc
 
-class BaseIndicator(metaclass=abc.ABCMeta):
+class BaseTool(metaclass=abc.ABCMeta):
     """
-        Base custom indicator class. Used in the case if there is no (or we do not want) to use indicators from
-        libraries like pandas_ta.
+        Base custom data-tool class. For majority of technical indicators calculation you may use pandas_ta
     """
     def __init__(self, rows, offset=None):
         """
-            Initialize the custom indicator class.
+            Initialize the custom data-tool class.
 
             Args:
                 rows(list): quotes from the database.
@@ -60,5 +59,5 @@ class BaseIndicator(metaclass=abc.ABCMeta):
         """
         self._results = results
 
-class IndicatorError(Exception):
+class ToolError(Exception):
     pass

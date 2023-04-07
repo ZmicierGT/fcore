@@ -5,8 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.0 (see license.md)
 """
 
-from indicators.base import BaseIndicator
-from indicators.base import IndicatorError
+from tools.base import BaseTool
+from tools.base import ToolError
 
 from enum import IntEnum
 
@@ -23,7 +23,7 @@ class LSTMData(IntEnum):
     Difference = 0
     Value = 1
 
-class LSTM(BaseIndicator):
+class LSTM(BaseTool):
     """
         LSTM impementation.
     """
@@ -49,13 +49,13 @@ class LSTM(BaseIndicator):
             Perform the calculation based on the provided data and model.
 
             Raises:
-                IndicatorError: can't load the model.
+                ToolError: can't load the model.
         """
         # Load model
         try:
             model = load_model(self.__model_name)
         except OSError as e:
-            raise IndicatorError(f"Can't load model {self.__model_name}: {e}") from e
+            raise ToolError(f"Can't load model {self.__model_name}: {e}") from e
 
         length = len(self._rows)
 

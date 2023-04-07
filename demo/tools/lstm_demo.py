@@ -1,4 +1,4 @@
-"""Demonstration of using AI as a technical indicator.
+"""Demonstration of using AI data tool.
 
 The author is Zmicier Gotowka
 
@@ -7,8 +7,8 @@ Distributed under Fcore License 1.0 (see license.md)
 
 from data.futils import update_layout
 
-from indicators.lstm import LSTM
-from indicators.lstm import LSTMData
+from tools.lstm import LSTM
+from tools.lstm import LSTMData
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -16,7 +16,7 @@ from plotly.subplots import make_subplots
 from data.futils import show_image
 from data.fdata import FdataError
 from data.fvalues import Quotes
-from indicators.base import IndicatorError
+from tools.base import ToolError
 
 from data.yf import YF
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     try:
         lstm.calculate()
-    except IndicatorError as e:
+    except ToolError as e:
         sys.exit(f"Can't calculate LSTM. Likely you need to train the model at first by launching lstm_learn.py. {e}")
 
     results = lstm.get_results()

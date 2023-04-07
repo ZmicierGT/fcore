@@ -10,10 +10,10 @@ from data.fdata import FdataError
 
 from data.fvalues import Quotes
 
-from indicators.ma_classifier import MAClassifier
-from indicators.classifier import Algorithm
+from tools.ma_classifier import MAClassifier
+from tools.classifier import Algorithm
 
-from indicators.base import IndicatorError
+from tools.base import ToolError
 
 from data.futils import update_layout
 from data.futils import show_image
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         f1_buy_learn, f1_sell_learn, total_f1_learn = ma_cls.get_learn_f1()
         accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.get_est_accuracy()
         f1_buy_est, f1_sell_est, total_f1_est = ma_cls.get_est_f1()
-    except IndicatorError as e:
+    except ToolError as e:
         sys.exit(f"Can't calculate MA Classifier: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))

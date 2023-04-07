@@ -70,7 +70,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_tech_val() <= self.exec().get_close()
+        return self.exec().get_calc_data_val() <= self.exec().get_close()
 
     def do_tech_calculation(self, ex):
         """
@@ -82,9 +82,9 @@ class MA(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
 
         if self.__is_simple:
-            ex.append_tech(ta.sma(df[Quotes.AdjClose], length = self._period))
+            ex.append_calc_data(ta.sma(df[Quotes.AdjClose], length = self._period))
         else:
-            ex.append_tech(ta.ema(df[Quotes.AdjClose], length = self._period))
+            ex.append_calc_data(ta.ema(df[Quotes.AdjClose], length = self._period))
 
     def do_calculation(self):
         """

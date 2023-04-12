@@ -1,18 +1,19 @@
 # Fcore is an AI framework for financial markets backtesting and screening.
 
 ### **Fcore** is based on the following principles:
-- AI is becoming the essential (and hardly avoidable) part of a financial analysis.
+- AI is becoming the essential (and hardly avoidable) part of a financial markets analysis.
 - For successful AI-appliances, we need a lot of data and the data should be well structurized and quickly accessible.
 - Analysing financial markets has a lot of common features. That is why a data analyzing API should be used to reduce a routine work.
 - All data processing techniques should be treated equally and follow the same interface.
+- Backtesting is treated as another AI metric and it should be very sensitive to a 'minor' details.
 
 ### Based on these principles (and not only), **Fcore** is capable of:
-- Obtaining data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storing it in an unified way without any need to worry about parsing data, altering the results, handling timestamp compatibility issues and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain and parse the required data.
+- Obtaining data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storing it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain and parse the required data.
 - Providing an API to ease the development of AI-strategies for financial analysis. The main focus is on these 3 approaches: classifying TA-signals (true/false) with the help of AI (already implemented as classifiers), analysing data to estimate the future prices as a regression problem (partially implemented as LSTM-demos), estimating a future market moves as a probabilistic classification (to be implemented).
 - Utilizing the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
+- Providing its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
 - Using multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
 - Providing API for reporting.
-- Backtesting is treated as another AI-metric and it takes into account a lot of expenses related to an actual trade/investment. Fcore's backtesting engine handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
 
 These features allow you to develop your AI-based market strategies much faster than when using a 'bare'-approach.
 
@@ -84,15 +85,17 @@ params = {
 }
 
 # Perform backtest using AI classification of signals
-classification = MAClassification(**params, classifier=classifiers)
+classification = MAClassification(**params, classifier=classifier)
 
-classification.calculate()
-results_cls = classification.get_results()
+classification.calculate()  # It starts the calculation in a separate thread which allows you to make a parralel computations
+                            # if you use a Pyhon interpreter without GIL.
 
 # Regular strategy (without classifying signals) for comparison
 ma = MA(**params)
 
 ma.calculate()
+
+results_cls = classification.get_results()  # Wait till calculation finishes and return the results.
 results_cmp = ma.get_results()
 
 # Generate a report with performance comparison
@@ -115,10 +118,9 @@ report.add_annotations(data=results_cmp, title="Regular MA/Price Crossover perfo
 
 # Show image
 new_file = report.show_image()
-
 ```
 
-This strategy ([backtest/ma_classification.py](backtest/ma_classification.py)) trains a model for MA-Classifier ([tools/ma_classifier.py](tools/ma_classifier.py)) AI tool which uses percentage volume oscillator data to train a model to distinguish true/false signals. Please note that in real appliances hundreds of parameters may be used to train a model. Here we may see a result that AI helped to catch some market possibilities and decrease the loses from -23.53% to -12%. To run this strategy with additional metrics output invoke **python -m demo.backtest.ma_classification_test** (source in [demo/backtest/ma_classification_test.py](demo/backtest/ma_classification_test.py))
+This strategy ([backtest/ma_classification.py](backtest/ma_classification.py)) trains a model for MA-Classifier ([tools/ma_classifier.py](tools/ma_classifier.py)) AI tool which uses percentage volume oscillator data to distinguish true/false signals. Please note that in real appliances hundreds of data parameters may be used to train a model. Here we see that AI helped to better distinguish some signals of the strategy and decrease the loses from -23.53% to -12%. To run this strategy with additional metrics output invoke **python -m demo.backtest.ma_classification_test** (source in [demo/backtest/ma_classification_test.py](demo/backtest/ma_classification_test.py)) Here is the basic quick start example - [quick_start.py](quick_start.py)
 
 It is the report generated by the script above:
 ![Backtesting Report](report.png "Backtesting Report")
@@ -182,7 +184,7 @@ Examples of backtesting strategies:
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.
 
-# Other Details
+# Additional Details
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).
 

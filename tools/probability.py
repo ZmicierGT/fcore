@@ -1,4 +1,6 @@
-"""Classifier of MA/Quote cross signals (true/false) according to the trained model.
+"""Module with the base class for growth probability tool.
+
+The value returned by pobability tool indicates the chance that the security will grow in the next cycles.
 
 The author is Zmicier Gotowka
 
@@ -16,29 +18,29 @@ import numpy as np
 
 from sklearn.metrics import accuracy_score, f1_score
 
-class MAClassifier(Classifier):
+class Probability(Classifier):
     """
-        MA/Price signals classifier (true/false) impementation.
+        Base security growth probability impementation.
     """
     def __init__(self,
-                 period,
+                 period_long=30,
+                 period_short=15,
                  is_simple=True,
-                 **kwargs
-                ):
+                 **kwargs):
         """
-            Initialize MA Classifier implementation class.
+            Initialize probability class.
 
             Args:
-                period(int): long period for MA calculation (must match the period used for model training).
-                is_simple(bool): indicates if SMA or EMA is used.
-                rows(list): quotes for estimation.
+                period_long(int): MA period to compare with a short period
+                period_short: MA period to compare with a long period
+                is_simple(bool): indicates if SMAs or EMAs are used.
+                rows(list): quotes to make an estimation.
                 model_buy(): model to estimate buy signals.
                 model_sell(): model to estimate sell signals.
                 data_to_learn([array]) data to train the models. Either models or data to learn need to be specified.
-                is_simple(bool): indicated is SMA or EMA should be used (must match the MA type used for model training).
                 true_ratio(float): ratio when signal is considered as true in cycle_num. For example, if true_ratio is 0.03 and cycle_num is 5,
-                                then the signal will be considered as true if there was a 0.03 change in ma/quote ratio in the following 5 cycles
-                                after getting the signal from MA.
+                                then the signal will be considered as true if there was a 3% change in quote in the following 5 cycles
+                                after getting the signal.
                 cycle_num(int): number of cycles to reach to true_ratio to consider that the signal is true.
                 algorithm(Algorithm): algorithm used for learning (from Algorithm enum).
                 offset(int): offset for calculation.
@@ -48,7 +50,11 @@ class MAClassifier(Classifier):
         """
         super().__init__(**kwargs)
 
-        self._period = period
+        if period_long <= period_short:
+            raise ToolError(f"Long MA period should be bigger than short period: {period_long} > {period_short}")
+
+        self._period_long = period_long
+        self._period_short = period_short
         self._is_simple = is_simple
 
     def calculate(self):
@@ -68,40 +74,29 @@ class MAClassifier(Classifier):
         # DataFrame for the current symbol
         df = self.get_df()
 
-        # Find signals which are needed to check
-
-        curr_trend = df['diff'] > 0
-        prev_trend = df['diff'].shift() > 0
-
-        buy = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, np.nan)
-        sell = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, np.nan)
-        df['buy'] = buy
-        df['sell'] = sell
-
         #########################################
         # Make estimations according to the model
         #########################################
 
-        # Create separate DataFrames for buy and sell estimation
-        df_buy = df[df['buy'] == 1]
-        df_sell = df[df['sell'] == 1]
+        data_to_est = df[['pvo', 'diff', 'ma-diff']]
 
-        # Estimate if signals are true
-        self._results_buy_est = self._model_buy.predict(df_buy[['pvo', 'diff']])
-        self._results_sell_est = self._model_sell.predict(df_sell[['pvo', 'diff']])
+        self._results_buy_est = self._model_buy.predict(data_to_est)
+        self._results_sell_est = self._model_sell.predict(data_to_est)
 
-        it_buy = iter(self._results_buy_est)
-        it_sell = iter(self._results_sell_est)
-
-        df['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
-        df['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
+        buy_prob = self._model_buy.predict_proba(data_to_est)
+        sell_prob = self._model_sell.predict_proba(data_to_est)
 
         results = pd.DataFrame()
         results['dt'] = df[Quotes.DateTime]
-        results['ma'] = df['ma']
+        results['ma-long'] = df['ma-long']
+        results['ma-short'] = df['ma-short']
         results['pvo'] = df['pvo']
-        results['buy-signal'] = df['buy-signal']
-        results['sell-signal'] = df['sell-signal']
+        results['diff'] = df['diff']
+        results['ma-diff'] = df['ma-diff']
+        results['buy-signal'] = self._results_buy_est
+        results['sell-signal'] = self._results_sell_est
+        results['buy-prob'] = [row[1] for row in buy_prob]
+        results['sell-prob'] = [row[1] for row in sell_prob]
 
         self._results = results
 
@@ -118,44 +113,35 @@ class MAClassifier(Classifier):
         else:
             df = pd.DataFrame(rows)
 
-        # Calculate moving average
-        ma = self.get_ma(df)
+        # Calculate moving averages
+        if self._is_simple:
+            ma_long = ta.sma(df[Quotes.AdjClose], length = self._period_long)
+            ma_short = ta.sma(df[Quotes.AdjClose], length = self._period_short)
+        else:
+            ma_long = ta.ema(df[Quotes.AdjClose], length = self._period_long)
+            ma_short = ta.ema(df[Quotes.AdjClose], length = self._period_short)
 
         # Calculate PVO
         pvo = ta.pvo(df[Quotes.Volume])
 
-        df['ma'] = ma
         df['pvo'] = pvo.iloc[:, 0]
-        df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])  # TODO LOW get rid of it if not used
-        df['hilo-diff'] = (df[Quotes.High] - df[Quotes.Low] / df[Quotes.High])
+        df['diff'] = ((df[Quotes.AdjClose] - ma_long) / df[Quotes.AdjClose])
+        df['ma-diff'] = ((ma_long - ma_short) / ma_long)
+        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
+        df['ma-long'] = ma_long
+        df['ma-short'] = ma_short
 
         # Get rid of the values where MA is not calculated because they are useless for learning.
-        df = df[self._period-1:]
+        df = df[self._period_long-1:]
         df = df.reset_index().drop(['index'], axis=1)
 
         # Fill nan values (if any) with mean values
         df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
         df['diff'].fillna(value=df['diff'].mean(), inplace=True)
+        df['ma-diff'].fillna(value=df['ma-diff'].mean(), inplace=True)
         df['hilo-diff'].fillna(value=df['hilo-diff'].mean(), inplace=True)
 
         return df
-
-    def get_ma(self, df):
-        """
-            Get the moving average values.
-
-            Args:
-                df(DataFrame): data for calculation
-
-            Returns:
-                DataFrame: calculated MA
-        """
-        if self._is_simple:
-            ma = ta.sma(df[Quotes.AdjClose], length = self._period)
-        else:
-            ma = ta.ema(df[Quotes.AdjClose], length = self._period)
-
-        return ma
 
     def add_signals(self, df):
         """
@@ -164,22 +150,22 @@ class MAClassifier(Classifier):
             Args:
                 df(DataFrame): the initial data
         """
-        curr_trend = df['diff'] > 0
-        prev_trend = df['diff'].shift() > 0
-        buy_cycle = df['diff'].shift(-abs(self._cycle_num)) >= self._true_ratio
-        sell_cycle = df['diff'].shift(-abs(self._cycle_num)) <= -abs(self._true_ratio)
+        curr_quote = df[Quotes.AdjClose]
+        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
 
-        buy_true = np.where(curr_trend & (prev_trend == False) & buy_cycle & (df.index != 0), 1, np.nan)
-        buy_false = np.where(curr_trend & (prev_trend == False) & (buy_cycle == False) & (df.index != 0), 1, np.nan)
-        sell_true = np.where((curr_trend == False) & prev_trend & sell_cycle & (df.index != 0), 1, np.nan)
-        sell_false = np.where((curr_trend == False) & prev_trend & (sell_cycle == False) & (df.index != 0), 1, np.nan)
+        buy_cycle = (next_quote - curr_quote) / curr_quote >= self._true_ratio
+        sell_cycle = (curr_quote - next_quote) / next_quote >= self._true_ratio
+
+        buy_true = np.where(buy_cycle & (df.index != 0), 1, np.nan)
+        buy_false = np.where((buy_cycle == False) & (df.index != 0), 1, np.nan)
+
+        sell_true = np.where(sell_cycle & (df.index != 0), 1, np.nan)
+        sell_false = np.where((sell_cycle == False) & (df.index != 0), 1, np.nan)
+
         df['buy-true'] = buy_true
         df['buy-false'] = buy_false
         df['sell-true'] = sell_true
         df['sell-false'] = sell_false
-
-        # Get rid of rows without signals
-        df = df[['buy-true', 'buy-false', 'sell-true', 'sell-false']].dropna(thresh=1)
 
     def learn(self):
         """
@@ -199,13 +185,14 @@ class MAClassifier(Classifier):
             dfi = pd.DataFrame()
             dfi['pvo'] = df['pvo']
             dfi['diff'] = df['diff']
+            dfi['ma-diff'] = df['ma-diff']
+
             dfi['buy-true'] = df['buy-true']
             dfi['buy-false'] = df['buy-false']
             dfi['sell-true'] = df['sell-true']
             dfi['sell-false'] = df['sell-false']
-            dfi['hilo-diff'] = df['hilo-diff']
 
-            df_main = pd.concat([df_main, dfi], ignore_index=True)  # TODO MID Check why it is used
+            df_main = pd.concat([df_main, dfi], ignore_index=True)
 
         results_buy, results_sell = self.get_buy_sell_results(df_main)
 
@@ -214,7 +201,7 @@ class MAClassifier(Classifier):
         df_sell = df_main[(df_main['sell-true'] == 1) | (df_main['sell-false'] == 1)]
 
         # Replace nans with mean values
-        means_buy = df_buy.mean()
+        means_buy = df_buy.mean()  # TODO MID Check if it needs to be removed
         means_sell = df_sell.mean()
 
         df_buy = df_buy.fillna(means_buy)
@@ -224,12 +211,15 @@ class MAClassifier(Classifier):
 
         buy_learn, sell_learn = self.get_learning_instances()
 
-        self._model_buy = buy_learn.fit(df_buy[['pvo', 'diff']], results_buy)
-        self._model_sell = sell_learn.fit(df_sell[['pvo', 'diff']], results_sell)
+        data_buy = df_buy[['pvo', 'diff', 'ma-diff']]
+        data_sell = df_sell[['pvo', 'diff', 'ma-diff']]
+
+        self._model_buy = buy_learn.fit(data_buy, results_buy)
+        self._model_sell = sell_learn.fit(data_sell, results_sell)
 
         # Check accuracy of learning
-        est_buy_train = self._model_buy.predict(df_buy[['pvo', 'diff']])
-        est_sell_train = self._model_sell.predict(df_sell[['pvo', 'diff']])
+        est_buy_train = self._model_buy.predict(data_buy)
+        est_sell_train = self._model_sell.predict(data_sell)
 
         self._accuracy_buy_learn = accuracy_score(results_buy, est_buy_train)
         self._accuracy_sell_learn = accuracy_score(results_sell, est_sell_train)

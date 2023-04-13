@@ -5,11 +5,11 @@
 - For successful AI-appliances, we need a lot of data and the data should be well structurized and quickly accessible.
 - Analysing financial markets has a lot of common features. That is why a data analyzing API should be used to reduce a routine work.
 - All data processing techniques should be treated equally and follow the same interface.
-- Backtesting is treated as another AI metric and it should be very sensitive to a 'minor' details.
+- Backtesting is treated as an another AI metric and it should be very sensitive to a 'minor' details.
 
 ### Based on these principles (and not only), **Fcore** is capable of:
 - Obtaining data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storing it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain and parse the required data.
-- Providing an API to ease the development of AI-strategies for financial analysis. The main focus is on these 3 approaches: classifying TA-signals (true/false) with the help of AI (already implemented as classifiers), analysing data to estimate the future prices as a regression problem (partially implemented as LSTM-demos), estimating a future market moves as a probabilistic classification (to be implemented).
+- Providing an API to ease the development of AI-strategies for financial markets analysis. The main focus is on these approaches: classifying strategy signals or security growth/decline forecast as True/False with optional probabilities calculation (already implemented) and estimation of the future prices as a regression problem (partially implemented as LSTM-demo).
 - Utilizing the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
 - Providing its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
 - Using multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
@@ -24,7 +24,7 @@ Please note that Fcore is a tool which helps you to easily implement and test yo
 Here is a basic example (within 100 LoC) of 200 day SMA strategy implementation when true/false signals are distinguished by AI.
 
 ```python
-from tools.classifier import Algorithm
+from data.fvalues import Algorithm
 from tools.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification
@@ -172,6 +172,7 @@ Non-CLI API wrappers:
 Examples of custom data processing tools which are relied on AI:
 - [tools/lstm.py](tools/lstm.py) - LSTM AI implementation for financial analysis (**python -m demo.ai.lstm_learn** for learning demonstation and **python -m demo.tools.lstm_demo** for price estimation demonstation)
 - [tools/ma_classifier.py](tools/ma_classifier.py) 'AI-indicator' where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration)
+- [tools/probability.py](tools/probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration)
 
 Examples of a screening strategy:
 - [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation)

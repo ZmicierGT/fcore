@@ -59,5 +59,14 @@ class BaseTool(metaclass=abc.ABCMeta):
         """
         self._results = results
 
+    def set_data(self, data):
+        """
+            Set data for calculation
+
+            Args:
+                data(list): data for calculation.
+        """
+        self._rows = data
+
 class ToolError(Exception):
     pass

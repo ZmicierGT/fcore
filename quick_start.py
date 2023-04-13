@@ -1,4 +1,4 @@
-from tools.classifier import Algorithm
+from data.fvalues import Algorithm
 from tools.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification

@@ -1,19 +1,17 @@
-"""Module with the base class for custom classifier 'AI-indicator'.
+"""Module with the base class for 'classifiers' AI-tools.
 
-Classifier is an extension to a technical indicator/oscillator when signal is checked to be true/false by AI.
-All the signals are classified to 4 groups then: buy-true, buy-false, sell-true, sell-false.
+Classifiers help to estimate if obtained market signals are True/False.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-
 import abc
 
 from tools.base import BaseTool
 from tools.base import ToolError
 
-from enum import IntEnum
+from data.fvalues import Algorithm
 
 import pandas as pd
 import numpy as np
@@ -27,34 +25,25 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import accuracy_score, f1_score
 
-# TODO LOW Add the ability to pass the learning instance as an argument
-class Algorithm(IntEnum):
-    """Enum with the supported algorithms."""
-    LR = 0
-    LDA = 1
-    KNC = 2
-    GaussianNB = 3
-    DTC = 4
-    SVC = 5
-
 class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.
     """
+    # TODO MID Add the ability to get probabilities for all classifications
     def __init__(self,
                  rows=None,
-                 model_buy=None,
+                 model_buy=None,  # TODO MID allow it to work with buy model only
                  model_sell=None,
-                 data_to_learn=None,
+                 data_to_learn=None,  # TODO MID need to think if we can specify there columns which are used in learning
                  true_ratio=0,
                  cycle_num=2,
                  algorithm=Algorithm.GaussianNB
                 ):
         """
-            Initialize PDO implementation class.
+            Initialize classifier class.
 
             Args:
-                rows(list): quotes for calculation.
+                rows(list): quotes to make an estimation.
                 model_buy(): model to estimate buy signals.
                 model_sell(): model to estimate sell signals.
                 data_to_learn([array]) data to train the models. Either models or data to learn need to be specified.
@@ -143,15 +132,6 @@ class Classifier(BaseTool):
         total_f1 = (f1_buy * len(results_buy_actual) + f1_sell * len(results_sell_actual)) / (len(results_buy_actual) + len(results_sell_actual))
 
         return (f1_buy, f1_sell, total_f1)
-
-    def set_data(self, data):
-        """
-            Set data for calculation
-
-            Args:
-                data(BackTestData): data for estimation.
-        """
-        self._rows = data
 
     def get_signals_to_compare(self):
         """
@@ -325,4 +305,10 @@ class Classifier(BaseTool):
 
             Args:
                 df(DataFrame): the initial data
+        """
+
+    @abc.abstractmethod
+    def learn(self):
+        """
+            Perform model training.
         """

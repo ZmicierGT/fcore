@@ -83,3 +83,13 @@ class DbTypes(Enum):
         Database types enum. Currently only SQLite is supported.
     """
     SQLite = "sqlite"
+
+# TODO LOW Add the ability to pass the learning instance as an argument
+class Algorithm(IntEnum):
+    """Enum with the supported algorithms for scikit-learn."""
+    LR = 0
+    LDA = 1
+    KNC = 2
+    GaussianNB = 3
+    DTC = 4
+    SVC = 5

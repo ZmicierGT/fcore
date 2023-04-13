@@ -1,16 +1,15 @@
-"""Demonstration of learning a model for MA/price cross strategy combined with AI estimation of false signals.
+"""Demonstration of a growth probability algorithm.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.0 (see license.md)
 """
-
 from data.yf import YF
 from data.fdata import FdataError
 
 from data.fvalues import Quotes
 
-from tools.ma_classifier import MAClassifier
+from tools.probability import Probability
 from data.fvalues import Algorithm
 
 from tools.base import ToolError
@@ -27,7 +26,8 @@ import sys
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 algorithm = Algorithm.KNC  # The default algorithm to use
-period = 50  # Period for MA calculation
+period_long = 50  # Period for MA calculation
+period_short = 25
 symbol = 'SPY'  # Symbol to make estimations
 
 first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
@@ -110,21 +110,22 @@ if __name__ == "__main__":
     # Train the model and get results
     #################################
 
-    ma_cls = MAClassifier(period=period,
-                          rows=est_rows,
-                          data_to_learn=allrows,
-                          true_ratio=true_ratio,
-                          cycle_num=cycle_num,
-                          algorithm=algorithm)
+    prob = Probability(period_long=period_long,
+                         period_short=period_short,
+                         rows=est_rows,
+                         data_to_learn=allrows,
+                         true_ratio=true_ratio,
+                         cycle_num=cycle_num,
+                         algorithm=algorithm)
 
     try:
-        ma_cls.calculate()
-        accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = ma_cls.get_learn_accuracy()
-        f1_buy_learn, f1_sell_learn, total_f1_learn = ma_cls.get_learn_f1()
-        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.get_est_accuracy()
-        f1_buy_est, f1_sell_est, total_f1_est = ma_cls.get_est_f1()
+        prob.calculate()
+        accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = prob.get_learn_accuracy()
+        f1_buy_learn, f1_sell_learn, total_f1_learn = prob.get_learn_f1()
+        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = prob.get_est_accuracy()
+        f1_buy_est, f1_sell_est, total_f1_est = prob.get_est_f1()
     except ToolError as e:
-        sys.exit(f"Can't calculate MA Classifier: {e}")
+        sys.exit(f"Can't calculate probabilities: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
     print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
@@ -142,23 +143,19 @@ if __name__ == "__main__":
     print(f"Sell estimation f1 score: {round(f1_sell_est, 4)}")
     print(f"Total estimation f1 score: {round(total_f1_est, 4)}")
 
-    print(f"\nThe actual/estimated signals:\n{ma_cls.get_df_signals_to_compare().to_string()}\n")
-
     #################
     # Build the chart
     #################
 
-    df = ma_cls.get_results()
-    df['quote'] = [row[Quotes.AdjClose] for row in est_rows][period-1:]
-    df['volume'] = [row[Quotes.Volume] for row in est_rows][period-1:]
-
-    buy_quotes = df.loc[df['buy-signal'] == 1]
-    sell_quotes = df.loc[df['sell-signal'] == 1]
+    df = prob.get_results()
+    df['quote'] = [row[Quotes.AdjClose] for row in est_rows][period_long-1:]
+    df['volume'] = [row[Quotes.Volume] for row in est_rows][period_long-1:]
 
     # Create figure
 
-    fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.2, 0.4],
                         specs=[[{"secondary_y": False}],
+                            [{"secondary_y": False}],
                             [{"secondary_y": False}],
                             [{"secondary_y": False}]])
 
@@ -168,37 +165,29 @@ if __name__ == "__main__":
     )
 
     fig.add_trace(
-        go.Scatter(x=df['dt'], y=df['ma'], name="MA"),
+        go.Scatter(x=df['dt'], y=df['ma-long'], name="Long MA"),
         secondary_y=False,
     )
 
-    # Add buy/sell signals to the chart
+    fig.add_trace(
+        go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"),
+        secondary_y=False,
+    )
 
-    fig.add_trace(go.Scatter(x=buy_quotes['dt'],
-                             y=buy_quotes['quote'],
-                             mode='markers',
-                             name='Buy Signals',
-                             marker=dict(size=12, symbol="arrow-up", color='green', line_color="midnightblue", line_width=2)),
-                  row=1, col=1)
-
-    fig.add_trace(go.Scatter(x=sell_quotes['dt'],
-                             y=sell_quotes['quote'],
-                             mode='markers',
-                             name='Sell Signals',
-                             marker=dict(size=12, symbol="arrow-down", color='red', line_color="midnightblue", line_width=2)),
-                  row=1, col=1)
+    # Add probabilities chart
+    fig.add_trace(go.Scatter(x=df['dt'], y=(df['buy-prob'] - df['sell-prob']), fill='tozeroy', name="Growth Probability"), row=2, col=1)
 
     # Add percentage volume oscillator chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=df['pvo'], fill='tozeroy', name="PVO"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=df['dt'], y=df['pvo'], fill='tozeroy', name="PVO"), row=3, col=1)
 
     # Add volume chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=df['volume'], fill='tozeroy', name="Volume"), row=3, col=1)
+    fig.add_trace(go.Scatter(x=df['dt'], y=df['volume'], fill='tozeroy', name="Volume"), row=4, col=1)
 
     ######################
     # Write the chart
     ######################
 
-    update_layout(fig, f"MA Classifier example chart for {source.symbol}", length)
+    update_layout(fig, f"Probabilities example chart for {source.symbol}", length)
 
     new_file = show_image(fig)
 

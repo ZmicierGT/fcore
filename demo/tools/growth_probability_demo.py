@@ -9,7 +9,7 @@ from data.fdata import FdataError
 
 from data.fvalues import Quotes
 
-from tools.probability import Probability
+from tools.growth_probability import Probability
 from data.fvalues import Algorithm
 
 from tools.base import ToolError

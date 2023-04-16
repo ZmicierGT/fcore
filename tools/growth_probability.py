@@ -16,7 +16,7 @@ import pandas_ta as ta
 
 import numpy as np
 
-# TODO MID need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside tool itself
+# TODO MID need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside the tool itself
 class Probability(Classifier):
     """
         Base security growth probability impementation.

@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 
 from screener.rsi_scr import RsiScr

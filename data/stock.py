@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
 from data.fvalues import SecType, ReportPeriod, five_hundred_days

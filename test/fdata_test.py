@@ -358,7 +358,7 @@ class FdataTest(unittest.TestCase, DataMocker):
         verify(self.read_data, times=1).add_source()
 
     def test_6_check_db_close(self):
-        # TODO MID All expectations of mocks should be checked.
+        # TODO LOW All expectations of mocks should be checked.
         when(self.read_data).check_database().thenReturn()
         when(self.read_data).check_source().thenReturn(False)
         when(self.read_data).add_source().thenReturn()

@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 from tools.base import ToolError
 from tools.classifier import Classifier
@@ -13,8 +13,6 @@ import pandas as pd
 import pandas_ta as ta
 
 import numpy as np
-
-from sklearn.metrics import accuracy_score, f1_score
 
 class MAClassifier(Classifier):
     """
@@ -41,12 +39,17 @@ class MAClassifier(Classifier):
                                 after getting the signal from MA.
                 cycle_num(int): number of cycles to reach to true_ratio to consider that the signal is true.
                 algorithm(Algorithm): algorithm used for learning (from Algorithm enum).
+                classify(bool): indicates if classification should be performed.
+                probabilities(bool): determines if probabilities should be calculated.
                 offset(int): offset for calculation.
 
             Raises:
                 ToolError: No model provided to make the estimation.
         """
         super().__init__(**kwargs)
+
+        if self._use_buy is False or self._use_sell is False:
+            raise ToolError("Both buy and sell signals are required by this tool.")
 
         self._period = period
         self._is_simple = is_simple
@@ -61,6 +64,9 @@ class MAClassifier(Classifier):
         if self._rows == None:
             raise ToolError("No data for testing provided.")
 
+        if self._classify is False:
+            raise ToolError("Classification is disabled but it is required by this tool.")
+
         # Check if we need to train the model at first
         if self._model_buy == None or self._model_sell == None:
             self.learn()
@@ -73,10 +79,8 @@ class MAClassifier(Classifier):
         curr_trend = df['diff'] > 0
         prev_trend = df['diff'].shift() > 0
 
-        buy = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, np.nan)
-        sell = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, np.nan)
-        df['buy'] = buy
-        df['sell'] = sell
+        df['buy'] = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, np.nan)
+        df['sell'] = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, np.nan)
 
         #########################################
         # Make estimations according to the model
@@ -86,9 +90,9 @@ class MAClassifier(Classifier):
         df_buy = df[df['buy'] == 1]
         df_sell = df[df['sell'] == 1]
 
-        # Estimate if signals are true
-        self._results_buy_est = self._model_buy.predict(df_buy[['pvo', 'diff']])
-        self._results_sell_est = self._model_sell.predict(df_sell[['pvo', 'diff']])
+        # Estimate if signals are true. Classification is always used.
+        self._results_buy_est = self._model_buy.predict(df_buy[['pvo', 'diff', 'hilo-diff']])
+        self._results_sell_est = self._model_sell.predict(df_sell[['pvo', 'diff', 'hilo-diff']])
 
         it_buy = iter(self._results_buy_est)
         it_sell = iter(self._results_sell_est)
@@ -103,11 +107,19 @@ class MAClassifier(Classifier):
         results['buy-signal'] = df['buy-signal']
         results['sell-signal'] = df['sell-signal']
 
+        # Probabilities calculation is optional
+        if self._probability:
+            buy_prob = self._model_buy.predict_proba(df_buy[['pvo', 'diff']])
+            sell_prob = self._model_sell.predict_proba(df_sell[['pvo', 'diff']])
+
+            results['buy-prob'] = [row[1] for row in buy_prob]
+            results['sell-prob'] = [row[1] for row in sell_prob]
+
         self._results = results
 
     def get_df(self, rows=None):
         """
-            Get the DataFrame for learning/estimation based on the initial DataFrame.
+            Get the DataFrame for learning/estimation.
 
             Returns:
                 DataFrame: data ready for learning/estimation
@@ -119,15 +131,18 @@ class MAClassifier(Classifier):
             df = pd.DataFrame(rows)
 
         # Calculate moving average
-        ma = self.get_ma(df)
+        if self._is_simple:
+            ma = ta.sma(df[Quotes.AdjClose], length = self._period)
+        else:
+            ma = ta.ema(df[Quotes.AdjClose], length = self._period)
 
         # Calculate PVO
         pvo = ta.pvo(df[Quotes.Volume])
 
         df['ma'] = ma
         df['pvo'] = pvo.iloc[:, 0]
-        df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])  # TODO LOW get rid of it if not used
-        df['hilo-diff'] = (df[Quotes.High] - df[Quotes.Low] / df[Quotes.High])
+        df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])
+        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
 
         # Get rid of the values where MA is not calculated because they are useless for learning.
         df = df[self._period-1:]
@@ -140,101 +155,55 @@ class MAClassifier(Classifier):
 
         return df
 
-    def get_ma(self, df):
+    def add_buy_signals(self, df_source):
         """
-            Get the moving average values.
+            Add buy signals to the DataFrame.
 
             Args:
-                df(DataFrame): data for calculation
-
-            Returns:
-                DataFrame: calculated MA
+                df_source(DataFrame): the initial data
         """
-        if self._is_simple:
-            ma = ta.sma(df[Quotes.AdjClose], length = self._period)
-        else:
-            ma = ta.ema(df[Quotes.AdjClose], length = self._period)
+        curr_trend = df_source['diff'] > 0
+        prev_trend = df_source['diff'].shift() > 0
 
-        return ma
+        buy_condition = df_source['diff'].shift(-abs(self._cycle_num)) >= self._true_ratio
 
-    def add_signals(self, df):
-        """
-            Add buy-sell signals to the DataFrame.
+        df = pd.DataFrame()
 
-            Args:
-                df(DataFrame): the initial data
-        """
-        curr_trend = df['diff'] > 0
-        prev_trend = df['diff'].shift() > 0
-        buy_cycle = df['diff'].shift(-abs(self._cycle_num)) >= self._true_ratio
-        sell_cycle = df['diff'].shift(-abs(self._cycle_num)) <= -abs(self._true_ratio)
+        # TODO MID Need to think of a faster way to do it
+        df['buy-true'] = np.where(curr_trend & (prev_trend == False) & buy_condition & (df_source.index != 0), 1, np.nan)
+        df['buy-false'] = np.where(curr_trend & (prev_trend == False) & (buy_condition == False) & (df_source.index != 0), 1, np.nan)
 
-        buy_true = np.where(curr_trend & (prev_trend == False) & buy_cycle & (df.index != 0), 1, np.nan)
-        buy_false = np.where(curr_trend & (prev_trend == False) & (buy_cycle == False) & (df.index != 0), 1, np.nan)
-        sell_true = np.where((curr_trend == False) & prev_trend & sell_cycle & (df.index != 0), 1, np.nan)
-        sell_false = np.where((curr_trend == False) & prev_trend & (sell_cycle == False) & (df.index != 0), 1, np.nan)
-        df['buy-true'] = buy_true
-        df['buy-false'] = buy_false
-        df['sell-true'] = sell_true
-        df['sell-false'] = sell_false
+        df['pvo'] = df_source['pvo']
+        df['diff'] = df_source['diff']
+        df['hilo-diff'] = df_source['hilo-diff']
 
         # Get rid of rows without signals
-        df = df[['buy-true', 'buy-false', 'sell-true', 'sell-false']].dropna(thresh=1)
+        df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
 
-    def learn(self):
+        return df
+
+    def add_sell_signals(self, df_source):
         """
-            Perform model training.
+            Add sell signals to the DataFrame.
+
+            Args:
+                df_source(DataFrame): the initial data
         """
-        df_main = pd.DataFrame()
+        curr_trend = df_source['diff'] > 0
+        prev_trend = df_source['diff'].shift() > 0
 
-        for rows in self._data_to_learn:
-            # DataFrame for the current symbol
-            df = self.get_df(rows)
+        sell_condition = df_source['diff'].shift(-abs(self._cycle_num)) <= -abs(self._true_ratio)
 
-            # Distintuish true and false trade signals
-            self.add_signals(df)
+        df = pd.DataFrame()
 
-            # Append current symbol's calculation to the main DataFrame
+        df['sell-true'] = np.where((curr_trend == False) & prev_trend & sell_condition & (df_source.index != 0), 1, np.nan)
+        df['sell-false'] = np.where((curr_trend == False) & prev_trend & (sell_condition == False) & (df_source.index != 0), 1, np.nan)
 
-            dfi = pd.DataFrame()
-            dfi['pvo'] = df['pvo']
-            dfi['diff'] = df['diff']
-            dfi['buy-true'] = df['buy-true']
-            dfi['buy-false'] = df['buy-false']
-            dfi['sell-true'] = df['sell-true']
-            dfi['sell-false'] = df['sell-false']
-            dfi['hilo-diff'] = df['hilo-diff']
+        df['pvo'] = df_source['pvo']
+        df['diff'] = df_source['diff']
+        df['hilo-diff'] = df_source['hilo-diff']
 
-            df_main = pd.concat([df_main, dfi], ignore_index=True)  # TODO MID Check why it is used
+        # Get rid of rows without signals
+        df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)
 
-        results_buy, results_sell = self.get_buy_sell_results(df_main)
-
-        # Create separate DataFrames for buy and sell learning
-        df_buy = df_main[(df_main['buy-true'] == 1) | (df_main['buy-false'] == 1)]
-        df_sell = df_main[(df_main['sell-true'] == 1) | (df_main['sell-false'] == 1)]
-
-        # Replace nans with mean values
-        means_buy = df_buy.mean()
-        means_sell = df_sell.mean()
-
-        df_buy = df_buy.fillna(means_buy)
-        df_sell = df_sell.fillna(means_sell)
-
-        # Train the model
-
-        buy_learn, sell_learn = self.get_learning_instances()
-
-        self._model_buy = buy_learn.fit(df_buy[['pvo', 'diff']], results_buy)
-        self._model_sell = sell_learn.fit(df_sell[['pvo', 'diff']], results_sell)
-
-        # Check accuracy of learning
-        est_buy_train = self._model_buy.predict(df_buy[['pvo', 'diff']])
-        est_sell_train = self._model_sell.predict(df_sell[['pvo', 'diff']])
-
-        self._accuracy_buy_learn = accuracy_score(results_buy, est_buy_train)
-        self._accuracy_sell_learn = accuracy_score(results_sell, est_sell_train)
-        self._total_accuracy_learn = (self._accuracy_buy_learn * len(results_buy) + self._accuracy_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
-
-        self._f1_buy_learn = f1_score(results_buy, est_buy_train)
-        self._f1_sell_learn = f1_score(results_sell, est_sell_train)
-        self._total_f1_learn = (self._f1_buy_learn * len(results_buy) + self._f1_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
+        return df

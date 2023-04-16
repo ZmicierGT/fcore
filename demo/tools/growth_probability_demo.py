@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 from data.yf import YF
 from data.fdata import FdataError
@@ -111,37 +111,36 @@ if __name__ == "__main__":
     #################################
 
     prob = Probability(period_long=period_long,
-                         period_short=period_short,
-                         rows=est_rows,
-                         data_to_learn=allrows,
-                         true_ratio=true_ratio,
-                         cycle_num=cycle_num,
-                         algorithm=algorithm)
+                       period_short=period_short,
+                       rows=est_rows,
+                       data_to_learn=allrows,
+                       true_ratio=true_ratio,
+                       cycle_num=cycle_num,
+                       algorithm=algorithm)
 
     try:
+        from time import perf_counter
+
+        before = perf_counter()
+        prob.learn()
+        print(f"Total time for learning: {perf_counter() - before}")
+
+        before = perf_counter()
         prob.calculate()
-        accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = prob.get_learn_accuracy()
-        f1_buy_learn, f1_sell_learn, total_f1_learn = prob.get_learn_f1()
-        accuracy_buy_est, accuracy_sell_est, total_accuracy_est = prob.get_est_accuracy()
-        f1_buy_est, f1_sell_est, total_f1_est = prob.get_est_f1()
+        print(f"Total time for estimaiton: {perf_counter() - before}")
+
+        accuracy_buy_learn, _, _ = prob.get_learn_accuracy()
+        f1_buy_learn, _, _ = prob.get_learn_f1()
+        accuracy_buy_est, _, _ = prob.get_est_accuracy()
+        f1_buy_est, _, _ = prob.get_est_f1()
     except ToolError as e:
-        sys.exit(f"Can't calculate probabilities: {e}")
+        sys.exit(f"Can't perform calculation: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
-    print('Sell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
-    print('Total train accuracy:{: .2f}%'.format(total_accuracy_learn * 100))
-
-    print(f"\nBuy train f1 score: {round(f1_buy_learn, 4)}")
-    print(f"Sell train f1 score: {round(f1_sell_learn, 4)}")
-    print(f"Total train f1 score: {round(total_f1_learn, 4)}")
+    print(f"Buy train f1 score: {round(f1_buy_learn, 4)}")
 
     print('\nBuy estimation accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
-    print('Sell estimation accuracy:{: .2f}%'.format(accuracy_sell_est * 100))
-    print('Total estimation accuracy:{: .2f}%'.format(total_accuracy_est * 100))
-
-    print(f"\nBuy estimation f1 score: {round(f1_buy_est, 4)}")
-    print(f"Sell estimation f1 score: {round(f1_sell_est, 4)}")
-    print(f"Total estimation f1 score: {round(total_f1_est, 4)}")
+    print(f"Buy estimation f1 score: {round(f1_buy_est, 4)}\n")
 
     #################
     # Build the chart
@@ -175,7 +174,7 @@ if __name__ == "__main__":
     )
 
     # Add probabilities chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=(df['buy-prob'] - df['sell-prob']), fill='tozeroy', name="Growth Probability"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
 
     # Add percentage volume oscillator chart
     fig.add_trace(go.Scatter(x=df['dt'], y=df['pvo'], fill='tozeroy', name="PVO"), row=3, col=1)

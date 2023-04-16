@@ -4,7 +4,7 @@ The value returned by pobability tool indicates the chance that the security wil
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 from tools.base import ToolError
 from tools.classifier import Classifier
@@ -16,8 +16,7 @@ import pandas_ta as ta
 
 import numpy as np
 
-from sklearn.metrics import accuracy_score, f1_score
-
+# TODO HIGH need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside tool itself
 class Probability(Classifier):
     """
         Base security growth probability impementation.
@@ -26,6 +25,9 @@ class Probability(Classifier):
                  period_long=30,
                  period_short=15,
                  is_simple=True,
+                 probability=True,
+                 classify=True,  # Needed for metrics only
+                 use_sell=False,
                  **kwargs):
         """
             Initialize probability class.
@@ -43,12 +45,14 @@ class Probability(Classifier):
                                 after getting the signal.
                 cycle_num(int): number of cycles to reach to true_ratio to consider that the signal is true.
                 algorithm(Algorithm): algorithm used for learning (from Algorithm enum).
+                classify(bool): indicates if classification should be performed.
+                probability(bool): determines if probabilities should be calculated.
                 offset(int): offset for calculation.
 
             Raises:
                 ToolError: No model provided to make the estimation.
         """
-        super().__init__(**kwargs)
+        super().__init__(**kwargs, probability=probability, use_sell=use_sell, classify=classify)
 
         if period_long <= period_short:
             raise ToolError(f"Long MA period should be bigger than short period: {period_long} > {period_short}")
@@ -67,8 +71,11 @@ class Probability(Classifier):
         if self._rows == None:
             raise ToolError("No data for testing provided.")
 
+        if self._probability is False:
+            raise ToolError("Probabilities calculalation is disabled but it is required by this tool.")
+
         # Check if we need to train the model at first
-        if self._model_buy == None or self._model_sell == None:
+        if self.need_buy(self._model_buy is None) or self.need_sell(self._model_sell is None):
             self.learn()
 
         # DataFrame for the current symbol
@@ -78,13 +85,7 @@ class Probability(Classifier):
         # Make estimations according to the model
         #########################################
 
-        data_to_est = df[['pvo', 'diff', 'ma-diff']]
-
-        self._results_buy_est = self._model_buy.predict(data_to_est)
-        self._results_sell_est = self._model_sell.predict(data_to_est)
-
-        buy_prob = self._model_buy.predict_proba(data_to_est)
-        sell_prob = self._model_sell.predict_proba(data_to_est)
+        data_to_est = df[['pvo', 'diff', 'ma-diff', 'hilo-diff']]
 
         results = pd.DataFrame()
         results['dt'] = df[Quotes.DateTime]
@@ -93,16 +94,31 @@ class Probability(Classifier):
         results['pvo'] = df['pvo']
         results['diff'] = df['diff']
         results['ma-diff'] = df['ma-diff']
-        results['buy-signal'] = self._results_buy_est
-        results['sell-signal'] = self._results_sell_est
-        results['buy-prob'] = [row[1] for row in buy_prob]
-        results['sell-prob'] = [row[1] for row in sell_prob]
+
+        # Classification is optional
+        if self._classify:
+            if self._use_buy:
+                self._results_buy_est = self._model_buy.predict(data_to_est)
+                results['buy-signal'] = self._results_buy_est
+
+            if self._use_sell:
+                self._results_sell_est = self._model_sell.predict(data_to_est)
+                results['sell-signal'] = self._results_sell_est
+
+        # Probabilities are always calculated
+        if self._use_buy:
+            buy_prob = self._model_buy.predict_proba(data_to_est)
+            results['buy-prob'] = [row[1] for row in buy_prob]
+
+        if self._use_sell:
+            sell_prob = self._model_sell.predict_proba(data_to_est)
+            results['sell-prob'] = [row[1] for row in sell_prob]
 
         self._results = results
 
     def get_df(self, rows=None):
         """
-            Get the DataFrame for learning/estimation based on the initial DataFrame.
+            Get the DataFrame for learning/estimation.
 
             Returns:
                 DataFrame: data ready for learning/estimation
@@ -124,6 +140,7 @@ class Probability(Classifier):
         # Calculate PVO
         pvo = ta.pvo(df[Quotes.Volume])
 
+        # Prepare data for estimation
         df['pvo'] = pvo.iloc[:, 0]
         df['diff'] = ((df[Quotes.AdjClose] - ma_long) / df[Quotes.AdjClose])
         df['ma-diff'] = ((ma_long - ma_short) / ma_long)
@@ -143,88 +160,57 @@ class Probability(Classifier):
 
         return df
 
-    def add_signals(self, df):
+    def add_buy_signals(self, df_source):
         """
-            Add buy-sell signals to the DataFrame.
+            Add buy signals to the DataFrame.
 
             Args:
-                df(DataFrame): the initial data
+                df_source(DataFrame): the initial data
         """
-        curr_quote = df[Quotes.AdjClose]
-        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df_source[Quotes.AdjClose]
+        next_quote = df_source[Quotes.AdjClose].shift(-abs(self._cycle_num))
 
-        buy_cycle = (next_quote - curr_quote) / curr_quote >= self._true_ratio
-        sell_cycle = (curr_quote - next_quote) / next_quote >= self._true_ratio
+        buy_condition = (next_quote - curr_quote) / curr_quote >= self._true_ratio
 
-        buy_true = np.where(buy_cycle & (df.index != 0), 1, np.nan)
-        buy_false = np.where((buy_cycle == False) & (df.index != 0), 1, np.nan)
+        df = pd.DataFrame()
 
-        sell_true = np.where(sell_cycle & (df.index != 0), 1, np.nan)
-        sell_false = np.where((sell_cycle == False) & (df.index != 0), 1, np.nan)
+        # TODO MID Need to think of a faster way to do it
+        df['buy-true'] = np.where(buy_condition & (df_source.index != 0), 1, np.nan)
+        df['buy-false'] = np.where((buy_condition == False) & (df.index != 0), 1, np.nan)
 
-        df['buy-true'] = buy_true
-        df['buy-false'] = buy_false
-        df['sell-true'] = sell_true
-        df['sell-false'] = sell_false
+        df['pvo'] = df_source['pvo']
+        df['diff'] = df_source['diff']
+        df['ma-diff'] = df_source['ma-diff']
+        df['hilo-diff'] = df_source['hilo-diff']
 
-    def learn(self):
+        # Get rid of rows without signals
+        df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
+
+        return df
+
+    def add_sell_signals(self, df_source):
         """
-            Perform model training.
+            Add sell signals to the DataFrame.
+
+            Args:
+                df_source(DataFrame): the initial data
         """
-        df_main = pd.DataFrame()
+        curr_quote = df_source[Quotes.AdjClose]
+        next_quote = df_source[Quotes.AdjClose].shift(-abs(self._cycle_num))
 
-        for rows in self._data_to_learn:
-            # DataFrame for the current symbol
-            df = self.get_df(rows)
+        sell_condition = (curr_quote - next_quote) / next_quote >= self._true_ratio
 
-            # Distintuish true and false trade signals
-            self.add_signals(df)
+        df = pd.DataFrame()
 
-            # Append current symbol's calculation to the main DataFrame
+        df['sell-true'] = np.where(sell_condition & (df_source.index != 0), 1, np.nan)
+        df['sell-false'] = np.where((sell_condition == False) & (df.index != 0), 1, np.nan)
 
-            dfi = pd.DataFrame()
-            dfi['pvo'] = df['pvo']
-            dfi['diff'] = df['diff']
-            dfi['ma-diff'] = df['ma-diff']
+        df['pvo'] = df_source['pvo']
+        df['diff'] = df_source['diff']
+        df['ma-diff'] = df_source['ma-diff']
+        df['hilo-diff'] = df_source['hilo-diff']
 
-            dfi['buy-true'] = df['buy-true']
-            dfi['buy-false'] = df['buy-false']
-            dfi['sell-true'] = df['sell-true']
-            dfi['sell-false'] = df['sell-false']
+        # Get rid of rows without signals
+        df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)
 
-            df_main = pd.concat([df_main, dfi], ignore_index=True)
-
-        results_buy, results_sell = self.get_buy_sell_results(df_main)
-
-        # Create separate DataFrames for buy and sell learning
-        df_buy = df_main[(df_main['buy-true'] == 1) | (df_main['buy-false'] == 1)]
-        df_sell = df_main[(df_main['sell-true'] == 1) | (df_main['sell-false'] == 1)]
-
-        # Replace nans with mean values
-        means_buy = df_buy.mean()  # TODO MID Check if it needs to be removed
-        means_sell = df_sell.mean()
-
-        df_buy = df_buy.fillna(means_buy)
-        df_sell = df_sell.fillna(means_sell)
-
-        # Train the model
-
-        buy_learn, sell_learn = self.get_learning_instances()
-
-        data_buy = df_buy[['pvo', 'diff', 'ma-diff']]
-        data_sell = df_sell[['pvo', 'diff', 'ma-diff']]
-
-        self._model_buy = buy_learn.fit(data_buy, results_buy)
-        self._model_sell = sell_learn.fit(data_sell, results_sell)
-
-        # Check accuracy of learning
-        est_buy_train = self._model_buy.predict(data_buy)
-        est_sell_train = self._model_sell.predict(data_sell)
-
-        self._accuracy_buy_learn = accuracy_score(results_buy, est_buy_train)
-        self._accuracy_sell_learn = accuracy_score(results_sell, est_sell_train)
-        self._total_accuracy_learn = (self._accuracy_buy_learn * len(results_buy) + self._accuracy_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
-
-        self._f1_buy_learn = f1_score(results_buy, est_buy_train)
-        self._f1_sell_learn = f1_score(results_sell, est_sell_train)
-        self._total_f1_learn = (self._f1_buy_learn * len(results_buy) + self._f1_sell_learn * len(results_sell)) / (len(results_buy) + len(results_sell))
+        return df

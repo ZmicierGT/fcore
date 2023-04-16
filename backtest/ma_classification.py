@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 
 from backtest.ma import MA
@@ -48,7 +48,8 @@ class MAClassification(MA):
             self._model_buy = model_buy
             self._model_sell = model_sell
         else:
-            self._model_buy, self._model_sell = classifier.get_models()
+            self._model_buy = classifier.get_buy_model()
+            self._model_sell = classifier.get_sell_model()
 
         self._ma_cls = classifier
 

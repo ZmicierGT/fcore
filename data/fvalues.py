@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 
 from enum import IntEnum, Enum
@@ -23,7 +23,7 @@ class Quotes(IntEnum):
     Open = 1
     High = 2
     Low = 3
-    AdjClose = 4  # TODO MID Different enums for different sec types. This should be changed to just Close.
+    AdjClose = 4  # TODO LOW Different enums for different sec types. This should be changed to just Close.
     Volume = 5
     RawClose = 6
     Dividends = 7
@@ -84,7 +84,7 @@ class DbTypes(Enum):
     """
     SQLite = "sqlite"
 
-# TODO LOW Add the ability to pass the learning instance as an argument
+# TODO MID Add the ability to pass the learning instance as an argument
 class Algorithm(IntEnum):
     """Enum with the supported algorithms for scikit-learn."""
     LR = 0

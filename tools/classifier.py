@@ -374,17 +374,15 @@ class Classifier(BaseTool):
             # Create a results numpy array with buy signals
             self._results_buy_learn = self.get_buy_results(df_buy)
 
-            # Picks rows with signals TODO HIGH check if it is needed
-            df_buy = df_buy[(df_buy['buy-true'] == 1) | (df_buy['buy-false'] == 1)]
-
-            # Fill nan values with mean values TODO HIGH skip it if no nans
-            means_buy = df_buy.mean()
-            df_buy = df_buy.fillna(means_buy)
-
-            buy_learn = self.get_learning_instance()
-
-            # Drop columns not used in learning
+            # Create a DataFrame without signals for learning
             self._data_buy_learn = df_buy.drop(['buy-true', 'buy-false'], axis=1)
+
+            # Fill nan values with mean values (if any)
+            if self._data_buy_learn.isnull().values.any():
+                means_buy = self._data_buy_learn.mean()
+                self._data_buy_learn = self._data_buy_learn.fillna(means_buy)
+
+            buy_learn = self.get_learning_instance()            
 
             # Train buy model
             if len(self._data_buy_learn) == 0 or len(self._results_buy_learn) == 0:
@@ -396,17 +394,15 @@ class Classifier(BaseTool):
             # Create a results numpy array with sell signals
             self._results_sell_learn = self.get_sell_results(df_sell)
 
-            # Picks rows with signals
-            df_sell = df_sell[(df_sell['sell-true'] == 1) | (df_sell['sell-false'] == 1)]
+            # Create a DataFrame without signals for learning
+            self._data_sell_learn = df_sell.drop(['sell-true', 'sell-false'], axis=1)
 
-            # Fill nan values with mean values
-            means_sell = df_sell.mean()
-            df_sell = df_sell.fillna(means_sell)
+            # Fill nan values with mean values (if any)
+            if self._data_sell_learn.isnull().values.any():
+                means_sell = self._data_sell_learn.mean()
+                self._data_sell_learn = self._data_sell_learn.fillna(means_sell)
 
             sell_learn = self.get_learning_instance()
-
-            # Drop columns not used in learning
-            self._data_sell_learn = df_sell.drop(['sell-true', 'sell-false'], axis=1)
 
             # Train sell model
             if len(self._data_sell_learn) == 0 or len(self._results_sell_learn) == 0:

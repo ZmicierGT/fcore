@@ -20,6 +20,8 @@ from data.futils import show_image
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from time import perf_counter
+
 import sys
 
 # Parameters for learning
@@ -116,18 +118,18 @@ if __name__ == "__main__":
                        data_to_learn=allrows,
                        true_ratio=true_ratio,
                        cycle_num=cycle_num,
-                       algorithm=algorithm)
+                       algorithm=algorithm,
+                       classify=True
+                       )
 
     try:
-        from time import perf_counter
-
         before = perf_counter()
         prob.learn()
-        print(f"Total time for learning: {perf_counter() - before}")
+        print(f"Total time for learning: {(perf_counter() - before) * 1000}ms")
 
         before = perf_counter()
         prob.calculate()
-        print(f"Total time for estimaiton: {perf_counter() - before}")
+        print(f"Total time for estimaiton: {(perf_counter() - before) * 1000}ms")
 
         accuracy_buy_learn, _, _ = prob.get_learn_accuracy()
         f1_buy_learn, _, _ = prob.get_learn_f1()

@@ -26,7 +26,7 @@ class Probability(Classifier):
                  period_short=15,
                  is_simple=True,
                  probability=True,
-                 classify=True,  # Needed for metrics only
+                 classify=False,
                  use_sell=False,
                  **kwargs):
         """
@@ -85,7 +85,7 @@ class Probability(Classifier):
         # Make estimations according to the model
         #########################################
 
-        data_to_est = df[['pvo', 'diff', 'ma-diff', 'hilo-diff']]
+        data_to_est = ['pvo', 'diff', 'ma-diff', 'hilo-diff']
 
         results = pd.DataFrame()
         results['dt'] = df[Quotes.DateTime]
@@ -98,20 +98,20 @@ class Probability(Classifier):
         # Classification is optional
         if self._classify:
             if self._use_buy:
-                self._results_buy_est = self._model_buy.predict(data_to_est)
+                self._results_buy_est = self._model_buy.predict(df[data_to_est])
                 results['buy-signal'] = self._results_buy_est
 
             if self._use_sell:
-                self._results_sell_est = self._model_sell.predict(data_to_est)
+                self._results_sell_est = self._model_sell.predict(df[data_to_est])
                 results['sell-signal'] = self._results_sell_est
 
         # Probabilities are always calculated
         if self._use_buy:
-            buy_prob = self._model_buy.predict_proba(data_to_est)
+            buy_prob = self._model_buy.predict_proba(df[data_to_est])
             results['buy-prob'] = [row[1] for row in buy_prob]
 
         if self._use_sell:
-            sell_prob = self._model_sell.predict_proba(data_to_est)
+            sell_prob = self._model_sell.predict_proba(df[data_to_est])
             results['sell-prob'] = [row[1] for row in sell_prob]
 
         self._results = results
@@ -153,10 +153,11 @@ class Probability(Classifier):
         df = df.reset_index().drop(['index'], axis=1)
 
         # Fill nan values (if any) with mean values
-        df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
-        df['diff'].fillna(value=df['diff'].mean(), inplace=True)
-        df['ma-diff'].fillna(value=df['ma-diff'].mean(), inplace=True)
-        df['hilo-diff'].fillna(value=df['hilo-diff'].mean(), inplace=True)
+        if df[['pvo', 'diff', 'ma-diff', 'hilo-diff']].isnull().values.any():
+            df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
+            df['diff'].fillna(value=df['diff'].mean(), inplace=True)
+            df['ma-diff'].fillna(value=df['ma-diff'].mean(), inplace=True)
+            df['hilo-diff'].fillna(value=df['hilo-diff'].mean(), inplace=True)
 
         return df
 

@@ -170,7 +170,6 @@ class Probability(Classifier):
 
         df = pd.DataFrame()
 
-        # TODO MID Need to think of a faster way to do it
         df['buy-true'] = np.where(buy_condition & (df_source.index != 0), 1, np.nan)
         df['buy-false'] = np.where((buy_condition == False) & (df.index != 0), 1, np.nan)
 

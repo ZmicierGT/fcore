@@ -170,7 +170,6 @@ class MAClassifier(Classifier):
 
         df = pd.DataFrame()
 
-        # TODO MID Need to think of a faster way to do it
         df['buy-true'] = np.where(curr_trend & (prev_trend == False) & buy_condition & (df_source.index != 0), 1, np.nan)
         df['buy-false'] = np.where(curr_trend & (prev_trend == False) & (buy_condition == False) & (df_source.index != 0), 1, np.nan)
 

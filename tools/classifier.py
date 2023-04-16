@@ -592,28 +592,28 @@ class Classifier(BaseTool):
         """
 
     @abc.abstractmethod
-    def add_buy_signals(self, df):
+    def add_buy_signals(self, df_source):
         """
             Add buy signals to the DataFrame.
 
             If buy signals are not used in a derived tool, override this method to raise a ToolError.
 
             Args:
-                df(DataFrame): the initial data
+                df_source(DataFrame): the initial data
 
             Raises:
                 ToolError: the method is not used in a derived tool.
         """
 
     @abc.abstractmethod
-    def add_sell_signals(self, df):
+    def add_sell_signals(self, df_source):
         """
             Add sell signals to the DataFrame.
 
             If buy signals are not used in a derived tool, override this method to raise a ToolError.
 
             Args:
-                df(DataFrame): the initial data
+                df_source(DataFrame): the initial data
 
             Raises:
                 ToolError: the method is not used in a derived tool.

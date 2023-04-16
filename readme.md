@@ -172,7 +172,7 @@ Non-CLI API wrappers:
 Examples of custom data processing tools which are relied on AI:
 - [tools/lstm.py](tools/lstm.py) - LSTM AI implementation for financial analysis (**python -m demo.ai.lstm_learn** for learning demonstation and **python -m demo.tools.lstm_demo** for price estimation demonstation)
 - [tools/ma_classifier.py](tools/ma_classifier.py) 'AI-indicator' where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration)
-- [tools/probability.py](tools/probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration)
+- [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration)
 
 Examples of a screening strategy:
 - [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation)

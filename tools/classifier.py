@@ -101,6 +101,9 @@ class Classifier(BaseTool):
         self._est_buy_learn = None
         self._est_sell_learn = None
 
+        self._data_to_est = None  # Columns to make estimations
+        self._data_to_report = None  # Columns for reporting
+
     def get_buy_signals_to_compare(self):
         """
             Get actual and estimated buy signals.

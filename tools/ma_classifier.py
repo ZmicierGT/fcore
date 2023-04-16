@@ -90,27 +90,25 @@ class MAClassifier(Classifier):
         df_buy = df[df['buy'] == 1]
         df_sell = df[df['sell'] == 1]
 
-        # Estimate if signals are true. Classification is always used.
-        self._results_buy_est = self._model_buy.predict(df_buy[['pvo', 'diff', 'hilo-diff']])
-        self._results_sell_est = self._model_sell.predict(df_sell[['pvo', 'diff', 'hilo-diff']])
+        results = pd.DataFrame()
+        results['dt'] = df[Quotes.DateTime]
+
+        results[self._data_to_report] = df[self._data_to_report]
+
+        # Estimate if signals are true. Classification is always used and both signals are always used in this tool.
+        self._results_buy_est = self._model_buy.predict(df_buy[self._data_to_est])
+        self._results_sell_est = self._model_sell.predict(df_sell[self._data_to_est])
 
         it_buy = iter(self._results_buy_est)
         it_sell = iter(self._results_sell_est)
 
-        df['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
-        df['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
-
-        results = pd.DataFrame()
-        results['dt'] = df[Quotes.DateTime]
-        results['ma'] = df['ma']
-        results['pvo'] = df['pvo']
-        results['buy-signal'] = df['buy-signal']
-        results['sell-signal'] = df['sell-signal']
+        results['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
+        results['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
 
         # Probabilities calculation is optional
         if self._probability:
-            buy_prob = self._model_buy.predict_proba(df_buy[['pvo', 'diff']])
-            sell_prob = self._model_sell.predict_proba(df_sell[['pvo', 'diff']])
+            buy_prob = self._model_buy.predict_proba(df_buy[self._data_to_est])
+            sell_prob = self._model_sell.predict_proba(df_sell[self._data_to_est])
 
             results['buy-prob'] = [row[1] for row in buy_prob]
             results['sell-prob'] = [row[1] for row in sell_prob]
@@ -144,14 +142,17 @@ class MAClassifier(Classifier):
         df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])
         df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
 
+        self._data_to_est = ['pvo', 'diff', 'hilo-diff']  # Columns to make estimations
+        self._data_to_report = self._data_to_est + ['ma']  # Columns for reporting
+
         # Get rid of the values where MA is not calculated because they are useless for learning.
         df = df[self._period-1:]
         df = df.reset_index().drop(['index'], axis=1)
 
         # Fill nan values (if any) with mean values
-        df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
-        df['diff'].fillna(value=df['diff'].mean(), inplace=True)
-        df['hilo-diff'].fillna(value=df['hilo-diff'].mean(), inplace=True)
+        if df[self._data_to_est].isnull().values.any():
+            for key in self._data_to_est:
+                df[key].fillna(value=df[key].mean(), inplace=True)
 
         return df
 
@@ -173,9 +174,7 @@ class MAClassifier(Classifier):
         df['buy-true'] = np.where(curr_trend & (prev_trend == False) & buy_condition & (df_source.index != 0), 1, np.nan)
         df['buy-false'] = np.where(curr_trend & (prev_trend == False) & (buy_condition == False) & (df_source.index != 0), 1, np.nan)
 
-        df['pvo'] = df_source['pvo']
-        df['diff'] = df_source['diff']
-        df['hilo-diff'] = df_source['hilo-diff']
+        df[self._data_to_est] = df_source[self._data_to_est]
 
         # Get rid of rows without signals
         df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
@@ -199,9 +198,7 @@ class MAClassifier(Classifier):
         df['sell-true'] = np.where((curr_trend == False) & prev_trend & sell_condition & (df_source.index != 0), 1, np.nan)
         df['sell-false'] = np.where((curr_trend == False) & prev_trend & (sell_condition == False) & (df_source.index != 0), 1, np.nan)
 
-        df['pvo'] = df_source['pvo']
-        df['diff'] = df_source['diff']
-        df['hilo-diff'] = df_source['hilo-diff']
+        df[self._data_to_est] = df_source[self._data_to_est]
 
         # Get rid of rows without signals
         df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)

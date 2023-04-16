@@ -16,7 +16,7 @@ import pandas_ta as ta
 
 import numpy as np
 
-# TODO HIGH need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside tool itself
+# TODO MID need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside tool itself
 class Probability(Classifier):
     """
         Base security growth probability impementation.
@@ -85,33 +85,28 @@ class Probability(Classifier):
         # Make estimations according to the model
         #########################################
 
-        data_to_est = ['pvo', 'diff', 'ma-diff', 'hilo-diff']
-
         results = pd.DataFrame()
         results['dt'] = df[Quotes.DateTime]
-        results['ma-long'] = df['ma-long']
-        results['ma-short'] = df['ma-short']
-        results['pvo'] = df['pvo']
-        results['diff'] = df['diff']
-        results['ma-diff'] = df['ma-diff']
+
+        results[self._data_to_report] = df[self._data_to_report]
 
         # Classification is optional
         if self._classify:
             if self._use_buy:
-                self._results_buy_est = self._model_buy.predict(df[data_to_est])
+                self._results_buy_est = self._model_buy.predict(df[self._data_to_est])
                 results['buy-signal'] = self._results_buy_est
 
             if self._use_sell:
-                self._results_sell_est = self._model_sell.predict(df[data_to_est])
+                self._results_sell_est = self._model_sell.predict(df[self._data_to_est])
                 results['sell-signal'] = self._results_sell_est
 
         # Probabilities are always calculated
         if self._use_buy:
-            buy_prob = self._model_buy.predict_proba(df[data_to_est])
+            buy_prob = self._model_buy.predict_proba(df[self._data_to_est])
             results['buy-prob'] = [row[1] for row in buy_prob]
 
         if self._use_sell:
-            sell_prob = self._model_sell.predict_proba(df[data_to_est])
+            sell_prob = self._model_sell.predict_proba(df[self._data_to_est])
             results['sell-prob'] = [row[1] for row in sell_prob]
 
         self._results = results
@@ -142,22 +137,22 @@ class Probability(Classifier):
 
         # Prepare data for estimation
         df['pvo'] = pvo.iloc[:, 0]
-        df['diff'] = ((df[Quotes.AdjClose] - ma_long) / df[Quotes.AdjClose])
         df['ma-diff'] = ((ma_long - ma_short) / ma_long)
         df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
         df['ma-long'] = ma_long
         df['ma-short'] = ma_short
+
+        self._data_to_est = ['pvo', 'ma-diff', 'hilo-diff']  # Columns to make estimations
+        self._data_to_report = self._data_to_est + ['ma-long', 'ma-short']  # Columns for reporting
 
         # Get rid of the values where MA is not calculated because they are useless for learning.
         df = df[self._period_long-1:]
         df = df.reset_index().drop(['index'], axis=1)
 
         # Fill nan values (if any) with mean values
-        if df[['pvo', 'diff', 'ma-diff', 'hilo-diff']].isnull().values.any():
-            df['pvo'].fillna(value=df['pvo'].mean(), inplace=True)
-            df['diff'].fillna(value=df['diff'].mean(), inplace=True)
-            df['ma-diff'].fillna(value=df['ma-diff'].mean(), inplace=True)
-            df['hilo-diff'].fillna(value=df['hilo-diff'].mean(), inplace=True)
+        if df[self._data_to_est].isnull().values.any():
+            for key in self._data_to_est:
+                df[key].fillna(value=df[key].mean(), inplace=True)
 
         return df
 
@@ -179,10 +174,7 @@ class Probability(Classifier):
         df['buy-true'] = np.where(buy_condition & (df_source.index != 0), 1, np.nan)
         df['buy-false'] = np.where((buy_condition == False) & (df.index != 0), 1, np.nan)
 
-        df['pvo'] = df_source['pvo']
-        df['diff'] = df_source['diff']
-        df['ma-diff'] = df_source['ma-diff']
-        df['hilo-diff'] = df_source['hilo-diff']
+        df[self._data_to_est] = df_source[self._data_to_est]
 
         # Get rid of rows without signals
         df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
@@ -206,10 +198,7 @@ class Probability(Classifier):
         df['sell-true'] = np.where(sell_condition & (df_source.index != 0), 1, np.nan)
         df['sell-false'] = np.where((sell_condition == False) & (df.index != 0), 1, np.nan)
 
-        df['pvo'] = df_source['pvo']
-        df['diff'] = df_source['diff']
-        df['ma-diff'] = df_source['ma-diff']
-        df['hilo-diff'] = df_source['hilo-diff']
+        df[self._data_to_est] = df_source[self._data_to_est]
 
         # Get rid of rows without signals
         df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)

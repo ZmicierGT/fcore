@@ -28,8 +28,8 @@ import sys
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 algorithm = Algorithm.KNC  # The default algorithm to use
-period_long = 50  # Period for MA calculation
-period_short = 25
+period_long = 50  # Long period for MA calculation
+period_short = 25  # Short period for MA calculation
 symbol = 'SPY'  # Symbol to make estimations
 
 first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
@@ -119,7 +119,7 @@ if __name__ == "__main__":
                        true_ratio=true_ratio,
                        cycle_num=cycle_num,
                        algorithm=algorithm,
-                       classify=True
+                       classify=True  # Needed for metrics only
                        )
 
     try:

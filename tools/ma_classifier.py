@@ -61,7 +61,7 @@ class MAClassifier(Classifier):
             Returns:
                 DataFrame: data ready for learning/estimation
         """
-        # DataFrame for the current symbol
+        # Create the dataframe based on provided/pre-defined data
         if rows == None:
             df = pd.DataFrame(self._rows)
         else:

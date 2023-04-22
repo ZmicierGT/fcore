@@ -1,4 +1,4 @@
-"""Quick Start example for Fcore.
+"""Minimalistic demonstration of MA Classifier.
 
 The author is Zmicier Gotowka
 

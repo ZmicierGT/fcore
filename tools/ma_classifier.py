@@ -54,68 +54,7 @@ class MAClassifier(Classifier):
         self._period = period
         self._is_simple = is_simple
 
-    def calculate(self):
-        """
-            Perform the calculation based on the provided data.
-
-            Raises:
-                ToolError: no data for test provided.
-        """
-        if self._rows == None:
-            raise ToolError("No data for testing provided.")
-
-        if self._classify is False:
-            raise ToolError("Classification is disabled but it is required by this tool.")
-
-        # Check if we need to train the model at first
-        if self._model_buy == None or self._model_sell == None:
-            self.learn()
-
-        # DataFrame for the current symbol
-        df = self.get_df()
-
-        # Find signals which are needed to check
-
-        curr_trend = df['diff'] > 0
-        prev_trend = df['diff'].shift() > 0
-
-        df['buy'] = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, np.nan)
-        df['sell'] = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, np.nan)
-
-        #########################################
-        # Make estimations according to the model
-        #########################################
-
-        # Create separate DataFrames for buy and sell estimation
-        df_buy = df[df['buy'] == 1]
-        df_sell = df[df['sell'] == 1]
-
-        results = pd.DataFrame()
-        results['dt'] = df[Quotes.DateTime]
-
-        results[self._data_to_report] = df[self._data_to_report]
-
-        # Estimate if signals are true. Classification is always used and both signals are always used in this tool.
-        self._results_buy_est = self._model_buy.predict(df_buy[self._data_to_est])
-        self._results_sell_est = self._model_sell.predict(df_sell[self._data_to_est])
-
-        it_buy = iter(self._results_buy_est)
-        it_sell = iter(self._results_sell_est)
-
-        results['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
-        results['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
-
-        # Probabilities calculation is optional
-        if self._probability:
-            buy_prob = self._model_buy.predict_proba(df_buy[self._data_to_est])
-            sell_prob = self._model_sell.predict_proba(df_sell[self._data_to_est])
-
-            results['buy-prob'] = [row[1] for row in buy_prob]
-            results['sell-prob'] = [row[1] for row in sell_prob]
-
-        self._results = results
-
-    def get_df(self, rows=None):
+    def prepare(self, rows=None):
         """
             Get the DataFrame for learning/estimation.
 
@@ -156,50 +95,50 @@ class MAClassifier(Classifier):
 
         return df
 
-    def add_buy_signals(self, df_source):
+    def find_buy_signals(self, df):
         """
-            Add buy signals to the DataFrame.
+            Find buy signals in the data.
 
             Args:
-                df_source(DataFrame): the initial data
+                df(DataFrame): data to find signals.
         """
-        curr_trend = df_source['diff'] > 0
-        prev_trend = df_source['diff'].shift() > 0
+        curr_trend = df['diff'] > 0
+        prev_trend = df['diff'].shift() > 0
 
-        buy_condition = df_source['diff'].shift(-abs(self._cycle_num)) >= self._true_ratio
+        df['buy'] = np.where(curr_trend & (prev_trend == False) & (df.index != 0), 1, 0)
 
-        df = pd.DataFrame()
-
-        df['buy-true'] = np.where(curr_trend & (prev_trend == False) & buy_condition & (df_source.index != 0), 1, np.nan)
-        df['buy-false'] = np.where(curr_trend & (prev_trend == False) & (buy_condition == False) & (df_source.index != 0), 1, np.nan)
-
-        df[self._data_to_est] = df_source[self._data_to_est]
-
-        # Get rid of rows without signals
-        df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
-
-        return df
-
-    def add_sell_signals(self, df_source):
+    def find_sell_signals(self, df):
         """
-            Add sell signals to the DataFrame.
+            Find sell signals in the data.
 
             Args:
-                df_source(DataFrame): the initial data
+                df(DataFrame): data to find signals.
         """
-        curr_trend = df_source['diff'] > 0
-        prev_trend = df_source['diff'].shift() > 0
+        curr_trend = df['diff'] > 0
+        prev_trend = df['diff'].shift() > 0
 
-        sell_condition = df_source['diff'].shift(-abs(self._cycle_num)) <= -abs(self._true_ratio)
+        df['sell'] = np.where((curr_trend == False) & prev_trend & (df.index != 0), 1, 0)
 
-        df = pd.DataFrame()
+    def get_buy_condition(self, df):
+        """
+            Get buy condiiton to check signals.
 
-        df['sell-true'] = np.where((curr_trend == False) & prev_trend & sell_condition & (df_source.index != 0), 1, np.nan)
-        df['sell-false'] = np.where((curr_trend == False) & prev_trend & (sell_condition == False) & (df_source.index != 0), 1, np.nan)
+            Args:
+                df(DataFrame): data with signals to check.
 
-        df[self._data_to_est] = df_source[self._data_to_est]
+            Returns:
+                TimeSeries: signals
+        """
+        return df['diff'].shift(-abs(self._cycle_num)) >= self._true_ratio
 
-        # Get rid of rows without signals
-        df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)
+    def get_sell_condition(self, df):
+        """
+            Get sell condiiton to check signals.
 
-        return df
+            Args:
+                df(DataFrame): data with signals to check.
+
+            Returns:
+                TimeSeries: signals
+        """
+        return df['diff'].shift(-abs(self._cycle_num)) <= -abs(self._true_ratio)

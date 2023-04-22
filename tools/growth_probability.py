@@ -14,9 +14,6 @@ from data.fvalues import Quotes
 import pandas as pd
 import pandas_ta as ta
 
-import numpy as np
-
-# TODO MID need to think if we can specify columns which are used in learning in data_to_learn and avoid calculations inside the tool itself
 class Probability(Classifier):
     """
         Base security growth probability impementation.
@@ -61,57 +58,7 @@ class Probability(Classifier):
         self._period_short = period_short
         self._is_simple = is_simple
 
-    def calculate(self):
-        """
-            Perform the calculation based on the provided data.
-
-            Raises:
-                ToolError: no data for test provided.
-        """
-        if self._rows == None:
-            raise ToolError("No data for testing provided.")
-
-        if self._probability is False:
-            raise ToolError("Probabilities calculalation is disabled but it is required by this tool.")
-
-        # Check if we need to train the model at first
-        if self.need_buy(self._model_buy is None) or self.need_sell(self._model_sell is None):
-            self.learn()
-
-        # DataFrame for the current symbol
-        df = self.get_df()
-
-        #########################################
-        # Make estimations according to the model
-        #########################################
-
-        results = pd.DataFrame()
-        results['dt'] = df[Quotes.DateTime]
-
-        results[self._data_to_report] = df[self._data_to_report]
-
-        # Classification is optional
-        if self._classify:
-            if self._use_buy:
-                self._results_buy_est = self._model_buy.predict(df[self._data_to_est])
-                results['buy-signal'] = self._results_buy_est
-
-            if self._use_sell:
-                self._results_sell_est = self._model_sell.predict(df[self._data_to_est])
-                results['sell-signal'] = self._results_sell_est
-
-        # Probabilities are always calculated
-        if self._use_buy:
-            buy_prob = self._model_buy.predict_proba(df[self._data_to_est])
-            results['buy-prob'] = [row[1] for row in buy_prob]
-
-        if self._use_sell:
-            sell_prob = self._model_sell.predict_proba(df[self._data_to_est])
-            results['sell-prob'] = [row[1] for row in sell_prob]
-
-        self._results = results
-
-    def get_df(self, rows=None):
+    def prepare(self, rows=None):
         """
             Get the DataFrame for learning/estimation.
 
@@ -156,50 +103,32 @@ class Probability(Classifier):
 
         return df
 
-    def add_buy_signals(self, df_source):
+    def get_buy_condition(self, df):
         """
-            Add buy signals to the DataFrame.
+            Get buy condiiton to check signals.
 
             Args:
-                df_source(DataFrame): the initial data
+                df(DataFrame): data with signals to check.
+
+            Returns:
+                TimeSeries: signals
         """
-        curr_quote = df_source[Quotes.AdjClose]
-        next_quote = df_source[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[Quotes.AdjClose]
+        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
 
-        buy_condition = (next_quote - curr_quote) / curr_quote >= self._true_ratio
+        return (next_quote - curr_quote) / curr_quote >= self._true_ratio
 
-        df = pd.DataFrame()
-
-        df['buy-true'] = np.where(buy_condition & (df_source.index != 0), 1, np.nan)
-        df['buy-false'] = np.where((buy_condition == False) & (df.index != 0), 1, np.nan)
-
-        df[self._data_to_est] = df_source[self._data_to_est]
-
-        # Get rid of rows without signals
-        df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
-
-        return df
-
-    def add_sell_signals(self, df_source):
+    def get_sell_condition(self, df):
         """
-            Add sell signals to the DataFrame.
+            Get sell condiiton to check signals.
 
             Args:
-                df_source(DataFrame): the initial data
+                df(DataFrame): data with signals to check.
+
+            Returns:
+                TimeSeries: signals
         """
-        curr_quote = df_source[Quotes.AdjClose]
-        next_quote = df_source[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[Quotes.AdjClose]
+        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
 
-        sell_condition = (curr_quote - next_quote) / next_quote >= self._true_ratio
-
-        df = pd.DataFrame()
-
-        df['sell-true'] = np.where(sell_condition & (df_source.index != 0), 1, np.nan)
-        df['sell-false'] = np.where((sell_condition == False) & (df.index != 0), 1, np.nan)
-
-        df[self._data_to_est] = df_source[self._data_to_est]
-
-        # Get rid of rows without signals
-        df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)
-
-        return df
+        return (curr_quote - next_quote) / next_quote >= self._true_ratio

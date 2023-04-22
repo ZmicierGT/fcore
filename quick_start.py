@@ -1,3 +1,9 @@
+"""Quick Start example for Fcore.
+
+The author is Zmicier Gotowka
+
+Distributed under Fcore License 1.1 (see license.md)
+"""
 from data.fvalues import Algorithm
 from tools.ma_classifier import MAClassifier
 

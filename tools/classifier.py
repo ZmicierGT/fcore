@@ -13,6 +13,8 @@ from tools.base import ToolError
 
 from data.fvalues import Algorithm
 
+from data.fvalues import Quotes
+
 import pandas as pd
 import numpy as np
 
@@ -252,7 +254,7 @@ class Classifier(BaseTool):
         if len(self._results) == 0 or self._classify is False:
             raise ToolError("The calculation is not performed or no classification requested.")
 
-        df = self.get_df()
+        df = self.prepare()
 
         results_buy_actual = None
         results_buy_est = None
@@ -260,7 +262,7 @@ class Classifier(BaseTool):
         results_sell_est = None
 
         if self._use_buy:
-            df_buy = self.add_buy_signals(df)
+            df_buy = self.check_buy_signals(df)
 
             results_buy_actual = self.get_buy_results(df_buy)
             results_buy_est = self._results_buy_est
@@ -269,7 +271,7 @@ class Classifier(BaseTool):
                 results_buy_est = results_buy_est[:len(results_buy_actual)]
 
         if self._use_sell:
-            df_sell = self.add_sell_signals(df)
+            df_sell = self.check_sell_signals(df)
 
             results_sell_actual = self.get_sell_results(df_sell)
             results_sell_est = self._results_sell_est
@@ -335,9 +337,9 @@ class Classifier(BaseTool):
 
         return learn
 
-    def prepare(self):
+    def combine(self):
         """
-            Prepare the data for learning.
+            Combine the data for learning.
 
             Returns:
                 df_buy(DataFrame): data for training buy signals distinguishing.
@@ -348,13 +350,13 @@ class Classifier(BaseTool):
 
         for rows in self._data_to_learn:
             # DataFrame for the current symbol
-            df = self.get_df(rows)
+            df = self.prepare(rows)
 
             if self._use_buy:
-                df_buy = pd.concat([df_buy, self.add_buy_signals(df)], ignore_index=True)
+                df_buy = pd.concat([df_buy, self.check_buy_signals(df)], ignore_index=True)
 
             if self._use_sell:
-                df_sell = pd.concat([df_sell, self.add_sell_signals(df)], ignore_index=True)
+                df_sell = pd.concat([df_sell, self.check_sell_signals(df)], ignore_index=True)
 
         return (df_buy, df_sell)
 
@@ -371,7 +373,7 @@ class Classifier(BaseTool):
         if self._use_sell:
             cols_to_exclude.extend(['sell-true', 'sell-false'])
 
-        df_buy, df_sell = self.prepare()
+        df_buy, df_sell = self.combine()
 
         if self._use_buy:
             # Create a results numpy array with buy signals
@@ -412,6 +414,108 @@ class Classifier(BaseTool):
                 raise ToolError("No sell signals for learning")
 
             self._model_sell = sell_learn.fit(self._data_sell_learn, self._results_sell_learn)
+
+    def check_buy_signals(self, df_source):
+        """
+            Add buy signals to the DataFrame.
+
+            Args:
+                df_source(DataFrame): the initial data
+        """
+        buy_condition = self.get_buy_condition(df_source)
+        self.find_buy_signals(df_source)
+
+        df = pd.DataFrame()
+
+        df['buy-true'] = np.where(df_source['buy'] & buy_condition & (df_source.index != 0), 1, np.nan)
+        df['buy-false'] = np.where(df_source['buy'] & (buy_condition == False) & (df.index != 0), 1, np.nan)
+
+        df[self._data_to_est] = df_source[self._data_to_est]
+
+        # Get rid of rows without signals
+        df = df.dropna(subset=['buy-true', 'buy-false'], thresh=1)
+
+        return df
+
+    def check_sell_signals(self, df_source):
+        """
+            Add sell signals to the DataFrame.
+
+            Args:
+                df_source(DataFrame): the initial data
+        """
+        sell_condition = self.get_sell_condition(df_source)
+        self.find_sell_signals(df_source)
+
+        df = pd.DataFrame()
+
+        df['sell-true'] = np.where(df_source['sell'] & sell_condition & (df_source.index != 0), 1, np.nan)
+        df['sell-false'] = np.where(df_source['sell'] & (sell_condition == False) & (df.index != 0), 1, np.nan)
+
+        df[self._data_to_est] = df_source[self._data_to_est]
+
+        # Get rid of rows without signals
+        df = df.dropna(subset=['sell-true', 'sell-false'], thresh=1)
+
+        return df
+
+    def calculate(self):
+        """
+            Perform the calculation based on the provided data.
+
+            Raises:
+                ToolError: no data for test provided.
+        """
+        if self._rows == None:
+            raise ToolError("No data for testing provided.")
+
+        # Check if we need to train the model at first
+        if self.need_buy(self._model_buy is None) or self.need_sell(self._model_sell is None):
+            self.learn()
+
+        # DataFrame for the current symbol
+        df = self.prepare()
+
+        # Find signals which are needed to check
+        self.find_buy_signals(df)
+        self.find_sell_signals(df)
+
+        #########################################
+        # Make estimations according to the model
+        #########################################
+
+        # Create separate DataFrames for buy and sell estimation
+        df_buy = df[df['buy'] == 1]
+        df_sell = df[df['sell'] == 1]
+
+        results = pd.DataFrame()
+        results['dt'] = df[Quotes.DateTime]
+
+        results[self._data_to_report] = df[self._data_to_report]
+
+        # Perform classification calculation (if needed)
+        if self._classify:
+            if self._use_buy:
+                self._results_buy_est = self._model_buy.predict(df_buy[self._data_to_est])
+                it_buy = iter(self._results_buy_est)
+                results['buy-signal'] = np.array(map(lambda r : next(it_buy) if r == 1 else np.nan, df['buy']))
+
+            if self._use_sell:
+                self._results_sell_est = self._model_sell.predict(df_sell[self._data_to_est])
+                it_sell = iter(self._results_sell_est)
+                results['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
+
+        # Perform probabilities calculation (if needed)
+        if self._probability:
+            if self._use_buy:
+                buy_prob = self._model_buy.predict_proba(df_buy[self._data_to_est])
+                results['buy-prob'] = [row[1] for row in buy_prob]
+
+            if self._use_sell:
+                sell_prob = self._model_sell.predict_proba(df_sell[self._data_to_est])
+                results['sell-prob'] = [row[1] for row in sell_prob]
+
+        self._results = results
 
     ######################
     # Metrics
@@ -575,52 +679,64 @@ class Classifier(BaseTool):
 
         return (f1_buy, f1_sell, total_f1)
 
+    #####################
+    # Methods to override
+    #####################
+
+    def find_buy_signals(self, df):
+        """
+            Find buy signals in the data. By default every cycle has a signal. Override for a particular strategy.
+
+            Args:
+                df(DataFrame): data to find signals.
+        """
+        df['buy'] = 1
+
+    def find_sell_signals(self, df):
+        """
+            Find sell signals in the data. By default every cycle has a signal. Override for a particular strategy.
+
+            Args:
+                df(DataFrame): data to find signals.
+        """
+        df['sell'] = 1
+
+    def get_buy_condition(self, df):
+        """
+            Get buy condiiton to check signals.
+
+            Args:
+                df(DataFrame): data with signals to check.
+
+            Returns:
+                TimeSeries: signals
+        """
+        raise ToolError("Buy signals are not supported in this tool.")
+
+    def get_sell_condition(self, df):
+        """
+            Get sell condiiton to check signals.
+
+            Args:
+                df(DataFrame): data with signals to check.
+
+            Returns:
+                TimeSeries: signals
+        """
+        raise ToolError("Sell signals are not supported in this tool.")
+
     ##################
     # Abstract methods
     ##################
 
     @abc.abstractmethod
-    def get_df(self, rows=None):
+    def prepare(self, rows=None):
         """
-            Get the DataFrame for learning/estimation based on the initial DataFrame.
+            Prepare the data for learning/estimation based on the initial DataFrame.
 
             Args:
                 rows(list): data to use. Data for estimation is used if not specified.
 
             Returns:
                 DataFrame: data ready for learning/estimation
-        """
-
-    @abc.abstractmethod
-    def add_buy_signals(self, df_source):
-        """
-            Add buy signals to the DataFrame.
-
-            If buy signals are not used in a derived tool, override this method to raise a ToolError.
-
-            Args:
-                df_source(DataFrame): the initial data
-
-            Raises:
-                ToolError: the method is not used in a derived tool.
-        """
-
-    @abc.abstractmethod
-    def add_sell_signals(self, df_source):
-        """
-            Add sell signals to the DataFrame.
-
-            If buy signals are not used in a derived tool, override this method to raise a ToolError.
-
-            Args:
-                df_source(DataFrame): the initial data
-
-            Raises:
-                ToolError: the method is not used in a derived tool.
-        """
-
-    @abc.abstractmethod
-    def calculate(self):
-        """
-            Perform a calculation.
         """

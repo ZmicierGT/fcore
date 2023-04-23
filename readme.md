@@ -34,15 +34,14 @@ from data import av, fh, yf, polygon  # API wrappers for popular data sources (p
 from data.fvalues import Timespans
 
 from datetime import datetime, timedelta
-import pytz
 
 # This example checks if there is at least 565 dayly quotes for SPY in the database and if no
 # then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
 yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
 
 # Fetch last week of minute SPY quotes from Polygon
-now = datetime.now().replace(tzinfo=pytz.utc)
-then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=7)
+now = datetime.now()
+then = datetime.now() - timedelta(days=7)
 pvi = polygon.Polygon(symbol='SPY', first_date=then, last_date=now, timespan=Timespans.Minute)
 
 p_quotes = pvi.fetch_quotes()  # Fetch quotes but do not add them to DB

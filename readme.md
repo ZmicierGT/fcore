@@ -21,9 +21,9 @@ Please note that Fcore is a tool which helps you to easily implement and test yo
 
 # Quick Start
 
-## Data Management
-
 Here are some basic examples of how to use Fcore.
+
+## Data Management
 
 The first one is a basic data management example which shows how to use the framework with the popular data sources. Invoke **python -m quickstart.min_data_management** to run the example.
 
@@ -178,14 +178,14 @@ fig.add_trace(go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"), seconda
 # Add probabilities chart
 fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
 
-update_layout(fig, f"Probabilities Example Chart", len(rows_test))
+update_layout(fig, "Probabilities Example Chart", len(rows_test))
 show_image(fig)
 ```
 
 The script will generate a chart with close price and moving averages and also a subchart with growth probabilities at corresponding moments of time:
 ![Growth Probability Report](probability.png "Growth Probability Report")
 
-## Classification of Technical Analysis Signals and Backtesting
+## Backtesting and Classification of Technical Analysis Signals
 
 Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of '200 Day SMA vs Price' strategy usage when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
 

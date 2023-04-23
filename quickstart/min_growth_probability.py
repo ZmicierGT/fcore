@@ -100,5 +100,5 @@ fig.add_trace(go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"), seconda
 # Add probabilities chart
 fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
 
-update_layout(fig, f"Probabilities Example Chart", len(rows_test))
+update_layout(fig, "Probabilities Example Chart", len(rows_test))
 show_image(fig)

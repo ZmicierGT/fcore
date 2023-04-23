@@ -227,13 +227,16 @@ class AVStock(stock.StockFetcher):
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(get_dt)
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
-        # Add reporting date from earnings data
-        # TODO LOW make it shorter (using map, for example)
-        adj_earnings = self.earnings[self.earnings['fiscalDateEnding'] >= reports['fiscalDateEnding'].iloc[0]]
+        # Align data in both reports
+        adj_earnings = self.earnings[self.earnings['fiscalDateEnding'].isin(reports['fiscalDateEnding'])]
         adj_earnings = adj_earnings.reset_index(drop=True)
 
-        reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
-            adj_earnings['reportedDate'], None)
+        # Add reporting date from earnings
+        try:
+            reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
+                adj_earnings['reportedDate'], None)
+        except ValueError as e:
+            raise FdataError(f"Can't align dates of reports: {e}") from e
 
         # Replace AV "None" to SQL 'NULL'
         reports = reports.replace(['None'], 'NULL')

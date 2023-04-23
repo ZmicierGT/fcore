@@ -1,27 +1,193 @@
-# Fcore is an AI framework for financial markets backtesting and screening.
+# Fcore Is an AI Framework for Financial Markets Backtesting and Screening.
 
 ### **Fcore** is based on the following principles:
 - AI is becoming the essential (and hardly avoidable) part of a financial markets analysis.
 - For successful AI-appliances, we need a lot of data and the data should be well structurized and quickly accessible.
-- Analysing financial markets has a lot of common features. That is why a data analyzing API should be used to reduce a routine work.
+- Market analyzing API should be used to reduce a routine work.
 - All data processing techniques should be treated equally and follow the same interface.
 - Backtesting is treated as an another AI metric and it should be very sensitive to a 'minor' details.
 
-### Based on these principles (and not only), **Fcore** is capable of:
-- Obtaining data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storing it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain and parse the required data.
-- Providing an API to ease the development of AI-strategies for financial markets analysis. The main focus is on these approaches: classifying strategy signals or security growth/decline forecast as True/False with optional probabilities calculation (already implemented) and estimation of the future prices as a regression problem (partially implemented as LSTM-demo).
-- Utilizing the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
-- Providing its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
-- Using multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
-- Providing API for reporting.
+### Based on these principles, **Fcore**:
+- Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storie it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
+- Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals (already implemented) and estimation of the future prices as a regression problem (partially implemented as LSTM-demo).
+- Utilizes the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
+- Provides its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
+- Can use multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
+- Has an API for reporting.
 
-These features allow you to develop your AI-based market strategies much faster than when using a 'bare'-approach.
+These features allow you to develop your AI-based market strategies much easier and faster than when using a wide-purpose libraries.
 
 Please note that Fcore is a tool which helps you to easily implement and test your own financial strategies but it does not provide any 'out of the box' solutions. Consider all the provided demos as programming examples which help you to implement your own strategies.
 
 # Quick Start
 
-Here is a basic example (within 100 LoC) of 200 day SMA strategy implementation when the signals are distinguished by AI of being true/false.
+## Data Management
+
+Here are some basic examples of how to use Fcore.
+
+The first one is a basic data management example which shows how to use the framework with the popular data sources. Invoke **python -m quickstart.min_data_management** to run the example.
+
+```python
+# Edit settings.py to add your API keys for data sources. Free API keys are sufficient for this example.
+from data import av, fh, yf, polygon  # API wrappers for popular data sources (please note that they are unofficial)
+
+from data.fvalues import Timespans
+
+from datetime import datetime, timedelta
+import pytz
+
+# This example checks if there is at least 565 dayly quotes for SPY in the database and if no
+# then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
+yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
+
+# Fetch last week of minute SPY quotes from Polygon
+now = datetime.now().replace(tzinfo=pytz.utc)
+then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=7)
+pvi = polygon.Polygon(symbol='SPY', first_date=then, last_date=now, timespan=Timespans.Minute)
+
+p_quotes = pvi.fetch_quotes()  # Fetch quotes but do not add them to DB
+
+pvi.db_connect()
+before, after = pvi.add_quotes(p_quotes)  # Add quotes to DB
+pvi.db_close()
+
+print(f"Total quotes num before and after the operation (it won't increase if quotes already present in DB): {before}, {after}")
+
+# Fetch quotes and fundamental data from AlphaVantage. Please note that the free key allows 5 API calls per minute.
+avi = av.AVStock(symbol='IBM')
+avi.compact = False  # Request all awailable quotes data for IBM
+
+avi.fetch_if_none(15423)  # Fetch quotes and add it to DB
+
+# Fetch fundamental data and add it to DB
+avi.fetch_earnings_if_none(109)
+avi.fetch_cash_flow_if_none(25)
+avi.fetch_balance_sheet_if_none(25)
+avi.fetch_income_statement_if_none(25)
+
+# Get quotes from DB along with some fundamental data
+avi.db_connect()
+rows = avi.get_quotes(queries=[('earnings', 'reported_date'), ('earnings', 'reported_eps'), ('cash_flow', 'operating_cashflow')])
+avi.db_close()
+
+# Print last rows of requested data
+print(f"\nThe last row of obtaines quotes and fundamental data for IBM:\n{dict(rows[-1])}")
+
+# Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
+aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()
+
+print(f"\nRecent quote data for AAPL: {aapl_data}")
+```
+
+## Growth Probability Estimation
+
+This is another example of how to create your own basic growth probability estimation. Withing ~70 SLOC this tiny script manages the data, creates a tool for security growth estimation and displays the result as a chart. Invoke **python -m quickstart.min_growth_probability** to run the example.
+
+```python
+from tools.classifier import Classifier
+
+from data.fvalues import Quotes, Algorithm
+from data.yf import YF
+from data.futils import update_layout, show_image
+
+import pandas as pd
+import pandas_ta as ta
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+class Probability(Classifier):
+    """Minimalistic growth probability impementation."""
+    def __init__(self, period_long=30, period_short=15, **kwargs):
+        """Initializes minimalistic grows probability instance."""
+        super().__init__(**kwargs)
+
+        self._period_long = period_long  # Long SMA period for growth estimation.
+        self._period_short = period_short  # Short SMA period for growth estimation.
+
+        self._probability = True  # Calculate probabilities in the tool
+        self._classify = False  # No need to perform classification
+        self._use_sell = False  # Sell signals are not used by this tool
+
+    def prepare(self, rows=None):
+        """Prepare the DataFrame for learning/estimation."""
+        df = pd.DataFrame(self._rows) if rows is None else pd.DataFrame(rows)  # Create the dataframe base on provided data
+
+        # Calculate required technical indicators
+        ma_long = ta.sma(df[Quotes.AdjClose], length = self._period_long)  # Long SMA
+        ma_short = ta.sma(df[Quotes.AdjClose], length = self._period_short)  # Short SMA
+        pvo = ta.pvo(df[Quotes.Volume])  # Percentage volume oscillator
+
+        # Prepare data for learning/estimation
+        df['pvo'] = pvo.iloc[:, 0]
+        df['ma-long'] = ma_long
+        df['ma-short'] = ma_short
+        df['quote'] = df[Quotes.AdjClose]
+        df['ma-diff'] = ((ma_long - ma_short) / ma_long)  # Ratio of difference between long and short SMAs
+        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])  # Ratio of difference between High and Low
+
+        self._data_to_est = ['pvo', 'ma-diff', 'hilo-diff']  # Columns to learn/estimate
+        self._data_to_report = self._data_to_est + ['ma-long', 'ma-short', 'quote']  # Columns for reporting
+
+        # Get rid of the values where MA is not calculated because they are useless for learning.
+        return df[self._period_long-1:].reset_index().drop(['index'], axis=1)
+
+    def get_buy_condition(self, df):
+        """Get buy condiiton to check signals."""
+        curr_quote = df[Quotes.AdjClose]
+        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+
+        return (next_quote - curr_quote) / curr_quote >= self._true_ratio
+
+###############
+# Demonstration
+###############
+
+threshold_learn, threshold_test = 5284, 565  # Quotes num thresholds for the learning and testing
+period_long, period_short = (50, 25)  # Periods for SMAs
+
+# Get data for training/testing a model with the number of quotes >= threshold
+# All the data will be cached in a database without the need of further fetching
+rows_learn, length_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_if_none(threshold_learn)
+rows_test, length_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(threshold_test)
+
+prob = Probability(period_long=period_long,
+                   period_short=period_short,
+                   rows=rows_test,
+                   data_to_learn=[rows_learn],
+                   true_ratio=0.004,  # Ratio when signal is considered as true in cycle_num.
+                                      # For example, if true_ratio is 0.03 and cycle_num is 5,
+                                      # then the signal will be considered as true if there was a 3% change in
+                                      # quote in the following 5 cycles after getting the signal.
+                   cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
+                   algorithm=Algorithm.KNC)
+
+prob.learn()
+prob.calculate()
+df = prob.get_results()
+
+# Buind the report
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.3, 0.7],
+                    specs=[[{"secondary_y": False}],
+                            [{"secondary_y": False}]])
+
+fig.add_trace(go.Scatter(x=df['dt'], y=df['quote'], name="AdjClose"), secondary_y=False)
+fig.add_trace(go.Scatter(x=df['dt'], y=df['ma-long'], name="Long MA"), secondary_y=False)
+fig.add_trace(go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"), secondary_y=False)
+
+# Add probabilities chart
+fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
+
+update_layout(fig, f"Probabilities Example Chart", len(rows_test))
+show_image(fig)
+```
+
+The script will generate a chart with close price and moving averages and also a subchart with growth probabilities at corresponding moments of time:
+![Growth Probability Report](probability.png "Growth Probability Report")
+
+## Classification of Technical Analysis Signals and Backtesting
+
+Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of '200 Day SMA vs Price' strategy usage when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
 
 ```python
 from data.fvalues import Algorithm
@@ -117,47 +283,17 @@ report.add_annotations(title="MA Classifier performance:")
 report.add_annotations(data=results_cmp, title="Regular MA/Price Crossover performance:")
 
 # Show image
-new_file = report.show_image()
+report.show_image()
 ```
-
-This strategy ([backtest/ma_classification.py](backtest/ma_classification.py)) trains a model for MA-Classifier ([tools/ma_classifier.py](tools/ma_classifier.py)) AI tool which uses percentage volume oscillator data to distinguish true/false signals. Please note that in real appliances hundreds of data parameters may be used to train a model. Here we see that AI helped to better distinguish some signals of the strategy and decrease the loses from -23.53% to -12%. To run this strategy with additional metrics output, invoke **python -m demo.backtest.ma_classification_test** (source in [demo/backtest/ma_classification_test.py](demo/backtest/ma_classification_test.py)) Here is the basic quick start example - [quickstart/min_ma_classification.py](quickstart/min_ma_classification.py)
 
 It is the report generated by the script above:
 ![Backtesting Report](report.png "Backtesting Report")
 
-You may fetch/obtain another data (like fundamentals) in the following way:
-```python
-from data import av
-from data.fvalues import Timespans
-
-avi = av.AVStock(symbol='IBM', timespan=Timespans.Day)
-avi.compact = False
-
-quotes = avi.fetch_quotes()
-earnings = avi.fetch_earnings()
-cf = avi.fetch_cash_flow()
-bs = avi.fetch_balance_sheet()
-ins = avi.fetch_income_statement()
-
-avi.db_connect()
-
-before, after = avi.add_quotes(quotes)
-avi.add_earnings(earnings)
-avi.add_cash_flow(cf)
-avi.add_balance_sheet(bs)
-avi.add_income_statement(ins)
-
-rows = avi.get_quotes(queries=[('earnings', 'reported_date'), ('earnings', 'reported_eps'), ('cash_flow', 'operating_cashflow')])
-avi.db_close()
-
-print(dict(rows[-1]))
-
-print(f"Number of quotes in DB before the operation {before}, after {after}")
-```
+Here we see that AI helped to better distinguish some signals of the strategy and decreased the loses from -20.34% to -11.51%.
 
 # Other Examples
 
-The examples above is only a little part of what Fcore is capable. The following examples illustrates the wider usage of the framework.
+The examples above are only a little part of what Fcore is capable. The following examples illustrates the wider usage of the framework.
 
 Use the following command line tools to manage quotes.
 
@@ -189,7 +325,7 @@ Note that the tools and backtesting demos create an image with the result of a c
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).
 
-Currently the project is in the active development stage and is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The 'general idea' of the project will remain the same but APIs still may change.
+Currently Fcore is in the active development stage and is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The 'general idea' of Fcore will remain the same but APIs still may change.
 
 The repository uses two branches: 'main' and 'devel'. The 'main' branch is usually stable but as a verification process is not fully established yet, sometimes bugs may be committed there. The 'devel' branch is used for 'intermediate' development commits and it is not intended to be stable or even working. See TODO's (followed by priority) in the code for what is going to be implemented/fixed in the future.
 

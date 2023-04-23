@@ -33,7 +33,7 @@ rows_test, length_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023
 classifier = MAClassifier(period=period,  # SMA Period
                           data_to_learn=[rows_learn],  # Raw quote data to train the model
                           true_ratio=0.004,  # Ratio when signal is considered as true in cycle_num.
-                                             # For example, if  true_ratio is 0.03 and cycle_num is 5,
+                                             # For example, if true_ratio is 0.03 and cycle_num is 5,
                                              # then the signal will be considered as true if there was a 3% change in
                                              # quote in the following 5 cycles after getting the signal.
                           cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
@@ -97,4 +97,4 @@ report.add_annotations(title="MA Classifier performance:")
 report.add_annotations(data=results_cmp, title="Regular MA/Price Crossover performance:")
 
 # Show image
-new_file = report.show_image()
+report.show_image()

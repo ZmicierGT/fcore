@@ -77,8 +77,11 @@ prob = Probability(period_long=period_long,
                    period_short=period_short,
                    rows=rows_test,
                    data_to_learn=[rows_learn],
-                   true_ratio=0.004,
-                   cycle_num=2,
+                   true_ratio=0.004,  # Ratio when signal is considered as true in cycle_num.
+                                      # For example, if true_ratio is 0.03 and cycle_num is 5,
+                                      # then the signal will be considered as true if there was a 3% change in
+                                      # quote in the following 5 cycles after getting the signal.
+                   cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
                    algorithm=Algorithm.KNC)
 
 prob.learn()
@@ -97,5 +100,5 @@ fig.add_trace(go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"), seconda
 # Add probabilities chart
 fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
 
-update_layout(fig, f"Probabilities example chart", len(rows_test))
+update_layout(fig, f"Probabilities Example Chart", len(rows_test))
 show_image(fig)

@@ -1,4 +1,4 @@
-# Fcore Is an AI Framework for Financial Markets Backtesting and Screening.
+# Fcore Is an AI Framework for Financial Markets Analysis.
 
 ### **Fcore** is based on the following principles:
 - AI is becoming the essential (and hardly avoidable) part of a financial markets analysis.

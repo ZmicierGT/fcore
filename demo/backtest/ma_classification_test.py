@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
+# TODO LOW Remove gaps between docstrings and imports
 from data.fvalues import Algorithm
 from tools.ma_classifier import MAClassifier
 

@@ -8,11 +8,11 @@
 - Backtesting is treated as an another AI metric and it should be very sensitive to a 'minor' details.
 
 ### Based on these principles, **Fcore**:
-- Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storie it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
-- Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals (already implemented) and estimation of the future prices as a regression problem.
+- Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storie it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters (bar data plus reports) are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
+- Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals and estimation of the future prices as a regression problem.
 - Utilizes the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
 - Provides its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
-- Can use multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
+- Can use multiple securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
 - Has an API for reporting.
 
 These features allow you to develop your AI-based market strategies much easier and faster than when using a wide-purpose libraries.
@@ -186,7 +186,7 @@ The script will generate a chart with close price and moving averages and also a
 
 ## Backtesting and Classification of Technical Analysis Signals
 
-Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of '200 Day SMA vs Price' strategy usage when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
+Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of '200 Day SMA vs Price' strategy when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
 
 ```python
 from data.fvalues import Algorithm
@@ -315,7 +315,7 @@ Examples of a screening strategy:
 Examples of backtesting strategies:
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))
 - [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**, [source of the demo](demo/backtest/ma_test.py))
-- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EDO demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).
+- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EOD demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).
 - [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.

@@ -1,4 +1,4 @@
-"""LSTM AI price estimation calculation. Compares the actual price with LSTM predicted data and provides the difference as a result.
+"""Regression AI data tool implementation.
 
 The author is Zmicier Gotowka
 

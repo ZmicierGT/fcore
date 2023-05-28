@@ -1,4 +1,4 @@
-"""Demonstration of using AI data tool.
+"""Demonstration of using Regression AI data tool.
 
 The author is Zmicier Gotowka
 

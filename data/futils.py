@@ -162,46 +162,6 @@ def show_image(fig):
 
     return image_path
 
-def write_model(name, model):
-    """
-        Write keras model to a disk.
-
-        Args:
-            model(keras.Model): keras model to write.
-
-        Returns:
-            str: new file name.
-
-        Raises:
-            RuntimeError: can't generate a directory name.
-    """
-    model_dir = "models"
-
-    if exists(model_dir) == False:
-        os.mkdir(model_dir)
-
-    os.chdir(model_dir)
-    directories = glob.glob(f"{name}_*")
-
-    directories.sort(key=lambda x: int(x.partition('_')[2].partition('.')[0]))
-
-    if len(directories) == 0:
-        last_dir = 0
-    else:
-        last_dir = directories[-1]
-        last_dir = last_dir.replace(f'{name}_', '')
-    
-    try:
-        new_counter = int(last_dir) + 1
-    except ValueError as e:
-        raise RuntimeError(f"Can't generate new directory name. {last_dir} has a broken filename pattern.") from e
-
-    new_dir = f"{name}_" + f"{new_counter}"
-
-    model.save(new_dir)
-
-    return new_dir
-
 def build_chart(rows):
     """
         Build a basic line chart and write it to a disk.

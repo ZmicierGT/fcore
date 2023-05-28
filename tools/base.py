@@ -11,19 +11,21 @@ class BaseTool(metaclass=abc.ABCMeta):
     """
         Base custom data-tool class. For majority of technical indicators calculation you may use pandas_ta
     """
-    def __init__(self, rows, offset=None):
+    def __init__(self, rows, verbosity=False, offset=None):
         """
             Initialize the custom data-tool class.
 
             Args:
                 rows(list): quotes from the database.
+                verbosity(bool): indicates if additional logs should be displayed.
                 offset(int): offset to perform a calculation in rows.
         """
-        # Private data to make a calculation
+        # Data to make a calculation
         self._rows = rows
         # Result of the calculation. 
         self._results = []
-        # Offset
+
+        self._verbosity = verbosity
         self._offset = offset
 
     # Update the data for calculation

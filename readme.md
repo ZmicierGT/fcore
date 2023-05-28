@@ -9,7 +9,7 @@
 
 ### Based on these principles, **Fcore**:
 - Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storie it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
-- Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals (already implemented) and estimation of the future prices as a regression problem (partially implemented as LSTM-demo).
+- Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals (already implemented) and estimation of the future prices as a regression problem.
 - Utilizes the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
 - Provides its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
 - Can use multiple financial securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
@@ -305,18 +305,18 @@ Non-CLI API wrappers:
 - [data/fh.py](data/fh.py) (API wrapper for *Finnhub* real time quote data).
 
 Examples of custom data processing tools which are relied on AI:
-- [tools/lstm.py](tools/lstm.py) - LSTM AI implementation for financial analysis (**python -m demo.ai.lstm_learn** for learning demonstation and **python -m demo.tools.lstm_demo** for price estimation demonstation)
-- [tools/ma_classifier.py](tools/ma_classifier.py) 'AI-indicator' where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration)
-- [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration)
+- [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )
+- [tools/ma_classifier.py](tools/ma_classifier.py) 'AI-indicator' where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration, [source of the demo](demo/tools/ma_classifier_demo.py))
+- [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
 
 Examples of a screening strategy:
-- [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation)
+- [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation, [source of the demo](demo/screening/rsi_scr_demo.py))
 
 Examples of backtesting strategies:
-- [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**)
-- [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**)
-- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation.
-- [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**)
+- [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))
+- [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**, [source of the demo](demo/backtest/ma_test.py))
+- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EDO demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).
+- [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.
 
@@ -330,7 +330,7 @@ The repository uses two branches: 'main' and 'devel'. The 'main' branch is usual
 
 Overall, the next development steps are (planned to finish in Autumn 2023):
 - ~~Continue to adopt the project to use various data sources and store the fundamental data in a unified way. Data sources are Yahoo Finance (for demonstration purposes only), Polygon.IO, AlphaVantahe and Finnhub.io~~ (already implemented).
-- Continue to implement the API for AI-based analysis of financial markets. Exact description should be written how to use this API.
+- ~~Continue to implement the API for AI-based analysis of financial markets.~~ Exact description should be written how to use this API.
 - Further improvements in performance and reliability. Scripts for pre-commit validation to the 'main' branch should be written.
 
 All fetched quotes are cached in a database (sqlite by default). Data-related settings (like api-keys) are stored in [settings.py](settings.py) file.

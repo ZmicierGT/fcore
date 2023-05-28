@@ -5,8 +5,6 @@ from mockito import when, when2, mock, verify, unstub, ANY
 import sys
 sys.path.append('../')
 
-import configparser
-
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from plotly import subplots
@@ -16,19 +14,13 @@ import platform
 import subprocess
 import glob
 
-from data import futils, fdata, fvalues
-
-from keras.models import Sequential
+from data import futils
 
 import threading
 import multiprocessing
 
 from backtest.base import BTData
 from backtest.base import BTSymbol
-
-from data.fdata import FdataError
-
-from datetime import datetime
 
 import numpy as np
 
@@ -207,29 +199,6 @@ class Test(unittest.TestCase):
         verify(futils, times=1).open_image(image_path)
 
         assert image_path == result
-
-    def test_5_write_model(self):
-        model_dir = "models"
-        name = "LSTM"
-        file_mask = f"{name}_*"
-        expected_file = "LSTM_1"
-        files = []
-
-        model = mock(Sequential())
-
-        when(futils).exists(model_dir).thenReturn(True)
-        when(os).chdir(model_dir).thenReturn()
-        when(glob).glob(file_mask).thenReturn(files)
-        when(model).save(expected_file).thenReturn()
-
-        new_file = futils.write_model(name, model)
-
-        verify(futils, times=1).exists(model_dir)
-        verify(os, times=1).chdir(model_dir)
-        verify(glob, times=1).glob(file_mask)
-        verify(model).save(expected_file)
-
-        assert new_file == expected_file
 
     def test_6_build_chart(self):
         expected_file = "fig_1.png"

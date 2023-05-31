@@ -61,7 +61,7 @@ class RegressionData():
                  window_size,
                  forecast_size,
                  in_features=None,
-                 out_features_num=1):
+                 output_size=1):
         """
             Initialized the data used in regression calculations.
 
@@ -69,8 +69,8 @@ class RegressionData():
                 rows(list): data for calculation.
                 window_size(int): sliding window size.
                 forecast_size(int): number or periods to be forecasted.
-                in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]).
-                out_features_num(int): number of out features.
+                in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
+                out_features_num(int): number of out features (the first num of features in in_features).
         """
         if window_size <= 0 or forecast_size <= 0:
             raise ToolError(f"Sliding window size {window_size} of forecast size {forecast_size} should be bigger than 0.")
@@ -78,17 +78,22 @@ class RegressionData():
         if forecast_size > window_size:
             raise ToolError(f"Sliding window size {window_size} is less that forecast size {forecast_size}.")
 
-        if out_features_num > len(in_features):
-            raise ToolError(f"The requested number of out_features {out_features_num} is bigger than the number of in_features {in_features}.")
-
         self.window_size = window_size
         self.forecast_size = forecast_size
 
-        self.input_size = len(in_features)
-        self.output_size = out_features_num
+        if in_features is None:
+            self.input_size = len(rows[0])
+        else:
+            self.input_size = len(in_features)
 
         self.in_features = in_features
 
+        self.output_size = output_size
+
+        if output_size > self.input_size:
+            raise ToolError(f"The requested number of out_features {output_size} is bigger than the number of in_features {self.input_size}.")
+
+        # TODO LOW prevent rows from being serialized
         self._rows = None
         self.set_data(rows)
 
@@ -163,9 +168,6 @@ class Regression(BaseTool):
 
         if epochs <= 0:
             raise(f"Epochs {epochs} can't be <= 0.")
-
-        if model.data.in_features is None and model.training:
-            raise ToolError("The model is not trained but no in_features specified.")
         
         self._model = model
         self._loss = loss
@@ -173,6 +175,7 @@ class Regression(BaseTool):
 
         self._epochs = epochs
 
+    # TODO Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
     def get_results(self):
         """
             Get the forecasting results.
@@ -189,11 +192,14 @@ class Regression(BaseTool):
         test_size = self._model.data.get_test_size()
         testing_data = self._model.data.get_data()[test_size:]
 
-        arr = np.zeros((len(testing_data), self._model.data.input_size))
+        if self._model.data.in_features is not None:
+            arr = np.zeros((len(testing_data), self._model.data.input_size))
 
-        for i in range(self._model.data.input_size):
-            feature = self._model.data.in_features[i]
-            arr[:, i] = [row[feature] for row in testing_data]
+            for i in range(self._model.data.input_size):
+                feature = self._model.data.in_features[i]
+                arr[:, i] = [row[feature] for row in testing_data]
+        else:
+            arr = self._model.data.get_data()
 
         # Scale data for testing
         sc_test = StandardScaler()
@@ -247,11 +253,14 @@ class Regression(BaseTool):
         train_size = self._model.data.get_train_size()
         training_data = self._model.rows()[:train_size]
 
-        arr = np.zeros((len(training_data), self._model.data.input_size))
+        if self._model.data.in_features is not None:
+            arr = np.zeros((len(training_data), self._model.data.input_size))
 
-        for i in range(self._model.data.input_size):
-            feature = self._model.data.in_features[i]
-            arr[:, i] = [row[feature] for row in training_data]
+            for i in range(self._model.data.input_size):
+                feature = self._model.data.in_features[i]
+                arr[:, i] = [row[feature] for row in training_data]
+        else:
+            arr = self._model.data.get_data()
 
         # Scale data for learning
         sc_learn = StandardScaler()

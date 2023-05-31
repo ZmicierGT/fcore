@@ -69,7 +69,7 @@ class RegressionData():
                 rows(list): data for calculation.
                 window_size(int): sliding window size.
                 forecast_size(int): number or periods to be forecasted.
-                in_features(list): features for model training (like [Quote.AdjClose, Quote.Volume]).
+                in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]).
                 out_features_num(int): number of out features.
         """
         if window_size <= 0 or forecast_size <= 0:

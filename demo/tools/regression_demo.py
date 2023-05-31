@@ -26,7 +26,7 @@ import sys
 
 window_size = 20  # Sliding window size
 forecast_size = 10  # Number of periods to forecast
-out_features_num = 1  # Number of features to forecast
+output_size = 1  # Number of features to forecast
 
 threshold = 756  # Quotes number threshold for calculation
 
@@ -47,11 +47,11 @@ if __name__ == "__main__":
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Calculate LSTM
-    data = RegressionData(rows,
+    data = RegressionData(rows,  # TODO HIGH Add utils function to convert it to a labelled numpy array
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],
-                          out_features_num=out_features_num,
+                          output_size=output_size,
                          )
 
     model = LSTM(data=data)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
 
     # Shift test data by windows size + test data length
-    forecasted = np.empty((data.get_test_size() - forecast_size, out_features_num))
+    forecasted = np.empty((data.get_test_size() - forecast_size, output_size))
     forecasted[:] = np.nan
 
     # start the chart from the last known point

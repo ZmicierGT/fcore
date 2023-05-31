@@ -47,7 +47,7 @@ if __name__ == "__main__":
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Calculate LSTM
-    data = RegressionData(rows,  # TODO HIGH Add utils function to convert it to a labelled numpy array
+    data = RegressionData(rows,
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],

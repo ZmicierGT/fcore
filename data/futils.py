@@ -15,6 +15,8 @@ import glob
 
 from data import fvalues
 
+import numpy as np
+
 import threading
 import multiprocessing
 import time
@@ -241,6 +243,38 @@ def update_layout(fig, title, length):
             pad=4
         ),
         paper_bgcolor="LightSteelBlue")
+
+def get_labelled_ndarray(rows):
+    """
+        Take a 2D list of sqlite3.Row and convert it to a labelled ndarray.
+        Then it is possible to address this array like arr['time_stamp'].
+
+        Regular list is preferred as it is fast for iterating and it is memory efficient but in some cases
+        numpy arrays may be preferred (for example, if a lot of column-wise operations are supposed).
+
+        Args:
+            rows(list(sqlite3.Row)): the data to convert.
+
+        Returns:
+            ndarray: labelled ndarray.
+    """
+    # At first, get all column names and types
+    key_types = []
+
+    for key, value in dict(rows[0]).items():
+        if isinstance(value, str):
+            key_type = 'object'
+        else:
+            key_type = np.array([value]).dtype
+
+        key_types.append((key, key_type))
+
+    dtypes = np.dtype(key_types)
+
+    # Create tuples of each row
+    data = [tuple(row[name] for name in dtypes.names) for row in rows]
+
+    return np.array(data, dtypes)
 
 # The project is intended to be used with GIL-free Python interpreters (like nogil-3.9.10). However, it is fully compatible with regular
 # CPython but in such case there won't be any benefit related to parallel computing.

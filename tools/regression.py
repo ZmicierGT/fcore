@@ -175,7 +175,8 @@ class Regression(BaseTool):
 
         self._epochs = epochs
 
-    # TODO Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
+    # TODO MID Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
+    # TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
     def get_results(self):
         """
             Get the forecasting results.

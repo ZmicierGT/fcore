@@ -730,6 +730,7 @@ class ReadOnlyData():
             for join in joins:
                 additional_joins += join + '\n'
 
+        # TODO MID Consider getting both date and time stamp as time_stamp may be useful for AI but date for reports
         select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
                                 opened,
                                 high,

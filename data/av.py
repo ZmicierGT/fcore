@@ -282,6 +282,7 @@ class AVStock(stock.StockFetcher):
         """
         return self._fetch_fundamentals('CASH_FLOW')
 
+    # TODO MID Check what happens if EPS is None
     def fetch_earnings(self):
         """
             Fetch stock earnings

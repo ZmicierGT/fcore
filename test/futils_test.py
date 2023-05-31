@@ -276,6 +276,51 @@ class Test(unittest.TestCase):
 
         verify(fig).update_layout(**update_args)
 
+    def test_13_get_labelled_ndarray(self):
+        time_stamp = '2023-01-01 23:59:59'
+        opened = 2
+        high = 3
+        low = 1
+        closed = 2.5
+        volume = 777
+        transactions = None
+        raw_close = 2.5
+        dividends = 0.0
+        split_coefficient = 1.0
+        reported_date = 1681862400
+        reported_eps = 0.2
+        operating_cashflow = 7777777
+
+        rows = [{'time_stamp': time_stamp,
+                 'opened': opened,
+                 'high': high,
+                 'low': low,
+                 'closed': closed,
+                 'volume': volume,
+                 'transactions': transactions,
+                 'raw_close': raw_close,
+                 'dividends': dividends,
+                 'split_coefficient': split_coefficient,
+                 'reported_date': reported_date,
+                 'reported_eps': reported_eps,
+                 'operating_cashflow': operating_cashflow}]
+
+        result = futils.get_labelled_ndarray(rows)
+
+        assert result['time_stamp'][0] == time_stamp
+        assert result['opened'][0] == opened
+        assert result['high'][0] == high
+        assert result['low'][0] == low
+        assert result['closed'][0] == closed
+        assert result['volume'][0] == volume
+        assert result['transactions'][0] == transactions
+        assert result['raw_close'][0] == raw_close
+        assert result['dividends'][0] == dividends
+        assert result['split_coefficient'][0] == split_coefficient
+        assert result['reported_date'][0] == reported_date
+        assert result['reported_eps'][0] == reported_eps
+        assert result['operational_cashflow'][0] == operating_cashflow
+
 ##########################
 # Multithreading functions
 ##########################

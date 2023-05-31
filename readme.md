@@ -70,7 +70,7 @@ rows = avi.get_quotes(queries=[('earnings', 'reported_date'), ('earnings', 'repo
 avi.db_close()
 
 # Print last rows of requested data
-print(f"\nThe last row of obtaines quotes and fundamental data for IBM:\n{dict(rows[-1])}")
+print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{dict(rows[-1])}")
 
 # Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
 aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()
@@ -318,7 +318,7 @@ Examples of backtesting strategies:
 - [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EOD demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).
 - [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
 
-Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder. AI learn demonstrations create a model subfolder in *models* folder.
+Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder and open the image in the default image viewer.
 
 # Additional Details
 

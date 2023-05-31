@@ -46,7 +46,7 @@ rows = avi.get_quotes(queries=[('earnings', 'reported_date'), ('earnings', 'repo
 avi.db_close()
 
 # Print last rows of requested data
-print(f"\nThe last row of obtaines quotes and fundamental data for IBM:\n{dict(rows[-1])}")
+print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{dict(rows[-1])}")
 
 # Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
 aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()

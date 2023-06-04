@@ -319,7 +319,7 @@ class Test(unittest.TestCase):
         assert result['split_coefficient'][0] == split_coefficient
         assert result['reported_date'][0] == reported_date
         assert result['reported_eps'][0] == reported_eps
-        assert result['operational_cashflow'][0] == operating_cashflow
+        assert result['operating_cashflow'][0] == operating_cashflow
 
 ##########################
 # Multithreading functions

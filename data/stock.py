@@ -11,6 +11,7 @@ import abc
 
 import time
 
+# TODO HIGH Think how to better query for quarterly and annual fundamental data.
 class ROStockData(ReadOnlyData):
     """
         The class for read only stock operations and database integrity check for storing stock data.
@@ -626,7 +627,7 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 self.cur.execute(insert_report)
             except self.Error as e:
-                raise FdataError(f"Can't add ticker to a table 'income_statement': {e}\n\nThe query is\n{insert_report}") from e
+                raise FdataError(f"Can't add a record to a table 'income_statement': {e}\n\nThe query is\n{insert_report}") from e
 
         self.commit()
 
@@ -739,7 +740,7 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 self.cur.execute(insert_report)
             except self.Error as e:
-                raise FdataError(f"Can't add ticker to a table 'balance_sheet': {e}\n\nThe query is\n{insert_report}") from e
+                raise FdataError(f"Can't add a record to a table 'balance_sheet': {e}\n\nThe query is\n{insert_report}") from e
 
         self.commit()
 
@@ -836,7 +837,7 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 self.cur.execute(insert_report)
             except self.Error as e:
-                raise FdataError(f"Can't add ticker to a table 'cash_flow': {e}\n\nThe query is\n{insert_report}") from e
+                raise FdataError(f"Can't add record to a table 'cash_flow': {e}\n\nThe query is\n{insert_report}") from e
 
         self.commit()
 
@@ -887,7 +888,7 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 self.cur.execute(insert_report)
             except self.Error as e:
-                raise FdataError(f"Can't add ticker to a table 'earnings': {e}\n\nThe query is\n{insert_report}") from e
+                raise FdataError(f"Can't add a record to a table 'earnings': {e}\n\nThe query is\n{insert_report}") from e
 
         self.commit()
 

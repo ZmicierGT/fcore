@@ -231,12 +231,20 @@ class AVStock(stock.StockFetcher):
         adj_earnings = self.earnings[self.earnings['fiscalDateEnding'].isin(reports['fiscalDateEnding'])]
         adj_earnings = adj_earnings.reset_index(drop=True)
 
+        # Drop exceeding rows. Sometimes they may present due to the broken data obtained through API.
+        len_diff = adj_earnings.shape[0] - reports.shape[0]
+
+        if len_diff > 0:
+            adj_earnings = adj_earnings.drop(adj_earnings.tail(len_diff).index)
+        elif len_diff < 0:
+            reports = reports.drop(reports.tail(-abs(len_diff)).index)
+
         # Add reporting date from earnings
         try:
             reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
                 adj_earnings['reportedDate'], None)
         except ValueError as e:
-            raise FdataError(f"Can't align dates of reports: {e}") from e
+            raise FdataError(f"Can't align dates of reports. This may be due to the broken data obtained from API: {e}") from e
 
         # Replace AV "None" to SQL 'NULL'
         reports = reports.replace(['None'], 'NULL')
@@ -282,7 +290,9 @@ class AVStock(stock.StockFetcher):
         """
         return self._fetch_fundamentals('CASH_FLOW')
 
-    # TODO MID Check what happens if EPS is None
+    # TODO LOW Think if the behavior above is correct.
+    # If eventually reportedEPS is None (sometimes it is possible because of API issue), it won't be added to the DB.
+    # However, it may be used for reported date estimation for other reports.
     def fetch_earnings(self):
         """
             Fetch stock earnings
@@ -325,7 +335,8 @@ class AVStock(stock.StockFetcher):
         annual_earnings = annual_earnings.set_index('fiscalDateEnding')
 
         annual_earnings = pd.merge(annual_earnings, quarterly_earnings, left_index=True, right_index=True)
-        annual_earnings = annual_earnings.drop(['estimatedEPS', 'surprise', 'surprisePercentage', 'reportedEPS_y'], axis=1)
+        annual_earnings['reportedEPS'] = annual_earnings['reportedEPS_x']
+        annual_earnings = annual_earnings.drop(['estimatedEPS', 'surprise', 'surprisePercentage', 'reportedEPS_y', 'reportedEPS_x'], axis=1)
 
         annual_earnings = annual_earnings.reset_index()
         quarterly_earnings = quarterly_earnings.reset_index()

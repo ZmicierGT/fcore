@@ -51,7 +51,7 @@ if __name__ == "__main__":
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],
-                          output_size=output_size,
+                          output_size=output_size
                          )
 
     model = LSTM(data=data)

@@ -60,6 +60,7 @@ class RegressionData():
                  rows,
                  window_size,
                  forecast_size,
+                 learn_to_test=None,
                  in_features=None,
                  output_size=1):
         """
@@ -69,6 +70,7 @@ class RegressionData():
                 rows(list): data for calculation.
                 window_size(int): sliding window size.
                 forecast_size(int): number or periods to be forecasted.
+                learn_to_test(float): the ratio how to split the data to learn and to test. 0.8 if 80% or data used for learning.
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
                 out_features_num(int): number of out features (the first num of features in in_features).
         """
@@ -96,6 +98,17 @@ class RegressionData():
         # TODO LOW prevent rows from being serialized
         self._rows = None
         self.set_data(rows)
+
+        self._learn_to_test = None
+
+        if learn_to_test is not None:
+            if learn_to_test < 0 or learn_to_test > 1:
+                raise ToolError(f"Learn to test ratio should be more than 0 and less than 1. Actual value is {learn_to_test}")
+
+            if int((1 - learn_to_test) * len(rows)) < self.get_test_size():
+                raise ToolError(f"Not enough data for testing. {learn_to_test} is specified by at least {self.get_test_size()} is expected.")
+
+            self._learn_to_test = learn_to_test
 
     def set_data(self, rows):
         """
@@ -134,7 +147,10 @@ class RegressionData():
             Returns:
                 int: testing data size.
         """
-        return self.window_size + self.forecast_size * 2
+        if self._learn_to_test is None:
+            return self.window_size + self.forecast_size * 2
+        else:
+            return int((1 - self._learn_to_test) * len(self._rows))
 
 class Regression(BaseTool):
     """
@@ -144,8 +160,8 @@ class Regression(BaseTool):
                  model,
                  loss=None,
                  optimizer=None,
-                 verbosity=True,
                  epochs=1000,
+                 verbosity=True,
                  offset=None):
         """
             Initialize regression implementation class.

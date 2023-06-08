@@ -23,6 +23,46 @@ class FdataError(Exception):
         Base data exception class.
     """
 
+class Subquery():
+    """
+        Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
+    """
+    def __init__(self, table, column, condition='', title=None):
+        """
+            Initializes the instance of Subquery class.
+
+            Args:
+                table(str): table for subquery.
+                column(str): column to obtain.
+                condition(str): additional SQL condition for the subquery.
+                title(str): optional title for the output column (the same as column name by default)
+        """
+        self.table = table
+        self.column = column
+        self.condition = condition
+
+        # Use the default column name as the title if the title is not specified
+        if title is None:
+            self.title = column
+        else:
+            self.title = title
+
+    def generate(self):
+        """
+            Generates the subquery based on the provided data.
+
+            Returns:
+                str: SQL expression for the subquery
+        """
+        subquery = f"""(SELECT {self.column}
+                            FROM {self.table} report_tbl
+                            WHERE reported_date <= time_stamp
+                            AND symbol_id = quotes.symbol_id
+                            {self.condition}
+                            ORDER BY reported_date DESC LIMIT 1) AS {self.title}\n"""
+
+        return subquery
+
 class ReadOnlyData():
     """
         Base class for SQL 'read only' data operations and database integrity check.
@@ -711,17 +751,10 @@ class ReadOnlyData():
 
         additional_queries = ""
 
-        if isinstance(queries, list) > 0:
+        if isinstance(queries, list):
             # Generate the subqueries for additional data
             for query in queries:
-                data_column = query[1]
-                table = query[0]
-
-                additional_queries += f""", (SELECT {data_column}
-                                                FROM {table}
-                                                WHERE reported_date <= time_stamp
-                                                AND symbol_id = quotes.symbol_id
-                                                ORDER BY reported_date DESC LIMIT 1) AS {data_column}\n"""
+                additional_queries += f", {query.generate()}"
 
         additional_joins = ""
 

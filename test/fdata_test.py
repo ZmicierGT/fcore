@@ -5,7 +5,7 @@ from mockito import when, mock, verify, unstub
 import sys
 sys.path.append('../')
 
-from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION, FdataError
+from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION, FdataError, Subquery
 from data.fvalues import Timespans, SecType, Currency, DbTypes
 
 from sqlite3 import Cursor, Connection
@@ -645,3 +645,31 @@ class FdataTest(unittest.TestCase, DataMocker):
         verify(self.fetch_data, times=1).get_symbol_quotes_num_dt()
         verify(self.fetch_data, times=1).fetch_quotes()
         verify(self.fetch_data, times=1).get_quotes()
+
+    ################################
+    # Additional functionality tests
+    ################################
+
+    def test_24_check_subquery(self):
+        table = 'earnings'
+        column = 'reported_eps'
+        condition='TEST CONDITION'
+        title='new_title'
+
+        subquery = Subquery(table, column, condition, title)
+
+        assert subquery.table == table
+        assert subquery.column == column
+        assert subquery.condition == condition
+        assert subquery.title == title
+
+        subquery_str = subquery.generate()
+
+        expected_subquery = """(SELECT reported_eps
+                            FROM earnings report_tbl
+                            WHERE reported_date <= time_stamp
+                            AND symbol_id = quotes.symbol_id
+                            TEST CONDITION
+                            ORDER BY reported_date DESC LIMIT 1) AS new_title\n"""
+
+        assert subquery_str == expected_subquery

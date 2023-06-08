@@ -80,7 +80,7 @@ class VO(BaseTool):
 
         self._results = []
 
-        # TODO MID rewrite it to use native pandas processing
+        # TODO LOW it should be rewritten to numpy processing when switched to labelled numpy array
         for i in range (0, length):
             long_value = self.__long_sma[i]
             short_value = self.__short_sma[i]

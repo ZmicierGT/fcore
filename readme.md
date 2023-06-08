@@ -30,8 +30,9 @@ The first one is a basic data management example which shows how to use the fram
 ```python
 # Edit settings.py to add your API keys for data sources. Free API keys are sufficient for this example.
 from data import av, fh, yf, polygon  # API wrappers for popular data sources (please note that they are unofficial)
-
 from data.fvalues import Timespans
+from data.fdata import Subquery
+from data.stock import report_year  # Condition to request annual report.
 
 from datetime import datetime, timedelta
 
@@ -66,7 +67,9 @@ avi.fetch_income_statement_if_none(25)
 
 # Get quotes from DB along with some fundamental data
 avi.db_connect()
-rows = avi.get_quotes(queries=[('earnings', 'reported_date'), ('earnings', 'reported_eps'), ('cash_flow', 'operating_cashflow')])
+rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),
+                               Subquery('earnings', 'reported_eps'),
+                               Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 avi.db_close()
 
 # Print last rows of requested data

@@ -11,7 +11,9 @@ import abc
 
 import time
 
-# TODO HIGH Think how to better query for quarterly and annual fundamental data.
+report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
+report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
+
 class ROStockData(ReadOnlyData):
     """
         The class for read only stock operations and database integrity check for storing stock data.

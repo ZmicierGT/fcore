@@ -8,6 +8,8 @@ sys.path.append('../')
 from data.fdata import ReadOnlyData, ReadWriteData, BaseFetcher, DB_VERSION, FdataError, Subquery
 from data.fvalues import Timespans, SecType, Currency, DbTypes
 
+from data import fdatabase
+
 from sqlite3 import Cursor, Connection
 
 from datetime import datetime
@@ -240,7 +242,6 @@ class DataMocker():
 
         return queries
 
-# TODO MID check why data.sqlite is created by the test
 class FetchData(BaseFetcher):
     # Implement abstract methods
     def fetch_quotes(self):
@@ -271,6 +272,15 @@ class FdataTest(unittest.TestCase, DataMocker):
         when(self.read_data.conn).cursor().thenReturn(self.read_data.cur)
         when(self.read_data.cur).fetchone().thenReturn(self.result)
         when(self.read_data.cur).fetchall().thenReturn(self.results)
+
+        if self.read_data.db_type == DbTypes.SQLite:
+            data_mock = mock(fdatabase.SQLiteConn)
+        else:
+            raise RuntimeError(f"Unsupported database type: {self.read_data.db_type}")
+
+        when(fdatabase).SQLiteConn(self.read_data).thenReturn(data_mock)
+        when(data_mock).db_connect().thenReturn()
+        when(data_mock).db_close().thenReturn()
 
         self.write_data = ReadWriteData()
 

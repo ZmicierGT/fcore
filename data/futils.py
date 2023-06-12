@@ -247,7 +247,7 @@ def update_layout(fig, title, length):
 def get_labelled_ndarray(rows):
     """
         Take a 2D list of sqlite3.Row and convert it to a labelled ndarray.
-        Then it is possible to address this array like arr['time_stamp'].
+        Then it is possible to address this array like arr['date_time'].
 
         Regular list is preferred as it is fast for iterating and it is memory efficient but in some cases
         numpy arrays may be preferred (for example, if a lot of column-wise operations are supposed).

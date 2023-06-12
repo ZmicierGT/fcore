@@ -700,6 +700,7 @@ class ReadOnlyData():
 
         return rows
 
+    # TODO LOW Consider a way to omit not used columns from the standard output. For example, some user may not need volume and so on.
     def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
@@ -707,7 +708,7 @@ class ReadOnlyData():
 
             Args:
                 num(int): the number of rows to get. 0 gets all the quotes.
-                columns(list of tuple): additional pairs of (table, column) to query.
+                columns(list): additional columns to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
 
@@ -764,7 +765,7 @@ class ReadOnlyData():
                 additional_joins += join + '\n'
 
         # TODO MID Consider getting both date and time stamp as time_stamp may be useful for AI but date for reports
-        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
+        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as date_time,
                                 opened,
                                 high,
                                 low,

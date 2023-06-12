@@ -433,7 +433,7 @@ class FdataTest(unittest.TestCase, DataMocker):
         currency_query = ""
         num_query = ""
 
-        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
+        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as date_time,
                                 opened,
                                 high,
                                 low,

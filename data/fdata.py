@@ -1164,3 +1164,13 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         """
             Abstract method to fetch quotes.
         """
+
+    #@abc.abstractmethod
+    def get_timespan_str(self):
+        """
+            Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
+            in the datasource instance.
+
+            Returns:
+                str: timespan string.
+        """

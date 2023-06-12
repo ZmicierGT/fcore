@@ -57,7 +57,7 @@ class Polygon(stock.StockFetcher):
             new_last_date = new_last_date.replace(hour=23, minute=59, second=59)
             self.last_date = new_last_date
 
-    def get_timespan(self):
+    def get_timespan_str(self):
         """
             Get the timespan for queries.
 
@@ -91,7 +91,7 @@ class Polygon(stock.StockFetcher):
         first_date = self.first_date.date()
         last_date = self.last_date.date()
 
-        url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
+        url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
 
         try:
             response = requests.get(url, timeout=30)

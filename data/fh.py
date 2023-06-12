@@ -32,6 +32,16 @@ class FHStock(stock.StockFetcher):
         self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for FH
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
+    def get_timespan_str(self):
+        """
+            Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
+            in the datasource instance.
+
+            Returns:
+                str: timespan string.
+        """
+        raise FdataError("Timespans are not supported yet in Finnhub datasource.")
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.

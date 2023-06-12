@@ -35,6 +35,9 @@ class FetchData(StockFetcher):
     def fetch_earnings(self):
         pass
 
+    def get_timespan_str(self):
+        pass
+
 class Test(unittest.TestCase, DataMocker):
     def setUp(self):
         self.read_data = ROStockData()

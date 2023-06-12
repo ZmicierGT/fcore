@@ -51,7 +51,7 @@ class AVStock(stock.StockFetcher):
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
 
-    def get_timespan(self):
+    def get_timespan_str(self):
         """
             Get the timespan.
 
@@ -108,9 +108,9 @@ class AVStock(stock.StockFetcher):
                                Timespans.ThirtyMinutes,
                                Timespans.Hour]:
             output_size = 'compact' if self.compact else 'full'
-            json_key = f'Time Series ({self.get_timespan()})'
+            json_key = f'Time Series ({self.get_timespan_str()})'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan()}&outputsize={output_size}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&apikey={self.api_key}'
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan}")
 

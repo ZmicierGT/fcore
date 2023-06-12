@@ -83,14 +83,14 @@ class Test(unittest.TestCase):
 
         # Mocking
         when(yfinance).Ticker(source.symbol).thenReturn(hist)
-        when(hist).history(interval=source.get_timespan(), \
+        when(hist).history(interval=source.get_timespan_str(), \
                            start=source.first_date_str, \
                            end=source.last_date_str).thenReturn(df)
 
         return_data = source.fetch_quotes()
 
         verify(yfinance, times=1).Ticker(source.symbol)
-        verify(hist, times=1).history(interval=source.get_timespan(), \
+        verify(hist, times=1).history(interval=source.get_timespan_str(), \
                                       start=source.first_date_str, \
                                       end=source.last_date_str)
 

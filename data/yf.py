@@ -32,7 +32,7 @@ class YF(stock.StockFetcher):
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
     # TODO MID Consider making it abstract and renaming to indicate that a string for query is obtained.
-    def get_timespan(self):
+    def get_timespan_str(self):
         """
             Get the timespan for queries.
 
@@ -88,11 +88,11 @@ class YF(stock.StockFetcher):
             else:
                 last_date_str = self.last_date_str
 
-            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(),
+            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(),
                                                         start=self.first_date_str,
                                                         end=last_date_str)
         else:
-            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan(), period='max')
+            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(), period='max')
 
         length = len(data)
 

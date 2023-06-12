@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 # TODO LOW Remove gaps between docstrings and imports
-from data.fvalues import Algorithm
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from tools.ma_classifier import MAClassifier
 
 from backtest.ma_classification import MAClassification
@@ -31,7 +31,6 @@ change_percent = 2  # Change of price in percent to consider the trend as change
 
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
-algorithm = Algorithm.LDA  # The default algorithm to use
 
 threshold_learn = 5284  # Quotes num threshold for the learning
 threshold_test = 565  # Quotes num threshold for the test
@@ -78,7 +77,8 @@ if __name__ == "__main__":
                               data_to_learn=[rows_learn],
                               true_ratio=true_ratio,
                               cycle_num=cycle_num,
-                              algorithm=algorithm)
+                              model_buy=LinearDiscriminantAnalysis(),
+                              model_sell=LinearDiscriminantAnalysis())
 
     try:
         classifier.learn()

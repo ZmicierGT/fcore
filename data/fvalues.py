@@ -84,7 +84,6 @@ class DbTypes(Enum):
     """
     SQLite = "sqlite"
 
-# TODO MID Add the ability to pass the learning instance as an argument
 class Algorithm(IntEnum):
     """Enum with the supported algorithms for scikit-learn."""
     LR = 0

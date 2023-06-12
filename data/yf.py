@@ -31,7 +31,6 @@ class YF(stock.StockFetcher):
         self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
-    # TODO MID Consider making it abstract and renaming to indicate that a string for query is obtained.
     def get_timespan_str(self):
         """
             Get the timespan for queries.

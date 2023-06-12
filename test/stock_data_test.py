@@ -452,7 +452,7 @@ class Test(unittest.TestCase, DataMocker):
         num_query = ""
         additional_queries = ""
 
-        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as time_stamp,
+        sql_query = f"""SELECT datetime(time_stamp, 'unixepoch') as date_time,
                                 opened,
                                 high,
                                 low,

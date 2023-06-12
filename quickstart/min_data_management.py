@@ -43,7 +43,8 @@ avi.fetch_income_statement_if_none(25)
 
 # Get quotes from DB along with some fundamental data
 avi.db_connect()
-rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),
+rows = avi.get_quotes(columns=['time_stamp'],  # Get time stamp in addition to a formatted data time.
+                      queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
                                Subquery('earnings', 'reported_eps'),
                                Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 avi.db_close()

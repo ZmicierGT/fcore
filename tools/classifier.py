@@ -39,7 +39,7 @@ class Classifier(BaseTool):
                  data_to_learn=None,
                  true_ratio=0,
                  cycle_num=2,
-                 algorithm=Algorithm.GaussianNB,
+                 algorithm=None,
                  classify=True,
                  probability=False,
                  use_buy=True,
@@ -203,36 +203,6 @@ class Classifier(BaseTool):
 
         return self._model_sell
 
-    def need_buy(self, condition=True):
-        """
-            Indicates if buy model is needed based on the condition and self._use_buy
-
-            For example, if the conditon is `self._model_buy is None` and we need to check for the need of buy signals,
-            then the following call should be invoked: `self.need_buy(self._model_buy is None)`
-
-            Args:
-                condition(bool): the condition to check
-
-            Returns:
-                bool: the whole condition value
-        """
-        return condition and self._use_buy
-
-    def need_sell(self, condition=True):
-        """
-            Indicates if buy model is needed based on the condition and self._use_sell
-
-            For example, if the conditon is `self._model_sell is None` and we need to check for the need of sell signals,
-            then the following call should be invoked: `self.need_sell(self._model_sell is None)`
-
-            Args:
-                condition(bool): the condition to check
-
-            Returns:
-                bool: the whole condition value
-        """
-        return condition and self._use_sell
-
     #################################################
     # Common methods for both buy and sell operations
     #################################################
@@ -323,6 +293,9 @@ class Classifier(BaseTool):
             Retunrs:
                 instance to train a model.
         """
+        if self._algorithm is None:
+            raise ToolError("No algorithm is specified. Add argument like algorithm=Algorithm.LDA to classifier initialization.")
+
         if self._algorithm == Algorithm.LR:
             learn = LogisticRegression(class_weight='balanced')
         elif self._algorithm == Algorithm.LDA:
@@ -388,13 +361,14 @@ class Classifier(BaseTool):
                 means_buy = self._data_buy_learn.mean()
                 self._data_buy_learn = self._data_buy_learn.fillna(means_buy)
 
-            buy_learn = self.get_learning_instance()            
+            if self._model_buy is None:
+                self._model_buy = self.get_learning_instance()
 
             # Train buy model
             if len(self._data_buy_learn) == 0 or len(self._results_buy_learn) == 0:
                 raise ToolError("No buy signals for learning")
 
-            self._model_buy = buy_learn.fit(self._data_buy_learn, self._results_buy_learn)
+            self._model_buy.fit(self._data_buy_learn, self._results_buy_learn)
 
         if self._use_sell:
             # Create a results numpy array with sell signals
@@ -408,13 +382,14 @@ class Classifier(BaseTool):
                 means_sell = self._data_sell_learn.mean()
                 self._data_sell_learn = self._data_sell_learn.fillna(means_sell)
 
-            sell_learn = self.get_learning_instance()
+            if self._model_sell is None:
+                self._model_sell = self.get_learning_instance()
 
             # Train sell model
             if len(self._data_sell_learn) == 0 or len(self._results_sell_learn) == 0:
                 raise ToolError("No sell signals for learning")
 
-            self._model_sell = sell_learn.fit(self._data_sell_learn, self._results_sell_learn)
+            self._model_sell.fit(self._data_sell_learn, self._results_sell_learn)
 
     def check_buy_signals(self, df_source):
         """
@@ -460,6 +435,18 @@ class Classifier(BaseTool):
 
         return df
 
+    def check_if_fitted(self, model):
+        """
+            Checks if a model is fitted.
+
+            Args:
+                model(sklearn model): model to check.
+
+            Returns:
+                bool: True if fitted, False otherwise.
+        """
+        return hasattr(model, "classes_")
+
     def calculate(self):
         """
             Perform the calculation based on the provided data.
@@ -471,7 +458,8 @@ class Classifier(BaseTool):
             raise ToolError("No data for testing provided.")
 
         # Check if we need to train the model at first
-        if self.need_buy(self._model_buy is None) or self.need_sell(self._model_sell is None):
+        if (self._use_buy and (self._model_buy is None or self.check_if_fitted(self._model_buy) == False)) or \
+           (self._use_sell and (self._model_sell is None or self.check_if_fitted(self._model_sell) == False)):
             self.learn()
 
         # DataFrame for the current symbol

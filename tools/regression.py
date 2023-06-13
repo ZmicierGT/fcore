@@ -43,12 +43,9 @@ class LSTM(nn.Module):
         return self.data.get_data()
 
     def forward(self, x):
-        if self.lstm is False or self.linear is False:
-            raise ToolError("The model is not initialized. Invoke model.initialize() at first.")
-
         x, _ = self.lstm(x)
         x = self.linear(x)
-        x = x[:, self.data.window_size - self.data.forecast_size:, :]  # Trim results to forecast size
+        x = x[:, self.data.window_size - self.data.forecast_size:, :]  # Trim results to the forecast size
 
         return x
 
@@ -62,7 +59,8 @@ class RegressionData():
                  forecast_size,
                  learn_to_test=None,
                  in_features=None,
-                 output_size=1):
+                 output_size=1,
+                 epochs=1000):
         """
             Initialized the data used in regression calculations.
 
@@ -73,6 +71,7 @@ class RegressionData():
                 learn_to_test(float): the ratio how to split the data to learn and to test. 0.8 if 80% or data used for learning.
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
                 out_features_num(int): number of out features (the first num of features in in_features).
+                epochs(int): number of epochs.
         """
         if window_size <= 0 or forecast_size <= 0:
             raise ToolError(f"Sliding window size {window_size} of forecast size {forecast_size} should be bigger than 0.")
@@ -95,7 +94,7 @@ class RegressionData():
         if output_size > self.input_size:
             raise ToolError(f"The requested number of out_features {output_size} is bigger than the number of in_features {self.input_size}.")
 
-        # TODO LOW prevent rows from being serialized
+        # TODO MID prevent rows from being serialized
         self._rows = None
         self.set_data(rows)
 
@@ -110,17 +109,72 @@ class RegressionData():
 
             self._learn_to_test = learn_to_test
 
-    def set_data(self, rows):
+        min_len = self.get_test_size() + forecast_size
+        if len(rows) < min_len:
+            raise ToolError(f"Number on input rows is {len(rows)} but at least {min_len} rows are required.")
+
+        self.epochs = None
+        self.set_epochs(epochs)
+
+    def set_epochs(self, epochs):
+        """
+            Set the number of epochs for the current cycle of learning.
+
+            Args:
+                epochs(int): the number of epochs.
+        """
+        if epochs <= 0:
+            raise(f"Epochs {epochs} can't be <= 0.")
+
+        self.epochs = epochs
+
+    def set_data(self, rows, epochs=None):
         """
             Set the new data.
 
             Args:
                 rows(list): the new data to set
+                epochs(int): the new number of epochs.
         """
         if self.window_size > len(rows):
             raise ToolError(f"Sliding window size {self.window_size} is bigger than the total data provided {len(rows)}.")
 
         self._rows = rows
+
+        if epochs is not None:
+            self.set_epochs(epochs)
+
+    def append_data(self, rows, epochs):
+        """
+            Append the rows of data to the main dataset. Used with streaming quotes.
+
+            Args:
+                rows(list): data to append to the main dataset.
+                epochs(int): new number of epochs. As append data is normally not called standalone for learning purposes, use with caution.
+        """
+        if isinstance(self._rows, list):
+            self._rows.extend(rows)
+        elif isinstance(self._rows, np.ndarray):
+            self._rows = np.append(self._rows, np.array(rows), axis=0)
+
+        if epochs is not None:
+            self.set_epochs(epochs)
+
+    def update_data(self, rows, epochs=None):
+        """
+            Update the dataset with the contiguous data for learning. For example, the initial data was used to start
+            learning, then the next contiguous part of the same big dataset is used to continue learning.
+
+            Args:
+                rows(list): the new data to update.
+                epochs(int): new number of epochs.
+        """
+        min_len = self.window_size + self.forecast_size
+        if len(rows) < min_len:
+            raise ToolError(f"{len(rows)} rows were provided for update but at least {min_len} are required.")
+
+        self._rows = self._rows[self.get_train_size():]
+        self.append_data(rows, epochs)
 
     def get_data(self):
         """
@@ -160,7 +214,6 @@ class Regression(BaseTool):
                  model,
                  loss=None,
                  optimizer=None,
-                 epochs=1000,
                  verbosity=True,
                  offset=None):
         """
@@ -170,7 +223,6 @@ class Regression(BaseTool):
                 model(nn.Module): instance for learning/forecasting.
                 loss(torch.nn.modules.loss): loss function.
                 optimizer(torch.optim): optimizer.
-                epochs(int): number of epochs.
                 verbosity(bool): indicates if additional output is needed (loss, rmse).
                 offset(int): offset for calculation.
         """
@@ -181,15 +233,10 @@ class Regression(BaseTool):
 
         if model.training and loss is None:
             raise ToolError("Loss function instance should be specified if learning is not performed yet.")
-
-        if epochs <= 0:
-            raise(f"Epochs {epochs} can't be <= 0.")
         
         self._model = model
         self._loss = loss
         self._optimizer = optimizer
-
-        self._epochs = epochs
 
     # TODO MID Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
     # TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
@@ -289,7 +336,7 @@ class Regression(BaseTool):
         y = torch.Tensor(y[:, :self._model.data.forecast_size, :self._model.data.output_size])
 
         # Train the model
-        for epoch in range(self._epochs + 1):
+        for epoch in range(self._model.data.epochs + 1):
             result = self._model(x)
             self._optimizer.zero_grad()
 
@@ -302,7 +349,7 @@ class Regression(BaseTool):
             
             self._optimizer.step()
 
-            if self._verbosity and (epoch % (int(self._epochs / 10))) == 0:
+            if self._verbosity and (epoch % (int(self._model.data.epochs / 10))) == 0:
                 print("Epoch: %d, loss: %1.5f, RMSE %.4f" % (epoch, loss_fn.item(), rmse))
 
         self._model.eval()

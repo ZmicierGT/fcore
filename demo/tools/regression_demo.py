@@ -15,7 +15,7 @@ from tools.regression import Regression, RegressionData, LSTM
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data.futils import show_image
+from data.futils import show_image, get_labelled_ndarray
 from data.fdata import FdataError
 from data.fvalues import Quotes
 from tools.base import ToolError
@@ -24,8 +24,8 @@ from data.yf import YF
 
 import sys
 
-window_size = 20  # Sliding window size
-forecast_size = 10  # Number of periods to forecast
+window_size = 10  # Sliding window size
+forecast_size = 5  # Number of periods to forecast
 output_size = 1  # Number of features to forecast
 
 threshold = 756  # Quotes number threshold for calculation
@@ -46,8 +46,17 @@ if __name__ == "__main__":
     else:
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
+    # Optionally convert 2d list to a labelled ndarray.
+    rows = get_labelled_ndarray(rows)
+
+    # Split data to two different datasets to demonstrate learning in several stages.
+    half_len = len(rows) - (window_size + forecast_size)
+
+    rows1 = rows[:half_len]
+    rows2 = rows[half_len:]
+
     # Calculate LSTM
-    data = RegressionData(rows,
+    data = RegressionData(rows1,
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],
@@ -64,7 +73,13 @@ if __name__ == "__main__":
                     )
 
     try:
+        print("Training using dataset1: ")
         reg.calculate()
+
+        print("\nTraining using dataset2: ")
+        data.update_data(rows2, epochs=20)
+        reg.calculate()
+
         est_data = reg.get_results()
     except ToolError as e:
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
@@ -76,13 +91,16 @@ if __name__ == "__main__":
     # start the chart from the last known point
     forecasted[-1] = rows[len(rows) - forecast_size - 1][Quotes.AdjClose]
 
-    forecasted = np.append(forecasted, est_data, axis = 0)
+    forecasted = np.append(forecasted, est_data, axis=0)
 
     # Prepare the chart
 
-    dates = [row[Quotes.DateTime] for row in rows][data.get_train_size():]
-    quotes = [row[Quotes.AdjClose] for row in rows][data.get_train_size():]
-    volume = [row[Quotes.Volume] for row in rows][data.get_train_size():]
+    rows = rows[len(rows) - data.get_test_size():]
+
+    dates = [row[Quotes.DateTime] for row in rows]
+    quotes = [row[Quotes.AdjClose] for row in rows]
+    volume = [row[Quotes.Volume] for row in rows]
+
     lstm_quotes = [row[0] for row in forecasted]
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.4, 0.6],

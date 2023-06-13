@@ -65,7 +65,8 @@ if __name__ == "__main__":
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],
-                          output_size=output_size
+                          output_size=output_size,
+                          learn_to_test=1  # Use the first dataset entirely for learning
                          )
 
     model = LSTM(data=data)
@@ -82,16 +83,20 @@ if __name__ == "__main__":
         reg.calculate()
 
         print("\nTraining using the additional (small) dataset: ")
+        reg.set_verbosity(False)
         before = perf_counter()
 
-        data.update_data(rows2, epochs=20)
-        reg.set_verbosity(False)
+        data.auto_train = True  # Automatically continue training if enough data arrives
+        result = data.update_data(rows2, epochs=25)
 
-        loss, rmse = reg.calculate()
+        if result is not None:
+            loss, rmse = result
+
         total = (perf_counter() - before) * 1000
         print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
 
-        # Get intermediate results which actually is not used in reporting to simulate a multiple forecasting like during screening
+        data.learn_to_test = None  # Automatically split next datasets for learning and forecasting
+        # Get intermediate results which actually is not used in reporting but simulate a multiple forecasting calls like during screening
         reg.get_results()
 
         # Perform the actual forecasting (used in reporting)
@@ -102,7 +107,6 @@ if __name__ == "__main__":
 
         total_forecast = (perf_counter() - before_forecast) * 1000
         print(f"Forecasting took in total: {round(total_forecast, 4)} ms.\n")
-
     except ToolError as e:
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
 

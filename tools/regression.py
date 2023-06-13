@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 from tools.base import BaseTool
 from tools.base import ToolError
 
+# TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
 class LSTM(nn.Module):
     """
         Class to represent an LSTM model.
@@ -61,7 +62,8 @@ class RegressionData():
                  in_features=None,
                  output_size=1,
                  epochs=1000,
-                 auto_retrain=False):
+                 auto_train=False,
+                 train_threshold=None):
         """
             Initialized the data used in regression calculations.
 
@@ -73,7 +75,8 @@ class RegressionData():
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
                 out_features_num(int): number of out features (the first num of features in in_features).
                 epochs(int): number of epochs.
-                auto_retrain(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
+                auto_train(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
+                train_threshold(int): threshold value of new data arrived to perform the additional training
         """
         if window_size <= 0 or forecast_size <= 0:
             raise ToolError(f"Sliding window size {window_size} of forecast size {forecast_size} should be bigger than 0.")
@@ -100,16 +103,13 @@ class RegressionData():
         self._rows = None
         self.set_data(rows)
 
-        self._learn_to_test = None
+        self.learn_to_test = None
 
         if learn_to_test is not None:
             if learn_to_test < 0 or learn_to_test > 1:
-                raise ToolError(f"Learn to test ratio should be more than 0 and less than 1. Actual value is {learn_to_test}")
+                raise ToolError(f"Learn to test ratio should be more withing 0 and 1. Actual value is {learn_to_test}")
 
-            if int((1 - learn_to_test) * len(rows)) < self.get_test_size():
-                raise ToolError(f"Not enough data for testing. {learn_to_test} is specified by at least {self.get_test_size()} is expected.")
-
-            self._learn_to_test = learn_to_test
+            self.learn_to_test = learn_to_test
 
         min_len = self.get_test_size() + forecast_size
         if len(rows) < min_len:
@@ -118,9 +118,22 @@ class RegressionData():
         self.epochs = None
         self.set_epochs(epochs)
 
-        # TODO MID Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
-        # TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
-        self.auto_retrain = auto_retrain
+        self.auto_train = auto_train
+        self.train_counter = 0  # Counter of appended rows to start training automatically
+
+        # Set the train threshold
+        self.train_threshold = None
+        min_train_threhold = window_size + forecast_size
+
+        if train_threshold is None:
+            self.train_threshold = min_train_threhold
+        else:
+            if train_threshold < min_train_threhold:
+                raise ToolError(f"Minimum train threshold is {min_train_threhold} but {train_threshold} is specified.")
+
+            self.train_threshold = train_threshold
+
+        self.reg = None  # Parent Regression instance
 
     def set_epochs(self, epochs):
         """
@@ -166,10 +179,25 @@ class RegressionData():
         if epochs is not None:
             self.set_epochs(epochs)
 
+        if self.auto_train:
+            self.train_counter += len(rows)
+
+            if self.train_counter >= self.train_threshold:
+                if self.reg is None:
+                    raise ToolError("Can't perform auto calculation because data instance was not assigned to any Regression instance.")
+
+                calculation_length = self.train_counter
+                self.train_counter = 0
+
+                return self.reg.calculate(calculation_length)
+
     def update_data(self, rows, epochs=None):
         """
             Update the dataset with the contiguous data for learning. For example, the initial data was used to start
             learning, then the next contiguous part of the same big dataset is used to continue learning.
+
+            The difference of this method and set_data() is that update_data() preserved the last values which weren't
+            used for model learning (just for forecasting). Preserved values are used for learnining further.
 
             Args:
                 rows(list): the new data to update.
@@ -180,7 +208,8 @@ class RegressionData():
             raise ToolError(f"{len(rows)} rows were provided for update but at least {min_len} are required.")
 
         self._rows = self._rows[self.get_train_size():]
-        self.append_data(rows, epochs)
+
+        return self.append_data(rows, epochs)
 
     def get_data(self):
         """
@@ -207,10 +236,10 @@ class RegressionData():
             Returns:
                 int: testing data size.
         """
-        if self._learn_to_test is None:
-            return self.window_size + self.forecast_size * 2
+        if self.learn_to_test is None:
+            return self.window_size + self.forecast_size
         else:
-            return int((1 - self._learn_to_test) * len(self._rows))
+            return int((1 - self.learn_to_test) * len(self._rows))
 
 class Regression(BaseTool):
     """
@@ -244,6 +273,8 @@ class Regression(BaseTool):
         self._loss = loss
         self._optimizer = optimizer
 
+        self._model.data.reg = self
+
     def get_results(self):
         """
             Get the forecasting results.
@@ -258,7 +289,8 @@ class Regression(BaseTool):
 
         # Prepare the data for forecasting
         test_size = self._model.data.get_test_size()
-        testing_data = self._model.data.get_data()[test_size:]
+        length = len(self._model.rows())
+        testing_data = self._model.rows()[length - test_size:]
 
         if self._model.data.in_features is not None:
             arr = np.zeros((len(testing_data), self._model.data.input_size))
@@ -293,9 +325,6 @@ class Regression(BaseTool):
             Returns:
                 nn.Module: model used in the data tool.
         """
-        if self._model.training:
-            raise ToolError("Model is not trained yet.")
-
         return self._model
 
     def get_sliding_windows(self, data):
@@ -310,16 +339,30 @@ class Regression(BaseTool):
 
         return np.array(x), np.array(y)
 
-    def calculate(self):
+    def calculate(self, num=None):
         """
             Perform the calculation based on the provided data and model.
+
+            Args:
+                num(int): the number of rows use in learning.
 
             Returns:
                 (float, float): final loss/rmse.
         """
+        if (self._model.data.learn_to_test is not None) and \
+           (int((1 - self._model.data.learn_to_test) * len(self._model.data._rows)) < self._model.data.get_test_size()):
+            raise ToolError(f"Not enough data for testing. {self._model.data.learn_to_test} is specified but \
+                            at least {self._model.data.get_test_size()} is expected.")
+
         # Prepare the data for learning
-        train_size = self._model.data.get_train_size()
-        training_data = self._model.rows()[:train_size]
+        if num is None:
+            train_size = self._model.data.get_train_size()
+            training_data = self._model.rows()[:train_size]
+        else:
+            train_size = num
+            length = len(self._model.rows())
+
+            training_data = self._model.rows()[length - num:]
 
         if self._model.data.in_features is not None:
             arr = np.zeros((len(training_data), self._model.data.input_size))

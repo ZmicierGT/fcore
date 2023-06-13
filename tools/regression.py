@@ -60,7 +60,8 @@ class RegressionData():
                  learn_to_test=None,
                  in_features=None,
                  output_size=1,
-                 epochs=1000):
+                 epochs=1000,
+                 auto_retrain=False):
         """
             Initialized the data used in regression calculations.
 
@@ -72,6 +73,7 @@ class RegressionData():
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
                 out_features_num(int): number of out features (the first num of features in in_features).
                 epochs(int): number of epochs.
+                auto_retrain(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
         """
         if window_size <= 0 or forecast_size <= 0:
             raise ToolError(f"Sliding window size {window_size} of forecast size {forecast_size} should be bigger than 0.")
@@ -116,6 +118,10 @@ class RegressionData():
         self.epochs = None
         self.set_epochs(epochs)
 
+        # TODO MID Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
+        # TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
+        self.auto_retrain = auto_retrain
+
     def set_epochs(self, epochs):
         """
             Set the number of epochs for the current cycle of learning.
@@ -144,7 +150,7 @@ class RegressionData():
         if epochs is not None:
             self.set_epochs(epochs)
 
-    def append_data(self, rows, epochs):
+    def append_data(self, rows, epochs=None):
         """
             Append the rows of data to the main dataset. Used with streaming quotes.
 
@@ -238,8 +244,6 @@ class Regression(BaseTool):
         self._loss = loss
         self._optimizer = optimizer
 
-    # TODO MID Add a possibility to retrain the model upon degradation (like after forecast was made 10 times and so on)
-    # TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
     def get_results(self):
         """
             Get the forecasting results.
@@ -354,4 +358,4 @@ class Regression(BaseTool):
 
         self._model.eval()
 
-        return (loss_fn.item(), rmse)
+        return (float(loss_fn.item()), float(rmse))

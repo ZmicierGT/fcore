@@ -22,6 +22,8 @@ from tools.base import ToolError
 
 from data.yf import YF
 
+from time import perf_counter
+
 import sys
 
 window_size = 10  # Sliding window size
@@ -50,10 +52,13 @@ if __name__ == "__main__":
     rows = get_labelled_ndarray(rows)
 
     # Split data to two different datasets to demonstrate learning in several stages.
-    half_len = len(rows) - (window_size + forecast_size)
+    half_len = len(rows) - (window_size + forecast_size + 1)
 
     rows1 = rows[:half_len]
-    rows2 = rows[half_len:]
+    rows2 = rows[half_len:len(rows) - 1]
+
+    # Keep the last row to simulate the incoming data (like during a real time screening)
+    rows3 = [rows[-1]]
 
     # Calculate LSTM
     data = RegressionData(rows1,
@@ -73,14 +78,31 @@ if __name__ == "__main__":
                     )
 
     try:
-        print("Training using dataset1: ")
+        print("\nTraining using the initial (big) dataset: ")
         reg.calculate()
 
-        print("\nTraining using dataset2: ")
+        print("\nTraining using the additional (small) dataset: ")
+        before = perf_counter()
+
         data.update_data(rows2, epochs=20)
-        reg.calculate()
+        reg.set_verbosity(False)
 
+        loss, rmse = reg.calculate()
+        total = (perf_counter() - before) * 1000
+        print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
+
+        # Get intermediate results which actually is not used in reporting to simulate a multiple forecasting like during screening
+        reg.get_results()
+
+        # Perform the actual forecasting (used in reporting)
+        before_forecast = perf_counter()
+
+        data.append_data(rows3)
         est_data = reg.get_results()
+
+        total_forecast = (perf_counter() - before_forecast) * 1000
+        print(f"Forecasting took in total: {round(total_forecast, 4)} ms.\n")
+
     except ToolError as e:
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
 

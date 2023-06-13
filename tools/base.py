@@ -70,5 +70,14 @@ class BaseTool(metaclass=abc.ABCMeta):
         """
         self._rows = data
 
+    def set_verbosity(self, flag):
+        """
+            Set the verbosity flag.
+
+            Args:
+                flag(bool): indicates if additional output should be printed.
+        """
+        self._verbosity = flag
+
 class ToolError(Exception):
     pass

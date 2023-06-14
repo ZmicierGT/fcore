@@ -63,8 +63,7 @@ if __name__ == "__main__":
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[Quotes.AdjClose, Quotes.Volume],
-                          output_size=output_size,
-                          learn_to_test=1  # Use the first dataset entirely for learning
+                          output_size=output_size
                          )
 
     model = LSTM(data=data)
@@ -85,17 +84,15 @@ if __name__ == "__main__":
         before = perf_counter()
 
         data.auto_train = True  # Automatically continue training if enough data arrives
-        result = data.update_data(rows2, epochs=25)
+        result = data.append_data(rows2, epochs=60)
 
         if result is not None:
             loss, rmse = result
 
-        total = (perf_counter() - before) * 1000
-        print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
+            total = (perf_counter() - before) * 1000
+            print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
 
         # Perform the forecasting
-        data.learn_to_test = None  # Automatically split next datasets for learning and forecasting
-
         before_forecast = perf_counter()
         est_data = reg.get_results()
         total_forecast = (perf_counter() - before_forecast) * 1000
@@ -105,7 +102,7 @@ if __name__ == "__main__":
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
 
     # Shift test data by windows size + test data length
-    forecasted = np.empty((data.get_test_size() - forecast_size, output_size))
+    forecasted = np.empty((window_size, output_size))
     forecasted[:] = np.nan
 
     # start the chart from the last known point
@@ -115,7 +112,7 @@ if __name__ == "__main__":
 
     # Prepare the chart
 
-    rows = rows[len(rows) - data.get_test_size():]
+    rows = rows[len(rows) - window_size - forecast_size:]
 
     dates = [row[Quotes.DateTime] for row in rows]
     quotes = [row[Quotes.AdjClose] for row in rows]
@@ -139,7 +136,7 @@ if __name__ == "__main__":
 
     # Write the chart
 
-    update_layout(fig, f"LSTM example chart for {source.symbol}", data.get_test_size())
+    update_layout(fig, f"LSTM example chart for {source.symbol}", window_size + forecast_size)
 
     new_file = show_image(fig)
 

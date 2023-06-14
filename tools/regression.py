@@ -54,7 +54,6 @@ class RegressionData():
     """
         The class to represent the data used in regression learning/forecasting.
     """
-    # TODO High Implement limit for stored data
     def __init__(self,
                  rows,
                  window_size,
@@ -166,6 +165,7 @@ class RegressionData():
         if isinstance(self._rows, list):
             self._rows.extend(rows)
         elif isinstance(self._rows, np.ndarray):
+            # TODO MID Implement limit for stored data
             self._rows = np.append(self._rows, np.array(rows), axis=0)
 
         if epochs is not None:

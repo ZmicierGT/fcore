@@ -31,12 +31,12 @@ class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.
     """
-    # TODO MID implement a classifier to estimate market cycles (without particular signals) like it is made in the regression API
+    # TODO MID Think if it worth to implement a classifier to estimate market cycles (without particular signals) like it is made in the regression API
     def __init__(self,
                  rows=None,
                  model_buy=None,
                  model_sell=None,
-                 data_to_learn=None,
+                 data_to_learn=None,  # TODO MID Useful for backtesting but think what is the most rational way to make estimations during screening
                  true_ratio=0,
                  cycle_num=2,
                  algorithm=None,

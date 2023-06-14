@@ -51,14 +51,12 @@ if __name__ == "__main__":
     # Optionally convert 2d list to a labelled ndarray.
     rows = get_labelled_ndarray(rows)
 
-    # Split data to two different datasets to demonstrate learning in several stages.
-    half_len = len(rows) - (window_size + forecast_size + 1)
+    # Split data to different datasets to demonstrate learning/forecasting in several stages.
+    min_len = window_size + forecast_size
+    split_len = len(rows) - min_len * 2
 
-    rows1 = rows[:half_len]
-    rows2 = rows[half_len:len(rows) - 1]
-
-    # Keep the last row to simulate the incoming data (like during a real time screening)
-    rows3 = [rows[-1]]
+    rows1 = rows[:split_len]  # First batch of data for learning
+    rows2 = rows[split_len:len(rows) - forecast_size]  # Next batch of data for learning. Remaining data won't ever be used in the model.
 
     # Calculate LSTM
     data = RegressionData(rows1,
@@ -95,17 +93,13 @@ if __name__ == "__main__":
         total = (perf_counter() - before) * 1000
         print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
 
+        # Perform the forecasting
         data.learn_to_test = None  # Automatically split next datasets for learning and forecasting
-        # Get intermediate results which actually is not used in reporting but simulate a multiple forecasting calls like during screening
-        reg.get_results()
 
-        # Perform the actual forecasting (used in reporting)
         before_forecast = perf_counter()
-
-        data.append_data(rows3)
         est_data = reg.get_results()
-
         total_forecast = (perf_counter() - before_forecast) * 1000
+
         print(f"Forecasting took in total: {round(total_forecast, 4)} ms.\n")
     except ToolError as e:
         sys.exit(f"Can't calculate/forecast LSTM: {e}")

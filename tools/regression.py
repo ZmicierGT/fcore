@@ -54,11 +54,11 @@ class RegressionData():
     """
         The class to represent the data used in regression learning/forecasting.
     """
+    # TODO High Implement limit for stored data
     def __init__(self,
                  rows,
                  window_size,
                  forecast_size,
-                 learn_to_test=None,
                  in_features=None,
                  output_size=1,
                  epochs=1000,
@@ -71,7 +71,6 @@ class RegressionData():
                 rows(list): data for calculation.
                 window_size(int): sliding window size.
                 forecast_size(int): number or periods to be forecasted.
-                learn_to_test(float): the ratio how to split the data to learn and to test. 0.8 if 80% or data used for learning.
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
                 out_features_num(int): number of out features (the first num of features in in_features).
                 epochs(int): number of epochs.
@@ -103,15 +102,7 @@ class RegressionData():
         self._rows = None
         self.set_data(rows)
 
-        self.learn_to_test = None
-
-        if learn_to_test is not None:
-            if learn_to_test < 0 or learn_to_test > 1:
-                raise ToolError(f"Learn to test ratio should be more withing 0 and 1. Actual value is {learn_to_test}")
-
-            self.learn_to_test = learn_to_test
-
-        min_len = self.get_test_size() + forecast_size
+        min_len = window_size + forecast_size
         if len(rows) < min_len:
             raise ToolError(f"Number on input rows is {len(rows)} but at least {min_len} rows are required.")
 
@@ -166,6 +157,7 @@ class RegressionData():
     def append_data(self, rows, epochs=None):
         """
             Append the rows of data to the main dataset. Used with streaming quotes.
+            This method will invoke automatic training if enough data comes and auto_train flag is on.
 
             Args:
                 rows(list): data to append to the main dataset.
@@ -191,26 +183,6 @@ class RegressionData():
 
                 return self.reg.calculate(calculation_length)
 
-    def update_data(self, rows, epochs=None):
-        """
-            Update the dataset with the contiguous data for learning. For example, the initial data was used to start
-            learning, then the next contiguous part of the same big dataset is used to continue learning.
-
-            The difference of this method and set_data() is that update_data() preserved the last values which weren't
-            used for model learning (just for forecasting). Preserved values are used for learnining further.
-
-            Args:
-                rows(list): the new data to update.
-                epochs(int): new number of epochs.
-        """
-        min_len = self.window_size + self.forecast_size
-        if len(rows) < min_len:
-            raise ToolError(f"{len(rows)} rows were provided for update but at least {min_len} are required.")
-
-        self._rows = self._rows[self.get_train_size():]
-
-        return self.append_data(rows, epochs)
-
     def get_data(self):
         """
             Get the raw data used for calculations.
@@ -219,27 +191,6 @@ class RegressionData():
                 list: the raw data
         """
         return self._rows
-
-    def get_train_size(self):
-        """
-            Get the training data size.
-
-            Returns:
-                int: training data size.
-        """
-        return len(self._rows) - self.get_test_size()
-
-    def get_test_size(self):
-        """
-            Get the testing data size.
-
-            Returns:
-                int: testing data size.
-        """
-        if self.learn_to_test is None:
-            return self.window_size + self.forecast_size
-        else:
-            return int((1 - self.learn_to_test) * len(self._rows))
 
 class Regression(BaseTool):
     """
@@ -288,20 +239,20 @@ class Regression(BaseTool):
             raise ToolError("Can't get forecasting results as the calculation is not performed.")
 
         # Prepare the data for forecasting
-        test_size = self._model.data.get_test_size()
         length = len(self._model.rows())
-        testing_data = self._model.rows()[length - test_size:]
+        testing_data = self._model.rows()[length - self._model.data.window_size:]
 
         if self._model.data.in_features is not None:
-            arr = np.zeros((len(testing_data), self._model.data.input_size))
+            arr = np.zeros((self._model.data.window_size + self._model.data.forecast_size, self._model.data.input_size))
 
             for i in range(self._model.data.input_size):
                 feature = self._model.data.in_features[i]
-                arr[:, i] = [row[feature] for row in testing_data]
+                arr[:, i] = [row[feature] for row in testing_data] + [0] * self._model.data.forecast_size
         else:
-            arr = self._model.data.get_data()
+            zeros = np.zeros((self._model.data.forecast_size, self._model.data.input_size))
+            arr = np.append(testing_data, zeros, axis=0)
 
-        # Scale data for testing
+        # Scale data to make an estimation
         sc_test = StandardScaler()
         data = sc_test.fit_transform(arr)
 
@@ -349,19 +300,11 @@ class Regression(BaseTool):
             Returns:
                 (float, float): final loss/rmse.
         """
-        if (self._model.data.learn_to_test is not None) and \
-           (int((1 - self._model.data.learn_to_test) * len(self._model.data._rows)) < self._model.data.get_test_size()):
-            raise ToolError(f"Not enough data for testing. {self._model.data.learn_to_test} is specified but \
-                            at least {self._model.data.get_test_size()} is expected.")
-
         # Prepare the data for learning
         if num is None:
-            train_size = self._model.data.get_train_size()
-            training_data = self._model.rows()[:train_size]
+            training_data = self._model.rows()
         else:
-            train_size = num
             length = len(self._model.rows())
-
             training_data = self._model.rows()[length - num:]
 
         if self._model.data.in_features is not None:

@@ -52,8 +52,8 @@ if __name__ == "__main__":
     rows = get_labelled_ndarray(rows)
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
-    min_len = window_size + forecast_size
-    split_len = len(rows) - min_len * 2
+    min_len = window_size + forecast_size * 2
+    split_len = len(rows) - min_len
 
     rows1 = rows[:split_len]  # First batch of data for learning
     rows2 = rows[split_len:len(rows) - forecast_size]  # Next batch of data for learning. Remaining data won't ever be used in the model.
@@ -84,13 +84,39 @@ if __name__ == "__main__":
         before = perf_counter()
 
         data.auto_train = True  # Automatically continue training if enough data arrives
-        result = data.append_data(rows2, epochs=60)
+        result = data.append_data(rows2, epochs=30)
 
         if result is not None:
             loss, rmse = result
 
             total = (perf_counter() - before) * 1000
-            print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 5)}, rmse is {round(rmse, 4)}.\n")
+            print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 6)}, rmse is {round(rmse, 4)}.\n")
+        else:
+            print(f"The training was not triggered. Maybe length {len(rows2)} of the additional dataset was too small?\n")
+
+        ######################################################################
+        # Test various ways of serialization. Not used in the demo by default.
+        ######################################################################
+
+        # model_file = 'model.pt'
+        # reg_file = 'reg.fc'
+
+        # torch.save(model, model_file)
+        # model = torch.load(model_file)
+        # model.eval()
+
+        # import pickle
+        # file = open(reg_file, 'wb')
+        # pickle.dump(reg, file)
+        # file.close()
+
+        # file = open(reg_file, 'rb')
+        # reg = pickle.load(file)
+        # file.close()
+
+        # import os
+        # os.remove(model_file)
+        # os.remove(reg_file)
 
         # Perform the forecasting
         before_forecast = perf_counter()
@@ -136,7 +162,7 @@ if __name__ == "__main__":
 
     # Write the chart
 
-    update_layout(fig, f"LSTM example chart for {source.symbol}", window_size + forecast_size)
+    update_layout(fig, f"LSTM example chart for {source.symbol}", window_size * 2 + forecast_size)
 
     new_file = show_image(fig)
 

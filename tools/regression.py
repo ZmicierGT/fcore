@@ -62,7 +62,8 @@ class RegressionData():
                  output_size=1,
                  epochs=1000,
                  auto_train=False,
-                 train_threshold=None):
+                 train_threshold=None,
+                 max_rows=None):
         """
             Initialized the data used in regression calculations.
 
@@ -75,9 +76,10 @@ class RegressionData():
                 epochs(int): number of epochs.
                 auto_train(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
                 train_threshold(int): threshold value of new data arrived to perform the additional training
+                max_rows(int): maximum number of rows stored. If the value exceeds this threahold, the oldest rows will be removed.
         """
         if window_size <= 0 or forecast_size <= 0:
-            raise ToolError(f"Sliding window size {window_size} of forecast size {forecast_size} should be bigger than 0.")
+            raise ToolError(f"Sliding window size {window_size} or forecast size {forecast_size} should be bigger than 0.")
 
         if forecast_size > window_size:
             raise ToolError(f"Sliding window size {window_size} is less that forecast size {forecast_size}.")
@@ -97,13 +99,18 @@ class RegressionData():
         if output_size > self.input_size:
             raise ToolError(f"The requested number of out_features {output_size} is bigger than the number of in_features {self.input_size}.")
 
-        # TODO MID prevent rows from being serialized
-        self._rows = None
-        self.set_data(rows)
+        min_len = window_size * 2 + forecast_size  # Minum required length of data
 
-        min_len = window_size + forecast_size
+        if max_rows is not None and max_rows < min_len:
+            raise ToolError(f"Maximum stored number of rows {max_rows} is less than the minumum required number {min_len}.")
+
+        self._max_rows = max_rows
+
         if len(rows) < min_len:
             raise ToolError(f"Number on input rows is {len(rows)} but at least {min_len} rows are required.")
+
+        self._rows = None
+        self.set_data(rows)
 
         self.epochs = None
         self.set_epochs(epochs)
@@ -113,7 +120,7 @@ class RegressionData():
 
         # Set the train threshold
         self.train_threshold = None
-        min_train_threhold = window_size + forecast_size
+        min_train_threhold = window_size + forecast_size  # TODO MID Find out why less data than min_len is required here.
 
         if train_threshold is None:
             self.train_threshold = min_train_threhold
@@ -137,6 +144,13 @@ class RegressionData():
 
         self.epochs = epochs
 
+    def trim_max_rows(self):
+        """
+            Trim the stored rows to the defined threshold value.
+        """
+        if self._max_rows is not None and len(self._rows) > self._max_rows:
+            self._rows = self._rows[len(self._rows) - self._max_rows:]
+
     def set_data(self, rows, epochs=None):
         """
             Set the new data.
@@ -149,6 +163,7 @@ class RegressionData():
             raise ToolError(f"Sliding window size {self.window_size} is bigger than the total data provided {len(rows)}.")
 
         self._rows = rows
+        self.trim_max_rows()
 
         if epochs is not None:
             self.set_epochs(epochs)
@@ -165,8 +180,9 @@ class RegressionData():
         if isinstance(self._rows, list):
             self._rows.extend(rows)
         elif isinstance(self._rows, np.ndarray):
-            # TODO MID Implement limit for stored data
             self._rows = np.append(self._rows, np.array(rows), axis=0)
+
+        self.trim_max_rows()
 
         if epochs is not None:
             self.set_epochs(epochs)

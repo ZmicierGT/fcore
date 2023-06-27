@@ -15,6 +15,7 @@ from data.futils import get_dt
 
 import settings
 
+# TODO HIGH Move AdjClose to stocks only and use regular close only in backtests
 # Current database compatibility version
 DB_VERSION = 6
 

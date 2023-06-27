@@ -31,7 +31,7 @@ class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.
     """
-    # TODO MID Think if it worth to implement a classifier to estimate market cycles (without particular signals) like it is made in the regression API
+    # TODO LOW Think if it worth to implement a classifier to estimate market cycles (without particular signals) like it is made in the regression API
     def __init__(self,
                  rows=None,
                  model_buy=None,

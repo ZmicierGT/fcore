@@ -75,7 +75,7 @@ class AVStock(stock.StockFetcher):
             return '60min'
         # Other timespans are obtained with different function and there is no timespan parameter.
         else:
-            raise FdataError(f"Unsupported timespan: {self.timespan}")
+            raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
     def fetch_quotes(self):
         """
@@ -112,7 +112,7 @@ class AVStock(stock.StockFetcher):
 
             url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&apikey={self.api_key}'
         else:
-            raise FdataError(f"Unsupported timespan: {self.timespan}")
+            raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
         # Get quotes data
         try:

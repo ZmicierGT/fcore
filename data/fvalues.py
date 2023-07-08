@@ -30,6 +30,7 @@ class Quotes(IntEnum):
     SplitCoefficient = 8
     Transactions = 9
 
+# TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 class Timespans(str, Enum):
     """
         Enum class for timespans.

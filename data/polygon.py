@@ -76,7 +76,7 @@ class Polygon(stock.StockFetcher):
                              Timespans.Year]:
             return self.timespan.lower()
         else:
-            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan}")
+            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
 
     def fetch_quotes(self):
         """

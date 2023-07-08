@@ -69,7 +69,7 @@ class BaseScr(metaclass=abc.ABCMeta):
             self.__symbols.append(data)
 
         if timespan not in set(item.value for item in fvalues.Timespans):
-            raise ScrError(f"Unknown timespan: {timespan}")
+            raise ScrError(f"Unknown timespan: {timespan.value}")
         self.__timespan = timespan
 
         # Set counter till the next update

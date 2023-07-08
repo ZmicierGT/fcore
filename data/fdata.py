@@ -725,19 +725,19 @@ class ReadOnlyData():
         timespan_query = ""
 
         if self.timespan != Timespans.All:
-            timespan_query = "AND timespans.title = '" + self.timespan + "'"
+            timespan_query = "AND timespans.title = '" + self.timespan.value + "'"
 
         # Sectype subquery
         sectype_query = ""
 
         if self.sectype != SecType.All:
-            sectype_query = "AND sectypes.title = '" + self.sectype + "'"
+            sectype_query = "AND sectypes.title = '" + self.sectype.value + "'"
 
         # Currency subquery
         currency_query = ""
 
         if self.currency != Currency.All:
-            currency_query = "AND currency.title = '" + self.currency + "'"
+            currency_query = "AND currency.title = '" + self.currency.value + "'"
 
         # Quotes number subquery
         num_query = ""
@@ -1026,7 +1026,7 @@ class ReadWriteData(ReadOnlyData):
                             (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                             ({quote['ts']}),
-                            (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}' COLLATE NOCASE),
+                            (SELECT time_span_id FROM timespans WHERE title = '{self.timespan.value}' COLLATE NOCASE),
                             (SELECT sec_type_id FROM sectypes WHERE title = '{quote['sectype']}' COLLATE NOCASE),
                             (SELECT currency_id FROM currency WHERE title = '{quote['currency']}' COLLATE NOCASE),
                             ({quote['open']}),

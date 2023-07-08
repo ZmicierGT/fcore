@@ -571,7 +571,7 @@ class FdataTest(unittest.TestCase, DataMocker):
                             (SELECT symbol_id FROM symbols WHERE ticker = '{self.write_data.symbol}'),
                             (SELECT source_id FROM sources WHERE title = '{self.write_data.source_title}'),
                             ({quote_dict['ts']}),
-                            (SELECT time_span_id FROM timespans WHERE title = '{self.write_data.timespan}' COLLATE NOCASE),
+                            (SELECT time_span_id FROM timespans WHERE title = '{self.write_data.timespan.value}' COLLATE NOCASE),
                             (SELECT sec_type_id FROM sectypes WHERE title = '{quote_dict['sectype']}' COLLATE NOCASE),
                             (SELECT currency_id FROM currency WHERE title = '{quote_dict['currency']}' COLLATE NOCASE),
                             ({quote_dict['open']}),

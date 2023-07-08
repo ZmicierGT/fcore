@@ -7,8 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 from datetime import datetime
 import pytz
 
-import pandas as pd
-
 import yfinance as yfin
 
 from data import stock
@@ -66,7 +64,7 @@ class YF(stock.StockFetcher):
         elif self.timespan == Timespans.Quarter:
             return '3mo'
         else:
-            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan}")
+            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
 
     def fetch_quotes(self):
         """

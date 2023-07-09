@@ -10,8 +10,6 @@ from enum import IntEnum, Enum
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
 
-five_hundred_days = 47520000  # Number of seconds in 500 days
-
 # TODO LOW remove plurals here
 
 # Enum class for standard data query rows order
@@ -68,7 +66,7 @@ class Currency(str, Enum):
     """
     All = "All"
     Unknown = "Unknown"
-    Stock = "USD"
+    USD = "USD"
 
 class ReportPeriod(str, Enum):
     """

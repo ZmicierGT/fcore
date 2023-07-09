@@ -179,3 +179,9 @@ class YF(stock.StockFetcher):
 
     def fetch_earnings(self):
         raise FdataError(f"Earnings statement data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_dividends(self):
+        raise FdataError(f"Dividends data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_splits(self):
+        raise FdataError(f"Splits statement data is not supported (yet) for the source {type(self).__name__}")

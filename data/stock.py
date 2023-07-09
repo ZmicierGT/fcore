@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, five_hundred_days
+from data.fvalues import SecType, ReportPeriod
 
 import abc
 
@@ -36,6 +36,14 @@ class ROStockData(ReadOnlyData):
         """
         super().check_database()
 
+        # TODO MID Think if we should use adj_close obtained from data providers or calulate it manually.
+        # The advantages of storing a value here:
+        # - Backtesting result may be drammatically incorrect if we have a 'real' close only and divs/splits are not fetched
+        # - It is easier to keep the framework compatible with both a list of dictionaries and labelled numpy array we have pre-calculated adj_close
+        # The disadvantages of storing a value here:
+        # - Database becomes bigger and more complex.
+        # - More API queries.
+
         # Check if we need to create a table stock_core
         try:
             check_stock_core = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';"
@@ -49,9 +57,7 @@ class ROStockData(ReadOnlyData):
             create_core = """CREATE TABLE stock_core(
                                 stock_core_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 quote_id INTEGER NOT NULL UNIQUE,
-                                raw_close REAL,
-                                dividends REAL,
-                                split_coefficient REAL,
+                                adj_close REAL,
                                 CONSTRAINT fk_quotes,
                                     FOREIGN KEY (quote_id)
                                     REFERENCES quotes(quote_id)
@@ -131,6 +137,93 @@ class ROStockData(ReadOnlyData):
             except self.Error as e:
                 raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
 
+        # Check if we need a separate table for cash dividends
+        try:
+            check_cash_divs = "SELECT name FROM sqlite_master WHERE type='table' AND name='cash_dividends';"
+
+            self.cur.execute(check_cash_divs)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{check_cash_divs}") from e
+
+        if len(rows) == 0:
+            create_cash_divs = """CREATE TABLE cash_dividends(
+                                cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                currency_id INTEGER NOT NULL,
+                                declaration_date INTEGER,
+                                ex_date INTEGER NOT NULL,
+                                record_date INTEGER,
+                                payment_date INTEGER,
+                                UNIQUE(symbol_id, ex_date)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_currency,
+                                    FOREIGN KEY (currency_id)
+                                    REFERENCES currency(currency_id)
+                                    ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_cash_divs)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{create_cash_divs}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_cash_divs_idx = "CREATE INDEX idx_cash_dividends ON cash_dividends(symbol_id, ex_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_cash_divs_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
+
+        # Check if we need a separate table for stock splits
+        try:
+            check_stock_splits = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_splits';"
+
+            self.cur.execute(check_stock_splits)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{check_stock_splits}") from e
+
+        if len(rows) == 0:
+            create_stock_splits = """CREATE TABLE stock_splits(
+                                    stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    source_id INTEGER NOT NULL,
+                                    symbol_id INTEGER NOT NULL,
+                                    split_date INTEGER NOT NULL,
+                                    split_ratio REAL,
+                                    UNIQUE(symbol_id, split_date)
+                                    CONSTRAINT fk_symbols,
+                                        FOREIGN KEY (symbol_id)
+                                        REFERENCES symbols(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_sources,
+                                        FOREIGN KEY (source_id)
+                                        REFERENCES sources(source_id)
+                                        ON DELETE CASCADE
+                                    );"""
+
+            try:
+                self.cur.execute(create_stock_splits)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{create_stock_splits}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_stock_splits_idx = "CREATE INDEX idx_stock_splits ON stock_splits(symbol_id, split_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_stock_splits_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
+
         # Check if we need to create a table income_statement
         try:
             check_income_statement = "SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';"
@@ -189,10 +282,10 @@ class ROStockData(ReadOnlyData):
                 raise FdataError(f"Can't execute a query on a table 'income_statement': {e}\n{create_is}") from e
 
             # Create index for symbol_id
-            create_symbol_time_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reported_date);"
+            create_symbol_date_is_idx = "CREATE INDEX idx_income_statement ON income_statement(symbol_id, reported_date);"
 
             try:
-                self.cur.execute(create_symbol_time_is_idx)
+                self.cur.execute(create_symbol_date_is_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index income_statement(symbol_id, reported_date): {e}") from e
 
@@ -266,10 +359,10 @@ class ROStockData(ReadOnlyData):
                 raise FdataError(f"Can't execute a query on a table 'balance_sheet': {e}\n{create_bs}") from e
 
             # Create index for symbol_id
-            create_symbol_time_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reported_date);"
+            create_symbol_date_bs_idx = "CREATE INDEX idx_balance_sheet ON balance_sheet(symbol_id, reported_date);"
 
             try:
-                self.cur.execute(create_symbol_time_bs_idx)
+                self.cur.execute(create_symbol_date_bs_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index balance_sheet(symbol_id, reported_date): {e}") from e
 
@@ -335,10 +428,10 @@ class ROStockData(ReadOnlyData):
                 raise FdataError(f"Can't execute a query on a table 'cash_flow': {e}\n{create_cf}") from e
 
             # Create index for symbol_id
-            create_symbol_time_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reported_date);"
+            create_symbol_date_cf_idx = "CREATE INDEX idx_cash_flow ON cash_flow(symbol_id, reported_date);"
 
             try:
-                self.cur.execute(create_symbol_time_cf_idx)
+                self.cur.execute(create_symbol_date_cf_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index cash_flow(symbol_id, reported_date): {e}") from e
 
@@ -380,45 +473,15 @@ class ROStockData(ReadOnlyData):
                 raise FdataError(f"Can't execute a query on a table 'earnings': {e}\n{create_earnings}") from e
 
             # Create index for symbol_id
-            create_symbol_time_is_idx = "CREATE INDEX idx_earnings ON earnings(symbol_id, reported_date);"
+            create_symbol_date_is_idx = "CREATE INDEX idx_earnings ON earnings(symbol_id, reported_date);"
 
             try:
-                self.cur.execute(create_symbol_time_is_idx)
+                self.cur.execute(create_symbol_date_is_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index earnings(symbol_id, reported_date): {e}") from e
 
-    def _get_fundamentals_num(self, table):
-        """Get the number of income statement reports for specified interval (+- 500 days) for a stock.
-
-            Args:
-                table(string): the table with reports.
-
-            Returns:
-                int: the number of income statements in the database.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        self.check_if_connected()
-
-        get_num = f"""SELECT COUNT(*) FROM {table}
-	                    WHERE reported_date >= ({self.first_date_ts} - {five_hundred_days})
-                        AND reported_date <= ({self.last_date_ts} + {five_hundred_days})
-                        AND symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
-        try:
-            self.cur.execute(get_num)
-        except self.Error as e:
-            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_num}") from e
-
-        result = self.cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
-
     def get_income_statement_num(self):
-        """Get the number of income statement reports for specified interval (+- 500 days) for a stock.
+        """Get the number of income statement reports.
 
             Returns:
                 int: the number of income statements in the database.
@@ -426,10 +489,10 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_fundamentals_num('income_statement')
+        return self._get_data_num('income_statement')
 
     def get_balance_sheet_num(self):
-        """Get the number of balance sheet reports for specified interval (+- 500 days) for a stock.
+        """Get the number of balance sheet reports.
 
             Returns:
                 int: the number of balance sheets in the database.
@@ -437,10 +500,10 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_fundamentals_num('balance_sheet')
+        return self._get_data_num('balance_sheet')
 
     def get_cash_flow_num(self):
-        """Get the number of cash flow reports for specified interval (+- 500 days) for a stock.
+        """Get the number of cash flow reports.
 
             Returns:
                 int: the number of cash flow entries in the database.
@@ -448,10 +511,10 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_fundamentals_num('cash_flow')
+        return self._get_data_num('cash_flow')
 
     def get_earnings_num(self):
-        """Get the number of earnings reports for specified interval (+- 500 days) for a stock.
+        """Get the number of earnings reports.
 
             Returns:
                 int: the number of earnings entries in the database.
@@ -459,7 +522,7 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_fundamentals_num('earnings')
+        return self._get_data_num('earnings')
 
     def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
@@ -481,9 +544,7 @@ class ROStockData(ReadOnlyData):
         if isinstance(columns, list) is False:
             columns = []
 
-        columns.append('raw_close')
-        columns.append('dividends')
-        columns.append('split_coefficient')
+        columns.append('adj_close')
 
         if isinstance(joins, list) is False:
             joins = []
@@ -521,12 +582,10 @@ class RWStockData(ROStockData, ReadWriteData):
             quote_id = self._add_base_quote_data(quote)
 
             if quote_id != 0:
-                insert_core = f"""INSERT OR {self._update} INTO stock_core (quote_id, raw_close, dividends, split_coefficient)
+                insert_core = f"""INSERT OR {self._update} INTO stock_core (quote_id, adj_close)
                                 VALUES (
                                     ({quote_id}),
-                                    ({quote['raw_close']}),
-                                    ({quote['divs']}),
-                                    ({quote['split']})
+                                    ({quote['adj_close']})
                                 );"""
 
                 try:
@@ -896,26 +955,138 @@ class RWStockData(ROStockData, ReadWriteData):
 
         return(num_before, self.get_earnings_num())
 
+    #################################
+    # Dividends / splits data methods
+    #################################
+
+    def get_dividends_num(self):
+        """Get the number of dividends entries for the symbol.
+
+            Returns:
+                int: the number of dividend entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num('cash_dividends')
+
+    def get_split_num(self):
+        """Get the number of stock splits.
+
+            Returns:
+                int: the number of stock splits.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num('stock_splits')
+
+    def add_dividends(self, divs):
+        """
+            Add cash dividend entries to the database.
+
+            Args:
+                divs(list of dictionaries): dividend entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of dividend reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_dividends_num()
+
+        for div in divs:
+            insert_dividends = f"""INSERT OR {self._update} INTO cash_dividends (symbol_id,
+                                        source_id,
+                                        currency_id,
+										declaration_date,
+										ex_date,
+										record_date,
+										payment_date)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT currency_id FROM currency WHERE title = '{div['currency']}'),
+											{div['decl_ts']},
+											{div['ex_ts']},
+											{div['record_ts']},
+											{div['pay_ts']});"""
+
+            try:
+                self.cur.execute(insert_dividends)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
+
+        self.commit()
+
+        return(num_before, self.get_dividends_num())
+
+    def add_splits(self, splits):
+        """
+            Add split entries to the database.
+
+            Args:
+                splits(list of dictionaries): splits entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of split reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_split_num()
+
+        for split in splits:
+            insert_splits = f"""INSERT OR {self._update} INTO stock_splits (symbol_id,
+                                        source_id,
+										split_date,
+                                        split_ratio)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+											{split['ts']},
+											{split['split_ratio']});"""
+
+            try:
+                self.cur.execute(insert_splits)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_splits}") from e
+
+        self.commit()
+
+        return(num_before, self.get_split_num())
+
 class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def _fetch_fundamentals_if_none(self, threshold, num_method, add_method, fetch_method, queries=None, pause=0):
+    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method, queries=None):
         """
-            Fetch all the available fundamental reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
+            Fetch all the available additional data if stored data entries do not meet the specified threshold.
 
             Args:
-                treshold(int): the minimum required number of quotes in the database.
-                num_method(method): method to get the current reports number.
-                add_method(method): method to add the reports to the database.
-                fetch_method(method): method to fetch the reports.
+                treshold(int): the minimum required number of data entries in the database.
+                num_method(method): method to get the current entries number.
+                add_method(method): method to add the entries to the database.
+                fetch_method(method): method to fetch the entries.
                 queries(list): additional data to get.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
-                array: the fetched reports.
-                int: the number of fetched reports.
+                array: the fetched entries.
+                int: the number of fetched entries.
         """
         initially_connected = self.is_connected()
 
@@ -924,11 +1095,8 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         current_num = num_method()
 
-        # Fetch reports if there are less than a threshold number of records in the database
-        # for a selected timespan (+- 500 days)
+        # Fetch entries if there are less than a threshold number of entries in the database
         if current_num < threshold:
-            time.sleep(pause)
-
             num_before, num_after = add_method(fetch_method())
             num = num_after - num_before
 
@@ -937,96 +1105,120 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         else:
             num = 0
 
-        rows = self.get_quotes(queries=queries)
+        rows = self.get_quotes(queries=queries)  # TODO HIGH Consider if it should be deleted
 
         if initially_connected is False:
             self.db_close()
 
         return (rows, num)
 
-    def fetch_income_statement_if_none(self, threshold, queries=None, pause=0):
+    def fetch_income_statement_if_none(self, threshold, queries=None):
         """
-            Fetch all the available income statement reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
+            Fetch all the available income statement reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
                 queries(list): additional data to get.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_fundamentals_if_none(threshold=threshold,
-                                                num_method=self.get_income_statement_num,
-                                                add_method=self.add_income_statement,
-                                                fetch_method=self.fetch_income_statement,
-                                                queries=queries,
-                                                pause=pause)
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_income_statement_num,
+                                        add_method=self.add_income_statement,
+                                        fetch_method=self.fetch_income_statement,
+                                        queries=queries)
 
-    def fetch_balance_sheet_if_none(self, threshold, queries=None, pause=0):
+    def fetch_balance_sheet_if_none(self, threshold, queries=None):
         """
-            Fetch all the available balance sheet reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
+            Fetch all the available balance sheet reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
                 queries(list): additional data to get.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_fundamentals_if_none(threshold=threshold,
-                                                num_method=self.get_balance_sheet_num,
-                                                add_method=self.add_balance_sheet,
-                                                fetch_method=self.fetch_balance_sheet,
-                                                queries=queries,
-                                                pause=pause)
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_balance_sheet_num,
+                                        add_method=self.add_balance_sheet,
+                                        fetch_method=self.fetch_balance_sheet,
+                                        queries=queries)
 
-    def fetch_cash_flow_if_none(self, threshold, queries=None, pause=0):
+    def fetch_cash_flow_if_none(self, threshold, queries=None):
         """
-            Fetch all the available cash flow reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
+            Fetch all the available cash flow reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
                 queries(list): additional data to get.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_fundamentals_if_none(threshold=threshold,
-                                                num_method=self.get_cash_flow_num,
-                                                add_method=self.add_cash_flow,
-                                                fetch_method=self.fetch_cash_flow,
-                                                queries=queries,
-                                                pause=pause)
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_cash_flow_num,
+                                        add_method=self.add_cash_flow,
+                                        fetch_method=self.fetch_cash_flow,
+                                        queries=queries)
 
-    def fetch_earnings_if_none(self, threshold, queries=None, pause=0):
+    def fetch_earnings_if_none(self, threshold, queries=None):
         """
-            Fetch all the available earnings reports if data entries do not meet the specified threshold for
-            specified interval (+- 500 days).
+            Fetch all the available earnings reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
                 queries(list): additional data to get.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_fundamentals_if_none(threshold=threshold,
-                                                num_method=self.get_earnings_num,
-                                                add_method=self.add_earnings,
-                                                fetch_method=self.fetch_earnings,
-                                                queries=queries,
-                                                pause=pause)
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_earnings_num,
+                                        add_method=self.add_earnings,
+                                        fetch_method=self.fetch_earnings,
+                                        queries=queries)
+
+    def fetch_dividends_if_none(self, threshold, queries=None):
+        """
+            Fetch all the available cash dividends if stored data entries do not meet the specified threshold.
+
+            Args:
+                treshold(int): the minimum required number of entries in the database.
+                queries(list): additional data to get.
+
+            Returns:
+                array: the fetched entries.
+                int: the number of fetched entries.
+        """
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_dividends_num,
+                                        add_method=self.add_dividends,
+                                        fetch_method=self.fetch_dividends,
+                                        queries=queries)
+
+    def fetch_splits_if_none(self, threshold, queries=None):
+        """
+            Fetch all the available splits if stored data entries do not meet the specified threshold.
+
+            Args:
+                treshold(int): the minimum required number of entries in the database.
+                queries(list): additional data to get.
+
+            Returns:
+                array: the fetched entries.
+                int: the number of fetched entries.
+        """
+        return self._fetch_data_if_none(threshold=threshold,
+                                        num_method=self.get_split_num,
+                                        add_method=self.add_splits,
+                                        fetch_method=self.fetch_splits,
+                                        queries=queries)
 
     @abc.abstractmethod
     def fetch_income_statement(self):
@@ -1043,3 +1235,11 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def fetch_earnings(self):
         """Abstract method to fetch earnings"""
+
+    @abc.abstractmethod
+    def fetch_dividends(self):
+        """Abstract method to fetch dividends"""
+
+    @abc.abstractmethod
+    def fetch_splits(self):
+        """Abstract method to fetch splits"""

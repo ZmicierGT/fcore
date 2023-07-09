@@ -4,9 +4,10 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from datetime import datetime
 import pytz
+
+from time import sleep, perf_counter
 
 from dateutil.relativedelta import relativedelta
 
@@ -20,6 +21,8 @@ from data import stock
 from data.fdata import FdataError
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
+
+from data.futils import get_dt
 
 import settings
 
@@ -35,8 +38,24 @@ class Polygon(stock.StockFetcher):
 
         # Default values
         self.source_title = "Polygon.io"
-        self.year_delta = settings.Polygon.year_delta
         self.api_key = settings.Polygon.api_key
+
+        # Maximum number of API queries per minute for the subscription plan.
+        # Even in the case of payed subscription it is better to keep some limit here as Polygon has
+        # some spamming requests protection.
+        self.max_queries = 250
+
+        if settings.Polygon.stocks_plan == settings.Polygon.Stocks.Basic:
+            self.year_delta = 2
+            self.max_queries = 5
+        elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Starter:
+            self.year_delta = 5
+        elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Developer:
+            self.year_delta = 10
+        elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Advanced:
+            self.year_delta = 15
+        elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Commercial:
+            self.year_delta = 15
 
         self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar Polygon API calls
         self.currency = Currency.Unknown  # Currencies are not supported yet
@@ -56,6 +75,8 @@ class Polygon(stock.StockFetcher):
             new_last_date = new_last_date.replace(tzinfo=pytz.utc)
             new_last_date = new_last_date.replace(hour=23, minute=59, second=59)
             self.last_date = new_last_date
+
+        self._queries = []  # List of queries to calculate API call pauses
 
     def get_timespan_str(self):
         """
@@ -78,6 +99,77 @@ class Polygon(stock.StockFetcher):
         else:
             raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
 
+    # TODO LOW Think if it worth to make these method abstract in the base class
+    def is_intraday(self):
+        """
+            Determine if the current timespan is intraday.
+
+            Returns:
+                bool: if the current timespan is intraday.
+        """
+        if self.timespan in [Timespans.Minute, Timespans.Hour]:
+            return True
+        elif self.timespan in [Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Quarter, Timespans.Year]:
+            return False
+        else:
+            raise FdataError(f"Unknown timespan for Polygon: {self.timespan.value}")
+
+    # TODO LOW Think if it should be abstract in the base class
+    def query_api(self, url, timeout=30):
+        """
+            Check if we need to wait before the next API query, wait if needed and query the API.
+
+            Args:
+                url(string): URL to fetch
+                timeout(int): timeout to query
+
+            Returns:
+                Response: obtained data
+        """
+        # Check if we are about to reach the API key limit for queries
+        if len(self._queries) >= self.max_queries:
+            # Get the first query time from the array
+            first_query_time = self._queries[0]
+
+            # Calculate time to sleep and sleep if needed
+            sleep_time = max(0, 60 - (perf_counter() - first_query_time))
+
+            if self._verbosity:
+                print(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+
+            sleep(sleep_time)
+
+            # Truncate the value to max values needed for calculation of the sleeping pause
+            self._queries = self._queries[len(self._queries) - self.max_queries - 1:]
+
+        # Perform the query
+        try:
+            response = requests.get(url, timeout=timeout)
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
+            raise FdataError(f"Can't fetch quotes: {e}") from e
+        finally:
+            self._queries.append(perf_counter())
+
+        # Parse the response
+        try:
+            json_data = json.loads(response.text)
+            json_results = json_data['results']
+        except (json.JSONDecodeError, KeyError) as e:
+            error = e
+
+            try:
+                error = json_data['error']
+            except (json.JSONDecodeError, KeyError):
+                # Not relevant for error reporting
+                pass
+
+            raise FdataError(f"Can't parse json or no symbol found. Is API call limit reached? {error}") from e
+
+        if len(json_results) == 0:
+            raise FdataError("No data obtained.")
+
+        return json_results
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -91,60 +183,139 @@ class Polygon(stock.StockFetcher):
         first_date = self.first_date.date()
         last_date = self.last_date.date()
 
-        url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
-
-        try:
-            response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch quotes: {e}") from e
-        
-        try:
-            json_data = json.loads(response.text)
-            json_results = json_data['results']
-        except (json.JSONDecodeError, KeyError) as e:
-            error = e
-
-            try:
-                error = json_data['error']
-            except (json.JSONDecodeError, KeyError):
-                # Not relevant for error reporting
-                pass
-
-            raise FdataError(f"Can't parse json or no symbol found. {error}") from e
-
-        if len(json_results) == 0:
-            raise FdataError("No data obtained.")
-
+        # Parsed quotes data. Lets keep it in the same object because it is very unlikely that it won't fit in the memory.
         quotes_data = []
 
-        for quote in json_results:
-            # No need in ms
-            ts = int(quote['t'] / 1000)
-            # Keep all non-intraday timestamps at 23:59:59
-            if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Year):
+        while True:
+            # TODO MID Confirm that both types of close values (real and adjusted) are fetched.
+            url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=false&sort=asc&limit=50000&apiKey={self.api_key}"
+            url_adj = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
+
+            json_results = self.query_api(url)
+            json_results_adj = self.query_api(url_adj)
+
+            if len(json_results) != len(json_results_adj):
+                raise FdataError(f"Length of data {len(json_results)} does not match the length of adjusted data {len(json_results_adj)}. It may be a data source error.")
+
+            for j in range(len(json_results)):
+                quote = json_results[j]
+                quote_adj = json_results_adj[j]
+
+                # No need in ms
+                ts = int(quote['t'] / 1000)
+
                 dt = datetime.utcfromtimestamp(ts)
                 dt = dt.replace(tzinfo=pytz.utc)
-                dt = dt.replace(hour=23, minute=59, second=59)
-                ts = int(datetime.timestamp(dt))
 
-            quote_dict = {
-                'ts': ts,
-                'open': quote['o'],
-                'high': quote['h'],
-                'low': quote['l'],
-                'adj_close': quote['c'],
-                'raw_close': 'NULL',
-                'volume': quote['v'],
-                'divs': 'NULL',
-                'transactions': quote['n'],
-                'split': 'NULL',
-                'sectype': self.sectype.value,
-                'currency': self.currency.value
-            }
+                # Keep all non-intraday timestamps at 23:59:59
+                if self.is_intraday() is False:
+                    dt = dt.replace(hour=23, minute=59, second=59)
+                    ts = int(datetime.timestamp(dt))
 
-            quotes_data.append(quote_dict)
+                # Sometimes the number of transactions does not exist in json
+                if 'n' not in quote:
+                    n = 'NULL'
+                else:
+                    n = quote['n']
+
+                quote_dict = {
+                    'ts': ts,
+                    'open': quote['o'],
+                    'high': quote['h'],
+                    'low': quote['l'],
+                    'close': quote['c'],
+                    'adj_close': quote_adj['c'],
+                    'volume': quote['v'],
+                    'transactions': n,
+                    'sectype': self.sectype.value,
+                    'currency': self.currency.value
+                }
+
+                quotes_data.append(quote_dict)
+
+            # Likely the last days are days off so no quotes are obtained
+            if first_date == dt.date():
+                break
+
+            first_date = dt.date()
+
+            # Enough quotes are obtained
+            if first_date > last_date:
+                break
+            else:
+                if self._verbosity:
+                    print(f"Continue aggregate fetching quotes for {self.symbol} from {first_date} to {last_date}.")
 
         return quotes_data
+
+    def fetch_dividends(self):
+        """
+            Fetch the dividend data.
+        """
+        url_divs = f"https://api.polygon.io/v3/reference/dividends?ticker={self.symbol}&limit=1000&apiKey={self.api_key}"
+
+        json_results = self.query_api(url_divs)
+
+        divs_data = []
+
+        for div in json_results:
+            decl_date = get_dt(div['declaration_date'])
+            ex_date = get_dt(div['ex_dividend_date'])
+            record_date = get_dt(div['record_date'])
+            pay_date = get_dt(div['pay_date'])
+
+            # Keep all non-intraday timestamps at 23:59:59 to better match with non-intraday quotes
+            decl_date = decl_date.replace(hour=23, minute=59, second=59)
+            ex_date = ex_date.replace(hour=23, minute=59, second=59)
+            record_date = record_date.replace(hour=23, minute=59, second=59)
+            pay_date = pay_date.replace(hour=23, minute=59, second=59)
+
+            decl_ts = int(datetime.timestamp(decl_date))
+            ex_ts = int(datetime.timestamp(ex_date))
+            record_ts = int(datetime.timestamp(record_date))
+            pay_ts = int(datetime.timestamp(pay_date))
+
+            div_dict = {
+                'decl_ts': decl_ts,
+                'ex_ts': ex_ts,
+                'record_ts': record_ts,
+                'pay_ts': pay_ts,
+                'currency': self.currency.value  # TODO LOW For now it is consider that divident currency is the same as stock currency
+            }
+
+            divs_data.append(div_dict)
+
+        return divs_data
+
+    def fetch_splits(self):
+        """
+            Fetch the split data.
+        """
+        url_splits = f"https://api.polygon.io/v3/reference/splits?ticker={self.symbol}&limit=1000&apiKey={self.api_key}"
+
+        json_results = self.query_api(url_splits)
+
+        splits_data = []
+
+        for split in json_results:
+            dt = get_dt(split['execution_date'])
+
+            # Keep all non-intraday timestamps at 23:59:59 to better match with non-intraday quotes
+            dt = dt.replace(hour=23, minute=59, second=59)
+            ts = int(datetime.timestamp(dt))
+
+            split_to = int(split['split_to'])
+            split_from = int(split['split_from'])
+            split_ratio = split_to / split_from
+
+            split_dict = {
+                'ts': ts,
+                'split_ratio': split_ratio,
+            }
+
+            splits_data.append(split_dict)
+
+        return splits_data
 
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

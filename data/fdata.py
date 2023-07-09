@@ -15,9 +15,20 @@ from data.futils import get_dt
 
 import settings
 
-# TODO HIGH Move AdjClose to stocks only and use regular close only in backtests
+# TODO HIGH Data adjustments:
+# +/- Use raw (real) close in quotes table.
+# + Remove divs and splits from stock_core table.
+# + Add tables for stock_splits and cash_dividends.
+# + Implement aggregate quotes fetching for Polygon
+# + Implement divs/splits fetching for Polygon
+# Implement aggregate quotes fetching for AV
+# Implement divs/splits fetching for AV
+# Implement divs/splits fetching for YF
+# AI/TA stuff relies on AdjClose, simulated trades on the real close values.
+# + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them.
+
 # Current database compatibility version
-DB_VERSION = 6
+DB_VERSION = 7
 
 class FdataError(Exception):
     """
@@ -72,7 +83,8 @@ class ReadOnlyData():
                  symbol="",
                  first_date=def_first_date,
                  last_date=def_last_date,
-                 timespan=Timespans.Day
+                 timespan=Timespans.Day,
+                 verbosity=False
                 ):
         """
             Initialize base database read only/integrity class.
@@ -82,6 +94,7 @@ class ReadOnlyData():
                 first_date(datetime, str, int): the first date for queries.
                 last_date(datetime, str, int): the last date for queries.
                 timespan(Timespans): timespan to use in queries.
+                verbosity(bool): indicates if additional outputs are needed (logging and so on).
         """
         # Setting the default values
         self.symbol = symbol
@@ -116,6 +129,8 @@ class ReadOnlyData():
 
         # Flag which indicates if the database is connected
         self._connected = False
+
+        self._verbosity = verbosity
 
     ########################################################
     # Get/set datetimes (depending on the input value type).
@@ -822,6 +837,34 @@ class ReadOnlyData():
 
         return result
 
+    def _get_data_num(self, table):
+        """Get the number additional data entries for the symbol.
+
+            Args:
+                table(string): the table with reports.
+
+            Returns:
+                int: the number of entries in the specified table.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        get_num = f"""SELECT COUNT(*) FROM {table}
+                        WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
+        try:
+            self.cur.execute(get_num)
+        except self.Error as e:
+            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_num}") from e
+
+        result = self.cur.fetchone()[0]
+
+        if result is None:
+            result = 0
+
+        return result
+
     def get_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.
@@ -832,21 +875,7 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
-
-        sym_quotes_num = f"SELECT COUNT(*) FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"
-
-        try:
-            self.cur.execute(sym_quotes_num)
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{sym_quotes_num}") from e
-
-        result = self.cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
+        return self._get_data_num('quotes')
 
     def get_symbol_quotes_num_dt(self):
         """
@@ -1032,7 +1061,7 @@ class ReadWriteData(ReadOnlyData):
                             ({quote['open']}),
                             ({quote['high']}),
                             ({quote['low']}),
-                            ({quote['adj_close']}),
+                            ({quote['close']}),
                             ({quote['volume']}),
                             ({quote['transactions']})
                         );"""

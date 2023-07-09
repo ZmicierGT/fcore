@@ -382,7 +382,7 @@ class Test(unittest.TestCase, DataMocker):
                         AND symbol_id = (SELECT symbol_id FROM symbols where ticker = 'AAPL');"""
         when(self.read_data.cur).execute(sql_query).thenReturn()
 
-        self.read_data._get_fundamentals_num('test')
+        self.read_data._get_data_num('test')
 
         verify(self.read_data, times=1).check_if_connected()
         verify(self.read_data.cur, times=1).fetchone()

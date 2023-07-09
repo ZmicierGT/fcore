@@ -1,12 +1,7 @@
 images
-test.py
-test2.py
-test3.py
-test4.py
+test*.py
 __pycache__
 total_size.sh
-models
-data.sqlite
+*.sqlite
 .python-version
 notes.txt
-settings.py

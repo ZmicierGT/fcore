@@ -48,6 +48,11 @@ class AVStock(stock.StockFetcher):
         self.earnings_first_date = None
         self.earnings_last_date = None
 
+        # Cached EOD quotes to get dividends and split data
+        self.eod = None
+        self.eod_first_date = None
+        self.eod_last_date = None
+
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
 
@@ -110,7 +115,7 @@ class AVStock(stock.StockFetcher):
             output_size = 'compact' if self.compact else 'full'
             json_key = f'Time Series ({self.get_timespan_str()})'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&&apikey={self.api_key}'
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
@@ -123,6 +128,13 @@ class AVStock(stock.StockFetcher):
         json_data = response.json()
 
         dict_results = json_data[json_key]
+
+        # Cache EOD quotes for divs/splits parsing
+        if self.timespan == Timespans.Day:
+            self.eod = dict_results
+            self.eod_first_date = self.first_date
+            self.eod_last_date = self.last_date
+
         datetimes = list(dict_results.keys())
 
         if len(datetimes) == 0:
@@ -144,8 +156,8 @@ class AVStock(stock.StockFetcher):
                 'open': quote['1. open'],
                 'high': quote['2. high'],
                 'low': quote['3. low'],
+                'close': 'NULL',
                 'adj_close': 'NULL',
-                'raw_close': 'NULL',
                 'volume': 'NULL',
                 'divs': 'NULL',
                 'transactions': 'NULL',
@@ -156,16 +168,18 @@ class AVStock(stock.StockFetcher):
 
             # Set the entries depending if the quote is intraday
             if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month):
+                quote_dict['close'] = quote['4. close']
                 quote_dict['adj_close'] = quote['5. adjusted close']
-                quote_dict['raw_close'] = quote['4. close']
                 quote_dict['volume'] = quote['6. volume']
                 quote_dict['divs'] = quote['7. dividend amount']
-                quote_dict['split'] = quote['8. split coefficient']
+
+                if self.timespan == Timespans.Day:  # Only daily quites have split data
+                    quote_dict['split'] = quote['8. split coefficient']
 
                 # Keep all non-intraday timestamps at 23:59:59
                 dt = dt.replace(hour=23, minute=59, second=59)
             else:
-                quote_dict['adj_close'] = quote['4. close']
+                quote_dict['close'] = quote['4. close']
                 quote_dict['volume'] = quote['5. volume']
                 quote_dict['raw_close'] = quote['4. close']
                 quote_dict['split'] = 1  # Split coefficient is always 1 for intraday
@@ -413,6 +427,50 @@ class AVStock(stock.StockFetcher):
                   'NULL']
 
         return result
+
+    def get_eod_quotes(self):
+        """
+            Fetch EOD quotes if needed with dividends/splits data. Return cached data otherwise.
+
+            Returns(list of dict): EOD quotes data.
+        """
+        # Check if eod data is cached for this interval. If not, fetch it.
+        if self.eod_cached() is False:
+            # TODO LOW This approach may be not thread safe. But it is very unlikely that threading will be used here.
+            old_timespan = self.timespan
+            self.timespan = Timespans.Day
+
+            quotes = self.fetch_quotes()
+            self.timespan = old_timespan
+        else:
+            quotes = self.eod
+
+        return quotes
+
+    def fetch_dividends(self):
+        """
+            Fetch cash dividends for the specified period.
+        """
+        quotes = self.get_eod_quotes()
+        df = pd.DataFrame(quotes)
+        print(df.to_string())
+
+    def fetch_splits(self):
+        """
+            Fetch stock splits for the specified period.
+        """
+        quotes = self.get_eod_quotes()
+
+    def eod_cached(self):
+        """
+            Check if EOD quotes are cached for the current interval.
+            Dividends and splits data present in earnings reports only.
+
+            Returns:
+                bool: indicates if EOD quotes are cached.
+        """
+        return self.eod is not None and self.eod_first_date == self.first_date \
+            and self.eod_last_date == self.last_date
 
     def earnings_cached(self):
         """

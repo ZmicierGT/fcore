@@ -7,13 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from datetime import datetime
 import pytz
 
-from time import sleep, perf_counter
-
 from dateutil.relativedelta import relativedelta
-
-import http.client
-import urllib.error
-import requests
 
 import json
 
@@ -76,8 +70,6 @@ class Polygon(stock.StockFetcher):
             new_last_date = new_last_date.replace(hour=23, minute=59, second=59)
             self.last_date = new_last_date
 
-        self._queries = []  # List of queries to calculate API call pauses
-
     def get_timespan_str(self):
         """
             Get the timespan for queries.
@@ -115,42 +107,19 @@ class Polygon(stock.StockFetcher):
             raise FdataError(f"Unknown timespan for Polygon: {self.timespan.value}")
 
     # TODO LOW Think if it should be abstract in the base class
-    def query_api(self, url, timeout=30):
+    def query_and_parse(self, url, timeout=30):
         """
-            Check if we need to wait before the next API query, wait if needed and query the API.
+            Query the data source and parse the response.
 
             Args:
-                url(string): URL to fetch
-                timeout(int): timeout to query
+                url(str): the url for a request.
+                timeout(int): timeout for the request.
 
             Returns:
-                Response: obtained data
+                Parsed data.
         """
-        # Check if we are about to reach the API key limit for queries
-        if len(self._queries) >= self.max_queries:
-            # Get the first query time from the array
-            first_query_time = self._queries[0]
+        response = self.query_api(url, timeout)
 
-            # Calculate time to sleep and sleep if needed
-            sleep_time = max(0, 60 - (perf_counter() - first_query_time))
-
-            if self._verbosity:
-                print(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
-
-            sleep(sleep_time)
-
-            # Truncate the value to max values needed for calculation of the sleeping pause
-            self._queries = self._queries[len(self._queries) - self.max_queries - 1:]
-
-        # Perform the query
-        try:
-            response = requests.get(url, timeout=timeout)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch quotes: {e}") from e
-        finally:
-            self._queries.append(perf_counter())
-
-        # Parse the response
         try:
             json_data = json.loads(response.text)
             json_results = json_data['results']
@@ -191,8 +160,8 @@ class Polygon(stock.StockFetcher):
             url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=false&sort=asc&limit=50000&apiKey={self.api_key}"
             url_adj = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
 
-            json_results = self.query_api(url)
-            json_results_adj = self.query_api(url_adj)
+            json_results = self.query_and_parse(url)
+            json_results_adj = self.query_and_parse(url_adj)
 
             if len(json_results) != len(json_results_adj):
                 raise FdataError(f"Length of data {len(json_results)} does not match the length of adjusted data {len(json_results_adj)}. It may be a data source error.")
@@ -254,7 +223,7 @@ class Polygon(stock.StockFetcher):
         """
         url_divs = f"https://api.polygon.io/v3/reference/dividends?ticker={self.symbol}&limit=1000&apiKey={self.api_key}"
 
-        json_results = self.query_api(url_divs)
+        json_results = self.query_and_parse(url_divs)
 
         divs_data = []
 
@@ -276,6 +245,7 @@ class Polygon(stock.StockFetcher):
             pay_ts = int(datetime.timestamp(pay_date))
 
             div_dict = {
+                'amount': div['cash_amount'],
                 'decl_ts': decl_ts,
                 'ex_ts': ex_ts,
                 'record_ts': record_ts,
@@ -293,7 +263,7 @@ class Polygon(stock.StockFetcher):
         """
         url_splits = f"https://api.polygon.io/v3/reference/splits?ticker={self.symbol}&limit=1000&apiKey={self.api_key}"
 
-        json_results = self.query_api(url_splits)
+        json_results = self.query_and_parse(url_splits)
 
         splits_data = []
 

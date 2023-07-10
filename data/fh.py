@@ -72,6 +72,9 @@ class FHStock(stock.StockFetcher):
     def fetch_splits(self):
         raise FdataError(f"Splits statement data is not supported (yet) for the source {type(self).__name__}")
 
+    def query_and_parse(self):
+        raise FdataError(f"query_and_parse is not supported (yet) for the source {type(self).__name__}")
+
     def get_recent_data(self, to_cache=False):
         """
             Get recent quote.
@@ -102,7 +105,6 @@ class FHStock(stock.StockFetcher):
                   quote['o'],
                   quote['h'],
                   quote['l'],
-                  quote['c'],  # Consider that Close and AdjClose is the same for intraday timespans
                   quote['c'],
                   'NULL',
                   'NULL',

@@ -7,10 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 from datetime import datetime
 import pytz
 
-import http.client
-import urllib.error
-import requests
-
 from data import stock
 
 from data.fvalues import Timespans, SecType, Currency
@@ -53,6 +49,19 @@ class AVStock(stock.StockFetcher):
         self.eod_first_date = None
         self.eod_last_date = None
 
+        if settings.AV.plan == settings.AV.Plan.Free:
+            self.max_queries = 5
+        if settings.AV.plan == settings.AV.Plan.Plan75:
+            self.max_queries = 75
+        if settings.AV.plan == settings.AV.Plan.Plan150:
+            self.max_queries = 150
+        if settings.AV.plan == settings.AV.Plan.Plan300:
+            self.max_queries = 300
+        if settings.AV.plan == settings.AV.Plan.Plan600:
+            self.max_queries = 600
+        if settings.AV.plan == settings.AV.Plan.Plan1200:
+            self.max_queries = 1200
+
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
 
@@ -82,6 +91,44 @@ class AVStock(stock.StockFetcher):
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
+    def is_intraday(self):
+        """
+            Determine if the current timespan is intraday.
+
+            Returns:
+                bool: if the current timespan is intraday.
+        """
+        if self.timespan in (Timespans.Minute,
+                               Timespans.FiveMinutes,
+                               Timespans.FifteenMinutes,
+                               Timespans.ThirtyMinutes,
+                               Timespans.Hour):
+            return True
+        elif self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month):
+            return False
+        else:
+            raise FdataError(f"Unsupported timespan: {self.timespan.value}")
+
+    def query_and_parse(self, url, timeout=30):
+        """
+            Query the data source and parse the response.
+
+            Args:
+                url(str): the url for a request.
+                timeout(int): timeout for the request.
+
+            Returns:
+                Parsed data.
+        """
+        response = self.query_api(url, timeout)
+
+        try:
+            json_data = response.json()
+        except json.decoder.JSONDecodeError as e:
+            raise FdataError(f"Can't parse JSON. Likely API key limit reached: {e}") from e
+
+        return json_data
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -92,6 +139,8 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: quotes data
         """
+        quotes_data = []
+
         # At first, need to set a function depending on a timespan.
         if self.timespan == Timespans.Day:
             output_size = 'compact' if self.compact else 'full'
@@ -107,40 +156,30 @@ class AVStock(stock.StockFetcher):
 
             url = f'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol={self.symbol}&apikey={self.api_key}'
         # All intraday timespans
-        elif self.timespan in [Timespans.Minute,
-                               Timespans.FiveMinutes,
-                               Timespans.FifteenMinutes,
-                               Timespans.ThirtyMinutes,
-                               Timespans.Hour]:
+        elif self.is_intraday():
             output_size = 'compact' if self.compact else 'full'
             json_key = f'Time Series ({self.get_timespan_str()})'
 
             url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&&apikey={self.api_key}'
-        else:
-            raise FdataError(f"Unsupported timespan: {self.timespan.value}")
+            url_adj = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=true&&apikey={self.api_key}'
 
         # Get quotes data
-        try:
-            response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch quotes: {e}") from e
-
-        json_data = response.json()
+        json_data = self.query_and_parse(url)
 
         dict_results = json_data[json_key]
-
-        # Cache EOD quotes for divs/splits parsing
-        if self.timespan == Timespans.Day:
-            self.eod = dict_results
-            self.eod_first_date = self.first_date
-            self.eod_last_date = self.last_date
 
         datetimes = list(dict_results.keys())
 
         if len(datetimes) == 0:
             raise FdataError("No data obtained.")
 
-        quotes_data = []
+        if self.is_intraday():
+            json_data_adj = self.query_and_parse(url_adj)
+
+            dict_results_adj = json_data_adj[json_key]
+
+            if len(datetimes) != len(dict_results_adj.keys()):
+                raise FdataError(f"Length of data does not match the length of adjusted data. It may be a data source error.")
 
         for dt_str in datetimes:
             try:
@@ -159,35 +198,44 @@ class AVStock(stock.StockFetcher):
                 'close': 'NULL',
                 'adj_close': 'NULL',
                 'volume': 'NULL',
-                'divs': 'NULL',
                 'transactions': 'NULL',
-                'split': 'NULL',
                 'sectype': self.sectype.value,
-                'currency': self.currency.value
+                'currency': self.currency.value,
+                # Below is just for caching purposes for other calls
+                'divs': None,
+                'split': None
             }
 
             # Set the entries depending if the quote is intraday
-            if self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month):
+            if self.is_intraday() is False:
                 quote_dict['close'] = quote['4. close']
                 quote_dict['adj_close'] = quote['5. adjusted close']
                 quote_dict['volume'] = quote['6. volume']
-                quote_dict['divs'] = quote['7. dividend amount']
-
-                if self.timespan == Timespans.Day:  # Only daily quites have split data
-                    quote_dict['split'] = quote['8. split coefficient']
 
                 # Keep all non-intraday timestamps at 23:59:59
                 dt = dt.replace(hour=23, minute=59, second=59)
             else:
+                quote_adj = dict_results_adj[dt_str]
+
                 quote_dict['close'] = quote['4. close']
                 quote_dict['volume'] = quote['5. volume']
-                quote_dict['raw_close'] = quote['4. close']
-                quote_dict['split'] = 1  # Split coefficient is always 1 for intraday
+                quote_dict['adj_close'] = quote_adj['4. close']
+
+            # Cache divs/split data
+            if self.timespan == Timespans.Day:
+                quote_dict['divs'] = quote['7. dividend amount']
+                quote_dict['split'] = quote['8. split coefficient']
 
             # Set the timestamp
             quote_dict['ts'] = int(datetime.timestamp(dt))
 
             quotes_data.append(quote_dict)
+
+        # Cache EOD quotes for divs/splits parsing
+        if self.timespan == Timespans.Day:
+            self.eod = quotes_data
+            self.eod_first_date = self.first_date
+            self.eod_last_date = self.last_date
 
         return quotes_data
 
@@ -211,15 +259,7 @@ class AVStock(stock.StockFetcher):
         url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get fundamental data
-        try:
-            response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch fundamental data: {e}") from e
-
-        try:
-            json_data = response.json()
-        except json.decoder.JSONDecodeError as e:
-            raise FdataError(f"Can't parse JSON. Likely API key limit reached: {e}") from e
+        json_data = self.query_and_parse(url)
 
         try:
             annual_reports = pd.json_normalize(json_data['annualReports'])
@@ -324,15 +364,7 @@ class AVStock(stock.StockFetcher):
         url = f'https://www.alphavantage.co/query?function=EARNINGS&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get earnings data
-        try:
-            response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
-            raise FdataError(f"Can't fetch earnings data: {e}") from e
-
-        try:
-            json_data = response.json()
-        except json.decoder.JSONDecodeError as e:
-            raise FdataError(f"Can't parse JSON. Likely API key limit reached: {e}") from e
+        json_data = self.query_and_parse(url)
 
         try:
             annual_earnings = pd.json_normalize(json_data['annualEarnings'])
@@ -396,10 +428,7 @@ class AVStock(stock.StockFetcher):
         url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get recent quote
-        try:
-            response = requests.get(url, timeout=30)
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch earnings data: {e}") from e
+        response = self.query_api(url)
 
         # Get json
         json_data = response.json()
@@ -419,7 +448,6 @@ class AVStock(stock.StockFetcher):
                   quote['02. open'],
                   quote['03. high'],
                   quote['04. low'],
-                  quote['05. price'],  # Consider that Close and AdjClose is the same for intraday timespans
                   quote['05. price'],
                   quote['06. volume'],
                   'NULL',
@@ -428,7 +456,7 @@ class AVStock(stock.StockFetcher):
 
         return result
 
-    def get_eod_quotes(self):
+    def _get_eod_quotes(self):
         """
             Fetch EOD quotes if needed with dividends/splits data. Return cached data otherwise.
 
@@ -438,28 +466,54 @@ class AVStock(stock.StockFetcher):
         if self.eod_cached() is False:
             # TODO LOW This approach may be not thread safe. But it is very unlikely that threading will be used here.
             old_timespan = self.timespan
+            old_compact = self.compact
+
             self.timespan = Timespans.Day
+            self.compact = False
+            self.fetch_quotes()
 
-            quotes = self.fetch_quotes()
             self.timespan = old_timespan
-        else:
-            quotes = self.eod
+            self.compact = old_compact
 
-        return quotes
+        return self.eod
 
     def fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.
         """
-        quotes = self.get_eod_quotes()
+        quotes = self._get_eod_quotes()
+
         df = pd.DataFrame(quotes)
-        print(df.to_string())
+
+        df = df.loc[df['divs'].astype(float) > 0]
+
+        df_result = pd.DataFrame()
+        df_result['ex_ts'] = df['ts']
+        df_result['amount'] = df['divs']
+
+        # Not used in this data source
+        df_result['currency'] = self.currency.value
+        df_result['decl_ts'] = 'NULL'
+        df_result['record_ts'] = 'NULL'
+        df_result['pay_ts'] = 'NULL'
+
+        return df_result.T.to_dict().values()
 
     def fetch_splits(self):
         """
             Fetch stock splits for the specified period.
         """
-        quotes = self.get_eod_quotes()
+        quotes = self._get_eod_quotes()
+
+        df = pd.DataFrame(quotes)
+
+        df = df.loc[df['split'].astype(float) != 1]
+
+        df_result = pd.DataFrame()
+        df_result['ts'] = df['ts']
+        df_result['split_ratio'] = df['split']
+
+        return df_result.T.to_dict().values()
 
     def eod_cached(self):
         """

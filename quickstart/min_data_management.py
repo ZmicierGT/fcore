@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 # This example checks if there is at least 565 dayly quotes for SPY in the database and if no
 # then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
-yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
+#yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()

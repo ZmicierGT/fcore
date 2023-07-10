@@ -6,7 +6,11 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import abc
 
-import time
+from time import sleep, perf_counter
+
+import http.client
+import urllib.error
+import requests
 
 from data import fdatabase
 
@@ -22,13 +26,13 @@ import settings
 # + Implement aggregate quotes fetching for Polygon
 # + Implement divs/splits fetching for Polygon
 # Implement aggregate quotes fetching for AV
-# Implement divs/splits fetching for AV
+# + Implement divs/splits fetching for AV
 # Implement divs/splits fetching for YF
 # AI/TA stuff relies on AdjClose, simulated trades on the real close values.
 # + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them.
 
 # Current database compatibility version
-DB_VERSION = 7
+DB_VERSION = 8
 
 class FdataError(Exception):
     """
@@ -1136,7 +1140,10 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         """Initialize the instance of BaseFetcher class."""
         super().__init__(**kwargs)
 
-    def fetch_if_none(self, threshold, pause=0):
+        self.max_queries = None # Maximul allowed number of API queries per minute
+        self._queries = []  # List of queries to calculate API call pauses
+
+    def fetch_if_none(self, threshold):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
@@ -1144,7 +1151,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
             Args:
                 treshold(int): the minimum required number of quotes in the database.
-                pause(int): pause in seconds before fetching data (needed to avoid failure because of api keys limits).
 
             Returns:
                 array: the fetched data.
@@ -1159,8 +1165,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
         if current_num < threshold:
-            time.sleep(pause)
-
             num_before, num_after = self.add_quotes(self.fetch_quotes())
             num = num_after - num_before
 
@@ -1175,6 +1179,43 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             self.db_close()
 
         return (rows, num)
+
+    def query_api(self, url, timeout=30):
+        """
+            Check if we need to wait before the next API query, wait if needed and query the API.
+
+            Args:
+                url(string): URL to fetch
+                timeout(int): timeout for a response
+
+            Returns:
+                Response: obtained data
+        """
+        # Check if we are about to reach the API key limit for queries
+        if len(self._queries) >= self.max_queries:
+            # Get the first query time from the array
+            first_query_time = self._queries[0]
+
+            # Calculate time to sleep and sleep if needed
+            sleep_time = max(0, 60 - (perf_counter() - first_query_time))
+
+            if self._verbosity:
+                print(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+
+            sleep(sleep_time)
+
+            # Truncate the value to max values needed for calculation of the sleeping pause
+            self._queries = self._queries[len(self._queries) - self.max_queries - 1:]
+
+        # Perform the query
+        try:
+            response = requests.get(url, timeout=timeout)
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
+            raise FdataError(f"Can't fetch quotes: {e}") from e
+        finally:
+            self._queries.append(perf_counter())
+
+        return response
 
     @abc.abstractmethod
     def get_recent_data(self, to_cache=False):
@@ -1203,4 +1244,17 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
             Returns:
                 str: timespan string.
+        """
+
+    #@abc.abstractmethod
+    def query_and_parse(self, url, timeout=30):
+        """
+            Query the data source and parse the response.
+
+            Args:
+                url(str): the url for a request.
+                timeout(int): timeout for the request.
+
+            Returns:
+                Parsed data.
         """

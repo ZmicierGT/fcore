@@ -156,6 +156,7 @@ class ROStockData(ReadOnlyData):
                                 ex_date INTEGER NOT NULL,
                                 record_date INTEGER,
                                 payment_date INTEGER,
+                                amount REAL NOT NULL,
                                 UNIQUE(symbol_id, ex_date)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -1009,7 +1010,8 @@ class RWStockData(ROStockData, ReadWriteData):
 										declaration_date,
 										ex_date,
 										record_date,
-										payment_date)
+										payment_date,
+                                        amount)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
@@ -1017,7 +1019,8 @@ class RWStockData(ROStockData, ReadWriteData):
 											{div['decl_ts']},
 											{div['ex_ts']},
 											{div['record_ts']},
-											{div['pay_ts']});"""
+											{div['pay_ts']},
+                                            {div['amount']});"""
 
             try:
                 self.cur.execute(insert_dividends)

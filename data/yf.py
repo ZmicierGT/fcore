@@ -158,7 +158,6 @@ class YF(stock.StockFetcher):
                   row['High'],
                   row['Low'],
                   row['Close'],
-                  row['Adj Close'],
                   row['Volume'],
                   'NULL',
                   'NULL',

@@ -156,19 +156,12 @@ class Polygon(stock.StockFetcher):
         quotes_data = []
 
         while True:
-            # TODO MID Confirm that both types of close values (real and adjusted) are fetched.
             url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=false&sort=asc&limit=50000&apiKey={self.api_key}"
-            url_adj = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
 
             json_results = self.query_and_parse(url)
-            json_results_adj = self.query_and_parse(url_adj)
-
-            if len(json_results) != len(json_results_adj):
-                raise FdataError(f"Length of data {len(json_results)} does not match the length of adjusted data {len(json_results_adj)}. It may be a data source error.")
 
             for j in range(len(json_results)):
                 quote = json_results[j]
-                quote_adj = json_results_adj[j]
 
                 # No need in ms
                 ts = int(quote['t'] / 1000)
@@ -193,7 +186,6 @@ class Polygon(stock.StockFetcher):
                     'high': quote['h'],
                     'low': quote['l'],
                     'close': quote['c'],
-                    'adj_close': quote_adj['c'],
                     'volume': quote['v'],
                     'transactions': n,
                     'sectype': self.sectype.value,

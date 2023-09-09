@@ -36,47 +36,6 @@ class ROStockData(ReadOnlyData):
         """
         super().check_database()
 
-        # TODO MID Think if we should use adj_close obtained from data providers or calulate it manually.
-        # The advantages of storing a value here:
-        # - Backtesting result may be drammatically incorrect if we have a 'real' close only and divs/splits are not fetched
-        # - It is easier to keep the framework compatible with both a list of dictionaries and labelled numpy array we have pre-calculated adj_close
-        # The disadvantages of storing a value here:
-        # - Database becomes bigger and more complex.
-        # - More API queries.
-
-        # Check if we need to create a table stock_core
-        try:
-            check_stock_core = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_core';"
-
-            self.cur.execute(check_stock_core)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_core': {e}\n{check_stock_core}") from e
-
-        if len(rows) == 0:
-            create_core = """CREATE TABLE stock_core(
-                                stock_core_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                quote_id INTEGER NOT NULL UNIQUE,
-                                adj_close REAL,
-                                CONSTRAINT fk_quotes,
-                                    FOREIGN KEY (quote_id)
-                                    REFERENCES quotes(quote_id)
-                                    ON DELETE CASCADE
-                                );"""
-
-            try:
-                self.cur.execute(create_core)
-            except self.Error as e:
-                raise FdataError(f"Can't execute a query on a table 'stock_core': {e}\n{create_core}") from e
-
-            # Create index for quote_id
-            create_quoteid_idx = "CREATE INDEX idx_quote ON stock_core(quote_id);"
-
-            try:
-                self.cur.execute(create_quoteid_idx)
-            except self.Error as e:
-                raise FdataError(f"Can't create index for stock_core(quote_id) in stock_core: {e}") from e
-
         #############################
         # Fundamental data
         #############################
@@ -525,6 +484,7 @@ class ROStockData(ReadOnlyData):
         """
         return self._get_data_num('earnings')
 
+    # TOOD HIGH Automatically calculate AdjClose here, think if need to provide the results for splits and dividends as well
     def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
@@ -542,15 +502,15 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        if isinstance(columns, list) is False:
-            columns = []
+        # if isinstance(columns, list) is False:
+        #     columns = []
 
-        columns.append('adj_close')
+        # columns.append('adj_close')
 
-        if isinstance(joins, list) is False:
-            joins = []
+        # if isinstance(joins, list) is False:
+        #     joins = []
 
-        joins.append('INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id')
+        # joins.append('INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id')
 
         return super().get_quotes(num=num, columns=columns, joins=joins, queries=queries)
 
@@ -558,47 +518,6 @@ class RWStockData(ROStockData, ReadWriteData):
     """
         Base class for read/write stock data SQL operations.
     """
-    def add_quotes(self, quotes_dict):
-        """
-            Add quotes to the database.
-
-            Args:
-                quotes_dict(list of dictionaries): quotes obtained from an API wrapper.
-
-            Returns:
-                (int, int): the total number of quotes before and after the operation.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        self.check_if_connected()
-
-        # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
-            self.add_symbol()
-
-        num_before = self.get_quotes_num()
-
-        for quote in quotes_dict:
-            quote_id = self._add_base_quote_data(quote)
-
-            if quote_id != 0:
-                insert_core = f"""INSERT OR {self._update} INTO stock_core (quote_id, adj_close)
-                                VALUES (
-                                    ({quote_id}),
-                                    ({quote['adj_close']})
-                                );"""
-
-                try:
-                    self.cur.execute(insert_core)
-                except self.Error as e:
-                    raise FdataError(f"Can't add data to a table 'stock_core': {e}\n\nThe query is\n{insert_core}") from e
-
-        self.commit()
-
-        num_after = self.get_quotes_num()
-
-        return (num_before, num_after)
 
     ##########################
     # Fundamental data methods

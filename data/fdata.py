@@ -19,6 +19,8 @@ from data.futils import get_dt
 
 import settings
 
+import json
+
 # TODO HIGH Data adjustments:
 # +/- Use raw (real) close in quotes table.
 # + Remove divs and splits from stock_core table.
@@ -1204,8 +1206,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
             sleep(sleep_time)
 
-            # Truncate the value to max values needed for calculation of the sleeping pause
-            self._queries = self._queries[len(self._queries) - self.max_queries - 1:]
+            self._queries = []
 
         # Perform the query
         try:

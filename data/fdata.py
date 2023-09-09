@@ -30,8 +30,8 @@ import json
 # + Implement divs/splits fetching for Polygon
 # + Implement aggregate daily quotes fetching for AV
 # + Implement divs/splits fetching for AV
-# Implement divs/splits fetching for YF
-# Only real close values are used in YF data
+# + Implement divs/splits fetching for YF
+# + Only real close values are used in YF data
 #
 # Getting stock quites automatically calculates adj close for the specified period, splits and divs data provided as well.
 # AI/TA stuff relies on AdjClose, simulated trades on the real close values.

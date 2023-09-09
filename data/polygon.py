@@ -211,7 +211,7 @@ class Polygon(stock.StockFetcher):
 
     def fetch_dividends(self):
         """
-            Fetch the dividend data.
+            Fetch the cash dividend data.
         """
         url_divs = f"https://api.polygon.io/v3/reference/dividends?ticker={self.symbol}&limit=1000&apiKey={self.api_key}"
 

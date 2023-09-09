@@ -7,6 +7,8 @@ Distributed under Fcore License 1.1 (see license.md)
 from datetime import datetime
 import pytz
 
+import pandas as pd
+
 import yfinance as yfin
 
 from data import stock
@@ -85,11 +87,14 @@ class YF(stock.StockFetcher):
             else:
                 last_date_str = self.last_date_str
 
-            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(),
-                                                        start=self.first_date_str,
-                                                        end=last_date_str)
+            # data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(),
+            #                                         start=self.first_date_str,
+            #                                         end=last_date_str)
+
+            data = yfin.download(self.symbol, interval=self.get_timespan_str(), start=self.first_date_str, end=last_date_str)
         else:
-            data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(), period='max')
+            # data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(), period='max')
+            data = yfin.download(self.symbol, interval=self.get_timespan_str(), period='max')
 
         length = len(data)
 
@@ -107,24 +112,13 @@ class YF(stock.StockFetcher):
                 # Add 23:59:59 to non-intraday quotes
                 dt = dt.replace(hour=23, minute=59, second=59)
 
-                # Stock split coefficient 0 (reported by default) should be set to 1 as it makes more sense
-                stock_splits = data['Stock Splits'][ind]
-                if stock_splits == 0:
-                    stock_splits = 1
-            else:
-                # Stock splits has no sense intraday
-                stock_splits = 1
-
             quote_dict = {
                 'volume': data['Volume'][ind],
                 'open': data['Open'][ind],
-                'adj_close': data['Close'][ind],
+                'close': data['Close'][ind],
                 'high': data['High'][ind],
                 'low': data['Low'][ind],
-                'raw_close': 'NULL',
                 'transactions': 'NULL',
-                'divs': data['Dividends'][ind],
-                'split': stock_splits,
                 'ts': int(datetime.timestamp(dt)),
                 'sectype': self.sectype.value,
                 'currency': self.currency.value
@@ -165,6 +159,42 @@ class YF(stock.StockFetcher):
 
         return result
 
+    def fetch_dividends(self):
+        """
+            Fetch cash dividends for the specified period.
+        """
+        data = yfin.Ticker(self.symbol)
+        divs = data.dividends
+
+        df_result = pd.DataFrame()
+        df_result['ex_ts'] = divs.keys().tz_convert('UTC').astype(int)
+        df_result['ex_ts'] = df_result['ex_ts'].div(10**9).astype(int)  # One more astype to get rid of .0
+
+        df_result['amount'] = divs.reset_index()['Dividends']
+
+        # Not used in this data source
+        df_result['currency'] = self.currency.value
+        df_result['decl_ts'] = 'NULL'
+        df_result['record_ts'] = 'NULL'
+        df_result['pay_ts'] = 'NULL'
+
+        return df_result.T.to_dict().values()
+
+    def fetch_splits(self):
+        """
+            Fetch the split data.
+        """
+        data = yfin.Ticker(self.symbol)
+        splits = data.splits
+
+        df_result = pd.DataFrame()
+        df_result['ts'] = splits.keys().tz_convert('UTC').astype(int)
+        df_result['ts'] = df_result['ts'].div(10**9).astype(int)  # One more astype to get rid of .0
+
+        df_result['split_ratio'] = splits.reset_index()['Stock Splits']
+
+        return df_result.T.to_dict().values()
+
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")
 
@@ -176,9 +206,3 @@ class YF(stock.StockFetcher):
 
     def fetch_earnings(self):
         raise FdataError(f"Earnings statement data is not supported (yet) for the source {type(self).__name__}")
-
-    def fetch_dividends(self):
-        raise FdataError(f"Dividends data is not supported (yet) for the source {type(self).__name__}")
-
-    def fetch_splits(self):
-        raise FdataError(f"Splits statement data is not supported (yet) for the source {type(self).__name__}")

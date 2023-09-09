@@ -34,7 +34,7 @@ class AVStock(stock.StockFetcher):
         # Default values
         self.source_title = "AlphaVantage"
         self.api_key = settings.AV.api_key
-        self.compact = True  # Indicates if a limited number (100) of quotes should be obtained
+        self.compact = False  # Indicates if a limited number (100) of quotes should be obtained
 
         self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for AV
         self.currency = Currency.Unknown  # Currencies are not supported yet
@@ -48,6 +48,14 @@ class AVStock(stock.StockFetcher):
         self.eod = None
         self.eod_first_date = None
         self.eod_last_date = None
+
+        # Year and month
+        self._year = self.first_date.year
+        self._month = self.first_date.month
+
+        if self._year < 2000:
+            self._year = 2000
+            self._month = 1
 
         if settings.AV.plan == settings.AV.Plan.Free:
             self.max_queries = 5
@@ -129,6 +137,59 @@ class AVStock(stock.StockFetcher):
 
         return json_data
 
+    def next_month(self):
+        """
+            Calculate and set the next month for the query.
+
+            Returns:
+                True/False - If there was a need to increase the month or last date reached.
+        """
+        self._month += 1
+
+        if self._month == 13:
+            self._year += 1
+            self._month = 1
+
+        if self._year == self.last_date.year and self._month > self.last_date.month:
+            return False
+
+        return True
+
+    def get_intraday_url(self):
+        """
+            Get the url for an intraday query.
+
+            Returns(string): url for an intraday query
+        """
+        output_size = 'compact' if self.compact else 'full'
+
+        url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&month={self._year}-{self._month}&apikey={self.api_key}'
+
+        return url
+
+    def get_quote_json(self, url, json_key):
+        """
+            Get quote json data.
+
+            Args:
+                url(string): url to get data
+                json_key(string); json key to get data.
+
+            Raises:
+                FdataError: no data obtained as likely API key limit is reached.
+
+            Returns:
+                dictionary: quotes data.
+        """
+        json_data = self.query_and_parse(url)
+
+        try:
+            dict_results = dict(sorted(json_data[json_key].items()))
+        except KeyError as err:
+            raise FdataError(f"Can't get data. Likely API key limit is reached.") from err
+
+        return dict_results
+
     def fetch_quotes(self):
         """
             The method to fetch quotes.
@@ -160,15 +221,20 @@ class AVStock(stock.StockFetcher):
             url = f'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol={self.symbol}&apikey={self.api_key}'
         # All intraday timespans
         elif self.is_intraday():
-            output_size = 'compact' if self.compact else 'full'
+            # TODO MID Get rid of it when intraday quotes are not bugged anymore
+            raise FdataError("Terminated as obtaining intraday quotes is bugged (month is ignored).")
+
             json_key = f'Time Series ({self.get_timespan_str()})'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&&apikey={self.api_key}'
+            url = self.get_intraday_url()
 
         # Get quotes data
-        json_data = self.query_and_parse(url)
+        dict_results = self.get_quote_json(url, json_key)
 
-        dict_results = json_data[json_key]
+        while self.is_intraday() and self.next_month():
+            new_dict = self.get_quote_json(self.get_intraday_url(), json_key)
+
+            dict_results.update(new_dict)
 
         datetimes = list(dict_results.keys())
 

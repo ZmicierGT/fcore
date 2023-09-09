@@ -28,7 +28,7 @@ import json
 # + Add tables for stock_splits and cash_dividends.
 # + Implement aggregate quotes fetching for Polygon
 # + Implement divs/splits fetching for Polygon
-# Implement aggregate daily quotes fetching for AV
+# + Implement aggregate daily quotes fetching for AV
 # + Implement divs/splits fetching for AV
 # Implement divs/splits fetching for YF
 # Only real close values are used in YF data

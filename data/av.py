@@ -143,6 +143,9 @@ class AVStock(stock.StockFetcher):
 
         # At first, need to set a function depending on a timespan.
         if self.timespan == Timespans.Day:
+            if settings.AV.plan == settings.AV.Plan.Free:
+                raise FdataError("Daily adjusted data is not available in the free plan now.")
+
             output_size = 'compact' if self.compact else 'full'
             json_key = 'Time Series (Daily)'
 

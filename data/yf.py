@@ -159,9 +159,7 @@ class YF(stock.StockFetcher):
                   row['Low'],
                   row['Close'],
                   row['Volume'],
-                  'NULL',
-                  'NULL',
-                  'NULL']
+                  'NULL']  # Transactions
 
         # TODO LOW caching should be implemented
 

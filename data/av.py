@@ -164,7 +164,6 @@ class AVStock(stock.StockFetcher):
             json_key = f'Time Series ({self.get_timespan_str()})'
 
             url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&&apikey={self.api_key}'
-            url_adj = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=true&&apikey={self.api_key}'
 
         # Get quotes data
         json_data = self.query_and_parse(url)
@@ -176,16 +175,9 @@ class AVStock(stock.StockFetcher):
         if len(datetimes) == 0:
             raise FdataError("No data obtained.")
 
-        if self.is_intraday():
-            json_data_adj = self.query_and_parse(url_adj)
-
-            dict_results_adj = json_data_adj[json_key]
-
-            if len(datetimes) != len(dict_results_adj.keys()):
-                raise FdataError(f"Length of data does not match the length of adjusted data. It may be a data source error.")
-
         for dt_str in datetimes:
             try:
+                # TODO HIGH check if date adjustment is correct
                 dt = get_dt(dt_str)  # Get UTC-adjusted datetime
             except ValueError as e:
                 raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
@@ -199,7 +191,6 @@ class AVStock(stock.StockFetcher):
                 'high': quote['2. high'],
                 'low': quote['3. low'],
                 'close': 'NULL',
-                'adj_close': 'NULL',
                 'volume': 'NULL',
                 'transactions': 'NULL',
                 'sectype': self.sectype.value,
@@ -212,17 +203,13 @@ class AVStock(stock.StockFetcher):
             # Set the entries depending if the quote is intraday
             if self.is_intraday() is False:
                 quote_dict['close'] = quote['4. close']
-                quote_dict['adj_close'] = quote['5. adjusted close']
                 quote_dict['volume'] = quote['6. volume']
 
                 # Keep all non-intraday timestamps at 23:59:59
                 dt = dt.replace(hour=23, minute=59, second=59)
             else:
-                quote_adj = dict_results_adj[dt_str]
-
                 quote_dict['close'] = quote['4. close']
                 quote_dict['volume'] = quote['5. volume']
-                quote_dict['adj_close'] = quote_adj['4. close']
 
             # Cache divs/split data
             if self.timespan == Timespans.Day:
@@ -453,9 +440,7 @@ class AVStock(stock.StockFetcher):
                   quote['04. low'],
                   quote['05. price'],
                   quote['06. volume'],
-                  'NULL',
-                  'NULL',
-                  'NULL']
+                  'NULL']  # Transactions
 
         return result
 

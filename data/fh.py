@@ -106,9 +106,7 @@ class FHStock(stock.StockFetcher):
                   quote['h'],
                   quote['l'],
                   quote['c'],
-                  'NULL',
-                  'NULL',
-                  'NULL',
-                  'NULL']
+                  'NULL',  # Volume
+                  'NULL']  # Transactions
 
         return result

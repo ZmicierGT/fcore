@@ -21,12 +21,11 @@ class Quotes(IntEnum):
     Open = 1
     High = 2
     Low = 3
-    AdjClose = 4  # TODO LOW Different enums for different sec types. This should be changed to just Close.
+    Close = 4
     Volume = 5
-    RawClose = 6
-    Dividends = 7
-    SplitCoefficient = 8
-    Transactions = 9
+    Transactions = 6
+
+# TODO MID Different enums for different sec types.
 
 # TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 class Timespans(str, Enum):

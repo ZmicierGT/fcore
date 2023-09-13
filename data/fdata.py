@@ -15,7 +15,7 @@ import requests
 from data import fdatabase
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes
-from data.futils import get_dt
+from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
@@ -28,14 +28,15 @@ import json
 # + Add tables for stock_splits and cash_dividends.
 # + Implement aggregate quotes fetching for Polygon
 # + Implement divs/splits fetching for Polygon
-# + Implement aggregate daily quotes fetching for AV
-# + Implement divs/splits fetching for AV
+# + Implement aggregate daily quotes fetching for AV (to some extent as it became premium only)
+# + Implement divs/splits fetching for AV (to some extent as it became premium only)
 # + Implement divs/splits fetching for YF
 # + Only real close values are used in YF data
 #
-# Getting stock quites automatically calculates adj close for the specified period, splits and divs data provided as well.
+# + Getting stock quotes automatically calculates adj close for the specified period, splits and divs data provided as well.
 # AI/TA stuff relies on AdjClose, simulated trades on the real close values.
 # + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them.
+# Lists of dictionaries are omitted. Instead of it labelled numpy arrays are used.
 
 # Current database compatibility version
 DB_VERSION = 9
@@ -790,7 +791,8 @@ class ReadOnlyData():
             for join in joins:
                 additional_joins += join + '\n'
 
-        select_quotes = f"""SELECT datetime(time_stamp, 'unixepoch') as date_time,
+        select_quotes = f"""SELECT time_stamp,
+                                datetime(time_stamp, 'unixepoch') AS date_time,
                                 opened,
                                 high,
                                 low,
@@ -819,7 +821,7 @@ class ReadOnlyData():
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
 
-        return rows
+        return get_labelled_ndarray(rows)
 
     def get_quotes_num(self):
         """

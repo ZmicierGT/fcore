@@ -5,11 +5,13 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits
+
+from data.futils import get_labelled_ndarray
 
 import abc
 
-import time
+import numpy as np
 
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
@@ -502,17 +504,90 @@ class ROStockData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        # if isinstance(columns, list) is False:
-        #     columns = []
+        if isinstance(columns, list) is False:
+            columns = []
 
-        # columns.append('adj_close')
+        columns.append('closed AS adj_close')
+        columns.append('0.0 AS divs_ex')
+        columns.append('0.0 AS divs_pay')
+        columns.append('1.0 AS splits')
 
-        # if isinstance(joins, list) is False:
-        #     joins = []
+        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries)
 
-        # joins.append('INNER JOIN stock_core ON quotes.quote_id = stock_core.quote_id')
+        # Calculate the adjusted close price.
+        # TODO LOW Think if it worth to implement the calculation using SQL only.
 
-        return super().get_quotes(num=num, columns=columns, joins=joins, queries=queries)
+        # Get all dividend data
+        # TODO MID Move it to a separate function
+        get_divs = f"""SELECT	declaration_date,
+		                        ex_date,
+		                        record_date,
+		                        payment_date,
+		                        amount,
+		                        (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
+                                (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source_title
+	                        FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
+	                        WHERE s.ticker = '{self.symbol}';"""
+
+        try:
+            self.cur.execute(get_divs)
+            divs = get_labelled_ndarray(self.cur.fetchall())
+        except self.Error as e:
+            raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
+
+        # Need to establish if we have a payment date in the database. If we have no,
+        # then add one month to the execution date.
+        payment_date_num = np.count_nonzero(divs['payment_date'].astype(float))
+        ex_date_num = np.count_nonzero(divs['ex_date'].astype(float))
+
+        if payment_date_num > ex_date_num:
+            raise FdataError(f"More payment date entries than ex date enties ({payment_date_num} vs {ex_date_num}).")
+
+        if payment_date_num != ex_date_num or payment_date_num != ex_date_num - 1:
+            if self._verbosity:
+                print(f"Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+
+            # Wipe the values in payment_date column
+            divs['payment_date'] = np.nan
+            divs['payment_date'] = divs['ex_date'] + 2592000  # Add 30 days to ex_date to estimate a payment date
+
+        # Get all split data
+        # TODO MID Move it to a separate function
+        get_splits = f"""SELECT	split_date,
+		                        split_ratio,
+		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
+	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
+	                        WHERE s.ticker = '{self.symbol}';"""
+
+        try:
+            self.cur.execute(get_splits)
+            splits = get_labelled_ndarray(self.cur.fetchall())
+        except self.Error as e:
+            raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
+
+        # Adjust the price for dividends
+        for i in range(len(divs)):
+            idx_ex = np.searchsorted(quotes['time_stamp'], [divs['ex_date'][i], ], side='right')[0]
+            quotes['divs_ex'][idx_ex] = divs['amount'][i]
+            quotes['adj_close'][idx_ex] = quotes['adj_close'][idx_ex] - divs['amount'][i]
+
+            idx_pay = np.searchsorted(quotes['time_stamp'], [divs['payment_date'][i], ], side='right')[0]
+
+            try:
+                quotes['divs_pay'][idx_pay] = divs['amount'][i]
+            except IndexError:
+                pass
+                # No need to do anything as just payment haven't happened in the current stock history
+
+        # Adjust the price to stock splits
+        for i in range(len(splits)):
+            idx_split = np.searchsorted(quotes['time_stamp'], [splits['split_date'][i], ], side='right')[0]
+            quotes['splits'][idx_split] = splits['split_ratio'][i]
+
+            if splits['split_ratio'][i] != 1:
+                quotes['adj_close'][:idx_split+1] = quotes['adj_close'][:idx_split+1] / splits['split_ratio'][i]
+
+        return quotes
 
 class RWStockData(ROStockData, ReadWriteData):
     """

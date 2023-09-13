@@ -12,20 +12,56 @@ def_last_date = 9999999999  # Latest supported timestamp
 
 # TODO LOW remove plurals here
 
+# TODO MID Think if these enums are needed if we switch to labelled numpy arrays.
 # Enum class for standard data query rows order
 class Quotes(IntEnum):
     """
         Enum class for the database query result.
     """
-    DateTime = 0
-    Open = 1
-    High = 2
-    Low = 3
-    Close = 4
-    Volume = 5
-    Transactions = 6
+    TimeStamp = 0
+    DateTime = 1
+    Open = 2
+    High = 3
+    Low = 4
+    Close = 5
+    Volume = 6
+    Transactions = 7
 
-# TODO MID Different enums for different sec types.
+class StockQuotes(IntEnum):
+    """
+        Enum class for the database stock quote query result.
+    """
+    TimeStamp = 0
+    DateTime = 1
+    Open = 2
+    High = 3
+    Low = 4
+    Close = 5
+    Volume = 6
+    Transactions = 7
+    AdjClose = 8
+    Dividends = 9
+    Splits = 10
+
+class Dividends(IntEnum):
+    """
+        Enumeration for stock dividends data.
+    """
+    DeclDate = 0
+    ExDate = 1
+    RecordDate = 2
+    PaymentDate = 3
+    Amount = 4
+    Currency = 5
+    Source = 6
+
+class StockSplits(IntEnum):
+    """
+        Enumeration for stock splits data.
+    """
+    Date = 0
+    Ratio = 1
+    Source = 3
 
 # TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 class Timespans(str, Enum):

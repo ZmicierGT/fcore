@@ -11,7 +11,7 @@ from screener.base import ScrError
 import pandas as pd
 import pandas_ta as ta
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 class RsiScr(BaseScr):
     """
@@ -71,7 +71,7 @@ class RsiScr(BaseScr):
                 raise ScrError(f"Quotes length should be more than the period + 2: {len(rows)} <= {self.get_period()}")
 
             df = pd.DataFrame(rows)
-            rsi = ta.rsi(df[Quotes.AdjClose], length = self.get_period())
+            rsi = ta.rsi(df[StockQuotes.AdjClose], length = self.get_period())
 
             current = rsi.iloc[-1]
 

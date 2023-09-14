@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
         for i in range(2):
             print(f"Symbol: {results[i][ScrResult.Title]}")
-            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
+            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")  # TODO High Check why this is not updated
             print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
             print(f"Previous RSI val: {results[i][ScrResult.Values][0]}")
             print(f"Current RSI val:  {results[i][ScrResult.Values][1]}")

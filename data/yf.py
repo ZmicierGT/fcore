@@ -14,6 +14,7 @@ import yfinance as yfin
 from data import stock
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 from data.fdata import FdataError
+from data.futils import get_dt, get_labelled_ndarray
 
 class YF(stock.StockFetcher):
     """
@@ -146,17 +147,26 @@ class YF(stock.StockFetcher):
         row = data.iloc[-1]
 
         dt = data.index[-1].to_pydatetime().replace(tzinfo=pytz.utc)
-        ts = datetime.timestamp(dt)
+        ts = int(datetime.timestamp(dt))
 
-        result = [int(ts),
-                  row['Open'],
-                  row['High'],
-                  row['Low'],
-                  row['Close'],
-                  row['Volume'],
-                  'NULL']  # Transactions
+        result = {'time_stamp': ts,
+                  'date_time': get_dt(ts).replace(microsecond=0).isoformat(' '),
+                  'opened': row['Open'],
+                  'high': row['High'],
+                  'low': row['Low'],
+                  'closed': row['Close'],
+                  'volume': row['Volume'],
+                  'transactions': None,
+                  'adj_close': row['Close'],
+                  'divs_ex': 0.0,
+                  'divs_pay': 0.0,
+                  'splits': 1.0
+                 }
 
         # TODO LOW caching should be implemented
+
+        result = [result]
+        result = get_labelled_ndarray(result)
 
         return result
 

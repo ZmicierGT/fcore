@@ -22,7 +22,7 @@ import settings
 import json
 
 # TODO HIGH Data adjustments:
-# +/- Use raw (real) close in quotes table.
+# + Use raw (real) close in quotes table.
 # + Remove divs and splits from stock_core table.
 # + Remove stock_core table completely and rely on a manual adj close calculation
 # + Add tables for stock_splits and cash_dividends.
@@ -36,7 +36,7 @@ import json
 # + Getting stock quotes automatically calculates adj close for the specified period, splits and divs data provided as well.
 # AI/TA stuff relies on AdjClose, simulated trades on the real close values.
 # + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them.
-# Lists of dictionaries are omitted. Instead of it labelled numpy arrays are used.
+# + Lists of dictionaries are omitted. Instead of it labelled numpy arrays are used.
 
 # Current database compatibility version
 DB_VERSION = 9

@@ -20,6 +20,9 @@ threshold = 500  # Quotes num threshold for the test
 min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
+import numpy as np
+np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
+
 if __name__ == "__main__":
     # Get quotes
     try:

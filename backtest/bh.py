@@ -4,6 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+import numpy as np
 
 from backtest.base import BackTest
 
@@ -40,7 +41,7 @@ class BuyAndHold(BackTest):
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
             ####################################################################################################
 
-            if self.do_cycle(rows.index(row)) == False:
+            if self.do_cycle(np.where(rows == row)[0]) == False:
                 continue
 
             ########################

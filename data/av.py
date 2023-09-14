@@ -17,7 +17,7 @@ import numpy as np
 
 import json
 
-from data.futils import get_dt
+from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
@@ -500,13 +500,22 @@ class AVStock(stock.StockFetcher):
         dt = dt.replace(tzinfo=pytz.utc)
         ts = int(dt.timestamp())
 
-        result = [ts,
-                  quote['02. open'],
-                  quote['03. high'],
-                  quote['04. low'],
-                  quote['05. price'],
-                  quote['06. volume'],
-                  'NULL']  # Transactions
+        result = {'time_stamp': ts,
+                  'date_time': get_dt(ts).replace(microsecond=0).isoformat(' '),
+                  'opened': quote['02. open'],
+                  'high': quote['03. high'],
+                  'low': quote['04. low'],
+                  'closed': quote['05. price'],
+                  'volume': quote['06. volume'],
+                  'transactions': None,
+                  'adj_close': quote['05. price'],
+                  'divs_ex': 0.0,
+                  'divs_pay': 0.0,
+                  'splits': 1.0
+                 }
+
+        result = [result]
+        result = get_labelled_ndarray(result)
 
         return result
 

@@ -176,6 +176,20 @@ class BackTestData():
         self._source = source
 
     #####################
+    # Properties
+    #####################
+
+    @property
+    def close(self):
+        """
+            Get the column for close value calculations.
+
+            Returns:
+                int: the column for close value calculations.
+        """
+        return self._close
+
+    #####################
     # Thread safe methods
     #####################
 
@@ -291,16 +305,6 @@ class BackTestData():
                 BackTestOperations: Class instance to perform the operations on the data for a particular symbol.
         """
         return BackTestOperations(data=self, caller=caller)
-
-    # TODO HIGH Think of the more rational title (like a property getter)
-    def close(self):
-        """
-            Get the column for close value calculations.
-
-            Returns:
-                int: the column for close value calculations.
-        """
-        return self._close
 
 #############################
 # Base backtesting operations
@@ -519,7 +523,7 @@ class BackTestOperations():
         if index == None:
             index = self.get_caller_index()
 
-        return self.data().get_rows()[index][Quotes.DateTime]
+        return self.data().get_rows()[index][Quotes.DateTime][0]
 
     def get_datetime(self, index=None):
         """
@@ -559,7 +563,7 @@ class BackTestOperations():
             Returns:
                 float: the open price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_caller_index()][Quotes.Open]
+        return self.data().get_rows()[self.get_caller_index()][Quotes.Open][0]
 
     def get_close(self):
         """
@@ -568,7 +572,7 @@ class BackTestOperations():
             Returns:
                 float: the close price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_caller_index()][Quotes.AdjClose]
+        return self.data().get_rows()[self.get_caller_index()][Quotes.Close][0]
 
     def get_high(self):
         """
@@ -1226,7 +1230,7 @@ class BTBaseData():
         if self.Data is None:
             self.Data = np.array(row, dtype='object')
         else:
-            self.Data = np.vstack([self.Data, row])
+            self.Data = np.vstack([self.Data, np.array(row, dtype='object')])
 
     def __getitem__(self, point):
         """

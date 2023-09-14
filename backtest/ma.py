@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.base import BackTest
 from backtest.base import BackTestError
 
@@ -12,6 +11,8 @@ from data.fvalues import Quotes
 
 import pandas as pd
 import pandas_ta as ta
+
+import numpy as np
 
 class MA(BackTest):
     """
@@ -70,7 +71,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_calc_data_val() <= self.exec().get_close()
+        return self.exec().get_calc_data_val().iloc[0] <= self.exec().get_close()
 
     def do_tech_calculation(self, ex):
         """
@@ -82,9 +83,9 @@ class MA(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
 
         if self.__is_simple:
-            ex.append_calc_data(ta.sma(df[ex.data().close()], length = self._period))
+            ex.append_calc_data(ta.sma(df[ex.data().close], length = self._period))
         else:
-            ex.append_calc_data(ta.ema(df[ex.data().close()], length = self._period))
+            ex.append_calc_data(ta.ema(df[ex.data().close], length = self._period))
 
     def do_calculation(self):
         """
@@ -114,7 +115,7 @@ class MA(BackTest):
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
             ####################################################################################################
 
-            if self.do_cycle(rows.index(row)) == False:
+            if self.do_cycle(np.where(rows == row)[0]) == False:
                 continue
 
             ############################################################################

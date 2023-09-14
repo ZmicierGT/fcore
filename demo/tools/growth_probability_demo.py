@@ -7,7 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from data.yf import YF
 from data.fdata import FdataError
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 from tools.growth_probability import Probability
 from data.fvalues import Algorithm
@@ -149,8 +149,8 @@ if __name__ == "__main__":
     #################
 
     df = prob.get_results()
-    df['quote'] = [row[Quotes.AdjClose] for row in est_rows][period_long-1:]
-    df['volume'] = [row[Quotes.Volume] for row in est_rows][period_long-1:]
+    df['quote'] = [row[StockQuotes.AdjClose] for row in est_rows][period_long-1:]
+    df['volume'] = [row[StockQuotes.Volume] for row in est_rows][period_long-1:]
 
     # Create figure
 

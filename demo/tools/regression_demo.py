@@ -15,9 +15,9 @@ from tools.regression import Regression, RegressionData, LSTM
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from data.futils import show_image, get_labelled_ndarray
+from data.futils import show_image
 from data.fdata import FdataError
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 from tools.base import ToolError
 
 from data.yf import YF
@@ -48,9 +48,6 @@ if __name__ == "__main__":
     else:
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
-    # Optionally convert 2d list to a labelled ndarray.
-    rows = get_labelled_ndarray(rows)
-
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
     min_len = window_size + forecast_size * 2
     split_len = len(rows) - min_len
@@ -62,7 +59,7 @@ if __name__ == "__main__":
     data = RegressionData(rows1,
                           window_size=window_size,
                           forecast_size=forecast_size,
-                          in_features=[Quotes.AdjClose, Quotes.Volume],
+                          in_features=[StockQuotes.AdjClose, StockQuotes.Volume],
                           output_size=output_size
                          )
 
@@ -132,7 +129,7 @@ if __name__ == "__main__":
     forecasted[:] = np.nan
 
     # start the chart from the last known point
-    forecasted[-1] = rows[len(rows) - forecast_size - 1][Quotes.AdjClose]
+    forecasted[-1] = rows[len(rows) - forecast_size - 1][StockQuotes.AdjClose]
 
     forecasted = np.append(forecasted, est_data, axis=0)
 
@@ -140,9 +137,9 @@ if __name__ == "__main__":
 
     rows = rows[len(rows) - window_size - forecast_size:]
 
-    dates = [row[Quotes.DateTime] for row in rows]
-    quotes = [row[Quotes.AdjClose] for row in rows]
-    volume = [row[Quotes.Volume] for row in rows]
+    dates = [row[StockQuotes.DateTime] for row in rows]
+    quotes = [row[StockQuotes.AdjClose] for row in rows]
+    volume = [row[StockQuotes.Volume] for row in rows]
 
     lstm_quotes = [row[0] for row in forecasted]
 

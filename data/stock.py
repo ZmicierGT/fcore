@@ -525,31 +525,15 @@ class ROStockData(ReadOnlyData):
 		                        payment_date,
 		                        amount,
 		                        (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
-                                (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source_title
+                                (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
 	                        FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
 	                        WHERE s.ticker = '{self.symbol}';"""
 
         try:
             self.cur.execute(get_divs)
-            divs = get_labelled_ndarray(self.cur.fetchall())
+            divs = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
-
-        # Need to establish if we have a payment date in the database. If we have no,
-        # then add one month to the execution date.
-        payment_date_num = np.count_nonzero(divs['payment_date'].astype(float))
-        ex_date_num = np.count_nonzero(divs['ex_date'].astype(float))
-
-        if payment_date_num > ex_date_num:
-            raise FdataError(f"More payment date entries than ex date enties ({payment_date_num} vs {ex_date_num}).")
-
-        if payment_date_num != ex_date_num or payment_date_num != ex_date_num - 1:
-            if self._verbosity:
-                print(f"Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
-
-            # Wipe the values in payment_date column
-            divs['payment_date'] = np.nan
-            divs['payment_date'] = divs['ex_date'] + 2592000  # Add 30 days to ex_date to estimate a payment date
 
         # Get all split data
         # TODO MID Move it to a separate function
@@ -561,31 +545,72 @@ class ROStockData(ReadOnlyData):
 
         try:
             self.cur.execute(get_splits)
-            splits = get_labelled_ndarray(self.cur.fetchall())
+            splits = self.cur.fetchall()
+        except IndexError:
+            if self._verbosity:
+                print(f"No split data for {self.symbol}")
         except self.Error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
 
         # Adjust the price for dividends
-        for i in range(len(divs)):
-            idx_ex = np.searchsorted(quotes['time_stamp'], [divs['ex_date'][i], ], side='right')[0]
-            quotes['divs_ex'][idx_ex] = divs['amount'][i]
-            quotes['adj_close'][idx_ex] = quotes['adj_close'][idx_ex] - divs['amount'][i]
+        if len(divs):
+            divs = get_labelled_ndarray(divs)
 
-            idx_pay = np.searchsorted(quotes['time_stamp'], [divs['payment_date'][i], ], side='right')[0]
+            # Need to establish if we have a payment date in the database. If we have no,
+            # then add one month to the execution date.
+            payment_date_num = np.count_nonzero(divs['payment_date'].astype(float))
+            ex_date_num = np.count_nonzero(divs['ex_date'].astype(float))
 
-            try:
-                quotes['divs_pay'][idx_pay] = divs['amount'][i]
-            except IndexError:
-                pass
-                # No need to do anything as just payment haven't happened in the current stock history
+            if payment_date_num > ex_date_num:
+                raise FdataError(f"More payment date entries than ex date enties ({payment_date_num} vs {ex_date_num}).")
+
+            if payment_date_num != ex_date_num or payment_date_num != ex_date_num - 1:
+                if self._verbosity:
+                    print(f"Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+
+                # Wipe the values in payment_date column
+                divs['payment_date'] = np.nan
+                divs['payment_date'] = divs['ex_date'] + 2592000  # Add 30 days to ex_date to estimate a payment date
+
+            for i in range(len(divs)):
+                idx_ex = np.searchsorted(quotes['time_stamp'], [divs['ex_date'][i], ], side='right')[0]
+
+                try:
+                    quotes['divs_ex'][idx_ex] = divs['amount'][i]
+                    quotes['adj_close'][idx_ex] = quotes['adj_close'][idx_ex] - divs['amount'][i]
+                except IndexError:
+                    pass
+                    # No need to do anything - just requested quote data is shorter than available dividend data
+
+                idx_pay = np.searchsorted(quotes['time_stamp'], [divs['payment_date'][i], ], side='right')[0]
+
+                try:
+                    quotes['divs_pay'][idx_pay] = divs['amount'][i]
+                except IndexError:
+                    pass
+                    # No need to do anything as just payment haven't happened in the current stock history
+
+        elif self._verbosity:
+            print(f"No dividend data for {self.symbol}")
 
         # Adjust the price to stock splits
-        for i in range(len(splits)):
-            idx_split = np.searchsorted(quotes['time_stamp'], [splits['split_date'][i], ], side='right')[0]
-            quotes['splits'][idx_split] = splits['split_ratio'][i]
+        if len(splits):
+            splits = get_labelled_ndarray(splits)
 
-            if splits['split_ratio'][i] != 1:
-                quotes['adj_close'][:idx_split+1] = quotes['adj_close'][:idx_split+1] / splits['split_ratio'][i]
+            for i in range(len(splits)):
+                idx_split = np.searchsorted(quotes['time_stamp'], [splits['split_date'][i], ], side='right')[0]
+
+                try:
+                    quotes['splits'][idx_split] = splits['split_ratio'][i]
+
+                    if splits['split_ratio'][i] != 1:
+                        quotes['adj_close'][:idx_split+1] = quotes['adj_close'][:idx_split+1] / splits['split_ratio'][i]
+                except IndexError:
+                    # No need to do anything - just requested quote data is shorter than available split data
+                    pass
+
+        elif self._verbosity:
+            print(f"No split data for {self.symbol}")
 
         return quotes
 

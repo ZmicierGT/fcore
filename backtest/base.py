@@ -163,6 +163,9 @@ class BackTestData():
             raise BackTestError(f"trend_change_percent can't be less than 0%. Specified value is {trend_change_percent}")
         self._trend_change_percent = trend_change_percent
 
+        # the default close price column to make calculations (Quote.Close for the base security type).
+        self._close = Quotes.Close
+
         # Title of the financial instrument
         self._title = title
 
@@ -288,6 +291,16 @@ class BackTestData():
                 BackTestOperations: Class instance to perform the operations on the data for a particular symbol.
         """
         return BackTestOperations(data=self, caller=caller)
+
+    # TODO HIGH Think of the more rational title (like a property getter)
+    def close(self):
+        """
+            Get the column for close value calculations.
+
+            Returns:
+                int: the column for close value calculations.
+        """
+        return self._close
 
 #############################
 # Base backtesting operations

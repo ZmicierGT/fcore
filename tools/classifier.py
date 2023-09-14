@@ -454,7 +454,7 @@ class Classifier(BaseTool):
             Raises:
                 ToolError: no data for test provided.
         """
-        if self._rows == None:
+        if len(self._rows) == 0:
             raise ToolError("No data for testing provided.")
 
         # Check if we need to train the model at first

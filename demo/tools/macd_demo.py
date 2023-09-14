@@ -12,7 +12,7 @@ from data.futils import update_layout
 from data.futils import show_image
 
 from data.fdata import FdataError
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 from data.yf import YF
 
@@ -46,8 +46,8 @@ if __name__ == "__main__":
     # Calculate MACD
     #df = pd.DataFrame(rows)
 
-    dates = [row[Quotes.DateTime] for row in rows]
-    price = [row[Quotes.AdjClose] for row in rows]
+    dates = [row[StockQuotes.DateTime] for row in rows]
+    price = [row[StockQuotes.AdjClose] for row in rows]
 
     # Please note that the warning below is caused by pandas_ta issue.
     macd = ta.macd(pd.Series(price), fast_period, slow_period, signal_period)

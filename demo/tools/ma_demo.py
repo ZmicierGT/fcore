@@ -12,7 +12,7 @@ from data.futils import update_layout
 from data.futils import show_image
 
 from data.fdata import FdataError
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 from data.yf import YF
 
@@ -43,11 +43,11 @@ if __name__ == "__main__":
     # Calculate MA
     df = pd.DataFrame(rows)
 
-    sma = ta.sma(df[Quotes.AdjClose], length = period)
-    ema = ta.ema(df[Quotes.AdjClose], length = period)
+    sma = ta.sma(df[StockQuotes.AdjClose], length = period)
+    ema = ta.ema(df[StockQuotes.AdjClose], length = period)
 
-    dates = [row[Quotes.DateTime] for row in rows]
-    price = [row[Quotes.AdjClose] for row in rows]
+    dates = [row[StockQuotes.DateTime] for row in rows]
+    price = [row[StockQuotes.AdjClose] for row in rows]
 
     fig = make_subplots(specs=[[{"secondary_y": False}]])
 

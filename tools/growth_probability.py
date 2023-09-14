@@ -9,7 +9,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from tools.base import ToolError
 from tools.classifier import Classifier
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes  # TODO Low think if we should make it universal (not just stock-related)
 
 import pandas as pd
 import pandas_ta as ta
@@ -66,26 +66,26 @@ class Probability(Classifier):
                 DataFrame: data ready for learning/estimation
         """
         # Create the dataframe based on provided/pre-defined data
-        if rows == None:
+        if rows is None:
             df = pd.DataFrame(self._rows)
         else:
             df = pd.DataFrame(rows)
 
         # Calculate moving averages
         if self._is_simple:
-            ma_long = ta.sma(df[Quotes.AdjClose], length = self._period_long)
-            ma_short = ta.sma(df[Quotes.AdjClose], length = self._period_short)
+            ma_long = ta.sma(df[StockQuotes.AdjClose], length = self._period_long)
+            ma_short = ta.sma(df[StockQuotes.AdjClose], length = self._period_short)
         else:
-            ma_long = ta.ema(df[Quotes.AdjClose], length = self._period_long)
-            ma_short = ta.ema(df[Quotes.AdjClose], length = self._period_short)
+            ma_long = ta.ema(df[StockQuotes.AdjClose], length = self._period_long)
+            ma_short = ta.ema(df[StockQuotes.AdjClose], length = self._period_short)
 
         # Calculate PVO
-        pvo = ta.pvo(df[Quotes.Volume])
+        pvo = ta.pvo(df[StockQuotes.Volume])
 
         # Prepare data for estimation
         df['pvo'] = pvo.iloc[:, 0]
         df['ma-diff'] = ((ma_long - ma_short) / ma_long)
-        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
+        df['hilo-diff'] = ((df[StockQuotes.High] - df[StockQuotes.Low]) / df[StockQuotes.High])
         df['ma-long'] = ma_long
         df['ma-short'] = ma_short
 
@@ -113,8 +113,8 @@ class Probability(Classifier):
             Returns:
                 TimeSeries: signals
         """
-        curr_quote = df[Quotes.AdjClose]
-        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[StockQuotes.AdjClose]
+        next_quote = df[StockQuotes.AdjClose].shift(-abs(self._cycle_num))
 
         return (next_quote - curr_quote) / curr_quote >= self._true_ratio
 
@@ -128,7 +128,7 @@ class Probability(Classifier):
             Returns:
                 TimeSeries: signals
         """
-        curr_quote = df[Quotes.AdjClose]
-        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[StockQuotes.AdjClose]
+        next_quote = df[StockQuotes.AdjClose].shift(-abs(self._cycle_num))
 
         return (curr_quote - next_quote) / next_quote >= self._true_ratio

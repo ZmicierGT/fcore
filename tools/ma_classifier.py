@@ -7,7 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from tools.base import ToolError
 from tools.classifier import Classifier
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes  # TODO LOW Think if this should be universal (not only stock related).
 
 import pandas as pd
 import pandas_ta as ta
@@ -62,24 +62,24 @@ class MAClassifier(Classifier):
                 DataFrame: data ready for learning/estimation
         """
         # Create the dataframe based on provided/pre-defined data
-        if rows == None:
+        if rows is None:
             df = pd.DataFrame(self._rows)
         else:
             df = pd.DataFrame(rows)
 
         # Calculate moving average
         if self._is_simple:
-            ma = ta.sma(df[Quotes.AdjClose], length = self._period)
+            ma = ta.sma(df[StockQuotes.AdjClose], length = self._period)
         else:
-            ma = ta.ema(df[Quotes.AdjClose], length = self._period)
+            ma = ta.ema(df[StockQuotes.AdjClose], length = self._period)
 
         # Calculate PVO
-        pvo = ta.pvo(df[Quotes.Volume])
+        pvo = ta.pvo(df[StockQuotes.Volume])
 
         df['ma'] = ma
         df['pvo'] = pvo.iloc[:, 0]
-        df['diff'] = ((df[Quotes.AdjClose] - df['ma']) / df[Quotes.AdjClose])
-        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])
+        df['diff'] = ((df[StockQuotes.AdjClose] - df['ma']) / df[StockQuotes.AdjClose])
+        df['hilo-diff'] = ((df[StockQuotes.High] - df[StockQuotes.Low]) / df[StockQuotes.High])
 
         self._data_to_est = ['pvo', 'diff', 'hilo-diff']  # Columns to make estimations
         self._data_to_report = self._data_to_est + ['ma']  # Columns for reporting

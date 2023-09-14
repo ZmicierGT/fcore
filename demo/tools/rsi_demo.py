@@ -12,7 +12,7 @@ from data.futils import update_layout
 from data.futils import show_image
 
 from data.fdata import FdataError
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 from data.yf import YF
 
@@ -46,10 +46,10 @@ if __name__ == "__main__":
 
     # RSI calculation
     df = pd.DataFrame(rows)
-    rsi = ta.rsi(df[Quotes.AdjClose], length = 14)
+    rsi = ta.rsi(df[StockQuotes.AdjClose], length = 14)
 
-    dates = [row[Quotes.DateTime] for row in rows]
-    price = [row[Quotes.AdjClose] for row in rows]
+    dates = [row[StockQuotes.DateTime] for row in rows]
+    price = [row[StockQuotes.AdjClose] for row in rows]
 
     length = len(rows)
 

@@ -10,60 +10,60 @@ from enum import IntEnum, Enum
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
 
-# TODO LOW remove plurals here
-
 # TODO MID Think if these enums are needed if we switch to labelled numpy arrays.
+# TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
+# TODO LOW remove plurals here
 # Enum class for standard data query rows order
-class Quotes(IntEnum):
+class Quotes(str, Enum):
     """
         Enum class for the database query result.
     """
-    TimeStamp = 0
-    DateTime = 1
-    Open = 2
-    High = 3
-    Low = 4
-    Close = 5
-    Volume = 6
-    Transactions = 7
+    TimeStamp = 'time_stamp'
+    DateTime = 'date_time'
+    Open = 'open'
+    High = 'high'
+    Low = 'low'
+    Close = 'closed'
+    Volume = 'volume'
+    Transactions = 'transactions'
 
-class StockQuotes(IntEnum):
+class StockQuotes(str, Enum):
     """
         Enum class for the database stock quote query result.
     """
-    TimeStamp = 0
-    DateTime = 1
-    Open = 2
-    High = 3
-    Low = 4
-    Close = 5
-    Volume = 6
-    Transactions = 7
-    AdjClose = 8
-    Dividends = 9
-    Splits = 10
+    TimeStamp = 'time_stamp'
+    DateTime = 'date_time'
+    Open = 'open'
+    High = 'high'
+    Low = 'low'
+    Close = 'closed'
+    Volume = 'volume'
+    Transactions = 'transactions'
+    AdjClose = 'adj_close'
+    ExDividends = 'divs_ex'
+    PayDividends = 'divs_pay'
+    Splits = 'splits'
 
-class Dividends(IntEnum):
+class Dividends(str, Enum):
     """
         Enumeration for stock dividends data.
     """
-    DeclDate = 0
-    ExDate = 1
-    RecordDate = 2
-    PaymentDate = 3
-    Amount = 4
-    Currency = 5
-    Source = 6
+    DeclDate = 'declaration_date'
+    ExDate = 'ex_date'
+    RecordDate = 'record_date'
+    PaymentDate = 'payment_date'
+    Amount = 'amount'
+    Currency = 'currency'
+    Source = 'source'
 
-class StockSplits(IntEnum):
+class StockSplits(str, Enum):
     """
         Enumeration for stock splits data.
     """
-    Date = 0
-    Ratio = 1
-    Source = 3
+    Date = 'split_date'
+    Ratio = 'split_ratio'
+    Source = 'source'
 
-# TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 class Timespans(str, Enum):
     """
         Enum class for timespans.

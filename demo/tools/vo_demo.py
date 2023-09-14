@@ -15,7 +15,7 @@ from data.futils import update_layout
 from data.futils import show_image
 
 from data.fdata import FdataError
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 from tools.base import ToolError
 
 from data.yf import YF
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # VO calculation
-    vo = VO(long_period, short_period, rows, Quotes.Volume)
+    vo = VO(long_period, short_period, rows, StockQuotes.Volume)
 
     try:
         vo.calculate()
@@ -54,13 +54,13 @@ if __name__ == "__main__":
     results = vo.get_results()
     length = len(results)
 
-    dates = [row[Quotes.DateTime] for row in rows]
-    price = [row[Quotes.AdjClose] for row in rows]
+    dates = [row[StockQuotes.DateTime] for row in rows]
+    price = [row[StockQuotes.AdjClose] for row in rows]
 
     vo_values = [row[VOData.Value] for row in results]
     long_sma = [row[VOData.LongSMAValue] for row in results]
     short_sma = [row[VOData.ShortSMAValue] for row in results]
-    volume = [row[Quotes.Volume] for row in rows]
+    volume = [row[StockQuotes.Volume] for row in rows]
 
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
                         specs=[[{"secondary_y": False}],

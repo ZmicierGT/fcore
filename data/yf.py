@@ -87,13 +87,11 @@ class YF(stock.StockFetcher):
             else:
                 last_date_str = self.last_date_str
 
-            # data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(),
-            #                                         start=self.first_date_str,
-            #                                         end=last_date_str)
-
-            data = yfin.download(self.symbol, interval=self.get_timespan_str(), start=self.first_date_str, end=last_date_str)
+            data = yfin.download(self.symbol,
+                                 interval=self.get_timespan_str(),
+                                 start=self.first_date_str,
+                                 end=last_date_str)
         else:
-            # data = yfin.Ticker(self.symbol).history(interval=self.get_timespan_str(), period='max')
             data = yfin.download(self.symbol, interval=self.get_timespan_str(), period='max')
 
         length = len(data)
@@ -163,6 +161,7 @@ class YF(stock.StockFetcher):
         """
             Fetch cash dividends for the specified period.
         """
+        # TODO HIGH Make it cached
         data = yfin.Ticker(self.symbol)
         divs = data.dividends
 

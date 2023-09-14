@@ -82,9 +82,9 @@ class MA(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
 
         if self.__is_simple:
-            ex.append_calc_data(ta.sma(df[Quotes.AdjClose], length = self._period))
+            ex.append_calc_data(ta.sma(df[ex.data().close()], length = self._period))
         else:
-            ex.append_calc_data(ta.ema(df[Quotes.AdjClose], length = self._period))
+            ex.append_calc_data(ta.ema(df[ex.data().close()], length = self._period))
 
     def do_calculation(self):
         """

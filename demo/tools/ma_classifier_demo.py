@@ -8,7 +8,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from data.yf import YF
 from data.fdata import FdataError
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 from tools.ma_classifier import MAClassifier
 from data.fvalues import Algorithm
@@ -149,8 +149,8 @@ if __name__ == "__main__":
     #################
 
     df = ma_cls.get_results()
-    df['quote'] = [row[Quotes.AdjClose] for row in est_rows][period-1:]
-    df['volume'] = [row[Quotes.Volume] for row in est_rows][period-1:]
+    df['quote'] = [row[StockQuotes.AdjClose] for row in est_rows][period-1:]
+    df['volume'] = [row[StockQuotes.Volume] for row in est_rows][period-1:]
 
     buy_quotes = df.loc[df['buy-signal'] == 1]
     sell_quotes = df.loc[df['sell-signal'] == 1]

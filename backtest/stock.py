@@ -9,7 +9,7 @@ from backtest.base import BackTestData
 from backtest.base import BackTestOperations
 from backtest.base import BackTestError
 
-from data.fvalues import Quotes
+from data.fvalues import StockQuotes
 
 class StockData(BackTestData):
     """
@@ -42,6 +42,9 @@ class StockData(BackTestData):
         if yield_interval < 0:
             raise BackTestError(f"yield_interval can't be less than 0. Specified value is {yield_interval}")
         self._yield_interval = yield_interval
+
+        # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
+        self._close = StockQuotes.AdjClose
 
     def create_exec(self, caller):
         """

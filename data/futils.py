@@ -47,6 +47,8 @@ def get_dt(value):
                 dt = datetime.utcfromtimestamp(value)
         except (OverflowError, OSError) as e:
             raise ValueError(f"Too big/small timestamp value: {e}") from e
+
+        return dt
     # String
     elif isinstance(value, str):
         if len(value) <= 10:

@@ -18,6 +18,8 @@ from enum import IntEnum
 
 import abc
 
+import numpy as np
+
 # Exception class for screener errors
 class ScrError(Exception):
     """
@@ -247,7 +249,7 @@ class ScrData():
 
         self.get_source().db_close()
 
-        self._data.append(data)
+        self._data = np.append(self._data, data)
 
         return self._data[len(self._data) - period:]
 

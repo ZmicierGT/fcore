@@ -120,8 +120,8 @@ class StockOperations(BackTestOperations):
             self._yield_counter = 0
 
         # Check if we have dividends today according to the dataset
-        if self.data().get_use_yield() == 0 and self.data().get_rows()[self.get_caller_index()][Quotes.Dividends] != None and self.get_max_positions() > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][Quotes.Dividends] * self.get_max_positions()
+        if self.data().get_use_yield() == 0 and self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] != None and self.get_max_positions() > 0:
+            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] * self.get_max_positions()
 
         return current_yield
 

@@ -20,7 +20,7 @@ class Quotes(str, Enum):
     """
     TimeStamp = 'time_stamp'
     DateTime = 'date_time'
-    Open = 'open'
+    Open = 'opened'
     High = 'high'
     Low = 'low'
     Close = 'closed'
@@ -33,7 +33,7 @@ class StockQuotes(str, Enum):
     """
     TimeStamp = 'time_stamp'
     DateTime = 'date_time'
-    Open = 'open'
+    Open = 'opened'
     High = 'high'
     Low = 'low'
     Close = 'closed'

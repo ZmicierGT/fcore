@@ -12,6 +12,7 @@ import finnhub
 from data.fvalues import SecType, Currency
 from data import stock
 from data.fdata import FdataError
+from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
@@ -101,12 +102,21 @@ class FHStock(stock.StockFetcher):
         dt = dt.replace(tzinfo=pytz.utc)
         ts = int(dt.timestamp())
 
-        result = [ts,
-                  quote['o'],
-                  quote['h'],
-                  quote['l'],
-                  quote['c'],
-                  'NULL',  # Volume
-                  'NULL']  # Transactions
+        result = {'time_stamp': ts,
+                  'date_time': get_dt(ts).replace(microsecond=0).isoformat(' '),
+                  'opened': quote['o'],
+                  'high': quote['h'],
+                  'low': quote['l'],
+                  'closed': quote['c'],
+                  'volume': None,
+                  'transactions': None,
+                  'adj_close': quote['c'],
+                  'divs_ex': 0.0,
+                  'divs_pay': 0.0,
+                  'splits': 1.0
+                 }
+
+        result = [result]
+        result = get_labelled_ndarray(result)
 
         return result

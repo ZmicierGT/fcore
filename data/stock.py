@@ -1095,6 +1095,24 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
+    def fetch_stock_data_if_none(self, quote_threshold, divs_threshold, splits_threshold):
+        """
+            Fetch stock quotes, divs and splits data if the current records in the database do not meet the thresholds.
+
+            Args:
+                quote_threshold(int): Threshold value for quotes.
+                divs_threshold(int): Threshold value for dividends
+                splits_threshold(int): Threshold value for splits
+
+            Returns:
+                array: the fetched quote entries.
+                int: the number of fetched quote entries.
+        """
+        self.fetch_dividends_if_none(divs_threshold)
+        self.fetch_splits_if_none(splits_threshold)
+
+        return self.fetch_if_none(quote_threshold)
+
     def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method, queries=None):
         """
             Fetch all the available additional data if stored data entries do not meet the specified threshold.
@@ -1127,12 +1145,10 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         else:
             num = 0
 
-        rows = self.get_quotes(queries=queries)  # TODO HIGH Consider if it should be deleted
-
         if initially_connected is False:
             self.db_close()
 
-        return (rows, num)
+        return num
 
     def fetch_income_statement_if_none(self, threshold, queries=None):
         """

@@ -39,36 +39,36 @@ test_threshold = 500  # Minimum threshold value for testing
 # In this case, DJIA stocks are used to train the models.
 
 # DJIA composition [symbol, quotes_threshold]. More quotes will be fetched if the threshold is not met.
-symbols = [['MMM', def_threshold],
-           ['AXP', 12715],
-           ['AMGN', 9926],
-           ['AAPL', 10058],
-           ['BA', def_threshold],
-           ['CAT', def_threshold],
-           ['CVX', def_threshold],
-           ['CSCO', 8240],
-           ['KO', def_threshold],
-           ['DIS', def_threshold],
-           ['DOW', 913],
-           ['GS', 5914],
-           ['HD', 10366],
-           ['HON', def_threshold],
-           ['IBM', def_threshold],
-           ['INTC', 10749],
-           ['JNJ', def_threshold],
-           ['JPM', 10749],
-           ['MCD', 14179],
-           ['MRK', def_threshold],
-           ['MSFT', 9235],
-           ['NKE', 10569],
-           ['PG', def_threshold],
-           ['CRM', 4623],
-           ['TRV', 11842],
-           ['UNH', 9588],
-           ['VZ', 9817],
-           ['V', 3682],
-           ['WBA', 10749],
-           ['WMT', 12655]]
+symbols = [['MMM', def_threshold, 245, 4],
+           ['AXP', 12715, 187, 6],
+           ['AMGN', 9926, 49, 5],
+           ['AAPL', 10058, 80, 5],
+           ['BA', def_threshold, 228, 8],
+           ['CAT', def_threshold, 198, 5],
+           ['CVX', def_threshold, 217, 5],
+           ['CSCO', 8240, 50, 9],
+           ['KO', def_threshold, 245, 8],
+           ['DIS', def_threshold, 124, 8],
+           ['DOW', 913, 18, 0],
+           ['GS', 5914, 98, 0],
+           ['HD', 10366, 145, 13],
+           ['HON', def_threshold, 246, 9],
+           ['IBM', def_threshold, 245, 8],
+           ['INTC', 10749, 124, 8],
+           ['JNJ', def_threshold, 247, 7],
+           ['JPM', 10749, 159, 4],
+           ['MCD', 14179, 167, 9],
+           ['MRK', def_threshold, 243, 7],
+           ['MSFT', 9235, 79, 9],
+           ['NKE', 10569, 145, 6],
+           ['PG', def_threshold, 248, 6],
+           ['CRM', 4623, 0, 1],
+           ['TRV', 11842, 146, 2],
+           ['UNH', 9588, 75, 5],
+           ['VZ', 9817, 157, 6],
+           ['V', 3682, 61, 1],
+           ['WBA', 10749, 153, 7],
+           ['WMT', 12655, 197, 9]]
 
 if __name__ == "__main__":
     # Array for the fetched data for all symbols
@@ -76,11 +76,11 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn, threshold in symbols:
+    for symbol_learn, threshold, divs_threshold, splits_threshold in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             source = YF(symbol=symbol_learn, last_date=last_date)
-            rows, num = source.fetch_if_none(threshold)
+            rows, num = source.fetch_stock_data_if_none(threshold, divs_threshold, splits_threshold)
         except FdataError as e:
             sys.exit(e)
 

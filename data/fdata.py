@@ -1187,6 +1187,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         if initially_connected is False:
             self.db_close()
 
+        # TODO MID Think if we need to return num
         return (rows, num)
 
     def query_api(self, url, timeout=30):

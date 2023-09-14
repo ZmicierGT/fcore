@@ -31,6 +31,9 @@ class YF(stock.StockFetcher):
         self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
+        self._data = None  # Cached data for splits/divs
+        self._data_symbol = self.symbol  # Symbol of cached data
+
     def get_timespan_str(self):
         """
             Get the timespan for queries.
@@ -157,12 +160,26 @@ class YF(stock.StockFetcher):
 
         return result
 
+    def get_cached_data(self):
+        """
+            Gets the cached data for dividends/splits.
+
+            Returns:
+                data instance for getting dividends/splits.
+        """
+        if self._data is None or self.symbol != self._data_symbol:
+            self._data = yfin.Ticker(self.symbol)
+            self._data.history(period='max')
+
+            self._data_symbol = self.symbol
+
+        return self._data
+
     def fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.
         """
-        # TODO HIGH Make it cached
-        data = yfin.Ticker(self.symbol)
+        data = self.get_cached_data()
         divs = data.dividends
 
         df_result = pd.DataFrame()
@@ -183,7 +200,7 @@ class YF(stock.StockFetcher):
         """
             Fetch the split data.
         """
-        data = yfin.Ticker(self.symbol)
+        data = self.get_cached_data()
         splits = data.splits
 
         df_result = pd.DataFrame()

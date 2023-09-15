@@ -736,17 +736,18 @@ class ReadOnlyData():
         if self.timespan != Timespans.All:
             timespan_query = "AND timespans.title = '" + self.timespan.value + "'"
 
-        # Sectype subquery
-        sectype_query = ""
+        # TODO LOW Think what to do with sectype and currency. Ignore it for now.
+        # # Sectype subquery
+        # sectype_query = ""
 
-        if self.sectype != SecType.All:
-            sectype_query = "AND sectypes.title = '" + self.sectype.value + "'"
+        # if self.sectype != SecType.All:
+        #     sectype_query = "AND sectypes.title = '" + self.sectype.value + "'"
 
-        # Currency subquery
-        currency_query = ""
+        # # Currency subquery
+        # currency_query = ""
 
-        if self.currency != Currency.All:
-            currency_query = "AND currency.title = '" + self.currency.value + "'"
+        # if self.currency != Currency.All:
+        #     currency_query = "AND currency.title = '" + self.currency.value + "'"
 
         # Quotes number subquery
         num_query = ""
@@ -774,6 +775,30 @@ class ReadOnlyData():
             for join in joins:
                 additional_joins += join + '\n'
 
+        # select_quotes = f"""SELECT time_stamp,
+        #                         datetime(time_stamp, 'unixepoch') AS date_time,
+        #                         opened,
+        #                         high,
+        #                         low,
+        #                         closed,
+        #                         volume,
+        #                         transactions
+        #                         {additional_columns}
+        #                         {additional_queries}
+        #                     FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
+        #                     INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
+        #                     INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
+        #                     INNER JOIN currency ON quotes.currency_id = currency.currency_id
+        #                     {additional_joins}
+        #                     WHERE symbols.ticker = '{self.symbol}'
+        #                     {timespan_query}
+        #                     {sectype_query}
+        #                     {currency_query}
+        #                     AND time_stamp >= {self.first_date_ts}
+        #                     AND time_stamp <= {self.last_date_ts}
+        #                     ORDER BY time_stamp
+        #                     {num_query};"""
+
         select_quotes = f"""SELECT time_stamp,
                                 datetime(time_stamp, 'unixepoch') AS date_time,
                                 opened,
@@ -786,13 +811,9 @@ class ReadOnlyData():
                                 {additional_queries}
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
-                            INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
-                            INNER JOIN currency ON quotes.currency_id = currency.currency_id
                             {additional_joins}
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
-                            {sectype_query}
-                            {currency_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {self.last_date_ts}
                             ORDER BY time_stamp
@@ -803,6 +824,9 @@ class ReadOnlyData():
             rows = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
+
+        if len(rows) == 0:
+            print(select_quotes)
 
         return get_labelled_ndarray(rows)
 

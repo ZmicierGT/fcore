@@ -105,6 +105,7 @@ class StockOperations(BackTestOperations):
         """
         self._yield_counter += days_delta
 
+    # TODO HIGH Take payment date into account
     def get_current_yield(self):
         """
             Get the current yield (pre-defined of from the database).

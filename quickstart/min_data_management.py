@@ -29,11 +29,14 @@ pvi.db_close()
 
 print(f"Total quotes num before and after the operation (it won't increase if quotes already present in DB): {before}, {after}")
 
-# Fetch quotes and fundamental data from AlphaVantage. Please note that the free key allows 5 API calls per minute.
-avi = av.AVStock(symbol='IBM')
-avi.compact = False  # Request all awailable quotes data for IBM
+symbol = 'IBM'
 
-avi.fetch_if_none(15423)  # Fetch quotes and add it to DB
+print(f"Fetch daily quotes, dividend and split data for {symbol} from YF...")
+yfi = yf.YF(symbol=symbol)
+yfi.fetch_stock_data_if_none(15423, 245, 8)
+
+print(f"Fetch fundamental data for {symbol} from AV...")
+avi = av.AVStock(symbol=symbol)
 
 # Fetch fundamental data and add it to DB
 avi.fetch_earnings_if_none(109)
@@ -41,16 +44,15 @@ avi.fetch_cash_flow_if_none(25)
 avi.fetch_balance_sheet_if_none(25)
 avi.fetch_income_statement_if_none(25)
 
-# Get quotes from DB along with some fundamental data
+print("Get quotes from DB along with some fundamental data")
 avi.db_connect()
-rows = avi.get_quotes(columns=['time_stamp'],  # Get time stamp in addition to a formatted data time.
-                      queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
+rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
                                Subquery('earnings', 'reported_eps'),
                                Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 avi.db_close()
 
 # Print last rows of requested data
-print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{dict(rows[-1])}")
+print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{rows[-1]}")
 
 # Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
 aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()

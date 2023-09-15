@@ -518,7 +518,7 @@ class ROStockData(ReadOnlyData):
         # TODO LOW Think if it worth to implement the calculation using SQL only.
 
         # Get all dividend data
-        # TODO MID Move it to a separate function
+        # TODO HIGH Move it to a separate function
         get_divs = f"""SELECT	declaration_date,
 		                        ex_date,
 		                        record_date,
@@ -536,7 +536,7 @@ class ROStockData(ReadOnlyData):
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
 
         # Get all split data
-        # TODO MID Move it to a separate function
+        # TODO HIGH Move it to a separate function
         get_splits = f"""SELECT	split_date,
 		                        split_ratio,
 		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
@@ -558,6 +558,7 @@ class ROStockData(ReadOnlyData):
 
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
+            # TODO HIGH Switch to enums here
             payment_date_num = np.count_nonzero(divs['payment_date'].astype(float))
             ex_date_num = np.count_nonzero(divs['ex_date'].astype(float))
 

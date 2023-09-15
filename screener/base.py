@@ -6,6 +6,7 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 
 from data import fvalues
+from data.fvalues import Quotes
 from data.fdata import FdataError
 
 from datetime import datetime
@@ -157,9 +158,10 @@ class BaseScr(metaclass=abc.ABCMeta):
             Raises:
                 ScrError: can't fetch quotes.
         """
+        # TODO LOW Think if processing time should be taken into account.
         delta = datetime.now(timezone.utc) - self.get_datetime()
 
-        if delta.seconds < self.get_interval():
+        if delta.seconds < self.get_interval() and self.get_init_status():
             sleep(self.get_interval() - delta.seconds)
 
         # Create data source object for each symbol
@@ -174,12 +176,12 @@ class BaseScr(metaclass=abc.ABCMeta):
                 symbol.get_initial_data()
                 symbol.get_source().db_close()
 
-        self.__set_init_status()
-
         self.set_datetime()
 
         # Perform the calculation
         self.calculate()
+
+        self.__set_init_status()
 
     @abc.abstractmethod
     def calculate(self):
@@ -231,21 +233,29 @@ class ScrData():
         """
         return self.__caller
 
-    def get_data(self, period):
+    def get_data(self, period, init_status):
         """
             Get data for screening.
 
             Args:
                 period(int): number of entries to get.
+                init_status(bool): indicates if the initial data is initialized.
 
             Returns:
                 list: list with quotes for the screening.
         """
         self.get_source().db_connect()
 
+        if init_status is False:
+            self.__max_datetime = self.get_source().get_max_datetime()
+            self.__quotes_num = self.get_source().get_symbol_quotes_num()
+
+            return self._data
+
         data = self.get_source().get_recent_data()
-        self.__max_datetime = self.get_source().get_max_datetime()
-        self.__quotes_num = self.get_source().get_symbol_quotes_num()
+
+        self.__max_datetime = data[-1][Quotes.DateTime]
+        self.__quotes_num += len(data)
 
         self.get_source().db_close()
 

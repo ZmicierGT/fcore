@@ -22,7 +22,7 @@ if __name__ == "__main__":
     # Minimum period for calculation
     period = 14
     # Interval to update quotes (in seconds)
-    interval = 60
+    interval = 30
 
     support = 30
     resistance = 70

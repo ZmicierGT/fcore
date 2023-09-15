@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 import pandas as pd
@@ -83,8 +83,8 @@ class YF(stock.StockFetcher):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
-            last_date = self.last_date
-            current_date = datetime.now().replace(tzinfo=pytz.utc)
+            last_date = self.last_date.replace(tzinfo=pytz.utc)
+            current_date = datetime.now().replace(tzinfo=pytz.utc) + timedelta(days=1)
 
             if last_date > current_date:
                 last_date_str = current_date.strftime('%Y-%m-%d')

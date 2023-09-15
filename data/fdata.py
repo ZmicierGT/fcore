@@ -34,8 +34,8 @@ import json
 # + Only real close values are used in YF data
 #
 # + Getting stock quotes automatically calculates adj close for the specified period, splits and divs data provided as well.
-# AI/TA stuff relies on AdjClose, simulated trades on the real close values.
-# + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them.
+# + AI/TA stuff relies on AdjClose, simulated trades on the real close values.
+# + Data obtaining should be clearly distunguished. Quotes are quotes, splits are splits, divs are divs. Separate methods/args to retreive them (and one aggregate helper method).
 # + Lists of dictionaries are omitted. Instead of it labelled numpy arrays are used.
 
 # Current database compatibility version

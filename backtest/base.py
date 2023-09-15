@@ -565,14 +565,20 @@ class BackTestOperations():
         """
         return self.data().get_rows()[self.get_caller_index()][Quotes.Open][0]
 
-    def get_close(self):
+    def get_close(self, adjusted=False):
         """
             Get the close price.
+
+            Args:
+                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
 
             Returns:
                 float: the close price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_caller_index()][Quotes.Close][0]
+        if adjusted:
+            return self.data().get_rows()[self.get_caller_index()][self.data().close][0]
+        else:
+            return self.data().get_rows()[self.get_caller_index()][Quotes.Close][0]
 
     def get_high(self):
         """
@@ -621,23 +627,29 @@ class BackTestOperations():
         """
         return self.get_close() * self.data().get_spread() / 100 / 2
 
-    def get_buy_price(self):
+    def get_buy_price(self, adjusted=False):
         """
             Get the buy price of the current symbol in the current cycle of the calculation.
+
+            Args:
+                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
 
             Returns:
                 float: the buy price of the symbol
         """
-        return self.get_close() + self.get_spread_deviation()
+        return self.get_close(adjusted) + self.get_spread_deviation()
 
-    def get_sell_price(self):
+    def get_sell_price(self, adjusted=False):
         """
             Get the sell price of the current symbol in the current cycle of the calculation.
+
+            Args:
+                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
 
             Returns:
                 float: the sell price of the symbol.
         """
-        return self.get_close() - self.get_spread_deviation()
+        return self.get_close(adjusted) - self.get_spread_deviation()
 
     def get_long_positions(self):
         """
@@ -728,7 +740,7 @@ class BackTestOperations():
         if result == None:
             result = [
                 self.get_open(),
-                self.get_close(),
+                self.get_close(adjusted=True),
                 self.get_high(),
                 self.get_low(),
                 self._price_open_long,
@@ -960,7 +972,7 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
-        self._price_open_long = self.get_buy_price()
+        self._price_open_long = self.get_buy_price(adjusted=True)
 
         # Log if requested
         log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data().get_title()} with price "
@@ -1016,7 +1028,7 @@ class BackTestOperations():
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
-        self._price_open_short = self.get_sell_price()
+        self._price_open_short = self.get_sell_price(adjusted=True)
 
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
@@ -1096,9 +1108,9 @@ class BackTestOperations():
             margin_positions = num - self._long_positions_cash
 
         if margin_call:
-            self._price_margin_req_long = self.get_sell_price()
+            self._price_margin_req_long = self.get_sell_price(adjusted=True)
         else:
-            self._price_close_long = self.get_sell_price()
+            self._price_close_long = self.get_sell_price(adjusted=True)
 
         total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
@@ -1174,9 +1186,9 @@ class BackTestOperations():
         self.get_caller().add_total_trades(1)
 
         if margin_call:
-            self._price_margin_req_short = self.get_buy_price()
+            self._price_margin_req_short = self.get_buy_price(adjusted=True)
         else:
-            self._price_close_short = self.get_buy_price()
+            self._price_close_short = self.get_buy_price(adjusted=True)
 
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
@@ -1809,7 +1821,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
                 symbol_row.extend(np.full(len(BTSymbolEnum), None))
                 symbol_row[BTSymbolEnum.Open] = ex.get_open()
-                symbol_row[BTSymbolEnum.Close] = ex.get_close()
+                symbol_row[BTSymbolEnum.Close] = ex.get_close(adjusted=True)
                 symbol_row[BTSymbolEnum.High] = ex.get_high()
                 symbol_row[BTSymbolEnum.Low] = ex.get_low()
 

@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # As YF is used as the default data source, the data should be withing the last 30 days. Use the last week as the interval.
     # TODO LOW Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
-    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=7)
+    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=6)
 
     print("At least 1000 quotes for each symbol need to be fetched for the last week.")
 

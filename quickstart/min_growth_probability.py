@@ -8,7 +8,7 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 from tools.classifier import Classifier
 
-from data.fvalues import Quotes, Algorithm
+from data.fvalues import StockQuotes, Algorithm
 from data.yf import YF
 from data.futils import update_layout, show_image
 
@@ -36,17 +36,17 @@ class Probability(Classifier):
         df = pd.DataFrame(self._rows) if rows is None else pd.DataFrame(rows)  # Create the dataframe base on provided data
 
         # Calculate required technical indicators
-        ma_long = ta.sma(df[Quotes.AdjClose], length = self._period_long)  # Long SMA
-        ma_short = ta.sma(df[Quotes.AdjClose], length = self._period_short)  # Short SMA
-        pvo = ta.pvo(df[Quotes.Volume])  # Percentage volume oscillator
+        ma_long = ta.sma(df[StockQuotes.AdjClose], length = self._period_long)  # Long SMA
+        ma_short = ta.sma(df[StockQuotes.AdjClose], length = self._period_short)  # Short SMA
+        pvo = ta.pvo(df[StockQuotes.Volume])  # Percentage volume oscillator
 
         # Prepare data for learning/estimation
         df['pvo'] = pvo.iloc[:, 0]
         df['ma-long'] = ma_long
         df['ma-short'] = ma_short
-        df['quote'] = df[Quotes.AdjClose]
+        df['quote'] = df[StockQuotes.AdjClose]
         df['ma-diff'] = ((ma_long - ma_short) / ma_long)  # Ratio of difference between long and short SMAs
-        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])  # Ratio of difference between High and Low
+        df['hilo-diff'] = ((df[StockQuotes.High] - df[StockQuotes.Low]) / df[StockQuotes.High])  # Ratio of difference between High and Low
 
         self._data_to_est = ['pvo', 'ma-diff', 'hilo-diff']  # Columns to learn/estimate
         self._data_to_report = self._data_to_est + ['ma-long', 'ma-short', 'quote']  # Columns for reporting
@@ -56,8 +56,8 @@ class Probability(Classifier):
 
     def get_buy_condition(self, df):
         """Get buy condiiton to check signals."""
-        curr_quote = df[Quotes.AdjClose]
-        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[StockQuotes.AdjClose]
+        next_quote = df[StockQuotes.AdjClose].shift(-abs(self._cycle_num))
 
         return (next_quote - curr_quote) / curr_quote >= self._true_ratio
 

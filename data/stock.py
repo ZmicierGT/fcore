@@ -558,9 +558,8 @@ class ROStockData(ReadOnlyData):
 
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
-            # TODO HIGH Switch to enums here
-            payment_date_num = np.count_nonzero(divs['payment_date'].astype(float))
-            ex_date_num = np.count_nonzero(divs['ex_date'].astype(float))
+            payment_date_num = np.count_nonzero(divs[Dividends.PaymentDate].astype(float))
+            ex_date_num = np.count_nonzero(divs[Dividends.ExDate].astype(float))
 
             if payment_date_num > ex_date_num:
                 raise FdataError(f"More payment date entries than ex date enties ({payment_date_num} vs {ex_date_num}).")
@@ -570,42 +569,42 @@ class ROStockData(ReadOnlyData):
                     print(f"Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
-                divs['payment_date'] = np.nan
-                divs['payment_date'] = divs['ex_date'] + 2592000  # Add 30 days to ex_date to estimate a payment date
+                divs[Dividends.PaymentDate] = np.nan
+                divs[Dividends.PaymentDate] = divs[Dividends.ExDate] + 2592000  # Add 30 days to ex_date to estimate a payment date
 
             for i in range(len(divs)):
-                idx_ex = np.searchsorted(quotes['time_stamp'], [divs['ex_date'][i], ], side='right')[0]
+                idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
                 try:
-                    quotes['divs_ex'][idx_ex] = divs['amount'][i]
-                    quotes['adj_close'][idx_ex] = quotes['adj_close'][idx_ex] - divs['amount'][i]
+                    quotes[StockQuotes.ExDividends][idx_ex] = divs[Dividends.Amount][i]
+                    quotes[StockQuotes.AdjClose][idx_ex] = quotes[StockQuotes.AdjClose][idx_ex] - divs[Dividends.Amount][i]
                 except IndexError:
                     pass
                     # No need to do anything - just requested quote data is shorter than available dividend data
 
-                idx_pay = np.searchsorted(quotes['time_stamp'], [divs['payment_date'][i], ], side='right')[0]
+                idx_pay = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.PaymentDate][i], ], side='right')[0]
 
                 try:
-                    quotes['divs_pay'][idx_pay] = divs['amount'][i]
+                    quotes[StockQuotes.PayDividends][idx_pay] = divs[Dividends.Amount][i]
                 except IndexError:
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
 
         elif self._verbosity:
-            print(f"No dividend data for {self.symbol}")
+            print(f"No dividend data for {self.symbol}")  # TODO HIGH Check if it is displayed
 
         # Adjust the price to stock splits
         if len(splits):
             splits = get_labelled_ndarray(splits)
 
             for i in range(len(splits)):
-                idx_split = np.searchsorted(quotes['time_stamp'], [splits['split_date'][i], ], side='right')[0]
+                idx_split = np.searchsorted(quotes[StockQuotes.TimeStamp], [splits[StockSplits.Date][i], ], side='right')[0]
 
                 try:
-                    quotes['splits'][idx_split] = splits['split_ratio'][i]
+                    quotes[StockQuotes.Splits][idx_split] = splits[StockSplits.Ratio][i]
 
-                    if splits['split_ratio'][i] != 1:
-                        quotes['adj_close'][:idx_split+1] = quotes['adj_close'][:idx_split+1] / splits['split_ratio'][i]
+                    if splits[StockSplits.Ratio][i] != 1:
+                        quotes[StockQuotes.AdjClose][:idx_split+1] = quotes[StockQuotes.AdjClose][:idx_split+1] / splits[StockSplits.Ratio][i]
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass

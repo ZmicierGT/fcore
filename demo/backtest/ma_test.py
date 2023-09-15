@@ -29,6 +29,7 @@ if __name__ == "__main__":
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         source = YF(symbol="SPY", first_date="2017-01-30", last_date="2022-8-1")
+        # TODO MID Consider using examples with divs/splits (Stock instead of ETF)
         rows, num = source.fetch_if_none(threshold)
     except FdataError as e:
         sys.exit(e)

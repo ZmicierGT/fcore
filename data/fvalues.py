@@ -10,7 +10,6 @@ from enum import IntEnum, Enum
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
 
-# TODO MID Think if these enums are needed if we switch to labelled numpy arrays.
 # TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order

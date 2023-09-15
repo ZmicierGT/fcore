@@ -65,7 +65,7 @@ class RsiScr(BaseScr):
             self.__prevs.append(None)
 
         for symbol in self.get_symbols():
-            rows = symbol.get_data(self.get_period() + 1)
+            rows = symbol.get_data(self.get_period() + 1, self.get_init_status())
 
             if len(rows) <= self.get_period():
                 raise ScrError(f"Quotes length should be more than the period + 2: {len(rows)} <= {self.get_period()}")

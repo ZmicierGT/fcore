@@ -1274,3 +1274,5 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Returns:
                 Parsed data.
         """
+
+    # TODO HIGH Add an abstract method to get a time zone associated with the symbol.

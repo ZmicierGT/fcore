@@ -19,7 +19,7 @@ import plotly.graph_objects as go
 import sys
 
 period = 50  # Period used in strategy
-threshold = 1385  # Quotes num threshold for the test
+threshold = 252  # Quotes num threshold for the test
 
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
@@ -28,9 +28,9 @@ if __name__ == "__main__":
     # Get quotes
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        source = YF(symbol="SPY", first_date="2017-01-30", last_date="2022-8-1")
+        source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
         # TODO MID Consider using examples with divs/splits (Stock instead of ETF)
-        rows, num = source.fetch_if_none(threshold)
+        rows, num = source.fetch_stock_data_if_none(threshold, 145, 6)
     except FdataError as e:
         sys.exit(e)
 

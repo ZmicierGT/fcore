@@ -87,8 +87,7 @@ class BackTestError(Exception):
 class BackTestData():
     """Thread-safe class which represents data used in backtesting.
     
-        This class is used as a base class for various financial instruments. For example, if you add to it a yield and yield interval,
-        then it may be used to represent a stock.
+        This class is used as a base class for various financial instruments.
     """
     def __init__(self,
                  rows,
@@ -704,8 +703,8 @@ class BackTestOperations():
         """
             Applies days counter for the calculation to a particular symbol.
 
-            It may be used for a specific financial instruments. For example, days counter is used to estimate a
-            dividend yield date. The method is supposed to be overloaded in a particular financial instument implementation.
+            It may be used for a specific financial instruments as a countdown to some event. It needs to be overloaded
+            in a derived class dedicated to a particular security type.
 
             Args:
                 days_delta(int): number of days to apply to the counter.

@@ -70,7 +70,7 @@ class YF(stock.StockFetcher):
         elif self.timespan == Timespans.Quarter:
             return '3mo'
         else:
-            raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
+            raise FdataError(f"Requested timespan is not supported by YF: {self.timespan.value}")
 
     def fetch_quotes(self):
         """
@@ -82,6 +82,11 @@ class YF(stock.StockFetcher):
             Raises:
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
+        # TODO HIGH Check if intraday data is still adjusted to splits.
+        # TODO HIGH Find out if there is a way to fetch truly non-adjusted quotes for YF. Otherwise disable it.
+        # if self.timespan in (Timespans.Day, Timespans.FiveDays, Timespans.Week, Timespans.Month, Timespans.Quarter):
+        #     raise FdataError(f"As traded close prices are not supported by YF for the {self.timespan} time span.")
+
         if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
             last_date = self.last_date.replace(tzinfo=pytz.utc)
             current_date = datetime.now().replace(tzinfo=pytz.utc) + timedelta(days=1)
@@ -185,6 +190,7 @@ class YF(stock.StockFetcher):
 
         return self._data
 
+    # TODO High need to check what timezone is reported here.
     def fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.
@@ -193,8 +199,8 @@ class YF(stock.StockFetcher):
         divs = data.dividends
 
         df_result = pd.DataFrame()
-        df_result['ex_ts'] = divs.keys().tz_convert('UTC').astype(int)
-        df_result['ex_ts'] = df_result['ex_ts'].div(10**9).astype(int)  # One more astype to get rid of .0
+        df_result['ex_ts'] = divs.keys().tz_convert('UTC').normalize() + timedelta(hours=23, minutes=59, seconds=59)
+        df_result['ex_ts'] = df_result['ex_ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
         df_result['amount'] = divs.reset_index()['Dividends']
 
@@ -214,8 +220,8 @@ class YF(stock.StockFetcher):
         splits = data.splits
 
         df_result = pd.DataFrame()
-        df_result['ts'] = splits.keys().tz_convert('UTC').astype(int)
-        df_result['ts'] = df_result['ts'].div(10**9).astype(int)  # One more astype to get rid of .0
+        df_result['ts'] = splits.keys().tz_convert('UTC').normalize() + timedelta(hours=23, minutes=59, seconds=59)
+        df_result['ts'] = df_result['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
         df_result['split_ratio'] = splits.reset_index()['Stock Splits']
 

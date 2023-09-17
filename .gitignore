@@ -5,3 +5,4 @@ total_size.sh
 *.sqlite
 .python-version
 notes.txt
+.DS_Store

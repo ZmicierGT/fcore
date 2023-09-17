@@ -16,6 +16,7 @@ from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_
 from data.fdata import FdataError
 from data.futils import get_dt, get_labelled_ndarray
 
+#TODO HIGH Check all time zone related issues here
 class YF(stock.StockFetcher):
     """
         Yahoo Finance wrapper class.
@@ -190,7 +191,6 @@ class YF(stock.StockFetcher):
 
         return self._data
 
-    # TODO High need to check what timezone is reported here.
     def fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.

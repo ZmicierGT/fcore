@@ -486,7 +486,67 @@ class ROStockData(ReadOnlyData):
         """
         return self._get_data_num('earnings')
 
-    # TOOD HIGH Automatically calculate AdjClose here, think if need to provide the results for splits and dividends as well
+    def get_dividends(self):
+        """
+            Get dividends.
+
+            Returns:
+                ndarray: dividends for a symbol.
+        """
+        get_divs = f"""SELECT	declaration_date,
+                                ex_date,
+                                record_date,
+                                payment_date,
+                                amount,
+                                (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
+                                (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
+                            FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
+                            WHERE s.ticker = '{self.symbol}';"""
+
+        try:
+            self.cur.execute(get_divs)
+            divs = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
+
+        if len(divs):
+            divs = get_labelled_ndarray(divs)
+        else:
+            divs = None
+
+        return divs
+
+    def get_splits(self):
+        """
+            Get stock splits for a specified symbol and time interval.
+
+            Returns:
+                ndarray: splits for a symbol.
+        """
+        get_splits = f"""SELECT	split_date,
+		                        split_ratio,
+		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
+	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
+	                        WHERE s.ticker = '{self.symbol}'
+                            AND split_date >= {self.first_date_ts}
+                            AND split_date <= {self.last_date_ts};"""
+
+        try:
+            self.cur.execute(get_splits)
+            splits = self.cur.fetchall()
+        except IndexError:
+            if self._verbosity:
+                print(f"No split data for {self.symbol}")
+        except self.Error as e:
+            raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
+
+        if len(splits):
+            splits = get_labelled_ndarray(splits)
+        else:
+            splits = None
+
+        return splits
+
     def get_quotes(self, num=0, columns=None, joins=None, queries=None):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
@@ -518,46 +578,13 @@ class ROStockData(ReadOnlyData):
         # TODO LOW Think if it worth to implement the calculation using SQL only.
 
         # Get all dividend data
-        # TODO HIGH Move it to a separate function
-        get_divs = f"""SELECT	declaration_date,
-		                        ex_date,
-		                        record_date,
-		                        payment_date,
-		                        amount,
-		                        (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
-                                (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
-	                        FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
-	                        WHERE s.ticker = '{self.symbol}';"""
-
-        try:
-            self.cur.execute(get_divs)
-            divs = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
+        divs = self.get_dividends()
 
         # Get all split data
-        # TODO HIGH Move it to a separate function
-        get_splits = f"""SELECT	split_date,
-		                        split_ratio,
-		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
-	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
-	                        WHERE s.ticker = '{self.symbol}'
-                            AND split_date >= {self.first_date_ts}
-                            AND split_date <= {self.last_date_ts};"""
-
-        try:
-            self.cur.execute(get_splits)
-            splits = self.cur.fetchall()
-        except IndexError:
-            if self._verbosity:
-                print(f"No split data for {self.symbol}")
-        except self.Error as e:
-            raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
+        splits = self.get_splits()
 
         # Adjust the price for dividends
-        if len(divs):
-            divs = get_labelled_ndarray(divs)
-
+        if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
             payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
@@ -593,9 +620,7 @@ class ROStockData(ReadOnlyData):
             print(f"Warning: No dividend data for {self.symbol}")
 
         # Adjust the price to stock splits
-        if len(splits):
-            splits = get_labelled_ndarray(splits)
-
+        if splits is not None:
             for i in range(len(splits)):
                 idx_split = np.searchsorted(quotes[StockQuotes.TimeStamp], [splits[StockSplits.Date][i], ], side='right')[0]
 

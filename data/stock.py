@@ -541,7 +541,9 @@ class ROStockData(ReadOnlyData):
 		                        split_ratio,
 		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
 	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
-	                        WHERE s.ticker = '{self.symbol}';"""
+	                        WHERE s.ticker = '{self.symbol}'
+                            AND split_date >= {self.first_date_ts}
+                            AND split_date <= {self.last_date_ts};"""
 
         try:
             self.cur.execute(get_splits)
@@ -558,15 +560,12 @@ class ROStockData(ReadOnlyData):
 
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
-            payment_date_num = np.count_nonzero(divs[Dividends.PaymentDate].astype(float))
-            ex_date_num = np.count_nonzero(divs[Dividends.ExDate].astype(float))
+            payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
+            ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
-            if payment_date_num > ex_date_num:
-                raise FdataError(f"More payment date entries than ex date enties ({payment_date_num} vs {ex_date_num}).")
-
-            if payment_date_num != ex_date_num or payment_date_num != ex_date_num - 1:
+            if payment_date_num != ex_date_num and payment_date_num != ex_date_num - 1:
                 if self._verbosity:
-                    print(f"Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+                    print(f"Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
                 divs[Dividends.PaymentDate] = np.nan
@@ -591,7 +590,7 @@ class ROStockData(ReadOnlyData):
                     # No need to do anything as just payment haven't happened in the current stock history
 
         elif self._verbosity:
-            print(f"No dividend data for {self.symbol}")  # TODO HIGH Check if it is displayed
+            print(f"Warning: No dividend data for {self.symbol}")
 
         # Adjust the price to stock splits
         if len(splits):
@@ -610,7 +609,7 @@ class ROStockData(ReadOnlyData):
                     pass
 
         elif self._verbosity:
-            print(f"No split data for {self.symbol}")
+            print(f"Warning: No split data for {self.symbol} in the requested period.")
 
         return quotes
 
@@ -1137,11 +1136,11 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         # Fetch entries if there are less than a threshold number of entries in the database
         if current_num < threshold:
-            num_before, num_after = add_method(fetch_method())
-            num = num_after - num_before
+            add_method(fetch_method())
+            num = num_method()
 
             if num < threshold:
-                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval. Decrease the threshold.")
+                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {num} entries obtained). Decrease the threshold.")
         else:
             num = 0
 

@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 
 # This example checks if there is at least 565 dayly quotes for SPY in the database and if no
 # then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
-#yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
+yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
@@ -31,12 +31,16 @@ print(f"Total quotes num before and after the operation (it won't increase if qu
 
 symbol = 'IBM'
 
-print(f"Fetch daily quotes, dividend and split data for {symbol} from YF...")
+print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
+
+avi = av.AVStock(symbol=symbol)
+avi.fetch_if_none(6007)
+
 yfi = yf.YF(symbol=symbol)
-yfi.fetch_stock_data_if_none(15423, 245, 8)
+yfi.fetch_dividends_if_none(245)
+yfi.fetch_splits_if_none(8)
 
 print(f"Fetch fundamental data for {symbol} from AV...")
-avi = av.AVStock(symbol=symbol)
 
 # Fetch fundamental data and add it to DB
 avi.fetch_earnings_if_none(109)

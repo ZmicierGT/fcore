@@ -44,11 +44,12 @@ class AV():
             Enumeration for subscription plans
         """
         Free = 0
-        Plan75 = 1
-        Plan150 = 2
-        Plan300 = 3
-        Plan600 = 4
-        Plan1200 = 5
+        Plan30 = 1
+        Plan75 = 2
+        Plan150 = 3
+        Plan300 = 4
+        Plan600 = 5
+        Plan1200 = 6
 
     plan = Plan.Free  # Subscription plan
     api_key = None  # Get your free api key at alphavantage.co

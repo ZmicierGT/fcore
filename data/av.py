@@ -45,20 +45,13 @@ class AVStock(stock.StockFetcher):
         self.earnings_last_date = None
 
         # Cached EOD quotes to get dividends and split data
-        self.eod = None
-        self.eod_first_date = None
-        self.eod_last_date = None
-
-        # Year and month
-        self._year = self.first_date.year
-        self._month = self.first_date.month
-
-        if self._year < 2000:
-            self._year = 2000
-            self._month = 1
+        self._eod = None
+        self._eod_symbol = None
 
         if settings.AV.plan == settings.AV.Plan.Free:
             self.max_queries = 5
+        if settings.AV.plan == settings.AV.Plan.Plan30:
+            self.max_queries = 30
         if settings.AV.plan == settings.AV.Plan.Plan75:
             self.max_queries = 75
         if settings.AV.plan == settings.AV.Plan.Plan150:
@@ -137,33 +130,19 @@ class AVStock(stock.StockFetcher):
 
         return json_data
 
-    def next_month(self):
-        """
-            Calculate and set the next month for the query.
-
-            Returns:
-                True/False - If there was a need to increase the month or last date reached.
-        """
-        self._month += 1
-
-        if self._month == 13:
-            self._year += 1
-            self._month = 1
-
-        if self._year == self.last_date.year and self._month > self.last_date.month:
-            return False
-
-        return True
-
-    def get_intraday_url(self):
+    def get_intraday_url(self, year, month):
         """
             Get the url for an intraday query.
+
+            Args:
+                year(int): The year to get data
+                month(int): The month to get data
 
             Returns(string): url for an intraday query
         """
         output_size = 'compact' if self.compact else 'full'
 
-        url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&month={self._year}-{self._month}&apikey={self.api_key}'
+        url = f'https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={self.symbol}&interval={self.get_timespan_str()}&outputsize={output_size}&adjusted=false&month={year}-{str(month).zfill(2)}&apikey={self.api_key}'
 
         return url
 
@@ -179,16 +158,17 @@ class AVStock(stock.StockFetcher):
                 FdataError: no data obtained as likely API key limit is reached.
 
             Returns:
-                dictionary: quotes data.
+                dictionaries: quotes data and a header
         """
         json_data = self.query_and_parse(url)
 
         try:
+            dict_header = dict(json_data['Meta Data'].items())
             dict_results = dict(sorted(json_data[json_key].items()))
         except KeyError as err:
             raise FdataError(f"Can't get data. Likely API key limit is reached.") from err
 
-        return dict_results
+        return (dict_results, dict_header)
 
     def fetch_quotes(self):
         """
@@ -204,35 +184,51 @@ class AVStock(stock.StockFetcher):
 
         # At first, need to set a function depending on a timespan.
         if self.timespan == Timespans.Day:
-            if settings.AV.plan == settings.AV.Plan.Free:
-                raise FdataError("Daily adjusted data is not available in the free plan now.")
-
             output_size = 'compact' if self.compact else 'full'
             json_key = 'Time Series (Daily)'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.symbol}&outputsize={output_size}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.symbol}&outputsize={output_size}&apikey={self.api_key}'
         elif self.timespan == Timespans.Week:
-            json_key = 'Weekly Adjusted Time Series'
+            json_key = 'Weekly Time Series'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY_ADJUSTED&symbol={self.symbol}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={self.symbol}&apikey={self.api_key}'
         elif self.timespan == Timespans.Month:
-            json_key = 'Monthly Adjusted Time Series'
+            json_key = 'Monthly Time Series'
 
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY_ADJUSTED&symbol={self.symbol}&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol={self.symbol}&apikey={self.api_key}'
         # All intraday timespans
         elif self.is_intraday():
-            # TODO MID Get rid of it when intraday quotes are not bugged anymore
-            raise FdataError("Terminated as obtaining intraday quotes is bugged (month is ignored).")
-
             json_key = f'Time Series ({self.get_timespan_str()})'
 
-            url = self.get_intraday_url()
+            # Year and month
+            year = self.first_date.year
+            month = self.first_date.month
+
+            if year < 2000:
+                year = 2000
+                month = 1
+
+            url = self.get_intraday_url(year, month)
 
         # Get quotes data
-        dict_results = self.get_quote_json(url, json_key)
+        dict_results, dict_header = self.get_quote_json(url, json_key)
 
-        while self.is_intraday() and self.next_month():
-            new_dict = self.get_quote_json(self.get_intraday_url(), json_key)
+        # Get the time zone
+        if self.is_intraday():
+            tz_str = dict_header['6. Time Zone']
+        else:
+            tz_str = dict_header['5. Time Zone']
+
+        tz = pytz.timezone(tz_str)
+
+        while self.is_intraday() and (year <= self.last_date.year and month < self.last_date.month):
+            month += 1
+
+            if month == 13:
+                year += 1
+                month = 1
+
+            new_dict, _ = self.get_quote_json(self.get_intraday_url(year, month), json_key)
 
             dict_results.update(new_dict)
 
@@ -243,8 +239,11 @@ class AVStock(stock.StockFetcher):
 
         for dt_str in datetimes:
             try:
-                # TODO HIGH check if date adjustment is correct
-                dt = get_dt(dt_str)  # Get UTC-adjusted datetime
+                dt = get_dt(dt_str, tz)  # Get UTC-adjusted datetime
+
+                if self.is_intraday() is False:
+                    # Keep all non-intraday timestamps at 23:59:59
+                    dt = dt.replace(hour=23, minute=59, second=59)
             except ValueError as e:
                 raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
 
@@ -252,46 +251,18 @@ class AVStock(stock.StockFetcher):
             quote = dict_results[dt_str]
 
             quote_dict = {
-                'ts': 'NULL',
+                'ts': int(datetime.timestamp(dt)),
                 'open': quote['1. open'],
                 'high': quote['2. high'],
                 'low': quote['3. low'],
-                'close': 'NULL',
-                'volume': 'NULL',
+                'close': quote['4. close'],
+                'volume': quote['5. volume'],
                 'transactions': 'NULL',
                 'sectype': self.sectype.value,
-                'currency': self.currency.value,
-                # Below is just for caching purposes for other calls
-                'divs': None,
-                'split': None
+                'currency': self.currency.value
             }
 
-            # Set the entries depending if the quote is intraday
-            if self.is_intraday() is False:
-                quote_dict['close'] = quote['4. close']
-                quote_dict['volume'] = quote['6. volume']
-
-                # Keep all non-intraday timestamps at 23:59:59
-                dt = dt.replace(hour=23, minute=59, second=59)
-            else:
-                quote_dict['close'] = quote['4. close']
-                quote_dict['volume'] = quote['5. volume']
-
-            # Cache divs/split data
-            if self.timespan == Timespans.Day:
-                quote_dict['divs'] = quote['7. dividend amount']
-                quote_dict['split'] = quote['8. split coefficient']
-
-            # Set the timestamp
-            quote_dict['ts'] = int(datetime.timestamp(dt))
-
             quotes_data.append(quote_dict)
-
-        # Cache EOD quotes for divs/splits parsing
-        if self.timespan == Timespans.Day:
-            self.eod = quotes_data
-            self.eod_first_date = self.first_date
-            self.eod_last_date = self.last_date
 
         return quotes_data
 
@@ -525,20 +496,53 @@ class AVStock(stock.StockFetcher):
 
             Returns(list of dict): EOD quotes data.
         """
-        # Check if eod data is cached for this interval. If not, fetch it.
-        if self.eod_cached() is False:
-            # TODO LOW This approach may be not thread safe. But it is very unlikely that threading will be used here.
-            old_timespan = self.timespan
-            old_compact = self.compact
+        if self._eod is None or self._eod_symbol != self.symbol:
+            if settings.AV.plan == settings.AV.Plan.Free:
+                raise FdataError("Daily adjusted data is not available in the free plan now.")
 
-            self.timespan = Timespans.Day
-            self.compact = False
-            self.fetch_quotes()
+            json_key = 'Time Series (Daily)'
 
-            self.timespan = old_timespan
-            self.compact = old_compact
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.symbol}&outputsize=full&apikey={self.api_key}'
 
-        return self.eod
+            # Demo key for testing split/divs fetching without a premium key
+            #url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=IBM&outputsize=full&apikey=demo'
+
+            # Get quotes data
+            dict_results, dict_header = self.get_quote_json(url, json_key)
+
+            # Get the time zone
+            tz_str = dict_header['5. Time Zone']
+            tz = pytz.timezone(tz_str)
+
+            datetimes = list(dict_results.keys())
+
+            if len(datetimes) == 0:
+                raise FdataError("No data obtained.")
+
+            self._eod = []
+
+            for dt_str in datetimes:
+                try:
+                    dt = get_dt(dt_str, tz)  # Get UTC-adjusted datetime
+                    # Keep all non-intraday timestamps at 23:59:59
+                    dt = dt.replace(hour=23, minute=59, second=59)
+                except ValueError as e:
+                    raise FdataError(f"Can't parse the datetime {dt_str}: {e}") from e
+
+                # The current quote to process
+                quote = dict_results[dt_str]
+
+                quote_dict = {
+                    'ts': int(datetime.timestamp(dt)),
+                    'divs': quote['7. dividend amount'],
+                    'split': quote['8. split coefficient']
+                }
+
+                self._eod.append(quote_dict)
+
+        self._eod_symbol = self.symbol
+
+        return self._eod
 
     def fetch_dividends(self):
         """
@@ -577,17 +581,6 @@ class AVStock(stock.StockFetcher):
         df_result['split_ratio'] = df['split']
 
         return df_result.T.to_dict().values()
-
-    def eod_cached(self):
-        """
-            Check if EOD quotes are cached for the current interval.
-            Dividends and splits data present in earnings reports only.
-
-            Returns:
-                bool: indicates if EOD quotes are cached.
-        """
-        return self.eod is not None and self.eod_first_date == self.first_date \
-            and self.eod_last_date == self.last_date
 
     def earnings_cached(self):
         """

@@ -79,6 +79,7 @@ if __name__ == "__main__":
     for symbol_learn, threshold, divs_threshold, splits_threshold in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
+            # TODO HIGH Need to switch quote fetching to AV if there is no way to fetch 'raw' close using YF
             source = YF(symbol=symbol_learn, last_date=last_date)
             rows, num = source.fetch_stock_data_if_none(threshold, divs_threshold, splits_threshold)
         except FdataError as e:

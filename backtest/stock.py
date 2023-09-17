@@ -16,8 +16,6 @@ class StockData(BackTestData):
         The class represents stock data for backtesting.
     """
     def __init__(self,
-                 use_yield=0,
-                 yield_interval=0,
                  **kwargs):
         """
             Initializes the stock data class.
@@ -32,16 +30,6 @@ class StockData(BackTestData):
                 BackTestError: incorrect values in arguments.
         """
         super().__init__(**kwargs)
-
-        # Annual dividend/coupon yield in percent. Overrides the yield in dataset if != 0
-        if use_yield < 0 or use_yield > 100:
-            raise BackTestError(f"use_yield can't be less than 0% or more than 100%. Specified value is {use_yield}")
-        self._use_yield = use_yield
-
-        # Yield interval (days). It is relevant only if use_yield is set
-        if yield_interval < 0:
-            raise BackTestError(f"yield_interval can't be less than 0. Specified value is {yield_interval}")
-        self._yield_interval = yield_interval
 
         # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
         self._close = StockQuotes.AdjClose
@@ -96,35 +84,30 @@ class StockOperations(BackTestOperations):
     # General methods with calculations for a particular symbol
     #############################################################
 
-    def apply_days_counter(self, days_delta):
-        """
-            Increase the counter till the next yield.
-
-            Args:
-                days_delta(int): the days to add to the yield counter
-        """
-        self._yield_counter += days_delta
-
-    # TODO HIGH Take payment date into account
     def get_current_yield(self):
         """
-            Get the current yield (pre-defined of from the database).
+            Get the current yield.
 
             Returns:
-                float: the yield incoming in the current counter.
+                float: the yield incoming in the current cycle.
         """
         current_yield = 0
 
-        # Check if pre-defined yield is incoming
-        if self.data().get_use_yield() != 0 and self.data().get_yield_interval() <= self._yield_counter and self.get_max_positions() > 0:
-            current_yield = self.get_max_positions() * self.get_close() * self.data().get_use_yield() / 100 / (240 / self.data().get_yield_interval())
-            self._yield_counter = 0
-
         # Check if we have dividends today according to the dataset
-        if self.data().get_use_yield() == 0 and self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] != None and self.get_max_positions() > 0:
+        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] != None and self.get_max_positions() > 0:
             current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] * self.get_max_positions()
 
         return current_yield
+
+    # TODO HIGH Implement it
+    def check_for_split(self):
+        """
+            Check for a stock split and apply split to the portfolio if any.
+        """
+        ratio = self.data().get_rows()[self.get_caller_index()][StockQuotes.Splits][0]
+
+        if ratio != 1 and self.get_caller_index() != 0:
+            pass
 
     def apply_other_balance_changes(self):
         """
@@ -137,3 +120,5 @@ class StockOperations(BackTestOperations):
                 self.get_caller().add_other_profit(current_yield)
             else:
                 self.get_caller().add_other_expense(current_yield)
+
+        self.check_for_split()

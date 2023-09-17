@@ -1181,11 +1181,11 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
         if current_num < threshold:
-            num_before, num_after = self.add_quotes(self.fetch_quotes())
-            num = num_after - num_before
+            self.add_quotes(self.fetch_quotes())
+            num = self.get_symbol_quotes_num_dt()
 
             if num == 0:
-                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {self.get_symbol_quotes_num_dt()} quotes got). Decrease the threshold.")
+                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {num} quotes got). Decrease the threshold.")
         else:
             num = 0
 

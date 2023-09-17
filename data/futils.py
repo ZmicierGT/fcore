@@ -25,12 +25,13 @@ import subprocess
 
 from data.fvalues import Quotes
 
-def get_dt(value):
+def get_dt(value, tz=pytz.UTC):
     """
         Get datetime from one of provided types: datetime, string, timestamp.
 
         Args:
             value(datetime, str, int): value to get datetime from.
+            tz(pytz): the initial time zone.
 
         Raises:
             ValueError: unknown type or can't generate a datetime.
@@ -42,7 +43,7 @@ def get_dt(value):
     if isinstance(value, int):
         try:
             if value < 0:
-                dt = datetime(1970, 1, 1) + timedelta(seconds=value)
+                dt = datetime(1970, 1, 1).replace(tzinfo=tz) + timedelta(seconds=value)
             else:
                 dt = datetime.utcfromtimestamp(value)
         except (OverflowError, OSError) as e:
@@ -52,20 +53,20 @@ def get_dt(value):
     # String
     elif isinstance(value, str):
         if len(value) <= 10:
-            dt = datetime.strptime(value, '%Y-%m-%d')
+            dt = datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=tz)
         elif len(value) > 10 and len(value) <= 16:
-            dt = datetime.strptime(value, '%Y-%m-%d %H:%M')
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M').replace(tzinfo=tz)
         else:
-            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=tz)
     # DateTime
     elif isinstance(value, datetime):
-        dt = value
+        dt = value.replace(tzinfo=tz)
     # Unknown type
     else:
         raise ValueError(f"Unknown type provided for datetime: {type(value).__name__}")
 
     # Always keep datetimes in UTC time zone!
-    dt = dt.replace(tzinfo=pytz.utc)
+    dt = dt.astimezone(pytz.UTC)
 
     return dt
 

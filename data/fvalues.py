@@ -63,6 +63,7 @@ class StockSplits(str, Enum):
     Ratio = 'split_ratio'
     Source = 'source'
 
+# TODO MID Think if day+ quotes are needed and how to hanle them then (adjustments)
 class Timespans(str, Enum):
     """
         Enum class for timespans.

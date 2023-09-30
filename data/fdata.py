@@ -1252,8 +1252,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Abstract method to fetch quotes.
         """
 
-    # TODO HIGH Check why it is commented
-    #@abc.abstractmethod
+    @abc.abstractmethod
     def get_timespan_str(self):
         """
             Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
@@ -1263,10 +1262,9 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 str: timespan string.
         """
 
-    #@abc.abstractmethod
     def query_and_parse(self, url, timeout=30):
         """
-            Query the data source and parse the response.
+            Query the data source and parse the response. Used to handle data source API call limit.
 
             Args:
                 url(str): the url for a request.

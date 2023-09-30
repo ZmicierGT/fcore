@@ -584,6 +584,7 @@ class ROStockData(ReadOnlyData):
         splits = self.get_splits()
 
         # Adjust the price for dividends
+        # TODO HIGH Implement correct divident adjustments
         if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
@@ -628,7 +629,13 @@ class ROStockData(ReadOnlyData):
                     quotes[StockQuotes.Splits][idx_split] = splits[StockSplits.Ratio][i]
 
                     if splits[StockSplits.Ratio][i] != 1:
-                        quotes[StockQuotes.AdjClose][:idx_split+1] = quotes[StockQuotes.AdjClose][:idx_split+1] / splits[StockSplits.Ratio][i]
+                        # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
+                        quotes[StockQuotes.Open][:idx_split] = quotes[StockQuotes.Open][:idx_split] / splits[StockSplits.Ratio][i]
+                        quotes[StockQuotes.High][:idx_split] = quotes[StockQuotes.High][:idx_split] / splits[StockSplits.Ratio][i]
+                        quotes[StockQuotes.Low][:idx_split] = quotes[StockQuotes.Low][:idx_split] / splits[StockSplits.Ratio][i]
+                        quotes[StockQuotes.Volume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * splits[StockSplits.Ratio][i]
+
+                        quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / splits[StockSplits.Ratio][i]
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass

@@ -1252,6 +1252,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Abstract method to fetch quotes.
         """
 
+    # TODO HIGH Check why it is commented
     #@abc.abstractmethod
     def get_timespan_str(self):
         """
@@ -1275,4 +1276,11 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 Parsed data.
         """
 
-    # TODO HIGH Add an abstract method to get a time zone associated with the symbol.
+    def get_timezone(self):
+        """
+            Get the time zone of the specified symbol.
+
+            Returns:
+                string: time zone.
+        """
+        return 'UTC'  # UTC by default, supposed to be overridden

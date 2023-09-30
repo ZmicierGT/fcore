@@ -20,7 +20,7 @@ from data.futils import get_dt
 
 import settings
 
-#TODO HIGH Check all time zone related issues here
+#TODO HIGH Check all time zone related issues here and correspondence of quotes/splits/divs with other sources.
 class Polygon(stock.StockFetcher):
     """
         Polygon.IO wrapper class.

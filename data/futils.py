@@ -264,6 +264,9 @@ def get_labelled_ndarray(rows):
     # At first, get all column names and types
     key_types = []
 
+    if len(rows) == 0:
+        raise ValueError("Source data length is 0.")
+
     for key, value in dict(rows[0]).items():
         if isinstance(value, str):
             key_type = 'object'

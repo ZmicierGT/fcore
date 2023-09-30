@@ -501,7 +501,9 @@ class ROStockData(ReadOnlyData):
                                 (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
                                 (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
                             FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
-                            WHERE s.ticker = '{self.symbol}';"""
+                            WHERE s.ticker = '{self.symbol}'
+                            AND ex_date >= {self.first_date_ts}
+                            AND ex_date <= {self.last_date_ts};"""
 
         try:
             self.cur.execute(get_divs)
@@ -584,7 +586,6 @@ class ROStockData(ReadOnlyData):
         splits = self.get_splits()
 
         # Adjust the price for dividends
-        # TODO HIGH Implement correct divident adjustments
         if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,
             # then add one month to the execution date.
@@ -602,9 +603,20 @@ class ROStockData(ReadOnlyData):
             for i in range(len(divs)):
                 idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
+                amount = divs[Dividends.Amount][i]
+
                 try:
-                    quotes[StockQuotes.ExDividends][idx_ex] = divs[Dividends.Amount][i]
-                    quotes[StockQuotes.AdjClose][idx_ex] = quotes[StockQuotes.AdjClose][idx_ex] - divs[Dividends.Amount][i]
+                    quotes[StockQuotes.ExDividends][idx_ex] = amount
+
+                    o_ratio = (quotes[StockQuotes.Open][idx_ex] - amount) / quotes[StockQuotes.Open][idx_ex]
+                    h_ratio = (quotes[StockQuotes.High][idx_ex] - amount) / quotes[StockQuotes.High][idx_ex]
+                    l_ratio = (quotes[StockQuotes.Low][idx_ex] - amount) / quotes[StockQuotes.Low][idx_ex]
+                    c_ratio = (quotes[StockQuotes.Close][idx_ex] - amount) / quotes[StockQuotes.Close][idx_ex]
+
+                    quotes[StockQuotes.Open][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
+                    quotes[StockQuotes.High][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio
+                    quotes[StockQuotes.Low][:idx_ex] = quotes[StockQuotes.Low][:idx_ex] * l_ratio
+                    quotes[StockQuotes.AdjClose][:idx_ex] = quotes[StockQuotes.AdjClose][:idx_ex] * c_ratio
                 except IndexError:
                     pass
                     # No need to do anything - just requested quote data is shorter than available dividend data
@@ -612,7 +624,7 @@ class ROStockData(ReadOnlyData):
                 idx_pay = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.PaymentDate][i], ], side='right')[0]
 
                 try:
-                    quotes[StockQuotes.PayDividends][idx_pay] = divs[Dividends.Amount][i]
+                    quotes[StockQuotes.PayDividends][idx_pay] = amount
                 except IndexError:
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
@@ -626,16 +638,17 @@ class ROStockData(ReadOnlyData):
                 idx_split = np.searchsorted(quotes[StockQuotes.TimeStamp], [splits[StockSplits.Date][i], ], side='right')[0]
 
                 try:
-                    quotes[StockQuotes.Splits][idx_split] = splits[StockSplits.Ratio][i]
+                    ratio = splits[StockSplits.Ratio][i]
+                    quotes[StockQuotes.Splits][idx_split] = ratio
 
-                    if splits[StockSplits.Ratio][i] != 1:
+                    if ratio != 1:
                         # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
-                        quotes[StockQuotes.Open][:idx_split] = quotes[StockQuotes.Open][:idx_split] / splits[StockSplits.Ratio][i]
-                        quotes[StockQuotes.High][:idx_split] = quotes[StockQuotes.High][:idx_split] / splits[StockSplits.Ratio][i]
-                        quotes[StockQuotes.Low][:idx_split] = quotes[StockQuotes.Low][:idx_split] / splits[StockSplits.Ratio][i]
-                        quotes[StockQuotes.Volume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * splits[StockSplits.Ratio][i]
+                        quotes[StockQuotes.Open][:idx_split] = quotes[StockQuotes.Open][:idx_split] / ratio
+                        quotes[StockQuotes.High][:idx_split] = quotes[StockQuotes.High][:idx_split] / ratio
+                        quotes[StockQuotes.Low][:idx_split] = quotes[StockQuotes.Low][:idx_split] / ratio
+                        quotes[StockQuotes.Volume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * ratio
 
-                        quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / splits[StockSplits.Ratio][i]
+                        quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / ratio
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass

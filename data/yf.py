@@ -233,7 +233,9 @@ class YF(stock.StockFetcher):
         splits = data.splits
 
         df_result = pd.DataFrame()
-        df_result['ts'] = splits.reset_index()['Date'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
+        # Keep splits at 00:00:00
+        df_result['ts'] = splits.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
+        df_result['ts'] = df_result['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
         df_result['split_ratio'] = splits.reset_index()['Stock Splits']
 
@@ -250,7 +252,8 @@ class YF(stock.StockFetcher):
         divs = data.dividends
 
         df_result = pd.DataFrame()
-        df_result['ex_ts'] = divs.keys().tz_convert('UTC').normalize()
+        # Keep dividends at 00:00:00
+        df_result['ex_ts'] = divs.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
         df_result['ex_ts'] = df_result['ex_ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
         df_result['amount'] = divs.reset_index()['Dividends']

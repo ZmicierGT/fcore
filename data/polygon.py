@@ -20,7 +20,6 @@ from data.futils import get_dt
 
 import settings
 
-#TODO HIGH Check all time zone related issues here and correspondence of quotes/splits/divs with other sources.
 class Polygon(stock.StockFetcher):
     """
         Polygon.IO wrapper class.
@@ -226,11 +225,11 @@ class Polygon(stock.StockFetcher):
             record_date = get_dt(div['record_date'])
             pay_date = get_dt(div['pay_date'])
 
-            # Keep all non-intraday timestamps at 23:59:59 to better match with non-intraday quotes
-            decl_date = decl_date.replace(hour=23, minute=59, second=59)
-            ex_date = ex_date.replace(hour=23, minute=59, second=59)
-            record_date = record_date.replace(hour=23, minute=59, second=59)
-            pay_date = pay_date.replace(hour=23, minute=59, second=59)
+            # Keep all dividend timestamps at 00:00:00
+            decl_date = decl_date.replace(hour=00, minute=00, second=00)
+            ex_date = ex_date.replace(hour=00, minute=00, second=00)
+            record_date = record_date.replace(hour=00, minute=00, second=00)
+            pay_date = pay_date.replace(hour=00, minute=00, second=00)
 
             decl_ts = int(datetime.timestamp(decl_date))
             ex_ts = int(datetime.timestamp(ex_date))
@@ -263,8 +262,8 @@ class Polygon(stock.StockFetcher):
         for split in json_results:
             dt = get_dt(split['execution_date'])
 
-            # Keep all non-intraday timestamps at 23:59:59 to better match with non-intraday quotes
-            dt = dt.replace(hour=23, minute=59, second=59)
+            # Keep all split timestamps at 00:00:00
+            dt = dt.replace(hour=00, minute=00, second=00)
             ts = int(datetime.timestamp(dt))
 
             split_to = int(split['split_to'])

@@ -130,11 +130,11 @@ class YF(stock.StockFetcher):
             raise FdataError(f"Can not fetch quotes for {self.symbol}. No quotes fetched.")
 
         data = data.reset_index()
-        # TODO LOW Currently EOD datetimes are set to 23:59:59 UTC (the same say).
-        data['ts'] = data['Date'].dt.tz_localize('UTC').dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
-        data['ts'] = data['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
         if self.is_intraday() is False:
+            data['ts'] = data['Date'].dt.tz_localize('UTC').dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
+            data['ts'] = data['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
+
             # Reverse-adjust the quotes
             splits = self.__fetch_splits()
 
@@ -146,6 +146,9 @@ class YF(stock.StockFetcher):
                 data.loc[data.index < ind, 'Low'] = data.loc[data.index < ind, 'Low'] * splits['split_ratio'][i]
                 data.loc[data.index < ind, 'Close'] = data.loc[data.index < ind, 'Close'] * splits['split_ratio'][i]
                 data.loc[data.index < ind, 'Volume'] = data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i]
+        else:
+            # One more astype to get rid of .0
+            data['ts'] = data['Datetime'].dt.tz_convert('UTC').astype(int).div(10**9).astype(int)
 
         # Create a list of dictionaries with quotes
         quotes_data = []

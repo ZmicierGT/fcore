@@ -585,6 +585,9 @@ class ROStockData(ReadOnlyData):
         # Get all split data
         splits = self.get_splits()
 
+        # TODO MID Think if we should fetch all available (the most recent) quotes for
+        # full adjustment (not only requested interval)
+
         # Adjust the price for dividends
         if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,

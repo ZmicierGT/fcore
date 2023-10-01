@@ -13,6 +13,11 @@ from data.fvalues import Timespans
 from data import yf
 
 if __name__ == "__main__":
+    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+                "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
+                "datasource only for demonstation purposes!\n"
+    print(warning)
+
     source_btc = yf.YF()
     source_ltc = yf.YF()
 
@@ -34,8 +39,7 @@ if __name__ == "__main__":
                  resistance=resistance,
                  timespan=Timespans.Minute)
 
-    print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
-    print("and exceptions due to network errors may happen.\n")
+    print("Please note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
 
     print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 

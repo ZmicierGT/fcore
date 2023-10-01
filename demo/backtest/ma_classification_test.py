@@ -44,6 +44,11 @@ if __name__ == "__main__":
     # Get quotes for learning
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+                  "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
+                  "datasource only for demonstation purposes!\n"
+        print(warning)
+
         source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
         rows_learn, num = source.fetch_if_none(threshold_learn)
     except FdataError as e:

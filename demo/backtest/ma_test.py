@@ -28,7 +28,11 @@ if __name__ == "__main__":
     # Get quotes
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
-        # TODO HIGH Warn that yfinance should be always updated and YF quotes are used for demonstration purposes only
+        warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+                  "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
+                  "datasource only for demonstation purposes!\n"
+        print(warning)
+
         source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
         rows, num = source.fetch_stock_data_if_none(threshold, 145, 6)
     except FdataError as e:

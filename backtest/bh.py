@@ -4,8 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-import numpy as np
-
 from backtest.base import BackTest
 
 class BuyAndHold(BackTest):

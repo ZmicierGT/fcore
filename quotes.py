@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
+# TODO MID Check if we have enough data management methods (with the focus on deleting) and remove CLI tools.
 import sys
 import getopt
 

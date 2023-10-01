@@ -597,7 +597,7 @@ class ROStockData(ReadOnlyData):
 
             if payment_date_num != ex_date_num and payment_date_num != ex_date_num - 1:
                 if self._verbosity:
-                    print(f"Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+                    print("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
                 divs[Dividends.PaymentDate] = np.nan
@@ -1178,7 +1178,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return self.fetch_if_none(quote_threshold)
 
-    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method, queries=None):
+    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method, queries=None):  # TODO MID Check why no queries
         """
             Fetch all the available additional data if stored data entries do not meet the specified threshold.
 

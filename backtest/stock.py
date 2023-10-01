@@ -7,7 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 
 from backtest.base import BackTestData
 from backtest.base import BackTestOperations
-from backtest.base import BackTestError
 
 from data.fvalues import StockQuotes
 
@@ -21,15 +20,6 @@ class StockData(BackTestData):
                  **kwargs):
         """
             Initializes the stock data class.
-
-            Args:
-                use_yield(float): the yield which should be used for calculation. If the value i 0, then incoming yield from
-                    the database will be used (if any).
-                yield_interval(int): interval in days in which the yield comes. Use 0 if you want to use yield values
-                    from the database.
-
-            Raises:
-                BackTestError: incorrect values in arguments.
         """
         super().__init__(**kwargs)
 
@@ -50,24 +40,6 @@ class StockData(BackTestData):
                 StockOperations: instance for performing operations for a particular symbol in the portfolio.
         """
         return StockOperations(data=self, caller=caller)
-
-    def get_use_yield(self):
-        """
-            Get the pre-defined yield.
-
-            Returns:
-                float: pre-defined yield value.
-        """
-        return self._use_yield
-
-    def get_yield_interval(self):
-        """
-            Get the pre-defined yield interval.
-
-            Returns:
-                float: pre-defined yield interval value.
-        """        
-        return self._yield_interval
 
 class StockOperations(BackTestOperations):
     """

@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
+# TODO MID Consider removing excessive demos
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 

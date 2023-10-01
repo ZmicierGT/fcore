@@ -96,8 +96,8 @@ class StockOperations(BackTestOperations):
         current_yield = 0
 
         # Check if we have dividends today according to the dataset
-        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] != None and self.get_max_positions() > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends][0] * self.get_max_positions()
+        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] != None and self.get_max_positions() > 0:
+            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] * self.get_max_positions()
 
         return current_yield
 
@@ -105,8 +105,8 @@ class StockOperations(BackTestOperations):
         """
             Check for a stock split and apply split to the portfolio if any.
         """
-        ratio = self.data().get_rows()[self.get_caller_index()][StockQuotes.Splits][0]
-        old_close = self.data().get_rows()[self.get_caller_index() - 1][StockQuotes.Close][0]
+        ratio = self.data().get_rows()[self.get_caller_index()][StockQuotes.Splits]
+        old_close = self.data().get_rows()[self.get_caller_index() - 1][StockQuotes.Close]
 
         if ratio != 1 and self.get_caller_index() != 0:
             if self.is_long():

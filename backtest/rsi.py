@@ -116,9 +116,7 @@ class RSI(BackTest):
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
             ####################################################################################################
 
-            idx = np.where(self.get_main_data().get_rows() == row)[0]
-
-            if self.do_cycle(idx) == False:
+            if self.do_cycle(row) == False:
                 continue
 
             #################################################################################
@@ -131,16 +129,16 @@ class RSI(BackTest):
             open_short = False
 
             for ex in self.all_exec():
-                if max_ex == None or ex.get_calc_data_val().iloc[0] > max_ex.get_calc_data_val().iloc[0]:
+                if max_ex == None or ex.get_calc_data_val() > max_ex.get_calc_data_val():
                     max_ex = ex
 
-                if min_ex == None or ex.get_calc_data_val().iloc[0] < min_ex.get_calc_data_val().iloc[0]:
+                if min_ex == None or ex.get_calc_data_val() < min_ex.get_calc_data_val():
                     min_ex = ex
 
             if (
-                max_ex.get_calc_data_val(offset=1).iloc[0] != None and
-                max_ex.get_calc_data_val(offset=1).iloc[0] > self.__resistance and
-                max_ex.get_calc_data_val().iloc[0] < self.__resistance
+                max_ex.get_calc_data_val(offset=1) != None and
+                max_ex.get_calc_data_val(offset=1) > self.__resistance and
+                max_ex.get_calc_data_val() < self.__resistance
                ):
 
                 max_ex.close_all_long()
@@ -149,9 +147,9 @@ class RSI(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_calc_data_val(offset=1).iloc[0] != None and
-                min_ex.get_calc_data_val(offset=1).iloc[0] < self.__support and
-                min_ex.get_calc_data_val().iloc[0] > self.__support
+                min_ex.get_calc_data_val(offset=1) != None and
+                min_ex.get_calc_data_val(offset=1) < self.__support and
+                min_ex.get_calc_data_val() > self.__support
                ):
 
                 min_ex.close_all_short()

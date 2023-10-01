@@ -73,6 +73,11 @@ symbols = [['MMM', def_threshold, 245, 4],
            ['WMT', 12655, 197, 9]]
 
 if __name__ == "__main__":
+    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+                "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
+                "datasource only for demonstation purposes!\n"
+    print(warning)
+
     # Array for the fetched data for all symbols
     allrows = []
 

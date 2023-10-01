@@ -16,8 +16,6 @@ from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
-# TODO LOW Add unit test for this module
-
 class FHStock(stock.StockFetcher):
     """
         Finnhub API wrapper class.

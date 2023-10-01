@@ -38,6 +38,11 @@ if __name__ == "__main__":
     # Array for the fetched data for all symbols
     allrows = []
 
+    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+                "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
+                "datasource only for demonstation purposes!\n"
+    print(warning)
+
     for symbol in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan

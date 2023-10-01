@@ -8,10 +8,10 @@
 - Backtesting is treated as an another AI metric and it should be very sensitive to a 'minor' details.
 
 ### Based on these principles, **Fcore**:
-- Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and storie it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters (bar data plus reports) are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
+- Can obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and store it in an unified way without any need to worry about parsing data, altering the results and so on. Currently around 100 data parameters (OHLC-data plus reports) are supported. If you need an additional source, API allows to quickly write an extension to obtain the required data.
 - Provides an API to ease the development of AI-strategies for financial markets analysis. The main focus is on classifying various market signals and estimation of the future prices as a regression problem.
 - Utilizes the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach. As there is no difference in data processing techniques, data provided by AI may treated as a custom 'AI-indicator'.
-- Provides its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well. Obtained results must be very close to actual results which you could get on a real market using the analysed strategy.
+- Provides its own backtesting engine which takes into account a lot of expenses related to an actual trade/investment. It handles various margin-specific fees and inflation as well.
 - Can use multiple securities in one backtesting or real time screening strategy (sure, single instument strategies are available as well).
 - Has an API for reporting.
 
@@ -22,6 +22,8 @@ Please note that Fcore is a tool which helps you to easily implement and test yo
 # Quick Start
 
 Here are some basic examples of how to use Fcore.
+
+<span style="color:red">**The latest version of yfinance library is required to run these examples. Always update yfinace to the latest version using 'pip install yfinance --upgrade'**</span>
 
 ## Data Management
 
@@ -53,11 +55,18 @@ pvi.db_close()
 
 print(f"Total quotes num before and after the operation (it won't increase if quotes already present in DB): {before}, {after}")
 
-# Fetch quotes and fundamental data from AlphaVantage. Please note that the free key allows 5 API calls per minute.
-avi = av.AVStock(symbol='IBM')
-avi.compact = False  # Request all awailable quotes data for IBM
+symbol = 'IBM'
 
-avi.fetch_if_none(15423)  # Fetch quotes and add it to DB
+print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
+
+avi = av.AVStock(symbol=symbol)
+avi.fetch_if_none(6007)
+
+yfi = yf.YF(symbol=symbol)
+yfi.fetch_dividends_if_none(245)
+yfi.fetch_splits_if_none(8)
+
+print(f"Fetch fundamental data for {symbol} from AV...")
 
 # Fetch fundamental data and add it to DB
 avi.fetch_earnings_if_none(109)
@@ -65,16 +74,15 @@ avi.fetch_cash_flow_if_none(25)
 avi.fetch_balance_sheet_if_none(25)
 avi.fetch_income_statement_if_none(25)
 
-# Get quotes from DB along with some fundamental data
+print("Get quotes from DB along with some fundamental data")
 avi.db_connect()
-rows = avi.get_quotes(columns=['time_stamp'],  # Get time stamp in addition to a formatted data time.
-                      queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
+rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
                                Subquery('earnings', 'reported_eps'),
                                Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 avi.db_close()
 
 # Print last rows of requested data
-print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{dict(rows[-1])}")
+print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{rows[-1]}")
 
 # Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
 aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()
@@ -89,7 +97,7 @@ This is another example of how to create your own basic growth probability estim
 ```python
 from tools.classifier import Classifier
 
-from data.fvalues import Quotes, Algorithm
+from data.fvalues import StockQuotes, Algorithm
 from data.yf import YF
 from data.futils import update_layout, show_image
 
@@ -117,17 +125,17 @@ class Probability(Classifier):
         df = pd.DataFrame(self._rows) if rows is None else pd.DataFrame(rows)  # Create the dataframe base on provided data
 
         # Calculate required technical indicators
-        ma_long = ta.sma(df[Quotes.AdjClose], length = self._period_long)  # Long SMA
-        ma_short = ta.sma(df[Quotes.AdjClose], length = self._period_short)  # Short SMA
-        pvo = ta.pvo(df[Quotes.Volume])  # Percentage volume oscillator
+        ma_long = ta.sma(df[StockQuotes.AdjClose], length = self._period_long)  # Long SMA
+        ma_short = ta.sma(df[StockQuotes.AdjClose], length = self._period_short)  # Short SMA
+        pvo = ta.pvo(df[StockQuotes.Volume])  # Percentage volume oscillator
 
         # Prepare data for learning/estimation
         df['pvo'] = pvo.iloc[:, 0]
         df['ma-long'] = ma_long
         df['ma-short'] = ma_short
-        df['quote'] = df[Quotes.AdjClose]
+        df['quote'] = df[StockQuotes.AdjClose]
         df['ma-diff'] = ((ma_long - ma_short) / ma_long)  # Ratio of difference between long and short SMAs
-        df['hilo-diff'] = ((df[Quotes.High] - df[Quotes.Low]) / df[Quotes.High])  # Ratio of difference between High and Low
+        df['hilo-diff'] = ((df[StockQuotes.High] - df[StockQuotes.Low]) / df[StockQuotes.High])  # Ratio of difference between High and Low
 
         self._data_to_est = ['pvo', 'ma-diff', 'hilo-diff']  # Columns to learn/estimate
         self._data_to_report = self._data_to_est + ['ma-long', 'ma-short', 'quote']  # Columns for reporting
@@ -137,8 +145,8 @@ class Probability(Classifier):
 
     def get_buy_condition(self, df):
         """Get buy condiiton to check signals."""
-        curr_quote = df[Quotes.AdjClose]
-        next_quote = df[Quotes.AdjClose].shift(-abs(self._cycle_num))
+        curr_quote = df[StockQuotes.AdjClose]
+        next_quote = df[StockQuotes.AdjClose].shift(-abs(self._cycle_num))
 
         return (next_quote - curr_quote) / curr_quote >= self._true_ratio
 
@@ -190,7 +198,7 @@ The script will generate a chart with close price and moving averages and also a
 
 ## Backtesting and Classification of Technical Analysis Signals
 
-Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of '200 Day SMA vs Price' strategy when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
+Using market analysis API provided by Fcore you can easily classify nearly every event which happens on a market. This is an example of 'SMA vs Price' strategy when technical analysis signals are distinguished by AI of being true/false. This example also performs a backtest to compare results with and without AI usage on the similar strategy. Invoke **python -m quickstart.min_ma_classification** to run the example.
 
 ```python
 from data.fvalues import Algorithm
@@ -222,7 +230,7 @@ rows_test, length_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023
 classifier = MAClassifier(period=period,  # SMA Period
                           data_to_learn=[rows_learn],  # Raw quote data to train the model
                           true_ratio=0.004,  # Ratio when signal is considered as true in cycle_num.
-                                             # For example, if  true_ratio is 0.03 and cycle_num is 5,
+                                             # For example, if true_ratio is 0.03 and cycle_num is 5,
                                              # then the signal will be considered as true if there was a 3% change in
                                              # quote in the following 5 cycles after getting the signal.
                           cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
@@ -290,9 +298,9 @@ report.show_image()
 ```
 
 It is the report generated by the script above:
-![Backtesting Report](report.png "Backtesting Report")
+![Backtesting Report](ma_classification.png "Backtesting Report")
 
-Here we see that AI helped to better distinguish some signals of the strategy and decreased the loses from -20.34% to -11.51%.
+Here we see that AI helped to better distinguish some signals of the strategy and decreased the loses.
 
 # Other Examples
 
@@ -339,9 +347,7 @@ Overall, the next development steps are (planned to finish in Autumn 2023):
 
 All fetched quotes are cached in a database (sqlite by default). Data-related settings (like api-keys) are stored in [settings.py](settings.py) file.
 
-Use *python -m unittest discover -s test -p '*_test.py'* to run unit tests (data components are tested now).
-
-**Fcore** is adopted to [nogil-3.9.10](https://github.com/colesbury/nogil) python interpreter. Use it with **nogil** to benefit from parallel computing.
+**Fcore** is adopted to [nogil-3.9.10](https://github.com/colesbury/nogil) python interpreter. Use it with **nogil** to benefit from parallel computing (not fully stable).
 
 Fcore is distributes on an 'AS IS' basis using a custom source available [License](license.md). The author is not responsible for any losses caused by using the project.
 

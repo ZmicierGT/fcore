@@ -71,7 +71,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_calc_data_val().iloc[0] <= self.exec().get_close(True)
+        return self.exec().get_calc_data_val() <= self.exec().get_close(True)
 
     def do_tech_calculation(self, ex):
         """
@@ -115,7 +115,7 @@ class MA(BackTest):
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
             ####################################################################################################
 
-            if self.do_cycle(np.where(rows == row)[0]) == False:
+            if self.do_cycle(row) == False:
                 continue
 
             ############################################################################

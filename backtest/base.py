@@ -466,8 +466,7 @@ class BackTestOperations():
             Returns:
                 bool: indicate if the calculation is finished
         """
-        # TODO HIGH Check why often arrays are used as index but not a 'pure' value
-        return self.get_caller_index()[0] == len(self.data().get_rows())
+        return self.get_caller_index() + 1 == len(self.data().get_rows())
 
     # Fee calculated based on commission in percent of the trade
     def get_trade_percent_fee(self):
@@ -545,7 +544,7 @@ class BackTestOperations():
         if index == None:
             index = self.get_caller_index()
 
-        return self.data().get_rows()[index][Quotes.DateTime][0]
+        return self.data().get_rows()[index][Quotes.DateTime]
 
     def get_datetime(self, index=None):
         """
@@ -585,7 +584,7 @@ class BackTestOperations():
             Returns:
                 float: the open price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_caller_index()][Quotes.Open][0]
+        return self.data().get_rows()[self.get_caller_index()][Quotes.Open]
 
     def get_close(self, adjusted=False):
         """
@@ -598,9 +597,9 @@ class BackTestOperations():
                 float: the close price at the current index of the calculation.
         """
         if adjusted:
-            return self.data().get_rows()[self.get_caller_index()][self.data().close][0]
+            return self.data().get_rows()[self.get_caller_index()][self.data().close]
         else:
-            return self.data().get_rows()[self.get_caller_index()][Quotes.Close][0]
+            return self.data().get_rows()[self.get_caller_index()][Quotes.Close]
 
     def get_high(self):
         """
@@ -1798,7 +1797,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: index not found.
         """
-        if index > len(self.get_main_data().get_rows()):
+        if index >= len(self.get_main_data().get_rows()):
             raise BackTestError(f"Provided data does not have index {index}")
 
         self.__index = index
@@ -1811,6 +1810,20 @@ class BackTest(metaclass=abc.ABCMeta):
                 int: index for calculation.
         """
         return self.__index
+
+    def get_row_index(self, row):
+        """
+            Get the index of a data row.
+
+            Args:
+                row: data row.
+
+            Returns:
+                int: index of the row.
+        """
+        idx = np.where(self.get_main_data().get_rows() == row)
+
+        return idx[0][0]
 
     def skipped(self, index=None):
         """
@@ -2323,7 +2336,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Setup the current calculation cycle.
 
             Args:
-                index(int): the index of the cycle.
+                index(int, np.ndarray, np.void): the index of the cycle / row to determine an index.
 
             Returns:
                 True if calculation was performed, False if the cycle was skipped.
@@ -2339,6 +2352,9 @@ class BackTest(metaclass=abc.ABCMeta):
 
         if self.__is_finished:
             raise BackTestError("The calculation has already finished.")
+
+        if isinstance(index, np.ndarray) or isinstance(index, np.void):
+            index = self.get_row_index(index)
 
         if index >= len(self.get_main_data().get_rows()):
             raise BackTestError(f"Provided data does not have index {index}")

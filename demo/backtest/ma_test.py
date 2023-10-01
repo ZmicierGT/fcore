@@ -28,8 +28,8 @@ if __name__ == "__main__":
     # Get quotes
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
+        # TODO HIGH Warn that yfinance should be always updated and YF quotes are used for demonstration purposes only
         source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
-        # TODO MID Consider using examples with divs/splits (Stock instead of ETF)
         rows, num = source.fetch_stock_data_if_none(threshold, 145, 6)
     except FdataError as e:
         sys.exit(e)

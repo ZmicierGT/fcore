@@ -305,6 +305,19 @@ class BackTestData():
         """
         return BackTestOperations(data=self, caller=caller)
 
+    # TODO LOW Think if it is a really thread safe
+    def delete_row(self, row_num):
+        """
+            Deletes a row from data.
+
+            Args:
+                row_num(int): row number
+        """
+        try:
+            self._rows = np.delete(self._rows, row_num, 0)
+        except IndexError as e:
+            raise BackTestError(f"Can not delete row {row_num} as it does not exist") from e
+
 #############################
 # Base backtesting operations
 #############################
@@ -445,6 +458,16 @@ class BackTestOperations():
             value = None
 
         return value
+
+    def check_if_finished(self):
+        """
+            Check if the simulation is finished for this instance.
+
+            Returns:
+                bool: indicate if the calculation is finished
+        """
+        # TODO HIGH Check why often arrays are used as index but not a 'pure' value
+        return self.get_caller_index()[0] == len(self.data().get_rows())
 
     # Fee calculated based on commission in percent of the trade
     def get_trade_percent_fee(self):
@@ -626,6 +649,7 @@ class BackTestOperations():
         """
         return self.get_close() * self.data().get_spread() / 100 / 2
 
+    # TODO MID Consider if buy/sell price is more rational than pre-defined spread
     def get_buy_price(self, adjusted=False):
         """
             Get the buy price of the current symbol in the current cycle of the calculation.
@@ -721,8 +745,10 @@ class BackTestOperations():
 
         if self.is_long():
             total_value += self.get_sell_price() * self._long_positions_cash
+
             for j in range(self.get_margin_positions()):
                 total_value += self.get_sell_price() - self._portfolio[j]
+
         else:
             for j in range(self._short_positions):
                 total_value += self._portfolio[j] - self.get_buy_price()
@@ -1772,7 +1798,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: index not found.
         """
-        if index >= len(self.get_main_data().get_rows()):
+        if index > len(self.get_main_data().get_rows()):
             raise BackTestError(f"Provided data does not have index {index}")
 
         self.__index = index
@@ -2219,27 +2245,25 @@ class BackTest(metaclass=abc.ABCMeta):
 
         all_execs = len(self.all_exec())
 
-        # Needs a bit tricky implementation to handle python's automatic copying of objects
         # At first we need to remove all the entries where DateTime does not present in each symbol's data
         if all_execs > 1:
+            # TODO LOW When source data is switched to a labelled numpy array, evaluate the speed of the
+            # calculation below and think how to implement it faster.
             dts_to_remove = []
 
             for i in range(all_execs):
-                for j in range(len(self.exec(i).data().get_rows())):
-                    dt = self.exec(i).data().get_rows()[j][Quotes.DateTime]
+                dt_col = self.exec(i).data().get_rows()[Quotes.DateTime]
 
-                    for ex in self.all_exec():
-                        dts2 = [row2[Quotes.DateTime] for row2 in ex.data().get_rows()]
-                        
-                        if dt not in dts2:
-                            dts_to_remove.append(dt)
+                for j in range(all_execs):
+                    if i != j:
+                        res = [item for item in self.exec(j).data().get_rows()[Quotes.DateTime] if item not in dt_col]
+
+                        dts_to_remove += res
 
             for dt in dts_to_remove:
                 for ex in self.all_exec():
-                    for i in range(len(ex.data().get_rows())):
-                        if ex.data().get_rows()[i][Quotes.DateTime] == dt:
-                            del ex.data().get_rows()[i]
-                            break
+                    idx = np.where(ex.data().get_rows()[Quotes.DateTime] == dts_to_remove)
+                    ex.data().delete_row(idx)
 
             length = len(self.exec().data().get_rows())
 
@@ -2373,9 +2397,13 @@ class BackTest(metaclass=abc.ABCMeta):
         else:
             raise BackTestError("The current cycle is not active.")
 
-        # Check if the calculation is finished
-        if self.get_index() + 1 == len(self.get_main_data().get_rows()):
-            self.__is_finished = True
+        self.__is_finished = True
+
+        # Check if the calculation is finished for all instances
+        for ex in self.all_exec():
+            if ex.check_if_finished() == False:
+                self.__is_finished = False
+                break
 
     def calculate(self):
         """

@@ -55,16 +55,12 @@ if __name__ == "__main__":
 
     data_a = StockData(rows=allrows[0],
                           title=symbols[0],
-                          spread=0.1,
-                          use_yield=1.5,
-                          yield_interval=90
+                          spread=0.1
                          )
 
     data_b = StockData(rows=allrows[1],
                           title=symbols[1],
-                          spread=0.1,
-                          use_yield=1.5,
-                          yield_interval=90
+                          spread=0.1
                          )
 
     quotes = [data_a, data_b]

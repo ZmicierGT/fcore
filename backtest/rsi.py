@@ -11,8 +11,6 @@ from backtest.base import BackTestError
 import pandas as pd
 import pandas_ta as ta
 
-import numpy as np
-
 class RSI(BackTest):
     """
         RSI backtesting strategy implementation.

@@ -164,7 +164,7 @@ class AVStock(stock.StockFetcher):
             dict_header = dict(json_data['Meta Data'].items())
             dict_results = dict(sorted(json_data[json_key].items()))
         except KeyError as err:
-            raise FdataError(f"Can't get data. Likely API key limit is reached.") from err
+            raise FdataError("Can't get data. Likely API key limit is reached.") from err
 
         return (dict_results, dict_header)
 

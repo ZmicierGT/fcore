@@ -7,12 +7,8 @@ Distributed under Fcore License 1.1 (see license.md)
 from backtest.base import BackTest
 from backtest.base import BackTestError
 
-from data.fvalues import Quotes
-
 import pandas as pd
 import pandas_ta as ta
-
-import numpy as np
 
 class MA(BackTest):
     """

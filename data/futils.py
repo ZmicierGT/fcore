@@ -178,7 +178,7 @@ def build_chart(rows):
             str: new file name.
     """
     date = [row[fvalues.Quotes.DateTime] for row in rows]
-    close = [row[fvalues.Quotes.AdjClose] for row in rows]
+    close = [row[fvalues.Quotes.Close] for row in rows]
 
     fig = go.Figure([go.Scatter(x=date, y=close)])
 

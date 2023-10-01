@@ -607,14 +607,32 @@ class ROStockData(ReadOnlyData):
                 idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
                 amount = divs[Dividends.Amount][i]
-
+                np.seterr(all='raise')
                 try:
                     quotes[StockQuotes.ExDividends][idx_ex] = amount
 
-                    o_ratio = (quotes[StockQuotes.Open][idx_ex] - amount) / quotes[StockQuotes.Open][idx_ex]
-                    h_ratio = (quotes[StockQuotes.High][idx_ex] - amount) / quotes[StockQuotes.High][idx_ex]
-                    l_ratio = (quotes[StockQuotes.Low][idx_ex] - amount) / quotes[StockQuotes.Low][idx_ex]
-                    c_ratio = (quotes[StockQuotes.Close][idx_ex] - amount) / quotes[StockQuotes.Close][idx_ex]
+                    opened = quotes[StockQuotes.Open][idx_ex]
+                    high = quotes[StockQuotes.High][idx_ex]
+                    low = quotes[StockQuotes.Low][idx_ex]
+                    closed = quotes[StockQuotes.Close][idx_ex]
+
+                    o_ratio = 1
+                    h_ratio = 1
+                    l_ratio = 1
+                    c_ratio = 1
+
+                    # In some cases the values may be 0. Need to skip such cases.
+                    if opened:
+                        o_ratio = (opened - amount) / opened
+
+                    if high:
+                        h_ratio = (high - amount) / high
+
+                    if low:
+                        l_ratio = (low - amount) / low
+
+                    if closed:
+                        c_ratio = (closed - amount) / closed
 
                     quotes[StockQuotes.Open][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
                     quotes[StockQuotes.High][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio

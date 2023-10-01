@@ -11,6 +11,8 @@ from backtest.base import BackTestError
 
 from data.fvalues import StockQuotes
 
+from itertools import repeat
+
 class StockData(BackTestData):
     """
         The class represents stock data for backtesting.
@@ -99,15 +101,70 @@ class StockOperations(BackTestOperations):
 
         return current_yield
 
-    # TODO HIGH Implement it
     def check_for_split(self):
         """
             Check for a stock split and apply split to the portfolio if any.
         """
         ratio = self.data().get_rows()[self.get_caller_index()][StockQuotes.Splits][0]
+        old_close = self.data().get_rows()[self.get_caller_index() - 1][StockQuotes.Close][0]
 
         if ratio != 1 and self.get_caller_index() != 0:
-            pass
+            if self.is_long():
+                margin_positions = self._long_positions - self._long_positions_cash
+                self._long_positions_cash *= ratio
+
+                excess = self._long_positions_cash - round(self._long_positions_cash)
+
+                # Add excess cash to the cash balance (in case of any decimal parts of share number)
+                if excess != 0:
+                    self._long_positions_cash = round(self._long_positions_cash)
+                    self.get_caller().add_cash(excess * self.get_close())
+                else:
+                    self._long_positions_cash = int(self._long_positions_cash)  # Get rid of possible .0
+
+                # In the case of margin positions, calculate total margin used and readjust all the margin portfolio.
+                # The adjustment is implemented as a comission and spread free closure of all margin positions with
+                # immediate spread and comission free reopening of new positions withing the previous margin
+                # buying power.
+                if margin_positions != 0:
+                    buying_power = margin_positions * old_close
+
+                    delta = 0
+
+                    # Close all the margin positions (commission and spread free)
+                    for _ in range(margin_positions):
+                        delta += old_close - self._portfolio.pop()
+
+                    self.get_caller().add_cash(delta)
+
+                    # Open (spread and commission free) new long margin positions withing
+                    # the previous margin buying power limit
+                    new_margin_positions = round(buying_power / self.get_buy_price())
+
+                    self._portfolio = []
+                    self._portfolio.extend(repeat(self.get_buy_price(), new_margin_positions))
+
+                    self._long_positions = self._long_positions_cash + new_margin_positions
+            else:
+                # Handling short positions
+                if self._short_positions != 0:
+                    buying_power = self._short_positions * old_close
+
+                delta = 0
+
+                # Close (commission and spread fee) all short positions
+                for _ in range(self._short_positions):
+                    delta += self._portfolio.pop() - old_close
+
+                self.get_caller().add_cash(delta)
+
+                # Open (spread and commission free) new short positions withing the previously available margin
+                new_short_positions = round(buying_power / self.get_buy_price())
+
+                self._portfolio = []
+                self._portfolio.extend(repeat(self.get_sell_price(), new_short_positions))
+
+                self._short_positions = new_short_positions
 
     def apply_other_balance_changes(self):
         """

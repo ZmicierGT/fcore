@@ -28,6 +28,7 @@ if __name__ == "__main__":
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
+        # TODO MID Consider fetching dividends also
         rows, num = source.fetch_if_none(threshold)
     except FdataError as e:
         sys.exit(e)
@@ -41,9 +42,7 @@ if __name__ == "__main__":
 
     quotes = StockData(rows=rows,
                           title=source.symbol,
-                          spread=0.1,
-                          use_yield=1.5,
-                          yield_interval=90
+                          spread=0.1
                          )
 
     bh = BuyAndHold(

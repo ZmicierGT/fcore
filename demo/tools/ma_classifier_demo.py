@@ -39,7 +39,7 @@ test_threshold = 500  # Minimum threshold value for testing
 # In this case, DJIA stocks are used to train the models.
 
 # DJIA composition [symbol, quotes_threshold]. More quotes will be fetched if the threshold is not met.
-symbols = [['MMM', def_threshold, 245, 4],
+symbols = [['MMM', def_threshold, 245, 4],  # TODO HIGH Determine why open price is sometimes 0
            ['AXP', 12715, 187, 6],
            ['AMGN', 9926, 49, 5],
            ['AAPL', 10058, 80, 5],

@@ -92,29 +92,33 @@ class RSI(BackTest):
             Raises:
                 BackTestError: not enough data for calculation.
         """
-        rows = self.get_main_data().get_rows()
-        length = len(rows)
-
-        if length < self._period:
-            raise BackTestError(f"Not enough data to calculate a period: {length} < {self._period}")
 
         ######################################
         # Perform the global calculation setup
         ######################################
 
+        # TODO LOW In setup() the initial data for multi-symbol strategy may be altered.
+        # Consider any length-related operations to be performed only after setup (including other demos)
         self.setup()
+
+        length = len(self.get_main_data().get_rows())
+
+        if length < self._period:
+            raise BackTestError(f"Not enough data to calculate a period: {length} < {self._period}")
 
         ############################################################
         # Iterate through all rows and calculate the required values
         ############################################################
 
-        for row in rows:
+        for row in self.get_main_data().get_rows():
 
             ####################################################################################################
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
             ####################################################################################################
 
-            if self.do_cycle(np.where(rows == row)[0]) == False:
+            idx = np.where(self.get_main_data().get_rows() == row)[0]
+
+            if self.do_cycle(idx) == False:
                 continue
 
             #################################################################################

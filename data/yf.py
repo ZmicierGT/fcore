@@ -65,14 +65,6 @@ class YF(stock.StockFetcher):
             return '90m'
         elif self.timespan == Timespans.Day:
             return '1d'
-        elif self.timespan == Timespans.FiveDays:
-            return '5d'
-        elif self.timespan == Timespans.Week:
-            return "1wk"
-        elif self.timespan == Timespans.Month:
-            return '1mo'
-        elif self.timespan == Timespans.Quarter:
-            return '3mo'
         else:
             raise FdataError(f"Requested timespan is not supported by YF: {self.timespan.value}")
 
@@ -96,7 +88,7 @@ class YF(stock.StockFetcher):
             Returns:
                 bool: if current timespan is intraday.
         """
-        return self.timespan not in (Timespans.Day, Timespans.FiveDays, Timespans.Week, Timespans.Month, Timespans.Quarter)
+        return self.timespan != Timespans.Day
 
     def fetch_quotes(self):
         """

@@ -86,7 +86,6 @@ class AVStock(stock.StockFetcher):
             return '30min'
         elif self.timespan == Timespans.Hour:
             return '60min'
-        # Other timespans are obtained with different function and there is no timespan parameter.
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
@@ -103,7 +102,7 @@ class AVStock(stock.StockFetcher):
                                Timespans.ThirtyMinutes,
                                Timespans.Hour):
             return True
-        elif self.timespan in (Timespans.Day, Timespans.Week, Timespans.Month):
+        elif self.timespan == Timespans.Day:
             return False
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan.value}")
@@ -163,8 +162,12 @@ class AVStock(stock.StockFetcher):
         try:
             dict_header = dict(json_data['Meta Data'].items())
             dict_results = dict(sorted(json_data[json_key].items()))
-        except KeyError as err:
-            raise FdataError("Can't get data. Likely API key limit is reached.") from err
+        except KeyError:
+            # It is possible that just there is not data yet for the current month
+            # TODO MID Implement a function for logging
+            if self._verbosity:
+                print("Can't get data. Likely API key limit or just no data for the requested period.")
+                return (None, None)
 
         return (dict_results, dict_header)
 
@@ -181,21 +184,7 @@ class AVStock(stock.StockFetcher):
         quotes_data = []
 
         # At first, need to set a function depending on a timespan.
-        if self.timespan == Timespans.Day:
-            output_size = 'compact' if self.compact else 'full'
-            json_key = 'Time Series (Daily)'
-
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.symbol}&outputsize={output_size}&apikey={self.api_key}'
-        elif self.timespan == Timespans.Week:
-            json_key = 'Weekly Time Series'
-
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={self.symbol}&apikey={self.api_key}'
-        elif self.timespan == Timespans.Month:
-            json_key = 'Monthly Time Series'
-
-            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol={self.symbol}&apikey={self.api_key}'
-        # All intraday timespans
-        elif self.is_intraday():
+        if self.is_intraday():
             json_key = f'Time Series ({self.get_timespan_str()})'
 
             # Year and month
@@ -207,6 +196,12 @@ class AVStock(stock.StockFetcher):
                 month = 1
 
             url = self.get_intraday_url(year, month)
+
+        else:
+            output_size = 'compact' if self.compact else 'full'
+            json_key = 'Time Series (Daily)'
+
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.symbol}&outputsize={output_size}&apikey={self.api_key}'
 
         # Get quotes data
         dict_results, dict_header = self.get_quote_json(url, json_key)
@@ -228,7 +223,8 @@ class AVStock(stock.StockFetcher):
 
             new_dict, _ = self.get_quote_json(self.get_intraday_url(year, month), json_key)
 
-            dict_results.update(new_dict)
+            if new_dict is not None:
+                dict_results.update(new_dict)
 
         datetimes = list(dict_results.keys())
 

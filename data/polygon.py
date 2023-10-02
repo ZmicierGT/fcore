@@ -82,11 +82,7 @@ class Polygon(stock.StockFetcher):
         """
         if self.timespan in [Timespans.Minute,
                              Timespans.Hour,
-                             Timespans.Day,
-                             Timespans.Week,
-                             Timespans.Month,
-                             Timespans.Quarter,
-                             Timespans.Year]:
+                             Timespans.Day]:
             return self.timespan.lower()
         else:
             raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
@@ -101,7 +97,7 @@ class Polygon(stock.StockFetcher):
         """
         if self.timespan in [Timespans.Minute, Timespans.Hour]:
             return True
-        elif self.timespan in [Timespans.Day, Timespans.Week, Timespans.Month, Timespans.Quarter, Timespans.Year]:
+        elif self.timespan == Timespans.Day:
             return False
         else:
             raise FdataError(f"Unknown timespan for Polygon: {self.timespan.value}")

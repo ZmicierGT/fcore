@@ -720,7 +720,7 @@ class ReadOnlyData():
         return rows
 
     # TODO LOW Consider a way to omit not used columns from the standard output. For example, some user may not need volume and so on.
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -730,6 +730,7 @@ class ReadOnlyData():
                 columns(list): additional columns to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
+                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
 
             Returns:
                 list: list with quotes data.
@@ -784,6 +785,11 @@ class ReadOnlyData():
             for join in joins:
                 additional_joins += join + '\n'
 
+        last_date_ts = self.last_date_ts
+
+        if ignore_last_date:
+            last_date_ts = def_last_date
+
         # select_quotes = f"""SELECT time_stamp,
         #                         datetime(time_stamp, 'unixepoch') AS date_time,
         #                         opened,
@@ -824,7 +830,7 @@ class ReadOnlyData():
                             WHERE symbols.ticker = '{self.symbol}'
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
-                            AND time_stamp <= {self.last_date_ts}
+                            AND time_stamp <= {last_date_ts}
                             ORDER BY time_stamp
                             {num_query};"""
 

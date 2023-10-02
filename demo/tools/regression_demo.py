@@ -164,11 +164,11 @@ if __name__ == "__main__":
         go.Scatter(x=dates, y=lstm_quotes, name="LSTM"), row=1, col=1, secondary_y=False,
     )
 
-    fig.add_trace(go.Scatter(x=dates, y=volume, mode='lines', name="Volume"), row=2, col=1, secondary_y=False)
+    fig.add_trace(go.Scatter(x=dates, y=volume, fill='tozeroy', name="Volume"), row=2, col=1, secondary_y=False)
 
     # Write the chart
 
-    update_layout(fig, f"LSTM example chart for {source.symbol}", window_size * 2 + forecast_size)
+    update_layout(fig, f"LSTM example chart for {source.symbol}", test_length + forecast_size)
 
     new_file = show_image(fig)
 

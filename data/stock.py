@@ -1183,7 +1183,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return self.fetch_if_none(quote_threshold)
 
-    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method, queries=None):  # TODO MID Check why no queries
+    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method):
         """
             Fetch all the available additional data if stored data entries do not meet the specified threshold.
 
@@ -1192,7 +1192,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 num_method(method): method to get the current entries number.
                 add_method(method): method to add the entries to the database.
                 fetch_method(method): method to fetch the entries.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched entries.
@@ -1220,13 +1219,12 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return num
 
-    def fetch_income_statement_if_none(self, threshold, queries=None):
+    def fetch_income_statement_if_none(self, threshold):
         """
             Fetch all the available income statement reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched reports.
@@ -1235,16 +1233,14 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_income_statement_num,
                                         add_method=self.add_income_statement,
-                                        fetch_method=self.fetch_income_statement,
-                                        queries=queries)
+                                        fetch_method=self.fetch_income_statement)
 
-    def fetch_balance_sheet_if_none(self, threshold, queries=None):
+    def fetch_balance_sheet_if_none(self, threshold):
         """
             Fetch all the available balance sheet reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched reports.
@@ -1253,16 +1249,14 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_balance_sheet_num,
                                         add_method=self.add_balance_sheet,
-                                        fetch_method=self.fetch_balance_sheet,
-                                        queries=queries)
+                                        fetch_method=self.fetch_balance_sheet)
 
-    def fetch_cash_flow_if_none(self, threshold, queries=None):
+    def fetch_cash_flow_if_none(self, threshold):
         """
             Fetch all the available cash flow reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched reports.
@@ -1271,16 +1265,14 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_cash_flow_num,
                                         add_method=self.add_cash_flow,
-                                        fetch_method=self.fetch_cash_flow,
-                                        queries=queries)
+                                        fetch_method=self.fetch_cash_flow)
 
-    def fetch_earnings_if_none(self, threshold, queries=None):
+    def fetch_earnings_if_none(self, threshold):
         """
             Fetch all the available earnings reports if data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of reports in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched reports.
@@ -1289,16 +1281,14 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_earnings_num,
                                         add_method=self.add_earnings,
-                                        fetch_method=self.fetch_earnings,
-                                        queries=queries)
+                                        fetch_method=self.fetch_earnings)
 
-    def fetch_dividends_if_none(self, threshold, queries=None):
+    def fetch_dividends_if_none(self, threshold):
         """
             Fetch all the available cash dividends if stored data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of entries in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched entries.
@@ -1307,16 +1297,14 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_dividends_num,
                                         add_method=self.add_dividends,
-                                        fetch_method=self.fetch_dividends,
-                                        queries=queries)
+                                        fetch_method=self.fetch_dividends)
 
-    def fetch_splits_if_none(self, threshold, queries=None):
+    def fetch_splits_if_none(self, threshold):
         """
             Fetch all the available splits if stored data entries do not meet the specified threshold.
 
             Args:
                 treshold(int): the minimum required number of entries in the database.
-                queries(list): additional data to get.
 
             Returns:
                 array: the fetched entries.
@@ -1325,8 +1313,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         return self._fetch_data_if_none(threshold=threshold,
                                         num_method=self.get_split_num,
                                         add_method=self.add_splits,
-                                        fetch_method=self.fetch_splits,
-                                        queries=queries)
+                                        fetch_method=self.fetch_splits)
 
     @abc.abstractmethod
     def fetch_income_statement(self):

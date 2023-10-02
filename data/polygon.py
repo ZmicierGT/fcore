@@ -200,8 +200,7 @@ class Polygon(stock.StockFetcher):
             if first_date > last_date:
                 break
             else:
-                if self._verbosity:
-                    print(f"Continue aggregate fetching quotes for {self.symbol} from {first_date} to {last_date}.")
+                self.log(f"Continue aggregate fetching quotes for {self.symbol} from {first_date} to {last_date}.")
 
         return quotes_data
 

@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 import abc
 
 from datetime import datetime
@@ -20,7 +19,7 @@ import numpy as np
 
 from threading import Thread, Event
 
-from data.futils import thread_available
+from data.futils import thread_available, logger
 
 import copy
 
@@ -648,7 +647,7 @@ class BackTestOperations():
         """
         return self.get_close() * self.data().get_spread() / 100 / 2
 
-    # TODO MID Consider if buy/sell price is more rational than pre-defined spread
+    # TODO LOW Think of other ways to calculate a spread
     def get_buy_price(self, adjusted=False):
         """
             Get the buy price of the current symbol in the current cycle of the calculation.
@@ -1476,7 +1475,7 @@ class BackTest(metaclass=abc.ABCMeta):
                  margin_rec=0,
                  offset=0,
                  timeout=10,
-                 verbose=False
+                 verbosity=False
         ):
         """
             The main backtesting class.
@@ -1494,7 +1493,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
                 offset(int): the offset for the calculation.
                 timeout(int): timeout in seconds to cancel the calculation if some thread can not finish in time.
-                verbose(bool): indicates if to print the debug information during calculation.
+                verbosity(bool): indicates if to print the debug information during calculation.
 
             Raises:
                 BackTestError: incorrect arguments.
@@ -1569,7 +1568,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self.__timeout = timeout
 
         # Indicate if we should print log entries to a console
-        self._verbose = verbose
+        self._verbosity = verbosity
 
         #############################
         # Now internal variables are listed which are used in a calculation. They are added to the results list
@@ -2481,15 +2480,14 @@ class BackTest(metaclass=abc.ABCMeta):
 
         return self.signal_buy() or self.signal_sell()
 
-    def log(self, text):
+    def log(self, message):
         """
-            Output debug information.
+            Display a logging message depending on verbotisy flag.
 
             Args:
-                text(str): text to output.
+                message(str): the message to display.
         """
-        if self._verbose is True:
-            print(text)
+        logger(self._verbosity, message)
 
     ##########################
     # Abstract methods

@@ -537,8 +537,7 @@ class ROStockData(ReadOnlyData):
             self.cur.execute(get_splits)
             splits = self.cur.fetchall()
         except IndexError:
-            if self._verbosity:
-                print(f"No split data for {self.symbol}")
+            self.log(f"No split data for {self.symbol}")
         except self.Error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
 
@@ -596,8 +595,7 @@ class ROStockData(ReadOnlyData):
             ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
             if payment_date_num != ex_date_num and payment_date_num != ex_date_num - 1:
-                if self._verbosity:
-                    print("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+                self.log("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
                 divs[Dividends.PaymentDate] = np.nan
@@ -650,8 +648,7 @@ class ROStockData(ReadOnlyData):
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
 
-        elif self._verbosity:
-            print(f"Warning: No dividend data for {self.symbol}")
+        self.log(f"Warning: No dividend data for {self.symbol}")
 
         # Adjust the price to stock splits
         if splits is not None:
@@ -674,8 +671,7 @@ class ROStockData(ReadOnlyData):
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass
 
-        elif self._verbosity:
-            print(f"Warning: No split data for {self.symbol} in the requested period.")
+        self.log(f"Warning: No split data for {self.symbol} in the requested period.")
 
         return quotes
 

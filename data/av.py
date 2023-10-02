@@ -164,10 +164,8 @@ class AVStock(stock.StockFetcher):
             dict_results = dict(sorted(json_data[json_key].items()))
         except KeyError:
             # It is possible that just there is not data yet for the current month
-            # TODO MID Implement a function for logging
-            if self._verbosity:
-                print("Can't get data. Likely API key limit or just no data for the requested period.")
-                return (None, None)
+            self.log("Can't get data. Likely API key limit or just no data for the requested period.")
+            return (None, None)
 
         return (dict_results, dict_header)
 

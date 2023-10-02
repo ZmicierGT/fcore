@@ -4,6 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+from data.futils import logger
 
 import abc
 
@@ -78,6 +79,18 @@ class BaseTool(metaclass=abc.ABCMeta):
                 flag(bool): indicates if additional output should be printed.
         """
         self._verbosity = flag
+
+    # TODO LOW Think if we need a class which is a base for all other base classes
+    # and which handles verbosity settings, logging, likely pre-initialization checks and
+    # basic data management.
+    def log(self, message):
+        """
+            Display a logging message depending on verbotisy flag.
+
+            Args:
+                message(str): the message to display.
+        """
+        logger(self._verbosity, message)
 
 class ToolError(Exception):
     pass

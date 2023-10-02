@@ -15,7 +15,7 @@ import requests
 from data import fdatabase
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes
-from data.futils import get_dt, get_labelled_ndarray
+from data.futils import get_dt, get_labelled_ndarray, logger
 
 import settings
 
@@ -248,6 +248,15 @@ class ReadOnlyData():
     ##############################################
     # End of datetime handling methods/properties.
     ##############################################
+
+    def log(self, message):
+        """
+            Display a logging message depending on verbotisy flag.
+
+            Args:
+                message(str): the message to display.
+        """
+        logger(self._verbosity, message)
 
     def get_db_type(self):
         """
@@ -826,7 +835,8 @@ class ReadOnlyData():
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
 
         if len(rows) == 0:
-            print(select_quotes)
+            self.log("No data obtained.")
+            return None
 
         return get_labelled_ndarray(rows)
 
@@ -1216,8 +1226,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             # Calculate time to sleep and sleep if needed
             sleep_time = max(0, 60 - (perf_counter() - first_query_time))
 
-            if self._verbosity:
-                print(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+            self.log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
 
             sleep(sleep_time)
 

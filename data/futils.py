@@ -7,13 +7,9 @@ Distributed under Fcore License 1.1 (see license.md)
 from datetime import datetime, timedelta
 import pytz
 
-import plotly.graph_objects as go
-
 import os
 from os.path import exists
 import glob
-
-from data import fvalues
 
 import numpy as np
 
@@ -22,8 +18,6 @@ import multiprocessing
 import time
 import platform
 import subprocess
-
-from data.fvalues import Quotes
 
 def get_dt(value, tz=pytz.UTC):
     """
@@ -226,6 +220,17 @@ def get_labelled_ndarray(rows):
     data = [tuple(row[name] for name in dtypes.names) for row in rows]
 
     return np.array(data, dtypes)
+
+def logger(verbosity, message):
+    """
+        Depending on a verbosity flag, display a logging message.
+
+        Args:
+            verbosity(bool): verbosity flag.
+            message(str): message.
+    """
+    if verbosity:
+        print(message)
 
 # The project is intended to be used with GIL-free Python interpreters (like nogil-3.9.10). However, it is fully compatible with regular
 # CPython but in such case there won't be any benefit related to parallel computing.

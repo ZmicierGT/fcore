@@ -4,10 +4,10 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from data import fvalues
 from data.fvalues import Quotes
 from data.fdata import FdataError
+from data.futils import logger
 
 from datetime import datetime
 from datetime import timedelta
@@ -44,7 +44,7 @@ class BaseScr(metaclass=abc.ABCMeta):
     """
         Base screener implementation.
     """
-    def __init__(self, symbols, period, interval, timespan):
+    def __init__(self, symbols, period, interval, timespan, verbosity=True):
         """
             Initialize screener class instance.
 
@@ -53,10 +53,13 @@ class BaseScr(metaclass=abc.ABCMeta):
                 period(int): minimum period for calculation.
                 interval(int): interval in seconds between each iteration.
                 timespan(fvalues.Timespans): timespan used in screening.
+                verbosity(bool): verbosity flag.
 
             Raises:
                 ScrError: incorrect arguments provided.
         """
+        self._verbosity = verbosity
+
         if period <= 0:
             raise ScrError(f"Period should not be <= 0: {period}")
         self.__period = period
@@ -182,6 +185,15 @@ class BaseScr(metaclass=abc.ABCMeta):
         self.calculate()
 
         self.__set_init_status()
+
+    def log(self, message):
+        """
+            Display a logging message depending on verbotisy flag.
+
+            Args:
+                message(str): the message to display.
+        """
+        logger(self._verbosity, message)
 
     @abc.abstractmethod
     def calculate(self):

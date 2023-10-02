@@ -80,7 +80,7 @@ if __name__ == "__main__":
     fig.append_trace(go.Scatter(x=dates, y=short_sma, mode='lines', name=f"{short_period} SMA"), row=2, col=1)
     fig.add_trace(go.Scatter(x=dates, y=vo_values, fill='tozeroy', name="VO"), row=2, col=1, secondary_y=True)
 
-    fig.append_trace(go.Scatter(x=dates, y=volume, mode='lines', name="Volume"), row=3, col=1)  
+    fig.append_trace(go.Scatter(x=dates, y=volume, fill='tozeroy', name="Volume"), row=3, col=1)
 
     ######################
     # Write the chart

@@ -306,15 +306,12 @@ Here we see that AI helped to better distinguish some signals of the strategy an
 
 The examples above are only a little part of what Fcore is capable. The following examples illustrates the wider usage of the framework.
 
-Use the following command line tools to manage quotes.
+Use the following tools to manage quotes and obtain data.
 
-- [quotes.py](quotes.py) - general quotes manager
-- [yf_cli.py](yf_cli.py) (CLI tool which uses *Yahoo Finance* wrapper in [data/yf.py](data/yf.py))
-- [polygon_cli.py](polygon_cli.py) (CLI tool which uses *Polygon.IO* API wrapper in [data/polygon.py](data/yf.py))
-
-Non-CLI API wrappers:
-- [data/av.py](data/av.py) (API wrapper for *Alpha Vantage* stock data).
-- [data/fh.py](data/fh.py) (API wrapper for *Finnhub* real time quote data).
+- *Yahoo Finance* wrapper - [data/yf.py](data/yf.py))
+- *Polygon.IO* API wrapper - [data/polygon.py](data/polygon.py))
+- API wrapper for *Alpha Vantage* stock data - [data/av.py](data/av.py)
+- API wrapper for *Finnhub* real time data - [data/fh.py](data/fh.py)
 
 Examples of custom data processing tools which are relied on AI:
 - [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )

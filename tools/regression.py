@@ -63,7 +63,8 @@ class RegressionData():
                  epochs=1000,
                  auto_train=False,
                  train_threshold=None,
-                 max_rows=None):
+                 max_rows=None,
+                 test_length=None):
         """
             Initialized the data used in regression calculations.
 
@@ -77,6 +78,8 @@ class RegressionData():
                 auto_train(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
                 train_threshold(int): threshold value of new data arrived to perform the additional training
                 max_rows(int): maximum number of rows stored. If the value exceeds this threahold, the oldest rows will be removed.
+                test_length(int): the length of data to perform a test. The minimum is window_size + forecasting_size.
+                                  Be sure that forecasting size is never seen during learning.
         """
         if window_size <= 0 or forecast_size <= 0:
             raise ToolError(f"Sliding window size {window_size} or forecast size {forecast_size} should be bigger than 0.")
@@ -131,6 +134,13 @@ class RegressionData():
             self.train_threshold = train_threshold
 
         self.reg = None  # Parent Regression instance
+
+        if test_length is None:
+            self.test_length = min_train_threhold
+        else:
+            if test_length < min_train_threhold:
+                raise ToolError(f"Requested testing length is less than minimum: {test_length} < {min_train_threhold}")
+            self.test_length = test_length
 
     def set_epochs(self, epochs):
         """
@@ -256,10 +266,10 @@ class Regression(BaseTool):
 
         # Prepare the data for forecasting
         length = len(self._model.rows())
-        testing_data = self._model.rows()[length - self._model.data.window_size:]
+        testing_data = self._model.rows()[length - self._model.data.test_length:]
 
         if self._model.data.in_features is not None:
-            arr = np.zeros((self._model.data.window_size + self._model.data.forecast_size, self._model.data.input_size))
+            arr = np.zeros((self._model.data.test_length + self._model.data.forecast_size, self._model.data.input_size))
 
             for i in range(self._model.data.input_size):
                 feature = self._model.data.in_features[i]

@@ -26,11 +26,14 @@ from time import perf_counter
 
 import sys
 
-window_size = 10  # Sliding window size
-forecast_size = 5  # Number of periods to forecast
+window_size = 100  # Sliding window size
+forecast_size = 50  # Number of periods to forecast
+test_length = 150  # Length of data to perform forecasting. Make sure that the last forecast_size is never seen during learning.
 output_size = 1  # Number of features to forecast
 
 threshold = 756  # Quotes number threshold for calculation
+threshold_divs = 124
+threshold_splits = 0
 
 if __name__ == "__main__":
     # Get quotes
@@ -41,8 +44,8 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol="SPY", first_date="2020-01-01", last_date="2023-01-01")
-        rows, num = source.fetch_if_none(threshold)
+        source = YF(symbol="SPY", first_date="2005-11-01", last_date="2008-11-01")
+        rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -65,7 +68,8 @@ if __name__ == "__main__":
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[StockQuotes.AdjClose, StockQuotes.Volume],
-                          output_size=output_size
+                          output_size=output_size,
+                          test_length=test_length
                          )
 
     model = LSTM(data=data)
@@ -130,7 +134,7 @@ if __name__ == "__main__":
         sys.exit(f"Can't calculate/forecast LSTM: {e}")
 
     # Shift test data by windows size + test data length
-    forecasted = np.empty((window_size, output_size))
+    forecasted = np.empty((test_length, output_size))
     forecasted[:] = np.nan
 
     # start the chart from the last known point
@@ -140,7 +144,7 @@ if __name__ == "__main__":
 
     # Prepare the chart
 
-    rows = rows[len(rows) - window_size - forecast_size:]
+    rows = rows[len(rows) - test_length - forecast_size:]
 
     dates = [row[StockQuotes.DateTime] for row in rows]
     quotes = [row[StockQuotes.AdjClose] for row in rows]

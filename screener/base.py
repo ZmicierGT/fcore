@@ -44,14 +44,19 @@ class BaseScr(metaclass=abc.ABCMeta):
     """
         Base screener implementation.
     """
-    def __init__(self, symbols, period, interval, timespan, verbosity=True):
+    def __init__(self,
+                 symbols,
+                 period,
+                 interval,  # TODO MID If interval is None just perform analysis once (to pick stocks for example) and exit.
+                 timespan,
+                 verbosity=True):
         """
             Initialize screener class instance.
 
             Args:
                 symbols(list of dictionaries): symbols to use in screening.
                 period(int): minimum period for calculation.
-                interval(int): interval in seconds between each iteration.
+                interval(float): interval in seconds between each iteration.
                 timespan(fvalues.Timespans): timespan used in screening.
                 verbosity(bool): verbosity flag.
 

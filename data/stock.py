@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date
 
 from data.futils import get_labelled_ndarray
 
@@ -486,9 +486,12 @@ class ROStockData(ReadOnlyData):
         """
         return self._get_data_num('earnings')
 
-    def get_dividends(self):
+    def get_dividends(self, last_ts=def_last_date):
         """
             Get dividends.
+
+            Args:
+                last_ts(int): override last time stamp to get data.
 
             Returns:
                 ndarray: dividends for a symbol.
@@ -503,7 +506,8 @@ class ROStockData(ReadOnlyData):
                             FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
                             WHERE s.ticker = '{self.symbol}'
                             AND ex_date >= {self.first_date_ts}
-                            AND ex_date <= {self.last_date_ts};"""
+                            AND ex_date <= {last_ts}
+                            ORDER BY ex_date;"""
 
         try:
             self.cur.execute(get_divs)
@@ -518,9 +522,12 @@ class ROStockData(ReadOnlyData):
 
         return divs
 
-    def get_splits(self):
+    def get_splits(self, last_ts=def_last_date):
         """
             Get stock splits for a specified symbol and time interval.
+
+            Args:
+                last_ts(int): override last time stamp to get data.
 
             Returns:
                 ndarray: splits for a symbol.
@@ -531,7 +538,8 @@ class ROStockData(ReadOnlyData):
 	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
 	                        WHERE s.ticker = '{self.symbol}'
                             AND split_date >= {self.first_date_ts}
-                            AND split_date <= {self.last_date_ts};"""
+                            AND split_date <= {last_ts}
+                            ORDER BY split_date;"""
 
         try:
             self.cur.execute(get_splits)
@@ -573,20 +581,19 @@ class ROStockData(ReadOnlyData):
         columns.append('0.0 AS divs_pay')
         columns.append('1.0 AS splits')
 
-        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries)
+        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=True)
 
         # Calculate the adjusted close price.
-        # TODO LOW Think if it worth to implement the calculation using SQL only.
+
+        last_ts = quotes[StockQuotes.TimeStamp][-1]
 
         # Get all dividend data
-        divs = self.get_dividends()
+        divs = self.get_dividends(last_ts=last_ts)
 
         # Get all split data
-        splits = self.get_splits()
+        splits = self.get_splits(last_ts=last_ts)
 
-        # TODO MID Think if we should fetch all available (the most recent) quotes for
-        # full adjustment (not only requested interval)
-
+        # TODO MID Find out why adjustment precision is a bit less than expected
         # Adjust the price for dividends
         if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,
@@ -594,7 +601,7 @@ class ROStockData(ReadOnlyData):
             payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
             ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
-            if payment_date_num != ex_date_num and payment_date_num != ex_date_num - 1:
+            if payment_date_num != ex_date_num or payment_date_num == ex_date_num - 1:
                 self.log("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
@@ -605,7 +612,7 @@ class ROStockData(ReadOnlyData):
                 idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
                 amount = divs[Dividends.Amount][i]
-                np.seterr(all='raise')
+
                 try:
                     quotes[StockQuotes.ExDividends][idx_ex] = amount
 
@@ -621,16 +628,16 @@ class ROStockData(ReadOnlyData):
 
                     # In some cases the values may be 0. Need to skip such cases.
                     if opened:
-                        o_ratio = (opened - amount) / opened
+                        o_ratio -= amount / opened
 
                     if high:
-                        h_ratio = (high - amount) / high
+                        h_ratio -= amount / high
 
                     if low:
-                        l_ratio = (low - amount) / low
+                        l_ratio -= amount / low
 
                     if closed:
-                        c_ratio = (closed - amount) / closed
+                        c_ratio -= amount / closed
 
                     quotes[StockQuotes.Open][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
                     quotes[StockQuotes.High][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio
@@ -647,8 +654,8 @@ class ROStockData(ReadOnlyData):
                 except IndexError:
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
-
-        self.log(f"Warning: No dividend data for {self.symbol}")
+        else:
+            self.log(f"Warning: No dividend data for {self.symbol}")
 
         # Adjust the price to stock splits
         if splits is not None:
@@ -670,10 +677,12 @@ class ROStockData(ReadOnlyData):
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass
+        else:
+            self.log(f"Warning: No split data for {self.symbol} in the requested period.")
 
-        self.log(f"Warning: No split data for {self.symbol} in the requested period.")
+        max_idx = min(len(quotes), max(np.where(quotes[StockQuotes.TimeStamp] <= self.last_date_ts)[0]) + 1)
 
-        return quotes
+        return quotes[:max_idx]
 
 class RWStockData(ROStockData, ReadWriteData):
     """

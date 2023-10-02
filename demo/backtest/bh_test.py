@@ -16,6 +16,8 @@ from data.yf import YF
 import sys
 
 threshold = 500  # Quotes num threshold for the test
+threshold_divs = 124
+threshold_splits = 0
 
 min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
@@ -33,8 +35,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        # TODO MID Consider fetching dividends also
-        rows, num = source.fetch_if_none(threshold)
+        rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 

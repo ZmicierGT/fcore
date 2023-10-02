@@ -123,7 +123,7 @@ class RegressionData():
 
         # Set the train threshold
         self.train_threshold = None
-        min_train_threhold = window_size + forecast_size  # TODO MID Find out why less data than min_len is required here.
+        min_train_threhold = window_size + forecast_size
 
         if train_threshold is None:
             self.train_threshold = min_train_threhold

@@ -36,7 +36,7 @@ class Classifier(BaseTool):
                  rows=None,
                  model_buy=None,
                  model_sell=None,
-                 data_to_learn=None,  # TODO MID Useful for backtesting but think what is the most rational way to make estimations during screening
+                 data_to_learn=None,
                  true_ratio=0,
                  cycle_num=2,
                  algorithm=None,
@@ -718,6 +718,7 @@ class Classifier(BaseTool):
     # Abstract methods
     ##################
 
+    # TODO MID Need to distinguish preparation for learning/estimation as we need to handle incoming data as well.
     @abc.abstractmethod
     def prepare(self, rows=None):
         """

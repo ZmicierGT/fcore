@@ -63,7 +63,8 @@ class StockSplits(str, Enum):
     Ratio = 'split_ratio'
     Source = 'source'
 
-# TODO MID Think if day+ quotes are needed and how to hanle them then (adjustments)
+# TODO LOW Think that in DB only Minute, Day and in the future Tick quotes are stored.
+# Other timespans are calculated manually based on the minute or EOD data.
 class Timespans(str, Enum):
     """
         Enum class for timespans.
@@ -81,11 +82,6 @@ class Timespans(str, Enum):
     Hour = "Hour"  # All
     NinetyMinutes = "90_Minutes"  # YF only
     Day = "Day"
-    FiveDays = "5_Days"  # YF only
-    Week = "Week"
-    Month = "Month"
-    Quarter = "Quarter"  # Polygon and YF
-    Year = "Year"
 
 class SecType(str, Enum):
     """

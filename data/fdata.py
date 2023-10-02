@@ -22,7 +22,7 @@ import settings
 import json
 
 # Current database compatibility version
-DB_VERSION = 9
+DB_VERSION = 10
 
 class FdataError(Exception):
     """

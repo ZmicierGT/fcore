@@ -14,6 +14,7 @@ from data.fvalues import StockQuotes  # TODO Low think if we should make it univ
 import pandas as pd
 import pandas_ta as ta
 
+# TODO MID Implement a basic screener to test classification on incoming data
 class Probability(Classifier):
     """
         Growth probability impementation.

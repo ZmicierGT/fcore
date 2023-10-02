@@ -21,11 +21,16 @@ from itertools import repeat
 
 import sys
 
-threshold = 250  # Quotes num threshold for the test
+def_threshold = 250  # Quotes num threshold for the test
+
 first_date = "2020-10-01"  # First date to fetch quotes
 last_date = "2021-10-01"  # The last date to fetch quotes
 
-symbols = ['SPY', 'AAPL']
+symbol1 = 'MMM'
+symbol2 = 'AXP'
+
+symbols = [[symbol1, def_threshold, 245, 4],
+           [symbol2, def_threshold, 187, 6]]
 
 period = 14
 support = 30
@@ -43,11 +48,11 @@ if __name__ == "__main__":
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    for symbol in symbols:
+    for symbol, threshold, threshold_divs, threshold_splits in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-            rows, num = source.fetch_if_none(threshold)
+            rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
         except FdataError as e:
             sys.exit(e)
 
@@ -59,12 +64,12 @@ if __name__ == "__main__":
         allrows.append(rows)
 
     data_a = StockData(rows=allrows[0],
-                          title=symbols[0],
+                          title=symbol1,
                           spread=0.1
                          )
 
     data_b = StockData(rows=allrows[1],
-                          title=symbols[1],
+                          title=symbol2,
                           spread=0.1
                          )
 
@@ -124,17 +129,18 @@ if __name__ == "__main__":
     # Create a report
     #################
 
+    # TODO LOW Consider adding B&H text statistics at the bottom
     report = Report(data=results, width=max(length, min_width), margin=True)
 
     # Add charts for used symbols
-    report.add_quotes_chart(title=f"RSI Multi Example Testing for {symbols[0]} and {symbols[1]}", height=250)
+    report.add_quotes_chart(title=f"RSI Multi Example Testing for {symbol1} and {symbol2}", height=250)
     report.add_quotes_chart(index=1, height=height)
 
     # Add a custom chart with RSI values
     rsi_fig = subplots.make_subplots()
 
-    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbols[0]}"))
-    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbols[1]}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name=f"RSI {symbol1}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[1].Tech[0], mode='lines', name=f"RSI {symbol2}"))
 
     # Add support and resistance lines to the second chart
     rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"))
@@ -146,8 +152,8 @@ if __name__ == "__main__":
     fig_portf = report.add_portfolio_chart(height=height)
 
     # Add B&H performance comparison to the portfolio chart
-    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_a.TotalValue, mode='lines', name=f"B&H {symbols[0]}"))
-    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_b.TotalValue, mode='lines', name=f"B&H {symbols[1]}"))
+    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_a.TotalValue, mode='lines', name=f"B&H {symbol1}"))
+    fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results_bh_b.TotalValue, mode='lines', name=f"B&H {symbol2}"))
 
     # Add a chart with expenses
     report.add_expenses_chart(height=height)

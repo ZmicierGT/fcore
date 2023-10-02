@@ -34,6 +34,8 @@ cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_rati
 
 threshold_learn = 5284  # Quotes num threshold for the learning
 threshold_test = 565  # Quotes num threshold for the test
+threshold_divs = 124
+threshold_splits = 0
 
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
@@ -50,7 +52,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
-        rows_learn, num = source.fetch_if_none(threshold_learn)
+        rows_learn, num = source.fetch_stock_data_if_none(threshold_learn, threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -65,7 +67,7 @@ if __name__ == "__main__":
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         source = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
-        rows, num = source.fetch_if_none(threshold_test)
+        rows, num = source.fetch_stock_data_if_none(threshold_test, threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 

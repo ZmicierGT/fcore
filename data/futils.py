@@ -167,61 +167,6 @@ def show_image(fig):
 
     return image_path
 
-def build_chart(rows):
-    """
-        Build a basic line chart and write it to a disk.
-
-        Args:
-            rows(list): list with quotes to build chart.
-
-        Returns:
-            str: new file name.
-    """
-    date = [row[fvalues.Quotes.DateTime] for row in rows]
-    close = [row[fvalues.Quotes.Close] for row in rows]
-
-    fig = go.Figure([go.Scatter(x=date, y=close)])
-
-    fig.update_layout(
-        autosize=False,
-        width=1500,
-        height=900,
-        margin=dict(
-            l=50,
-            r=50,
-            b=100,
-            t=100,
-            pad=4
-        ),
-        paper_bgcolor="LightSteelBlue",)
-
-    return write_image(fig)
-
-def get_dt_offset(rows, dt):
-    """
-        Get datetime offset in the list.
-
-        Args:
-            rows(list): list with quotes.
-            dt(dtr): datetime string.
-
-        Returns:
-            int: offset in the list where datetime is found.
-
-        Raises:
-            RuntimeError: datetime not found.
-    """
-    dts = [row[Quotes.DateTime] for row in rows]
-
-    if len(dt) == 10:
-        dt += ' 23:59:59'
-
-    for row in dts:
-        if dt <= row:
-            return dts.index(row)
-
-    raise RuntimeError(f"Can't find the datetime <= {dt} in the list.")
-
 def update_layout(fig, title, length):
     """
         Update layout for a chart.

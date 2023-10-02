@@ -2,7 +2,7 @@
 
 The author is Zmicier Gotowka
 
-Distributed under Fcore License 1.0 (see license.md)
+Distributed under Fcore License 1.1 (see license.md)
 """
 from enum import Enum
 
@@ -33,7 +33,6 @@ class Polygon():
 
     stocks_plan = Stocks.Basic  # Subscription plan
     api_key = None  # Get your free api key at polygon.io
-    year_delta = 2  # For a free account you can fetch historical quotes for up to 2 years.
 
 class AV():
     """

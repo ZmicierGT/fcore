@@ -1,10 +1,9 @@
-"""Volume Occillator demonstration.
+"""Volume Occillator demonstration. It demonstrates a usage of a basic custom tool.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from tools.vo import VO
 from tools.vo import VOData
 

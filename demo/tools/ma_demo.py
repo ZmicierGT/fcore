@@ -1,10 +1,10 @@
-"""Moving average demonstration using pandas_ta.
+"""Moving average demonstration using pandas_ta. It demontrates a basic usage of a third party indicator using
+   Fcore's data management API.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 

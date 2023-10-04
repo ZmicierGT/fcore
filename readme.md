@@ -1,6 +1,6 @@
 # Fcore Is an AI Framework for Financial Markets Analysis.
 
-### With the help of it, you can easily perform the following actions:###
+### With the help of it, you can easily perform the following actions:
 
 - Obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and store it in an unified way.
 - Use an API to ease the development of AI-strategies for financial markets analysis.
@@ -8,6 +8,10 @@
 - Use the own backtesting engine which takes into account a lot of expenses related to an actual trade/investment and supports strategies involving multiple securities.
 - Perform a real-time screening of the market using the screening API.
 - Generate reports.
+
+### Here is a simplified diagram of how Fcore is designed:
+
+![Diagram](fc.png "Diagram")
 
 # Quick Start
 

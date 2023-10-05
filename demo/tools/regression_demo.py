@@ -31,6 +31,8 @@ forecast_size = 50  # Number of periods to forecast
 test_length = 150  # Length of data to perform forecasting. Make sure that the last forecast_size is never seen during learning.
 output_size = 1  # Number of features to forecast
 
+epochs = 1000
+
 threshold = 756  # Quotes number threshold for calculation
 threshold_divs = 124
 threshold_splits = 0
@@ -65,6 +67,7 @@ if __name__ == "__main__":
 
     # Calculate LSTM
     data = RegressionData(rows1,
+                          epochs=epochs,
                           window_size=window_size,
                           forecast_size=forecast_size,
                           in_features=[StockQuotes.AdjClose, StockQuotes.Volume],

@@ -327,7 +327,7 @@ class ScrData():
         yesterday = datetime.now() - timedelta(days=1)
 
         self.get_source().first_date = yesterday
-        self.get_source().last_date = yesterday + timedelta(days=2)
+        self.get_source().last_date = yesterday + timedelta(days=2)  # TODO MID This should not be hardcoded
 
         try:
             self.get_source().add_quotes(self.get_source().fetch_quotes())

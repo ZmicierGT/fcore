@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from screener.base import BaseScr
 from screener.base import ScrError
 
@@ -23,7 +22,7 @@ class RsiScr(BaseScr):
     def __init__(self,
                  support=30,
                  resistance=70,
-                 ** kwargs):
+                 **kwargs):
         """
             Initialize RSI strategy class.
 
@@ -34,7 +33,6 @@ class RsiScr(BaseScr):
             Raises:
                 ScrErrorr: incorrect arguments.
         """
-
         super().__init__(**kwargs)
 
         # Support and resistance values for the strategy
@@ -64,7 +62,6 @@ class RsiScr(BaseScr):
         for symbol in self.get_symbols():
             self.__prevs.append(None)
 
-        for symbol in self.get_symbols():
             rows = symbol.get_data(self.get_period() + 1, self.get_init_status())
 
             if len(rows) <= self.get_period():

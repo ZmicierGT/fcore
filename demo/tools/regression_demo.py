@@ -59,7 +59,7 @@ if __name__ == "__main__":
         print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
-    min_len = window_size + forecast_size * 2
+    min_len = window_size + forecast_size
     split_len = len(rows) - min_len
 
     rows1 = rows[:split_len]  # First batch of data for learning

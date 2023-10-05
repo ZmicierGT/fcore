@@ -1,26 +1,22 @@
-"""Demonstration of a growth probability algorithm.
+"""Demonstration of a classification AI screener.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.yf import YF
-from data.fdata import FdataError
+from screener.classification_scr import ClsScr
+from screener.base import ScrResult
 
-from data.fvalues import StockQuotes
+from data.fvalues import Timespans
+
+from data.yf import YF
+
+from data.fdata import FdataError
 
 from tools.growth_probability import Probability
 from data.fvalues import Algorithm
 
 from tools.base import ToolError
-
-from data.futils import update_layout
-from data.futils import show_image
-
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-from time import perf_counter
 
 import sys
 
@@ -98,104 +94,71 @@ if __name__ == "__main__":
 
         allrows.append(rows)
 
-    # Get quotes for estimations
-    try:
-        # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
-        source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-        est_rows, num = source.fetch_if_none(test_threshold)
-    except FdataError as e:
-        sys.exit(e)
-
-    length = len(est_rows)
-
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {test_threshold}.")
-
-    #################################
-    # Train the model and get results
-    #################################
-
-    prob = Probability(period_long=period_long,
-                       period_short=period_short,
-                       rows=est_rows,
-                       data_to_learn=allrows,
-                       true_ratio=true_ratio,
-                       cycle_num=cycle_num,
-                       algorithm=algorithm,
-                       classify=True  # Needed for metrics only
-                       )
+    # Train the models
+    base_prob = Probability(period_long=period_long,
+                            period_short=period_short,
+                            rows=None,
+                            data_to_learn=allrows,
+                            true_ratio=true_ratio,
+                            cycle_num=cycle_num,
+                            algorithm=algorithm,
+                            use_sell=True,
+                            classify=True)
 
     try:
-        before = perf_counter()
-        prob.learn()
-        print(f"Total time for learning: {(perf_counter() - before) * 1000}ms")
+        base_prob.learn()
 
-        before = perf_counter()
-        prob.calculate()
-        print(f"Total time for estimaiton: {(perf_counter() - before) * 1000}ms")
+        model_buy = base_prob.get_buy_model()
+        model_sell = base_prob.get_sell_model()
 
-        accuracy_buy_learn, _, _ = prob.get_learn_accuracy()
-        f1_buy_learn, _, _ = prob.get_learn_f1()
-        accuracy_buy_est, _, _ = prob.get_est_accuracy()
-        f1_buy_est, _, _ = prob.get_est_f1()
+        accuracy_buy_learn, accuracy_sell_learn, _ = base_prob.get_learn_accuracy()
+        f1_buy_learn, f1_sell_learn, _ = base_prob.get_learn_f1()
     except ToolError as e:
         sys.exit(f"Can't perform calculation: {e}")
 
     print('\nBuy train accuracy:{: .2f}%'.format(accuracy_buy_learn * 100))
     print(f"Buy train f1 score: {round(f1_buy_learn, 4)}")
 
-    print('\nBuy estimation accuracy:{: .2f}%'.format(accuracy_buy_est * 100))
-    print(f"Buy estimation f1 score: {round(f1_buy_est, 4)}\n")
+    print('\nSell train accuracy:{: .2f}%'.format(accuracy_sell_learn * 100))
+    print(f"Sell train f1 score: {round(f1_sell_learn, 4)}")
 
-    #################
-    # Build the chart
-    #################
+    # Perform screening
 
-    df = prob.get_results()
-    # TODO MID Replace if to labelled np array processing (including other occurrences)
-    df['quote'] = [row[StockQuotes.AdjClose] for row in est_rows][period_long-1:]
-    df['volume'] = [row[StockQuotes.Volume] for row in est_rows][period_long-1:]
+    source_btc = YF()
+    source_ltc = YF()
 
-    # Create figure
+    # Despite having a model trained using stock quotes, lets use crypto to make estimations as crypto quotes change 24/7
+    btc = {'Title': 'BTC-USD', 'Source': source_btc}
+    ltc = {'Title': 'LTC-USD', 'Source': source_ltc}
 
-    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.2, 0.4],
-                        specs=[[{"secondary_y": False}],
-                            [{"secondary_y": False}],
-                            [{"secondary_y": False}],
-                            [{"secondary_y": False}]])
+    interval = 60
 
-    fig.add_trace(
-        go.Scatter(x=df['dt'], y=df['quote'], name="AdjClose"),
-        secondary_y=False,
-    )
+    scr = ClsScr(symbols=[btc, ltc],
+                 period=period_long,
+                 period_short=period_short,
+                 true_ratio=true_ratio,
+                 cycle_num=cycle_num,
+                 algorithm=algorithm,
+                 model_buy=model_buy,
+                 model_sell=model_sell,
+                 interval=interval,
+                 timespan=Timespans.Minute)
 
-    fig.add_trace(
-        go.Scatter(x=df['dt'], y=df['ma-long'], name="Long MA"),
-        secondary_y=False,
-    )
+    print("\nPlease note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
+    print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 
-    fig.add_trace(
-        go.Scatter(x=df['dt'], y=df['ma-short'], name="Short MA"),
-        secondary_y=False,
-    )
+    while True:
+        scr.do_cycle()
 
-    # Add probabilities chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=df['buy-prob'], fill='tozeroy', name="Growth Probability"), row=2, col=1)
+        results = scr.get_results()
 
-    # Add percentage volume oscillator chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=df['pvo'], fill='tozeroy', name="PVO"), row=3, col=1)
+        print("--------------------------------------------------------------")
 
-    # Add volume chart
-    fig.add_trace(go.Scatter(x=df['dt'], y=df['volume'], fill='tozeroy', name="Volume"), row=4, col=1)
-
-    ######################
-    # Write the chart
-    ######################
-
-    update_layout(fig, f"Probabilities example chart for {source.symbol}", length)
-
-    new_file = show_image(fig)
-
-    print(f"{new_file} is written.")
+        for i in range(2):
+            print(f"Symbol: {results[i][ScrResult.Title]}")
+            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
+            print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
+            print(f"Buy weight:       {results[i][ScrResult.Values][0]}")
+            print(f"Sell weight:      {results[i][ScrResult.Values][1]}")
+            print(f"Signal to buy:    {results[i][ScrResult.Signals][0]}")
+            print(f"Signal to sell:   {results[i][ScrResult.Signals][1]}\n")

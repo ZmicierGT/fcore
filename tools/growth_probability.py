@@ -14,7 +14,6 @@ from data.fvalues import StockQuotes  # TODO Low think if we should make it univ
 import pandas as pd
 import pandas_ta as ta
 
-# TODO MID Implement a basic screener to test classification on incoming data
 class Probability(Classifier):
     """
         Growth probability impementation.
@@ -51,6 +50,9 @@ class Probability(Classifier):
                 ToolError: No model provided to make the estimation.
         """
         super().__init__(**kwargs, probability=probability, use_sell=use_sell, classify=classify)
+
+        if period_short <= 0:
+            raise ToolError(f"Short period {period_short} should be more than zero.")
 
         if period_long <= period_short:
             raise ToolError(f"Long MA period should be bigger than short period: {period_long} > {period_short}")
@@ -93,7 +95,7 @@ class Probability(Classifier):
         self._data_to_est = ['pvo', 'ma-diff', 'hilo-diff']  # Columns to make estimations
         self._data_to_report = self._data_to_est + ['ma-long', 'ma-short']  # Columns for reporting
 
-        # Get rid of the values where MA is not calculated because they are useless for learning.
+        # Get rid of the values where MA is not calculated because they are useless.
         df = df[self._period_long-1:]
         df = df.reset_index().drop(['index'], axis=1)
 

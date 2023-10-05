@@ -275,17 +275,15 @@ class ScrData():
         if init_status is False:
             self.__max_datetime = self.get_source().get_max_datetime()
             self.__quotes_num = self.get_source().get_symbol_quotes_num()
+        else:
+            data = self.get_source().get_recent_data()
 
-            return self._data
+            self.__max_datetime = data[-1][Quotes.DateTime]
+            self.__quotes_num += len(data)
 
-        data = self.get_source().get_recent_data()
-
-        self.__max_datetime = data[-1][Quotes.DateTime]
-        self.__quotes_num += len(data)
+            self._data = np.append(self._data, data)
 
         self.get_source().db_close()
-
-        self._data = np.append(self._data, data)
 
         return self._data[len(self._data) - period:]
 

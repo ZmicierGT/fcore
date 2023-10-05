@@ -2259,7 +2259,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # At first we need to remove all the entries where DateTime does not present in each symbol's data
         if all_execs > 1:
-            # TODO LOW When source data is switched to a labelled numpy array, evaluate the speed of the
+            # TODO LOW As source data is switched to a labelled numpy array, evaluate the speed of the
             # calculation below and think how to implement it faster.
             dts_to_remove = []
 

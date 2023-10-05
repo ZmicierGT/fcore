@@ -14,7 +14,6 @@ from sklearn.preprocessing import StandardScaler
 from tools.base import BaseTool
 from tools.base import ToolError
 
-# TODO MID Implement a basic screener which uses regression forecast with periodic retraining of the models.
 class LSTM(nn.Module):
     """
         Class to represent an LSTM model.
@@ -64,7 +63,7 @@ class RegressionData():
                  auto_train=False,
                  train_threshold=None,
                  max_rows=None,
-                 test_length=None):
+                 test_length=None):  # TODO LOW Rename it to something more descriptive
         """
             Initialized the data used in regression calculations.
 
@@ -73,7 +72,7 @@ class RegressionData():
                 window_size(int): sliding window size.
                 forecast_size(int): number or periods to be forecasted.
                 in_features(list): features for model training (like [Quotes.AdjClose, Quotes.Volume]). All available if None.
-                out_features_num(int): number of out features (the first num of features in in_features).
+                output_size(int): number of out features (the first num of features in in_features).
                 epochs(int): number of epochs.
                 auto_train(bool): indicates if a training should continue automatically when new data has arrived (window_size + forecast_size).
                 train_threshold(int): threshold value of new data arrived to perform the additional training
@@ -102,6 +101,7 @@ class RegressionData():
         if output_size > self.input_size:
             raise ToolError(f"The requested number of out_features {output_size} is bigger than the number of in_features {self.input_size}.")
 
+        # TODO MID Check if * 2 is needed here.
         min_len = window_size * 2 + forecast_size  # Minum required length of data
 
         if max_rows is not None and max_rows < min_len:
@@ -187,10 +187,7 @@ class RegressionData():
                 rows(list): data to append to the main dataset.
                 epochs(int): new number of epochs. As append data is normally not called standalone for learning purposes, use with caution.
         """
-        if isinstance(self._rows, list):
-            self._rows.extend(rows)
-        elif isinstance(self._rows, np.ndarray):
-            self._rows = np.append(self._rows, np.array(rows), axis=0)
+        self._rows = np.append(self._rows, rows, axis=0)
 
         self.trim_max_rows()
 
@@ -246,7 +243,7 @@ class Regression(BaseTool):
         if model.training and loss is None:
             raise ToolError("Loss function instance should be specified if learning is not performed yet.")
         
-        self._model = model
+        self._model = model  # TODO MID Make it public
         self._loss = loss
         self._optimizer = optimizer
 

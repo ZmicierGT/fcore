@@ -312,8 +312,9 @@ Examples of custom data processing tools which are relied on AI:
 - [tools/ma_classifier.py](tools/ma_classifier.py) AI tool where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration, [source of the demo](demo/tools/ma_classifier_demo.py))
 - [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
 
-Examples of a screening strategy:
+Screening demos:
 - [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation, [source of the demo](demo/screening/rsi_scr_demo.py))
+- [screener/regression_scr.py](screener/rsi_scr.py) - Regression AI screener (**python -m demo.screening.regression_scr_demo** for a demonstation, [source of the demo](demo/screening/regression_scr_demo.py))
 
 Examples of backtesting strategies:
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))

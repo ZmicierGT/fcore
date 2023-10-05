@@ -47,8 +47,9 @@ class BaseScr(metaclass=abc.ABCMeta):
     def __init__(self,
                  symbols,
                  period,
-                 interval,  # TODO MID If interval is None just perform analysis once (to pick stocks for example) and exit.
                  timespan,
+                 init_days=2,
+                 interval=60,
                  verbosity=True):
         """
             Initialize screener class instance.
@@ -56,6 +57,7 @@ class BaseScr(metaclass=abc.ABCMeta):
             Args:
                 symbols(list of dictionaries): symbols to use in screening.
                 period(int): minimum period for calculation.
+                init_days(int): the number of days to get the initial data.
                 interval(float): interval in seconds between each iteration.
                 timespan(fvalues.Timespans): timespan used in screening.
                 verbosity(bool): verbosity flag.
@@ -76,7 +78,7 @@ class BaseScr(metaclass=abc.ABCMeta):
         self.__symbols = []
 
         for symbol in symbols:
-            data = ScrData(symbol['Title'], symbol['Source'], self)
+            data = ScrData(symbol['Title'], symbol['Source'], self, init_days)
             self.__symbols.append(data)
 
         if timespan not in set(item.value for item in fvalues.Timespans):
@@ -219,7 +221,7 @@ class ScrData():
     """
         Base class for screener data.
     """
-    def __init__(self, title, source, caller=None):
+    def __init__(self, title, source, caller=None, init_days=2):
         """
             Initialize screening data class.
 
@@ -227,6 +229,7 @@ class ScrData():
                 title(str): title of the used symbol.
                 source(str): source of the symbol.
                 caller(BaseScr): instance of the class which creates the current instance.
+                init_days(int): the number of days to get the initial data.
         """
         if title == "":
             raise ScrError("Title should not be empty.")
@@ -240,6 +243,12 @@ class ScrData():
 
         # Data used in calculations
         self._data = None
+
+        # Initial number of days to get data
+        if init_days <= 0:
+            raise ScrError("The number of initial days to get data can't be <= 0.")
+
+        self.__init_days = init_days
 
     def get_caller(self):
         """
@@ -316,6 +325,15 @@ class ScrData():
         """
         return self.__source
 
+    def get_init_days(self):
+        """
+            Return the number of the initial days to get data at the start of screening.
+
+            Returns:
+                int: the number of initial days to get data.
+        """
+        return self.__init_days
+
     def get_initial_data(self):
         """
             Get initial data for the calculation.
@@ -327,7 +345,7 @@ class ScrData():
         yesterday = datetime.now() - timedelta(days=1)
 
         self.get_source().first_date = yesterday
-        self.get_source().last_date = yesterday + timedelta(days=2)  # TODO MID This should not be hardcoded
+        self.get_source().last_date = yesterday + timedelta(days=self.get_init_days())
 
         try:
             self.get_source().add_quotes(self.get_source().fetch_quotes())

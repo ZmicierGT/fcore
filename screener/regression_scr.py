@@ -85,11 +85,11 @@ class RegScr(BaseScr):
                 self.log(f"Perform initial model training for {symbol.get_title()}")
                 symbol.reg.calculate()
 
-                symbol.reg._model.data.set_epochs(30)  # Set less epochs for appending learning
+                symbol.reg.get_model().data.set_epochs(30)  # Set less epochs for appending learning
             else:
                 # Here we add the whole obtained data as the period is one. If the period is bigger,
                 # we need to add the last row only.
-                symbol.reg._model.data.append_data(rows=rows)
+                symbol.reg.get_model().data.append_data(rows=rows)
 
             signal_buy = False
             signal_sell = False

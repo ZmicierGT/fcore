@@ -307,16 +307,17 @@ Use the following tools to manage quotes and obtain data.
 - API wrapper for *Alpha Vantage* stock data - [data/av.py](data/av.py)
 - API wrapper for *Finnhub* real time data - [data/fh.py](data/fh.py)
 
-Examples of custom data processing tools which are relied on AI:
+### Examples of custom data processing tools which are relied on AI
 - [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )
 - [tools/ma_classifier.py](tools/ma_classifier.py) AI tool where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration, [source of the demo](demo/tools/ma_classifier_demo.py))
 - [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
 
-Screening demos:
+### Screening demos
 - [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation, [source of the demo](demo/screening/rsi_scr_demo.py))
 - [screener/regression_scr.py](screener/rsi_scr.py) - Regression AI screener (**python -m demo.screening.regression_scr_demo** for a demonstation, [source of the demo](demo/screening/regression_scr_demo.py))
+- [screener/classification_scr.py](screener/classification_scr.py) - Classification AI screener (**python -m demo.screening.classification_scr_demo** for a demonstation, [source of the demo](demo/screening/classification_scr_demo.py))
 
-Examples of backtesting strategies:
+### Examples of backtesting strategies
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))
 - [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**, [source of the demo](demo/backtest/ma_test.py))
 - [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EOD demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).

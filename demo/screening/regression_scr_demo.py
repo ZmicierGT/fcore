@@ -1,4 +1,4 @@
-"""Demonstration of regression AI screener.
+"""Demonstration of a regression AI screener.
 
 The author is Zmicier Gotowka
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
                  test_length=test_length,
                  epochs=epochs,
                  timespan=Timespans.Minute,
-                 period=1)  # One last datarow is enough for estimation
+                 period=test_length)
 
     print("Please note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
     print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")

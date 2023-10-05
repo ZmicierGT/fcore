@@ -82,14 +82,12 @@ class RegScr(BaseScr):
                                         verbosity=self._verbosity)
 
                 # Perform the initial learning
-                self.log(f"Perform initial model training for {symbol.get_title()}")
+                self.log(f"\nPerform initial model training for {symbol.get_title()}")
                 symbol.reg.calculate()
 
                 symbol.reg.get_model().data.set_epochs(30)  # Set less epochs for appending learning
             else:
-                # Here we add the whole obtained data as the period is one. If the period is bigger,
-                # we need to add the last row only.
-                symbol.reg.get_model().data.append_data(rows=rows)
+                symbol.reg.get_model().data.append_data(rows=[rows[-1]])  # Need to add the last one row only
 
             signal_buy = False
             signal_sell = False
@@ -102,8 +100,7 @@ class RegScr(BaseScr):
 
             if current < forecasted:
                 signal_buy = True
-
-            if current > forecasted:
+            elif current > forecasted:
                 signal_sell = True
 
             result = [symbol.get_title(),

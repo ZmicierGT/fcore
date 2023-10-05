@@ -718,7 +718,6 @@ class Classifier(BaseTool):
     # Abstract methods
     ##################
 
-    # TODO MID Need to distinguish preparation for learning/estimation as we need to handle incoming data as well.
     @abc.abstractmethod
     def prepare(self, rows=None):
         """

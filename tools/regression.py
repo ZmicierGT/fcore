@@ -102,7 +102,7 @@ class RegressionData():
             raise ToolError(f"The requested number of out_features {output_size} is bigger than the number of in_features {self.input_size}.")
 
         # TODO MID Check if * 2 is needed here.
-        min_len = window_size * 2 + forecast_size  # Minum required length of data
+        min_len = window_size * 2 + forecast_size  # Minimum required length of data
 
         if max_rows is not None and max_rows < min_len:
             raise ToolError(f"Maximum stored number of rows {max_rows} is less than the minumum required number {min_len}.")
@@ -243,7 +243,7 @@ class Regression(BaseTool):
         if model.training and loss is None:
             raise ToolError("Loss function instance should be specified if learning is not performed yet.")
         
-        self._model = model  # TODO MID Make it public
+        self._model = model
         self._loss = loss
         self._optimizer = optimizer
 

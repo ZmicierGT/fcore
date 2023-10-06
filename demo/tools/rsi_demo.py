@@ -53,8 +53,8 @@ if __name__ == "__main__":
     df = pd.DataFrame(rows)
     rsi = ta.rsi(df[StockQuotes.AdjClose], length = 14)
 
-    dates = [row[StockQuotes.DateTime] for row in rows]
-    price = [row[StockQuotes.AdjClose] for row in rows]
+    dates = rows[StockQuotes.DateTime]
+    price = rows[StockQuotes.AdjClose]
 
     length = len(rows)
 

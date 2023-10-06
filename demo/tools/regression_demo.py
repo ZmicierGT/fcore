@@ -149,11 +149,11 @@ if __name__ == "__main__":
 
     rows = rows[len(rows) - test_length - forecast_size:]
 
-    dates = [row[StockQuotes.DateTime] for row in rows]
-    quotes = [row[StockQuotes.AdjClose] for row in rows]
-    volume = [row[StockQuotes.Volume] for row in rows]
+    dates = rows[StockQuotes.DateTime]
+    quotes = rows[StockQuotes.AdjClose]
+    volume = rows[StockQuotes.Volume]
 
-    lstm_quotes = [row[0] for row in forecasted]
+    lstm_quotes = forecasted[:, 0]
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.4, 0.6],
                         specs=[[{"secondary_y": False}],

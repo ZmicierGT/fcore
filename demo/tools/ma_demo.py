@@ -51,8 +51,8 @@ if __name__ == "__main__":
     sma = ta.sma(df[StockQuotes.AdjClose], length = period)
     ema = ta.ema(df[StockQuotes.AdjClose], length = period)
 
-    dates = [row[StockQuotes.DateTime] for row in rows]
-    price = [row[StockQuotes.AdjClose] for row in rows]
+    dates = rows[StockQuotes.DateTime]
+    price = rows[StockQuotes.AdjClose]
 
     fig = make_subplots(specs=[[{"secondary_y": False}]])
 

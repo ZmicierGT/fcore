@@ -154,8 +154,8 @@ if __name__ == "__main__":
     #################
 
     df = ma_cls.get_results()
-    df['quote'] = [row[StockQuotes.AdjClose] for row in est_rows][period-1:]
-    df['volume'] = [row[StockQuotes.Volume] for row in est_rows][period-1:]
+    df['quote'] = est_rows[StockQuotes.AdjClose][period-1:]
+    df['volume'] = est_rows[StockQuotes.Volume][period-1:]
 
     buy_quotes = df.loc[df['buy-signal'] == 1]
     sell_quotes = df.loc[df['sell-signal'] == 1]

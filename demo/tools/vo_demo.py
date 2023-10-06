@@ -58,13 +58,13 @@ if __name__ == "__main__":
     results = vo.get_results()
     length = len(results)
 
-    dates = [row[StockQuotes.DateTime] for row in rows]
-    price = [row[StockQuotes.AdjClose] for row in rows]
+    dates = rows[StockQuotes.DateTime]
+    price = rows[StockQuotes.AdjClose]
+    volume = rows[StockQuotes.Volume]
 
-    vo_values = [row[VOData.Value] for row in results]
-    long_sma = [row[VOData.LongSMAValue] for row in results]
-    short_sma = [row[VOData.ShortSMAValue] for row in results]
-    volume = [row[StockQuotes.Volume] for row in rows]
+    vo_values = results[VOData.Value]
+    long_sma = results[VOData.LongSMAValue]
+    short_sma = results[VOData.ShortSMAValue]
 
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_width=[0.2, 0.2, 0.6],
                         specs=[[{"secondary_y": False}],

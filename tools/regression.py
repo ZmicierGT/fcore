@@ -269,7 +269,7 @@ class Regression(BaseTool):
 
             for i in range(self._model.data.input_size):
                 feature = self._model.data.in_features[i]
-                arr[:, i] = [row[feature] for row in testing_data] + [0] * self._model.data.forecast_size
+                arr[:, i] = testing_data[feature].tolist() + [0] * self._model.data.forecast_size
         else:
             zeros = np.zeros((self._model.data.forecast_size, self._model.data.input_size))
             arr = np.append(testing_data, zeros, axis=0)
@@ -334,7 +334,7 @@ class Regression(BaseTool):
 
             for i in range(self._model.data.input_size):
                 feature = self._model.data.in_features[i]
-                arr[:, i] = [row[feature] for row in training_data]
+                arr[:, i] = training_data[feature]
         else:
             arr = self._model.data.get_data()
 

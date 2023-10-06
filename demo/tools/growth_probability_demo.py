@@ -154,9 +154,8 @@ if __name__ == "__main__":
     #################
 
     df = prob.get_results()
-    # TODO MID Replace if to labelled np array processing (including other occurrences)
-    df['quote'] = [row[StockQuotes.AdjClose] for row in est_rows][period_long-1:]
-    df['volume'] = [row[StockQuotes.Volume] for row in est_rows][period_long-1:]
+    df['quote'] = est_rows[StockQuotes.AdjClose][period_long-1:]
+    df['volume'] = est_rows[StockQuotes.Volume][period_long-1:]
 
     # Create figure
 

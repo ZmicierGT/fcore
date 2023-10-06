@@ -497,12 +497,13 @@ class Classifier(BaseTool):
         # Perform probabilities calculation (if needed)
         if self._probability:
             if self._use_buy:
+                # TODO MID Check why 2 values returened during screening
                 buy_prob = self._model_buy.predict_proba(df_buy[self._data_to_est])
-                results['buy-prob'] = [row[1] for row in buy_prob]
+                results['buy-prob'] = buy_prob[:, 1]
 
             if self._use_sell:
                 sell_prob = self._model_sell.predict_proba(df_sell[self._data_to_est])
-                results['sell-prob'] = [row[1] for row in sell_prob]
+                results['sell-prob'] = sell_prob[:, 1]
 
         self._results = results
 

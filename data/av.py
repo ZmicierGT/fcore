@@ -489,15 +489,15 @@ class AVStock(stock.StockFetcher):
             Returns(list of dict): EOD quotes data.
         """
         if self._eod is None or self._eod_symbol != self.symbol:
-            # if settings.AV.plan == settings.AV.Plan.Free:
-            #     raise FdataError("Daily adjusted data is not available in the free plan now.")
+            if settings.AV.plan == settings.AV.Plan.Free:
+                raise FdataError("Daily adjusted data is not available in the free plan now.")
 
             json_key = 'Time Series (Daily)'
 
-            #url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.symbol}&outputsize=full&apikey={self.api_key}'
+            url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.symbol}&outputsize=full&apikey={self.api_key}'
 
             # Demo key for testing split/divs fetching without a premium key
-            url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=IBM&outputsize=full&apikey=demo'
+            #url = 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=IBM&outputsize=full&apikey=demo'
 
             # Get quotes data
             dict_results, dict_header = self.get_quote_json(url, json_key)

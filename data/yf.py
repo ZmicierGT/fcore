@@ -16,6 +16,8 @@ from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_
 from data.fdata import FdataError
 from data.futils import get_labelled_ndarray
 
+import pytz
+
 class YF(stock.StockFetcher):
     """
         Yahoo Finance wrapper class.
@@ -100,8 +102,8 @@ class YF(stock.StockFetcher):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
-            last_date = self.last_date
-            current_date = datetime.now() + timedelta(days=1)
+            last_date = self.last_date.replace(tzinfo=pytz.UTC)
+            current_date = datetime.now().replace(tzinfo=pytz.UTC) + timedelta(days=1)
 
             if last_date > current_date:
                 last_date_str = current_date.strftime('%Y-%m-%d')

@@ -36,6 +36,8 @@ first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
 last_date = "2022-11-1"  # The last date to fetch quotes
 def_threshold = 15314  # The default quotes num required for the calculation for each symbol
 test_threshold = 500  # Minimum threshold value for testing
+threshold_divs_test = 8
+threshold_splits_test = 0
 
 # For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
 # In this case, DJIA stocks are used to train the models.
@@ -102,7 +104,7 @@ if __name__ == "__main__":
     try:
         # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
         source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-        est_rows, num = source.fetch_if_none(test_threshold)
+        est_rows, num = source.fetch_stock_data_if_none(test_threshold, threshold_divs_test, threshold_splits_test)
     except FdataError as e:
         sys.exit(e)
 

@@ -27,6 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import accuracy_score, f1_score
 
+# TODO MID Think if it worth using a two models to estimate buy/sell signals
 class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.

@@ -86,7 +86,7 @@ print(f"\nRecent quote data for AAPL: {aapl_data}")
 
 ## Growth Probability Estimation
 
-This is another example of how to create your own basic growth probability estimation. Withing ~70 SLOC this tiny script manages the data, creates a tool for security growth estimation and displays the result as a chart. Invoke **python -m quickstart.min_growth_probability** to run the example.
+This is another example of how to create your own basic growth probability estimation. This tiny script manages the data, creates a tool for security growth estimation and displays the result as a chart. Invoke **python -m quickstart.min_growth_probability** to run the example.
 
 ```python
 from tools.classifier import Classifier
@@ -148,13 +148,19 @@ class Probability(Classifier):
 # Demonstration
 ###############
 
-threshold_learn, threshold_test = 5284, 565  # Quotes num thresholds for the learning and testing
 period_long, period_short = (50, 25)  # Periods for SMAs
+threshold_learn, threshold_test = 5284, 565  # Quotes num thresholds in db for the learning and testing
+threshold_divs_learn, threshold_divs_test = 124, 8
+threshold_splits = 0
 
 # Get data for training/testing a model with the number of quotes >= threshold
 # All the data will be cached in a database without the need of further fetching
-rows_learn, length_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_if_none(threshold_learn)
-rows_test, length_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(threshold_test)
+rows_learn, length_learn = \
+    YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").\
+    fetch_stock_data_if_none(threshold_learn, threshold_divs_learn, threshold_splits)
+rows_test, length_test = \
+    YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").\
+        fetch_stock_data_if_none(threshold_test, threshold_divs_test, threshold_splits)
 
 prob = Probability(period_long=period_long,
                    period_short=period_short,
@@ -217,8 +223,10 @@ height = 250  # Height of each subchart in reporting
 
 # Get data for training/testing a model with the number of quotes >= threshold
 # All the data will be cached in a database without the need of further fetching
-rows_learn, length_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_if_none(threshold_learn)
-rows_test, length_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(threshold_test)
+rows_learn, length_learn = \
+    YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_stock_data_if_none(threshold_learn, 124, 0)
+rows_test, length_test = \
+    YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_stock_data_if_none(threshold_test, 12, 0)
 
 # Train the model
 classifier = MAClassifier(period=period,  # SMA Period

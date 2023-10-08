@@ -495,12 +495,11 @@ class Classifier(BaseTool):
                 results['sell-signal'] = np.array(map(lambda r : next(it_sell) if r == 1 else np.nan, df['sell']))
 
         # Perform probabilities calculation (if needed)
+        # TODO LOW Maybe both buy and sell weight should be returned from each buy and sell model
         if self._probability:
             if self._use_buy:
-                # TODO MID Check why 2 values returened during screening
                 buy_prob = self._model_buy.predict_proba(df_buy[self._data_to_est])
                 results['buy-prob'] = buy_prob[:, 1]
-
             if self._use_sell:
                 sell_prob = self._model_sell.predict_proba(df_sell[self._data_to_est])
                 results['sell-prob'] = sell_prob[:, 1]

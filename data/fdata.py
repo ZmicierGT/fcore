@@ -21,6 +21,8 @@ import settings
 
 import json
 
+import pytz
+
 # Current database compatibility version
 DB_VERSION = 10
 
@@ -149,7 +151,7 @@ class ReadOnlyData():
             Raises:
                 ValueError, OSError: incorrect datetime representation.
         """
-        self._first_date = get_dt(value)
+        self._first_date = get_dt(value, pytz.UTC)
 
     @property
     def last_date(self):
@@ -171,7 +173,7 @@ class ReadOnlyData():
             Raises:
                 ValueError, OSError: incorrect datetime representation.
         """
-        self._last_date = get_dt(value)
+        self._last_date = get_dt(value, pytz.UTC)
 
     @property
     def first_date_ts(self):

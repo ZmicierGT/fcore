@@ -5,7 +5,6 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from datetime import datetime, timedelta
-import pytz
 
 import pandas as pd
 import numpy as np
@@ -15,7 +14,7 @@ import yfinance as yfin
 from data import stock
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 from data.fdata import FdataError
-from data.futils import get_dt, get_labelled_ndarray
+from data.futils import get_labelled_ndarray
 
 class YF(stock.StockFetcher):
     """
@@ -101,8 +100,8 @@ class YF(stock.StockFetcher):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
-            last_date = self.last_date.replace(tzinfo=pytz.utc)
-            current_date = datetime.now().replace(tzinfo=pytz.utc) + timedelta(days=1)
+            last_date = self.last_date
+            current_date = datetime.now() + timedelta(days=1)
 
             if last_date > current_date:
                 last_date_str = current_date.strftime('%Y-%m-%d')
@@ -124,7 +123,7 @@ class YF(stock.StockFetcher):
         data = data.reset_index()
 
         if self.is_intraday() is False:
-            data['ts'] = data['Date'].dt.tz_localize('UTC').dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
+            data['ts'] = data['Date'].dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
             data['ts'] = data['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
             # Reverse-adjust the quotes
@@ -140,7 +139,7 @@ class YF(stock.StockFetcher):
                 data.loc[data.index < ind, 'Volume'] = data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i]
         else:
             # One more astype to get rid of .0
-            data['ts'] = data['Datetime'].dt.tz_convert('UTC').astype(int).div(10**9).astype(int)
+            data['ts'] = data['Datetime'].astype(int).div(10**9).astype(int)
 
         # Create a list of dictionaries with quotes
         quotes_data = []
@@ -178,11 +177,11 @@ class YF(stock.StockFetcher):
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m')
         row = data.iloc[-1]
 
-        dt = data.index[-1].to_pydatetime().replace(tzinfo=pytz.utc)
+        dt = data.index[-1].to_pydatetime().replace(tzinfo=None)
         ts = int(datetime.timestamp(dt))
 
         result = {'time_stamp': ts,
-                  'date_time': get_dt(ts).replace(microsecond=0).isoformat(' '),
+                  'date_time': dt.replace(microsecond=0).isoformat(' '),
                   'opened': row['Open'],
                   'high': row['High'],
                   'low': row['Low'],

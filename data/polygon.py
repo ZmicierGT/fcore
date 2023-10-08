@@ -215,16 +215,10 @@ class Polygon(stock.StockFetcher):
         divs_data = []
 
         for div in json_results:
-            decl_date = get_dt(div['declaration_date'])
-            ex_date = get_dt(div['ex_dividend_date'])
-            record_date = get_dt(div['record_date'])
-            pay_date = get_dt(div['pay_date'])
-
-            # Keep all dividend timestamps at 00:00:00
-            decl_date = decl_date.replace(hour=00, minute=00, second=00)
-            ex_date = ex_date.replace(hour=00, minute=00, second=00)
-            record_date = record_date.replace(hour=00, minute=00, second=00)
-            pay_date = pay_date.replace(hour=00, minute=00, second=00)
+            decl_date = get_dt(div['declaration_date'], pytz.UTC)
+            ex_date = get_dt(div['ex_dividend_date'], pytz.UTC)
+            record_date = get_dt(div['record_date'], pytz.UTC)
+            pay_date = get_dt(div['pay_date'], pytz.UTC)
 
             decl_ts = int(datetime.timestamp(decl_date))
             ex_ts = int(datetime.timestamp(ex_date))
@@ -255,10 +249,7 @@ class Polygon(stock.StockFetcher):
         splits_data = []
 
         for split in json_results:
-            dt = get_dt(split['execution_date'])
-
-            # Keep all split timestamps at 00:00:00
-            dt = dt.replace(hour=00, minute=00, second=00)
+            dt = get_dt(split['execution_date'], pytz.UTC)
             ts = int(datetime.timestamp(dt))
 
             split_to = int(split['split_to'])

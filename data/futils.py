@@ -19,7 +19,7 @@ import time
 import platform
 import subprocess
 
-def get_dt(value, tz=pytz.UTC):
+def get_dt(value, tz=None):
     """
         Get datetime from one of provided types: datetime, string, timestamp.
 

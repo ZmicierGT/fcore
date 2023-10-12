@@ -68,6 +68,7 @@ class StockOperations(BackTestOperations):
         current_yield = 0
 
         # Check if we have dividends today according to the dataset
+        # TODO HIGH Fix payment date processing.
         if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] != None and self.get_max_positions() > 0:
             current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] * self.get_max_positions()
 

@@ -118,6 +118,7 @@ class ROStockData(ReadOnlyData):
                                 record_date INTEGER,
                                 payment_date INTEGER,
                                 amount REAL NOT NULL,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, ex_date)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -146,6 +147,21 @@ class ROStockData(ReadOnlyData):
             except self.Error as e:
                 raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
 
+            # Create a trigger for updating a row
+            divs_trigger = """CREATE TRIGGER update_cash_dividends_modified
+                                BEFORE UPDATE
+                                ON cash_dividends
+                                BEGIN
+                                    UPDATE cash_dividends
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE cash_div_id = old.cash_div_id;
+                                END;"""
+
+            try:
+                self.cur.execute(divs_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for cash_dividends: {e}") from e
+
         # Check if we need a separate table for stock splits
         try:
             check_stock_splits = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_splits';"
@@ -162,6 +178,7 @@ class ROStockData(ReadOnlyData):
                                     symbol_id INTEGER NOT NULL,
                                     split_date INTEGER NOT NULL,
                                     split_ratio REAL,
+                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                     UNIQUE(symbol_id, split_date)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
@@ -185,6 +202,21 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_symbol_date_stock_splits_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
+
+            # Create a trigger for updating a row
+            splits_trigger = """CREATE TRIGGER update_stock_splits_modified
+                                BEFORE UPDATE
+                                ON stock_splits
+                                BEGIN
+                                    UPDATE stock_splits
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE stock_split_id = old.stock_split_id;
+                                END;"""
+
+            try:
+                self.cur.execute(splits_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for stock_splits: {e}") from e
 
         # Check if we need to create a table income_statement
         try:
@@ -227,6 +259,7 @@ class ROStockData(ReadOnlyData):
 								ebit INTEGER,
 								ebitda INTEGER,
 								net_income INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -250,6 +283,21 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_symbol_date_is_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index income_statement(symbol_id, reported_date): {e}") from e
+
+            # Create a trigger for updating a row
+            is_trigger = """CREATE TRIGGER update_income_statement_modified
+                                BEFORE UPDATE
+                                ON income_statement
+                                BEGIN
+                                    UPDATE income_statement
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE is_report_id = old.is_report_id;
+                                END;"""
+
+            try:
+                self.cur.execute(is_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for income_statement: {e}") from e
 
         # Check if we need to create a table balance_sheet
         try:
@@ -304,6 +352,7 @@ class ROStockData(ReadOnlyData):
 								retained_earnings INTEGER,
 								common_stock INTEGER,
 								common_stock_shares_outstanding INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -327,6 +376,21 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_symbol_date_bs_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index balance_sheet(symbol_id, reported_date): {e}") from e
+
+            # Create a trigger for updating a row
+            bs_trigger = """CREATE TRIGGER update_balance_sheet_modified
+                                BEFORE UPDATE
+                                ON balance_sheet
+                                BEGIN
+                                    UPDATE balance_sheet
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE bs_report_id = old.bs_report_id;
+                                END;"""
+
+            try:
+                self.cur.execute(bs_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for balance_sheet: {e}") from e
 
         # Check if we need to create a table cash_flow
         try:
@@ -373,6 +437,7 @@ class ROStockData(ReadOnlyData):
 								change_in_cash_and_cash_equivalents INTEGER,
 								change_in_exchange_rate INTEGER,
 								net_income INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -397,6 +462,21 @@ class ROStockData(ReadOnlyData):
             except self.Error as e:
                 raise FdataError(f"Can't create index cash_flow(symbol_id, reported_date): {e}") from e
 
+            # Create a trigger for updating a row
+            cf_trigger = """CREATE TRIGGER update_cash_flow_modified
+                                BEFORE UPDATE
+                                ON cash_flow
+                                BEGIN
+                                    UPDATE cash_flow
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE cf_report_id = old.cf_report_id;
+                                END;"""
+
+            try:
+                self.cur.execute(cf_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for cash_flow: {e}") from e
+
         # Check if we need to create a table earnings
         try:
             check_earnings = "SELECT name FROM sqlite_master WHERE type='table' AND name='earnings';"
@@ -418,6 +498,7 @@ class ROStockData(ReadOnlyData):
                                     estimated_eps INTEGER,
                                     surprise INTEGER,
                                     surprise_percentage INTEGER,
+                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                     UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
@@ -441,6 +522,21 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_symbol_date_is_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index earnings(symbol_id, reported_date): {e}") from e
+
+            # Create a trigger for updating a row
+            earnings_trigger = """CREATE TRIGGER update_earnings_modified
+                                BEFORE UPDATE
+                                ON earnings
+                                BEGIN
+                                    UPDATE earnings
+                                    SET modified = strftime('%s', 'now')
+                                    WHERE earnings_report_id = old.earnings_report_id;
+                                END;"""
+
+            try:
+                self.cur.execute(earnings_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for earnings: {e}") from e
 
     def get_income_statement_num(self):
         """Get the number of income statement reports.

@@ -24,7 +24,9 @@ import json
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 10
+DB_VERSION = 11
+
+# TODO LOW Consider checking of sqlite version as well
 
 class FdataError(Exception):
     """
@@ -916,7 +918,7 @@ class ReadOnlyData():
 
     def get_symbol_quotes_num_dt(self):
         """
-            Get the number of quotes in the database per symbol for specified dates.
+            Get the number of quotes in the database per symbol for specified dates and time span.
 
             Returns:
                 int: the number of quotes in the database per symbol.
@@ -926,9 +928,11 @@ class ReadOnlyData():
         """
         self.check_if_connected()
 
-        num_query = f"""SELECT COUNT(*) FROM quotes WHERE symbol_id =
-                        (SELECT symbol_id FROM symbols where ticker = '{self.symbol}') AND
-                        time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
+        num_query = f"""SELECT COUNT(*) FROM quotes
+                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
+                            AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts}
+                            AND time_span_id = (SELECT time_span_id FROM timespans where title = '{self.timespan}')
+                        ;"""
 
         try:
             self.cur.execute(num_query)

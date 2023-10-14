@@ -1181,6 +1181,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self.max_queries = None # Maximul allowed number of API queries per minute
         self._queries = []  # List of queries to calculate API call pauses
 
+    # TODO HIGH Implement smart fetching to get rid of thresholds
     def fetch_if_none(self, threshold):
         """
             Check is the required number of quotes exist in the database and fetch if not.

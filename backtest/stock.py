@@ -51,8 +51,8 @@ class StockOperations(BackTestOperations):
         """
         super().__init__(**kwargs)
 
-        # Counter till dividend yield
-        self._yield_counter = 0
+        # Number of positions to get dividends at payment date
+        self._yield_positions = 0
 
     #############################################################
     # General methods with calculations for a particular symbol
@@ -67,10 +67,18 @@ class StockOperations(BackTestOperations):
         """
         current_yield = 0
 
-        # Check if we have dividends today according to the dataset
-        # TODO HIGH Fix payment date processing.
-        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] != None and self.get_max_positions() > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] * self.get_max_positions()
+        # Check if we have opened long positions at ex_date
+        if self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] != None and self._long_positions > 0:
+            self._yield_positions = self._long_positions
+
+        # Calculate dividends to pay for long positions which were opened at ex_date
+        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] != None and self._yield_positions > 0:
+            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] * self._yield_positions
+            self._yield_positions = 0
+
+        # Calculate dividends for short positions to get payed to a borrower
+        if self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] != None and self._short_positions > 0:
+            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] * self._short_positions
 
         return current_yield
 

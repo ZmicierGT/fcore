@@ -751,7 +751,7 @@ class ROStockData(ReadOnlyData):
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
         else:
-            self.log(f"Warning: No dividend data for {self.symbol}")
+            self.log(f"Warning: No dividend data for {self.symbol} in the requested period.")
 
         # Adjust the price to stock splits
         if splits is not None:
@@ -805,7 +805,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_income_statement_num()
@@ -896,7 +896,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_balance_sheet_num()
@@ -1009,7 +1009,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_cash_flow_num()
@@ -1106,7 +1106,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_earnings_num()
@@ -1183,7 +1183,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_dividends_num()
@@ -1232,7 +1232,7 @@ class RWStockData(ROStockData, ReadWriteData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_split_num()
@@ -1261,12 +1261,12 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def fetch_stock_data_if_none(self, quote_threshold, divs_threshold, splits_threshold):
+    # TODO HIGH Implement smart fetching to get rid of thresholds
+    def fetch_stock_data_if_none(self, divs_threshold, splits_threshold):
         """
             Fetch stock quotes, divs and splits data if the current records in the database do not meet the thresholds.
 
             Args:
-                quote_threshold(int): Threshold value for quotes.
                 divs_threshold(int): Threshold value for dividends
                 splits_threshold(int): Threshold value for splits
 
@@ -1277,7 +1277,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         self.fetch_dividends_if_none(divs_threshold)
         self.fetch_splits_if_none(splits_threshold)
 
-        return self.fetch_if_none(quote_threshold)
+        return self.fetch_if_none()
 
     def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method):
         """

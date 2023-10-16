@@ -87,7 +87,6 @@ class Polygon(stock.StockFetcher):
         else:
             raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
 
-    # TODO LOW Think if it worth to make these method abstract in the base class
     def is_intraday(self):
         """
             Determine if the current timespan is intraday.
@@ -135,9 +134,13 @@ class Polygon(stock.StockFetcher):
 
         return json_results
 
-    def fetch_quotes(self):
+    def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
+
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
 
             Returns:
                 list: quotes data
@@ -145,8 +148,15 @@ class Polygon(stock.StockFetcher):
             Raises:
                 FdataError: Network error happened, no data obtained or can't parse json.
         """
-        first_date = self.first_date.date()
-        last_date = self.last_date.date()
+        if first_ts is not None:
+            first_date = get_dt(first_ts, pytz.UTC).date()
+        else:
+            first_date = self.first_date.date()
+
+        if last_ts is not None:
+            last_date = get_dt(last_ts, pytz.UTC).date()
+        else:
+            last_date = self.last_date.date()
 
         # Parsed quotes data. Lets keep it in the same object because it is very unlikely that it won't fit in the memory.
         quotes_data = []
@@ -183,9 +193,7 @@ class Polygon(stock.StockFetcher):
                     'low': quote['l'],
                     'close': quote['c'],
                     'volume': quote['v'],
-                    'transactions': n,
-                    'sectype': self.sectype.value,
-                    'currency': self.currency.value
+                    'transactions': n
                 }
 
                 quotes_data.append(quote_dict)

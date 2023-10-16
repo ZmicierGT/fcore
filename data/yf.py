@@ -14,7 +14,7 @@ import yfinance as yfin
 from data import stock
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
 from data.fdata import FdataError
-from data.futils import get_labelled_ndarray
+from data.futils import get_labelled_ndarray, get_dt
 
 import pytz
 
@@ -82,18 +82,13 @@ class YF(stock.StockFetcher):
 
         return self._tz
 
-    def is_intraday(self):
-        """
-            Checks if current timespan is intraday.
-
-            Returns:
-                bool: if current timespan is intraday.
-        """
-        return self.timespan != Timespans.Day
-
-    def fetch_quotes(self):
+    def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
+
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
 
             Returns:
                 list: quotes data
@@ -101,21 +96,23 @@ class YF(stock.StockFetcher):
             Raises:
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
-        if self.first_date_ts != def_first_date or self.last_date_ts != def_last_date:
-            last_date = self.last_date.replace(tzinfo=pytz.UTC)
-            current_date = datetime.now().replace(tzinfo=pytz.UTC) + timedelta(days=1)
+        if first_ts is None:
+            first_ts = self.first_date_ts
+        if last_ts is None:
+            last_ts = self.last_date_ts
 
-            if last_date > current_date:
-                last_date_str = current_date.strftime('%Y-%m-%d')
-            else:
-                last_date_str = self.last_date_str
+        current_ts = int((datetime.now().replace(tzinfo=pytz.UTC) + timedelta(days=1)).timestamp())
 
-            data = yfin.download(self.symbol,
-                                 interval=self.get_timespan_str(),
-                                 start=self.first_date_str,
-                                 end=last_date_str)
-        else:
-            data = yfin.download(self.symbol, interval=self.get_timespan_str(), period='max')
+        if last_ts > current_ts:
+            last_ts = current_ts
+
+        last_date_str = get_dt(last_ts, pytz.UTC).strftime('%Y-%m-%d')
+        first_date_str = get_dt(first_ts, pytz.UTC).strftime('%Y-%m-%d')
+
+        data = yfin.download(self.symbol,
+                                interval=self.get_timespan_str(),
+                                start=first_date_str,
+                                end=last_date_str)
 
         length = len(data)
 
@@ -154,9 +151,7 @@ class YF(stock.StockFetcher):
                 'high': data['High'][ind],
                 'low': data['Low'][ind],
                 'transactions': 'NULL',
-                'ts': data['ts'][ind],
-                'sectype': self.sectype.value,
-                'currency': self.currency.value
+                'ts': data['ts'][ind]
             }
 
             quotes_data.append(quote_dict)

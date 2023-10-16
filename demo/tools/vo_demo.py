@@ -24,19 +24,16 @@ import sys
 long_period = 28
 short_period = 14
 
-threshold = 525  # Quotes number threshold for calculation
-
 if __name__ == "__main__":
     # Get quotes
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                   "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = source.fetch_if_none(threshold)
+        rows, num = source.fetch_if_none()
     except FdataError as e:
         sys.exit(e)
 
@@ -44,8 +41,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # VO calculation
     vo = VO(long_period, short_period, rows, StockQuotes.Volume)

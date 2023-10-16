@@ -21,7 +21,6 @@ import sys
 import pandas as pd
 import pandas_ta as ta
 
-threshold = 525  # Quotes number threshold for calculation
 period = 50
 
 if __name__ == "__main__":
@@ -34,7 +33,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = source.fetch_if_none(threshold)
+        rows, num = source.fetch_if_none()
     except FdataError as e:
         sys.exit(e)
 

@@ -33,21 +33,19 @@ output_size = 1  # Number of features to forecast
 
 epochs = 1000
 
-threshold = 756  # Quotes number threshold for calculation
 threshold_divs = 124
 threshold_splits = 0
 
 if __name__ == "__main__":
     # Get quotes
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                   "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
         source = YF(symbol="SPY", first_date="2005-11-01", last_date="2008-11-01")
-        rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
+        rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -55,8 +53,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
     min_len = window_size + forecast_size
@@ -101,6 +97,7 @@ if __name__ == "__main__":
             total = (perf_counter() - before) * 1000
             print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 6)}, rmse is {round(rmse, 4)}.\n")
         else:
+            # TODO MID fix it
             print(f"The training was not triggered. Maybe length {len(rows2)} of the additional dataset was too small?\n")
 
         ######################################################################

@@ -32,43 +32,41 @@ symbol = 'SPY'  # Symbol to make estimations
 
 first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
 last_date = "2022-11-1"  # The last date to fetch quotes
-def_threshold = 15314  # The default quotes num required for the calculation for each symbol
-test_threshold = 500  # Minimum threshold value for testing
 
 # For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
 # In this case, DJIA stocks are used to train the models.
 
 # DJIA composition [symbol, quotes_threshold]. More quotes will be fetched if the threshold is not met.
-symbols = [['MMM', def_threshold, 245, 4],
-           ['AXP', 12715, 187, 6],
-           ['AMGN', 9926, 49, 5],
-           ['AAPL', 10058, 80, 5],
-           ['BA', def_threshold, 228, 8],
-           ['CAT', def_threshold, 198, 5],
-           ['CVX', def_threshold, 217, 5],
-           ['CSCO', 8240, 50, 9],
-           ['KO', def_threshold, 245, 8],
-           ['DIS', def_threshold, 124, 8],
-           ['DOW', 913, 18, 0],
-           ['GS', 5914, 98, 0],
-           ['HD', 10366, 145, 13],
-           ['HON', def_threshold, 246, 9],
-           ['IBM', def_threshold, 245, 8],
-           ['INTC', 10749, 124, 8],
-           ['JNJ', def_threshold, 247, 7],
-           ['JPM', 10749, 159, 4],
-           ['MCD', 14179, 167, 9],
-           ['MRK', def_threshold, 243, 7],
-           ['MSFT', 9235, 79, 9],
-           ['NKE', 10569, 145, 6],
-           ['PG', def_threshold, 248, 6],
-           ['CRM', 4623, 0, 1],
-           ['TRV', 11842, 146, 2],
-           ['UNH', 9588, 75, 5],
-           ['VZ', 9817, 157, 6],
-           ['V', 3682, 61, 1],
-           ['WBA', 10749, 153, 7],
-           ['WMT', 12655, 197, 9]]
+symbols = [['MMM', 245, 4],
+           ['AXP', 187, 6],
+           ['AMGN', 49, 5],
+           ['AAPL', 80, 5],
+           ['BA', 228, 8],
+           ['CAT', 198, 5],
+           ['CVX', 217, 5],
+           ['CSCO', 50, 9],
+           ['KO', 245, 8],
+           ['DIS', 124, 8],
+           ['DOW', 18, 0],
+           ['GS', 98, 0],
+           ['HD', 145, 13],
+           ['HON', 246, 9],
+           ['IBM', 245, 8],
+           ['INTC', 124, 8],
+           ['JNJ', 247, 7],
+           ['JPM', 159, 4],
+           ['MCD', 167, 9],
+           ['MRK', 243, 7],
+           ['MSFT', 79, 9],
+           ['NKE', 145, 6],
+           ['PG', 248, 6],
+           ['CRM', 0, 1],
+           ['TRV', 146, 2],
+           ['UNH', 75, 5],
+           ['VZ', 157, 6],
+           ['V', 61, 1],
+           ['WBA', 153, 7],
+           ['WMT', 197, 9]]
 
 if __name__ == "__main__":
     warning = "WARNING! Using yfinance data for the demonstration.\n" +\
@@ -81,26 +79,26 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn, threshold, divs_threshold, splits_threshold in symbols:
+    for symbol_learn, divs_threshold, splits_threshold in symbols:
         try:
-            # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
+            print(f"Checking if quotes for {symbol_learn} is already fetched...")
+
             source = YF(symbol=symbol_learn, last_date=last_date)
-            rows, num = source.fetch_stock_data_if_none(threshold, divs_threshold, splits_threshold)
+            rows, num = source.fetch_stock_data_if_none(divs_threshold, splits_threshold)
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
-        else:
-            print(f"No need to fetch quotes for {source.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)
 
     # Get quotes for estimations
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
+        print(f"\nFetching quotes for {symbol} to validate the model...")
+
         source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-        est_rows, num = source.fetch_if_none(test_threshold)
+        est_rows, num = source.fetch_if_none()
     except FdataError as e:
         sys.exit(e)
 
@@ -108,8 +106,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {test_threshold}.")
 
     #################################
     # Train the model and get results

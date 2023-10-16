@@ -41,15 +41,19 @@ class FHStock(stock.StockFetcher):
         """
         raise FdataError("Timespans are not supported yet in Finnhub datasource.")
 
-    def fetch_quotes(self):
+    def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
 
-            Raises:
-                FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
 
             Returns:
                 list: quotes data
+
+            Raises:
+                FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
         """
         raise FdataError(f"Fetching quotes is not supported (yet) for the source {type(self).__name__}")
 

@@ -7,11 +7,10 @@ Distributed under Fcore License 1.1 (see license.md)
 from data import fvalues
 from data.fvalues import Quotes
 from data.fdata import FdataError
-from data.futils import logger
+from data.futils import logger, get_dt
 
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 
 from time import sleep
 
@@ -20,6 +19,8 @@ from enum import IntEnum
 import abc
 
 import numpy as np
+
+import pytz
 
 # Exception class for screener errors
 class ScrError(Exception):
@@ -95,7 +96,7 @@ class BaseScr(metaclass=abc.ABCMeta):
         self._results = None
 
         # Datetime of the iteration.
-        self.__dt = datetime.now(timezone.utc)
+        self.__dt = datetime.now(pytz.UTC)
 
     def get_symbols(self):
         """
@@ -128,7 +129,7 @@ class BaseScr(metaclass=abc.ABCMeta):
         """
             Set the datetime of the iteration.
         """
-        self.__dt = datetime.now(timezone.utc)
+        self.__dt = datetime.now(pytz.UTC)
 
     def get_interval(self):
         """
@@ -169,7 +170,7 @@ class BaseScr(metaclass=abc.ABCMeta):
                 ScrError: can't fetch quotes.
         """
         # TODO LOW Think if processing time should be taken into account.
-        delta = datetime.now(timezone.utc) - self.get_datetime()
+        delta = datetime.now(pytz.UTC) - self.get_datetime()
 
         if delta.seconds < self.get_interval() and self.get_init_status():
             sleep(self.get_interval() - delta.seconds)
@@ -273,8 +274,8 @@ class ScrData():
         self.get_source().db_connect()
 
         if init_status is False:
-            self.__max_datetime = self.get_source().get_max_datetime()
-            self.__quotes_num = self.get_source().get_symbol_quotes_num()
+            self.__max_datetime = get_dt(self.get_source().get_max_ts(), pytz.UTC)
+            self.__quotes_num = self.get_source().get_total_symbol_quotes_num()
         else:
             data = self.get_source().get_recent_data()
 

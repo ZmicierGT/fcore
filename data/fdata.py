@@ -24,7 +24,7 @@ import json
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 11
+DB_VERSION = 12
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -237,17 +237,30 @@ class ReadOnlyData():
         """
         return self.last_date.strftime('%Y-%m-%d')
 
+    def set_eod_time(self, dt):
+        """
+            Set the time to 23:59:59 which is used in EOD quotes.
+
+            Args:
+                dt(datetime, int, str): The initial datetime
+
+            Returns:
+                datetime: the adjustd datetime.
+        """
+        dt = get_dt(dt, pytz.UTC)
+        return dt.replace(hour=23, minute=59, second=59, tzinfo=pytz.UTC)
+
     def first_date_set_eod(self):
         """
             Set the first date's h/m/s/ to EOD (23:59:59)
         """
-        self._first_date = self._first_date.replace(hour=23, minute=59, second=59)
+        self._first_date = self.set_eod_time(self._first_date)
 
     def last_date_set_eod(self):
         """
             Set the last date's h/m/s/ to EOD (23:59:59)
         """
-        self._last_date = self._last_date.replace(hour=23, minute=59, second=59)
+        self._last_date = self.set_eod_time(self._last_date.replace)
 
     ##############################################
     # End of datetime handling methods/properties.
@@ -369,6 +382,117 @@ class ReadOnlyData():
             if version != DB_VERSION:
                 raise FdataError(f"DB Version is unexpected. Please, delete the database file {settings.Quotes.db_name} or change db patch in settings.py")
 
+        # Check if we need to create table 'currency'
+        try:
+            check_currency = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
+
+            self.cur.execute(check_currency)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{check_currency}") from e
+
+        if len(rows) == 0:
+            create_currency = """CREATE TABLE currency(
+                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_currency)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
+
+            # Create index for sectype title
+            create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
+
+            try:
+                self.cur.execute(create_currency_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for currency(title): {e}") from e
+
+        # Check if currency table is empty
+        try:
+            all_currency = "SELECT * FROM currency;"
+            self.cur.execute(all_currency)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{all_currency}") from e
+
+        # Check if currency table has data
+        if len(rows) < len(Currency) - 1:
+            # Prepare the query with all supported currencies
+            currencies = ""
+
+            for currency in Currency:
+                if currency != Currency.All:
+                    currencies += f"('{currency.value}'),"
+
+            currencies = currencies[:len(currencies) - 2]
+
+            insert_currency = f"""INSERT OR IGNORE INTO currency (title)
+                                    VALUES {currencies});"""
+
+            try:
+                self.cur.execute(insert_currency)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
+
+        # Check if we need to create table 'sectypes'
+        try:
+            check_sectypes = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
+
+            self.cur.execute(check_sectypes)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{check_sectypes}") from e
+
+        if len(rows) == 0:
+            create_sectypes = """CREATE TABLE sectypes(
+                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
+
+            try:
+                self.cur.execute(create_sectypes)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
+
+            # Create index for sectype title
+            create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
+
+            try:
+                self.cur.execute(create_sectype_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for sectypes(title): {e}") from e
+
+        # Check if sectypes table is empty
+        try:
+            all_sectypes = "SELECT * FROM sectypes;"
+
+            self.cur.execute(all_sectypes)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{all_sectypes}") from e
+
+        # Check if sectypes table has data
+        if len(rows) < len(SecType) - 1:
+            # Prepare the query with all supported sectypes
+            sec_types = ""
+
+            for sectype in SecType:
+                if sectype != SecType.All:
+                    sec_types += f"('{sectype.value}'),"
+
+            sec_types = sec_types[:len(sec_types) - 2]
+
+            insert_sectypes = f"""INSERT OR IGNORE INTO sectypes (title)
+                                    VALUES {sec_types});"""
+
+            try:
+                self.cur.execute(insert_sectypes)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
+
         # Check if we need to create table 'symbols'
         try:
             check_symbols = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
@@ -382,8 +506,19 @@ class ReadOnlyData():
             create_symbols = """CREATE TABLE symbols(
                                 symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ticker TEXT NOT NULL UNIQUE,
+                                sec_type_id INTEGER NOT NULL,
+                                currency_id INTEGER NOT NULL,
                                 isin TEXT UNIQUE,
-                                description TEXT
+                                description TEXT,
+                                CONSTRAINT fk_sectypes
+                                    FOREIGN KEY (sec_type_id)
+                                    REFERENCES sectypes(sec_type_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_currency
+                                    FOREIGN KEY (currency_id)
+                                    REFERENCES currency(currency_id)
+                                    ON DELETE CASCADE
+                                UNIQUE(symbol_id)
                                 );"""
 
             try:
@@ -484,116 +619,50 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
-        # Check if we need to create table 'sectypes'
+        # Check if we need to create table 'fetched_quotes'
         try:
-            check_sectypes = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
+            check_fetched_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='fetched_quotes';"
 
-            self.cur.execute(check_sectypes)
+            self.cur.execute(check_fetched_quotes)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{check_sectypes}") from e
+            raise FdataError(f"Can't execute a query on a table 'fetched_quotes': {e}\n{check_fetched_quotes}") from e
 
         if len(rows) == 0:
-            create_sectypes = """CREATE TABLE sectypes(
-                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
+            create_fetched_quotes = """CREATE TABLE fetched_quotes (
+                                            early_quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                            symbol_id INTEGER NOT NULL,
+                                            source_id INTEGER NOT NULL,
+                                            time_span_id INTEGER NOT NULL,
+                                            min_request_ts INTEGER NOT NULL,
+                                            max_request_ts INTEGER NOT NULL,
+                                                CONSTRAINT fk_timespans
+                                                    FOREIGN KEY (time_span_id)
+                                                    REFERENCES timespans(time_span_id)
+                                                    ON DELETE CASCADE
+                                                CONSTRAINT fk_source
+                                                    FOREIGN KEY (source_id)
+                                                    REFERENCES sources(source_id)
+                                                    ON DELETE CASCADE
+                                                CONSTRAINT fk_symbols
+                                                    FOREIGN KEY (symbol_id)
+                                                    REFERENCES symbols(symbol_id)
+                                                    ON DELETE CASCADE
+                                            UNIQUE(symbol_id, source_id, time_span_id)
+                                            );"""
 
             try:
-                self.cur.execute(create_sectypes)
+                self.cur.execute(create_fetched_quotes)
             except self.Error as e:
-                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
+                raise FdataError(f"Can't create table fetched_quotes: {e}") from e
 
-            # Create index for sectype title
-            create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
+            # Create indexes for fetched_quotes
+            create_fetched_quotes_idx = "CREATE INDEX idx_fetched_quotes ON fetched_quotes(symbol_id, source_id, time_span_id);"
 
             try:
-                self.cur.execute(create_sectype_title_idx)
+                self.cur.execute(create_fetched_quotes_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create index for sectypes(title): {e}") from e
-
-        # Check if sectypes table is empty
-        try:
-            all_sectypes = "SELECT * FROM sectypes;"
-
-            self.cur.execute(all_sectypes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{all_sectypes}") from e
-
-        # Check if sectypes table has data
-        if len(rows) < len(SecType) - 1:
-            # Prepare the query with all supported sectypes
-            sec_types = ""
-
-            for sectype in SecType:
-                if sectype != SecType.All:
-                    sec_types += f"('{sectype.value}'),"
-
-            sec_types = sec_types[:len(sec_types) - 2]
-
-            insert_sectypes = f"""INSERT OR IGNORE INTO sectypes (title)
-                                    VALUES {sec_types});"""
-
-            try:
-                self.cur.execute(insert_sectypes)
-            except self.Error as e:
-                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
-
-        # Check if we need to create table 'currency'
-        try:
-            check_currency = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
-
-            self.cur.execute(check_currency)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{check_currency}") from e
-
-        if len(rows) == 0:
-            create_currency = """CREATE TABLE currency(
-                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
-
-            try:
-                self.cur.execute(create_currency)
-            except self.Error as e:
-                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
-
-            # Create index for sectype title
-            create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
-
-            try:
-                self.cur.execute(create_currency_title_idx)
-            except self.Error as e:
-                raise FdataError(f"Can't create index for currency(title): {e}") from e
-
-        # Check if currency table is empty
-        try:
-            all_currency = "SELECT * FROM currency;"
-            self.cur.execute(all_currency)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{all_currency}") from e
-
-        # Check if currency table has data
-        if len(rows) < len(Currency) - 1:
-            # Prepare the query with all supported currencies
-            currencies = ""
-
-            for currency in Currency:
-                if currency != Currency.All:
-                    currencies += f"('{currency.value}'),"
-
-            currencies = currencies[:len(currencies) - 2]
-
-            insert_currency = f"""INSERT OR IGNORE INTO currency (title)
-                                    VALUES {currencies});"""
-
-            try:
-                self.cur.execute(insert_currency)
-            except self.Error as e:
-                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
+                raise FdataError(f"Can't create indexes for fetched_quotes table: {e}") from e
 
         # Check if we need to create table 'quotes'
         try:
@@ -611,8 +680,6 @@ class ReadOnlyData():
                             source_id INTEGER NOT NULL,
                             time_stamp INTEGER NOT NULL,
                             time_span_id INTEGER NOT NULL,
-                            sec_type_id INTEGER NOT NULL,
-                            currency_id INTEGER NOT NULL,
                             opened REAL,
                             high REAL,
                             low REAL,
@@ -623,10 +690,6 @@ class ReadOnlyData():
                                     FOREIGN KEY (time_span_id)
                                     REFERENCES timespans(time_span_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_sectypes
-                                    FOREIGN KEY (sec_type_id)
-                                    REFERENCES sectypes(sec_type_id)
-                                    ON DELETE CASCADE
                                 CONSTRAINT fk_source
                                     FOREIGN KEY (source_id)
                                     REFERENCES sources(source_id)
@@ -634,10 +697,6 @@ class ReadOnlyData():
                                 CONSTRAINT fk_symbols
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_currency
-                                    FOREIGN KEY (currency_id)
-                                    REFERENCES currency(currency_id)
                                     ON DELETE CASCADE
                             UNIQUE(symbol_id, time_stamp, time_span_id)
                             );"""
@@ -655,7 +714,7 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for quotes table: {e}") from e
 
-            self.conn.commit()
+        self.conn.commit()
 
     def check_source(self):
         """
@@ -904,7 +963,8 @@ class ReadOnlyData():
 
         return result
 
-    def get_symbol_quotes_num(self):
+    # TODO MID Need to check if correct methods are used each time.
+    def get_total_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.
 
@@ -916,22 +976,31 @@ class ReadOnlyData():
         """
         return self._get_data_num('quotes')
 
-    def get_symbol_quotes_num_dt(self):
+    def get_symbol_quotes_num(self, dt=True):
         """
-            Get the number of quotes in the database per symbol for specified dates and time span.
+            Get the number of quotes in the database per symbol for specified dates, time span and source.
+
+            Args:
+                dt(bool): check for the particular datetime.
 
             Returns:
-                int: the number of quotes in the database per symbol.
+                int: the number of quotes in the database per symbol for specified dates, time span and source.
 
             Raises:
                 FdataError: sql error happened.
         """
         self.check_if_connected()
 
+        dt_str = ''
+
+        if dt:
+            dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts}"
+
         num_query = f"""SELECT COUNT(*) FROM quotes
                             WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
-                            AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts}
+                            {dt_str}
                             AND time_span_id = (SELECT time_span_id FROM timespans where title = '{self.timespan}')
+                            AND source_id = (SELECT source_id FROM sources where title = '{self.source_title}')
                         ;"""
 
         try:
@@ -946,28 +1015,80 @@ class ReadOnlyData():
 
         return result
 
-    def get_max_datetime(self):
+    def _get_ts(self, max=True, table='quotes', column='time_stamp'):
         """
-            Get maximum datetime for a particular symbol.
+            Get Min/Max timestamp for a particular symbol, source, timespan from a specified table.
+
+            Args:
+                max(bool): indicates if Min or Max timestamp should be obtained.
+                table(str): table to request.
+                column(str): column to request.
 
             Returns:
-                int: the number of quotes in the database for a specified symbol.
+                int: timestamp of min/max timestamp.
 
             Raises:
                 FdataError: sql error happened.
         """
+        minmax = 'MIN'
+
+        if max:
+            minmax = 'MAX'
+
         self.check_if_connected()
 
-        max_datetime_query = f"""SELECT MAX(datetime(time_stamp, 'unixepoch')) FROM quotes
-                                    INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
-                                    WHERE symbols.ticker = '{self.symbol}'"""
+        timestamp_query = f"""SELECT {minmax}({column}) FROM {table}
+                                    INNER JOIN symbols ON {table}.symbol_id = symbols.symbol_id
+                                    INNER JOIN sources on {table}.source_id = sources.source_id
+                                    INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id
+                                    WHERE symbols.ticker = '{self.symbol}'
+                                    AND sources.title = '{self.source_title}'
+                                    AND timespans.title = '{self.timespan}';"""
 
         try:
-            self.cur.execute(max_datetime_query)
+            self.cur.execute(timestamp_query)
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{max_datetime_query}") from e
+            raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{timestamp_query}") from e
 
         return self.cur.fetchone()[0]
+
+    def get_min_request_ts(self):
+        """
+            Get the earliest request timestamp to obtain quotes for a particular symbol,
+            timespan, source.
+
+            Return:
+                int: the earliest request timestamp.
+        """
+        return self._get_ts(table='fetched_quotes', column='min_request_ts')
+
+    def get_max_request_ts(self):
+        """
+            Get the earliest request timestamp to obtain quotes for a particular symbol,
+            timespan, source.
+
+            Return:
+                int: the earliest request timestamp.
+        """
+        return self._get_ts(table='fetched_quotes', column='max_request_ts')
+
+    def get_max_ts(self):
+        """
+            Get maximum timestamp for a particular symbol, source, timespan.
+
+            Returns:
+                int: timestamp of a maximum timestamp.
+        """
+        return self._get_ts(max=True)
+
+    def get_min_ts(self):
+        """
+            Get minimum timestamp for a particular symbol, source, timespan.
+
+            Returns:
+                int: timestamp of a minimum timestamp.
+        """
+        return self._get_ts(max=False)
 
     def commit(self):
         """
@@ -991,7 +1112,7 @@ class ReadWriteData(ReadOnlyData):
     """
         Base class for read/write SQL operations.
     """
-    def __init__(self, update=False, **kwargs):
+    def __init__(self, update=True, **kwargs):
         """
             Initialize read/write SQL abstraction class.
 
@@ -1037,7 +1158,11 @@ class ReadWriteData(ReadOnlyData):
         """
         self.check_if_connected()
 
-        insert_symbol = f"INSERT OR IGNORE INTO symbols (ticker) VALUES ('{self.symbol}');"
+        insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker, sec_type_id, currency_id) VALUES (
+                                '{self.symbol}',
+                                (SELECT sec_type_id FROM sectypes WHERE sectypes.title = '{self.sectype}' COLLATE NOCASE),
+                                (SELECT currency_id FROM currency WHERE currency.title = '{self.currency}' COLLATE NOCASE)
+                                );"""
 
         try:
             self.cur.execute(insert_symbol)
@@ -1085,8 +1210,6 @@ class ReadWriteData(ReadOnlyData):
                                                                     source_id,
                                                                     time_stamp,
                                                                     time_span_id,
-                                                                    sec_type_id,
-                                                                    currency_id,
                                                                     opened,
                                                                     high,
                                                                     low,
@@ -1098,8 +1221,6 @@ class ReadWriteData(ReadOnlyData):
                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                             ({quote['ts']}),
                             (SELECT time_span_id FROM timespans WHERE title = '{self.timespan.value}' COLLATE NOCASE),
-                            (SELECT sec_type_id FROM sectypes WHERE title = '{quote['sectype']}' COLLATE NOCASE),
-                            (SELECT currency_id FROM currency WHERE title = '{quote['currency']}' COLLATE NOCASE),
                             ({quote['open']}),
                             ({quote['high']}),
                             ({quote['low']}),
@@ -1131,7 +1252,7 @@ class ReadWriteData(ReadOnlyData):
         self.check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
         num_before = self.get_quotes_num()
@@ -1143,7 +1264,40 @@ class ReadWriteData(ReadOnlyData):
 
         num_after = self.get_quotes_num()
 
+        self.update_earliest_requested()
+
         return (num_before, num_after)
+
+    def update_earliest_requested(self):
+        """
+            Update the earliest requested quote (if needed).
+        """
+        # TODO LOW Write it in a more rational way
+        update_fetched = f"""INSERT OR REPLACE INTO fetched_quotes (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
+                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                      (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}'),
+                                      (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                      (SELECT ifnull(
+                                                     (SELECT min(min_request_ts, {self.first_date_ts})
+	                                                  FROM fetched_quotes
+	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
+                                              ), {self.first_date_ts})),
+                                      (SELECT ifnull(
+                                                     (SELECT max(max_request_ts, {self.last_date_ts})
+	                                                  FROM fetched_quotes
+	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
+                                              ), {self.last_date_ts}))
+                           );"""
+
+        try:
+            self.cur.execute(update_fetched)
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'fetched_quotes': {e}\n{update_fetched}") from e
 
     def remove_quotes(self):
         """
@@ -1164,7 +1318,7 @@ class ReadWriteData(ReadOnlyData):
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{remove_quotes}") from e
 
         # Check if symbol is removed completely
-        if self.get_symbol_quotes_num() == 0:
+        if self.get_total_symbol_quotes_num() == 0:
             self.remove_symbol()
 
 ##########################
@@ -1181,36 +1335,42 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self.max_queries = None # Maximul allowed number of API queries per minute
         self._queries = []  # List of queries to calculate API call pauses
 
-    # TODO HIGH Implement smart fetching to get rid of thresholds
-    def fetch_if_none(self, threshold):
+    def fetch_if_none(self):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
             At the end the connection status will be resumed.
 
-            Args:
-                treshold(int): the minimum required number of quotes in the database.
-
             Returns:
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
+        # TODO HIGH Check how it works on max date
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
             self.db_connect()
 
-        current_num = self.get_symbol_quotes_num_dt()
+        current_num = self.get_symbol_quotes_num()
+        total_num = self.get_symbol_quotes_num(dt=False)
+        num = current_num
 
-        # Fetch quotes if there are less than a threshold number of records in the database for a selected timespan.
-        if current_num < threshold:
-            self.add_quotes(self.fetch_quotes())
-            num = self.get_symbol_quotes_num_dt()
+        # We need to check if the earliest and latest dates in database exceed the requested date for specified
+        # source and time span. If not, no need to fetch. If yes, fetch the required interval with filling gaps
+        # between previously fetched interval.
+        first_ts = self.first_date_ts
+        last_ts = self.last_date_ts
 
-            if num == 0:
-                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {num} quotes got). Decrease the threshold.")
-        else:
-            num = 0
+        if total_num > 0:
+            first_ts = min(first_ts, self.get_min_request_ts())
+            last_ts = max(last_ts, self.get_max_request_ts())
+
+        # Check if need to fetch quotes
+        if num == 0 or first_ts < self.get_min_request_ts() or last_ts > self.get_max_request_ts():
+            self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, pytz.UTC)} to {get_dt(last_ts, pytz.UTC)}...")
+
+            self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+            num = self.get_symbol_quotes_num()
 
         rows = self.get_quotes()
 
@@ -1218,7 +1378,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             self.db_close()
 
         # TODO LOW Think if we need to return num (likely still better to have it)
-        return (rows, num)
+        return (rows, num - current_num)
 
     def query_api(self, url, timeout=30):
         """
@@ -1255,6 +1415,15 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         return response
 
+    def is_intraday(self):
+        """
+            Checks if current timespan is intraday.
+
+            Returns:
+                bool: if current timespan is intraday.
+        """
+        return self.timespan != Timespans.Day
+
     @abc.abstractmethod
     def get_recent_data(self, to_cache=False):
         """
@@ -1269,9 +1438,16 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def fetch_quotes(self):
+    def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             Abstract method to fetch quotes.
+
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+
+            Returns:
+                list(dict): obtained quotes.
         """
 
     @abc.abstractmethod

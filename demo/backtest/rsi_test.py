@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.rsi import RSI
 from backtest.bh import BuyAndHold
 from backtest.base import BackTestError
@@ -21,16 +20,14 @@ from itertools import repeat
 
 import sys
 
-def_threshold = 250  # Quotes num threshold for the test
-
 first_date = "2020-10-01"  # First date to fetch quotes
 last_date = "2021-10-01"  # The last date to fetch quotes
 
 symbol1 = 'MMM'
 symbol2 = 'AXP'
 
-symbols = [[symbol1, def_threshold, 245, 4],
-           [symbol2, def_threshold, 187, 6]]
+symbols = [[symbol1, 245, 4],
+           [symbol2, 187, 6]]
 
 period = 14
 support = 30
@@ -48,18 +45,16 @@ if __name__ == "__main__":
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    for symbol, threshold, threshold_divs, threshold_splits in symbols:
+    for symbol, threshold_divs, threshold_splits in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-            rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
+            rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
-        else:
-            print(f"No need to fetch quotes for {source.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)
 

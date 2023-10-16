@@ -169,9 +169,13 @@ class AVStock(stock.StockFetcher):
 
         return (dict_results, dict_header)
 
-    def fetch_quotes(self):
+    def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
+
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
 
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
@@ -186,8 +190,18 @@ class AVStock(stock.StockFetcher):
             json_key = f'Time Series ({self.get_timespan_str()})'
 
             # Year and month
-            year = self.first_date.year
-            month = self.first_date.month
+            if first_ts is None:
+                first_date = self.first_date
+            else:
+                first_date = get_dt(first_ts, pytz.UTC)
+
+            if last_ts is None:
+                last_date = self.last_date
+            else:
+                first_date = get_dt(last_ts, pytz.UTC)
+
+            year = first_date.year
+            month = first_date.month
 
             if year < 2000:
                 year = 2000
@@ -249,9 +263,7 @@ class AVStock(stock.StockFetcher):
                 'low': quote['3. low'],
                 'close': quote['4. close'],
                 'volume': quote['5. volume'],
-                'transactions': 'NULL',
-                'sectype': self.sectype.value,
-                'currency': self.currency.value
+                'transactions': 'NULL'
             }
 
             quotes_data.append(quote_dict)

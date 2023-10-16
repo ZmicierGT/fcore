@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.rsi import RSI
 from backtest.base import BackTestError
 from backtest.stock import StockData
@@ -23,8 +22,6 @@ from datetime import datetime, timedelta
 import pytz
 
 import sys
-
-threshold = 1000  # Quotes num threshold for the test
 
 symbols = ['MSFT', 'AAPL']
 
@@ -51,22 +48,16 @@ if __name__ == "__main__":
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    print("At least 1000 quotes for each symbol need to be fetched for the last week.")
-
     for symbol in symbols:
         try:
             # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
             source = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute)
-            rows, num = source.fetch_if_none(threshold)
+            rows, num = source.fetch_if_none()
         except FdataError as e:
             sys.exit(e)
 
         if num > 0:
             print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
-        else:
-            # Please note that data providers and database may tread the date differently. For example, YF in query fetches the data for the end day
-            # but sql database will fetch the data TILL the last day.
-            print(f"No need to fetch quotes for {source.symbol}. There are {len(rows)} quotes in the database and it is >= the threshold level of {threshold}.")
 
         allrows.append(rows)
 

@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.bh import BuyAndHold
 from backtest.base import BackTestError
 from backtest.stock import StockData
@@ -15,27 +14,22 @@ from data.yf import YF
 
 import sys
 
-threshold = 500  # Quotes num threshold for the test
 threshold_divs = 124
 threshold_splits = 0
 
 min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
-import numpy as np
-np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
-
 if __name__ == "__main__":
     # Get quotes
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                   "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = source.fetch_stock_data_if_none(threshold, threshold_divs, threshold_splits)
+        rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -43,8 +37,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     quotes = StockData(rows=rows,
                           title=source.symbol,

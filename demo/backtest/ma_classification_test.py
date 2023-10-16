@@ -32,8 +32,6 @@ change_percent = 2  # Change of price in percent to consider the trend as change
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 
-threshold_learn = 5284  # Quotes num threshold for the learning
-threshold_test = 565  # Quotes num threshold for the test
 threshold_divs_learn = 124
 threshold_divs_test = 8
 threshold_splits = 0
@@ -46,14 +44,13 @@ if __name__ == "__main__":
 
     # Get quotes for learning
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                   "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
         source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
-        rows_learn, num = source.fetch_stock_data_if_none(threshold_learn, threshold_divs_learn, threshold_splits)
+        rows_learn, num = source.fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -61,14 +58,11 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_learn}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length_learn} quotes in the database and it is >= the threshold level of {threshold_learn}.")
 
     # Get quotes for testing
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         source = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
-        rows, num = source.fetch_stock_data_if_none(threshold_test, threshold_divs_test, threshold_splits)
+        rows, num = source.fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
@@ -76,8 +70,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_test}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length_test} quotes in the database and it is >= the threshold level of {threshold_test}.")
 
     # Train the models
 

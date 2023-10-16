@@ -12,9 +12,9 @@ from data.stock import report_year  # Condition to request annual report.
 
 from datetime import datetime, timedelta
 
-# This example checks if there is at least 565 dayly quotes for SPY in the database and if no
-# then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
-yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
+# Fetch quotes if needed. Otherwise just take them from a database.
+yf.YF(symbol='SPY', first_date="2010-1-1", last_date="2012-1-1").fetch_if_none()
+yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2022-1-1", verbosity=True).fetch_if_none()
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
@@ -34,7 +34,7 @@ symbol = 'IBM'
 print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
 
 avi = av.AVStock(symbol=symbol)
-avi.fetch_if_none(6007)
+avi.fetch_if_none()
 
 yfi = yf.YF(symbol=symbol)
 yfi.fetch_dividends_if_none(245)

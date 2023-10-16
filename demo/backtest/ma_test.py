@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.ma import MA
 from backtest.base import BackTestError
 from backtest.stock import StockData
@@ -19,7 +18,6 @@ import plotly.graph_objects as go
 import sys
 
 period = 50  # Period used in strategy
-threshold = 252  # Quotes num threshold for the test
 
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
@@ -27,14 +25,13 @@ height = 250  # Height of each subchart in reporting
 if __name__ == "__main__":
     # Get quotes
     try:
-        # Fetch quotes if there are less than a threshold number of records in the database for the specified timespan.
         warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                   "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
         source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
-        rows, num = source.fetch_stock_data_if_none(threshold, 145, 6)
+        rows, num = source.fetch_stock_data_if_none(145, 6)
     except FdataError as e:
         sys.exit(e)
 
@@ -42,8 +39,6 @@ if __name__ == "__main__":
 
     if num > 0:
         print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
 
     quotes = StockData(rows=rows,
                           title=source.symbol,

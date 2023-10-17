@@ -82,6 +82,7 @@ class YF(stock.StockFetcher):
 
         return self._tz
 
+    # TODO HIGH Intraday quotes are not UTC adjusted
     def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
@@ -106,8 +107,14 @@ class YF(stock.StockFetcher):
         if last_ts > current_ts:
             last_ts = current_ts
 
-        last_date_str = get_dt(last_ts, pytz.UTC).strftime('%Y-%m-%d')
-        first_date_str = get_dt(first_ts, pytz.UTC).strftime('%Y-%m-%d')
+        first_date = get_dt(first_ts, pytz.UTC)
+        last_date = get_dt(last_ts, pytz.UTC)
+
+        if (last_date - first_date).days == 0:
+            first_date = first_date - timedelta(days=1)
+
+        first_date_str = first_date.strftime('%Y-%m-%d')
+        last_date_str = last_date.strftime('%Y-%m-%d')
 
         data = yfin.download(self.symbol,
                                 interval=self.get_timespan_str(),

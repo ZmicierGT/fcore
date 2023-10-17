@@ -29,14 +29,13 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
+        rows = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
+    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
 
     quotes = StockData(rows=rows,
                           title=source.symbol,

@@ -1126,7 +1126,29 @@ class ReadOnlyData():
         if self.is_intraday() is False:
             now = self.set_eod_time(now)
 
-        return int(now.timestamp())
+        ts = int(now.timestamp())
+
+        # TODO HIGH Test it on intraday requests
+        if self.timespan == Timespans.Minute:
+            ts += 60
+        if self.timespan == Timespans.TwoMinutes:
+            ts += 120
+        elif self.timespan == Timespans.FiveMinutes:
+            ts += 300
+        elif self.timespan == Timespans.TenMinutes:
+            ts += 600
+        elif self.timespan == Timespans.FifteenMinutes:
+            ts += 900
+        elif self.timespan == Timespans.TwentyMinutes:
+            ts += 1200
+        elif self.timespan == Timespans.ThirtyMinutes:
+            ts += 1800
+        elif self.timespan == Timespans.Hour:
+            ts += 3600
+        elif self.timespan == Timespans.NinetyMinutes:
+            ts += 5400
+
+        return ts
 
 #############################
 # Read/Write operations class
@@ -1379,32 +1401,51 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         current_num = self.get_symbol_quotes_num()
         total_num = self.get_symbol_quotes_num(dt=False)
-        num = current_num
+
+        last_ts_adj = min(self.last_date_ts, self.current_ts())
 
         # We need to check if the earliest and latest dates in database exceed the requested date for specified
-        # source and time span. If not, no need to fetch. If yes, fetch the required interval with filling gaps
-        # between previously fetched interval.
-        first_ts = self.first_date_ts
-        last_ts = min(self.last_date_ts, self.current_ts())
+        # source and time span. If not, no need to fetch.
+        if current_num == 0 or self.first_date_ts < self.get_min_request_ts() or last_ts_adj > self.get_max_request_ts():
+            intervals = []
 
-        if total_num > 0:
-            first_ts = min(first_ts, self.get_min_request_ts())
-            last_ts = max(last_ts, self.get_max_request_ts())
+            # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
+            # if they already present in DB.
+            if total_num:
+                # New interval exceeds the old one on both sides
+                if self.first_date_ts < self.get_min_request_ts() and last_ts_adj > self.get_max_request_ts():
+                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
+                    intervals.append([self.get_max_request_ts(), last_ts_adj])
 
-        # Check if need to fetch quotes
-        if num == 0 or first_ts < self.get_min_request_ts() or last_ts > self.get_max_request_ts():
-            self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, pytz.UTC)} to {get_dt(last_ts, pytz.UTC)}...")
+                # New interval is completely before the old interval
+                elif self.first_date_ts < self.get_min_request_ts() and last_ts_adj < self.get_min_request_ts():
+                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
 
-            self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
-            num = self.get_symbol_quotes_num()
+                # New interval is completely after the new interval
+                elif self.first_date_ts > self.get_max_request_ts() and last_ts_adj > self.get_max_request_ts():
+                    intervals.append([self.get_max_request_ts(), last_ts_adj])
+
+                # New interval is before the old inverval but has an overlap with the old one
+                elif self.first_date_ts < self.get_min_request_ts() and last_ts_adj > self.get_min_request_ts():
+                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
+
+                # New interval is after the old interval but has an overlap with the old one
+                elif self.first_date_ts < self.get_max_request_ts() and last_ts_adj > self.get_max_request_ts():
+                    intervals.append([self.get_max_request_ts(), last_ts_adj])
+            else:
+                intervals.append([self.first_date_ts, last_ts_adj])
+
+            for first_ts, last_ts in intervals:
+                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, pytz.UTC)} to {get_dt(last_ts, pytz.UTC)}...")
+
+                self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
         rows = self.get_quotes()
 
         if initially_connected is False:
             self.db_close()
 
-        # TODO LOW Think if we need to return num (likely still better to have it)
-        return (rows, num - current_num)
+        return rows
 
     def query_api(self, url, timeout=30):
         """

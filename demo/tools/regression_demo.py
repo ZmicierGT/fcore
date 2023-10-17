@@ -45,14 +45,13 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2005-11-01", last_date="2008-11-01")
-        rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
+        rows = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
+    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
     min_len = window_size + forecast_size

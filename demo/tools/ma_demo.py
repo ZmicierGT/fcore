@@ -33,16 +33,13 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows, num = source.fetch_if_none()
+        rows = source.fetch_if_none()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
-    else:
-        print(f"No need to fetch quotes for {source.symbol}. There are {length} quotes in the database and it is >= the threshold level of {threshold}.")
+    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
 
     # Calculate MA
     df = pd.DataFrame(rows)

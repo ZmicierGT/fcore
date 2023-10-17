@@ -21,6 +21,7 @@ import settings
 
 import json
 
+from datetime import datetime
 import pytz
 
 # Current database compatibility version
@@ -1104,6 +1105,29 @@ class ReadOnlyData():
         except self.Error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
+    def is_intraday(self):
+        """
+            Checks if current timespan is intraday.
+
+            Returns:
+                bool: if current timespan is intraday.
+        """
+        return self.timespan != Timespans.Day
+
+    def current_ts(self):
+        """
+            Get the current UTC and time span adjusted timestamp.
+
+            Returns:
+                int: the current UTC and time span adjusted timestamp.
+        """
+        now = datetime.now(pytz.UTC)
+
+        if self.is_intraday() is False:
+            now = self.set_eod_time(now)
+
+        return int(now.timestamp())
+
 #############################
 # Read/Write operations class
 #############################
@@ -1272,6 +1296,9 @@ class ReadWriteData(ReadOnlyData):
         """
             Update the earliest requested quote (if needed).
         """
+        now = self.current_ts()
+        ts = min(now, self.last_date_ts)
+
         # TODO LOW Write it in a more rational way
         update_fetched = f"""INSERT OR REPLACE INTO fetched_quotes (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
@@ -1285,12 +1312,12 @@ class ReadWriteData(ReadOnlyData):
 	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
                                               ), {self.first_date_ts})),
                                       (SELECT ifnull(
-                                                     (SELECT max(max_request_ts, {self.last_date_ts})
+                                                     (SELECT max(max_request_ts, {ts})
 	                                                  FROM fetched_quotes
 	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
 	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
 	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
-                                              ), {self.last_date_ts}))
+                                              ), {ts}))
                            );"""
 
         try:
@@ -1345,7 +1372,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
-        # TODO HIGH Check how it works on max date
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
@@ -1359,7 +1385,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         # source and time span. If not, no need to fetch. If yes, fetch the required interval with filling gaps
         # between previously fetched interval.
         first_ts = self.first_date_ts
-        last_ts = self.last_date_ts
+        last_ts = min(self.last_date_ts, self.current_ts())
 
         if total_num > 0:
             first_ts = min(first_ts, self.get_min_request_ts())
@@ -1414,15 +1440,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             self._queries.append(perf_counter())
 
         return response
-
-    def is_intraday(self):
-        """
-            Checks if current timespan is intraday.
-
-            Returns:
-                bool: if current timespan is intraday.
-        """
-        return self.timespan != Timespans.Day
 
     @abc.abstractmethod
     def get_recent_data(self, to_cache=False):

@@ -71,12 +71,10 @@ threshold_splits = 0
 
 # Get data for training/testing a model with the number of quotes >= threshold
 # All the data will be cached in a database without the need of further fetching
-rows_learn, length_learn = \
-    YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").\
-    fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
-rows_test, length_test = \
-    YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").\
-        fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
+rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").\
+                fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
+rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").\
+                fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
 
 prob = Probability(period_long=period_long,
                    period_short=period_short,

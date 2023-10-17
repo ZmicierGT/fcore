@@ -23,6 +23,8 @@ import pytz
 
 import sys
 
+from data.futils import get_dt
+
 symbols = ['MSFT', 'AAPL']
 
 period = 14
@@ -50,14 +52,19 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
-            # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan.
-            source = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute)
-            rows, num = source.fetch_if_none()
+            source = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute, verbosity=True)
+            rows = source.fetch_if_none()
+
+            source.db_connect()
+            min_req = source.get_min_request_ts()
+            max_req = source.get_max_request_ts()
+            source.db_close()
+
+            print(f"Initial min/max request dates: {get_dt(min_req, pytz.UTC)} {get_dt(max_req, pytz.UTC)}")
         except FdataError as e:
             sys.exit(e)
 
-        if num > 0:
-            print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
+        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
 
         allrows.append(rows)
 

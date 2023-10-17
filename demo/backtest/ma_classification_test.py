@@ -50,26 +50,24 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
-        rows_learn, num = source.fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
+        rows_learn = source.fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
     length_learn = len(rows_learn)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_learn}.")
+    print(f"The total number of quotes used for {source.symbol} is {length_learn}.\n")
 
     # Get quotes for testing
     try:
         source = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
-        rows, num = source.fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
+        rows = source.fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
     except FdataError as e:
         sys.exit(e)
 
     length_test = len(rows)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length_test}.")
+    print(f"The total number of quotes used for {source.symbol} is {length_test}.\n")
 
     # Train the models
 

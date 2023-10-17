@@ -47,14 +47,12 @@ if __name__ == "__main__":
 
     for symbol, threshold_divs, threshold_splits in symbols:
         try:
-            # Fetch quotes if there are less than a threshold number of records in the database for a day (default) timespan
             source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-            rows, num = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
+            rows = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
         except FdataError as e:
             sys.exit(e)
 
-        if num > 0:
-            print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
+        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
 
         allrows.append(rows)
 

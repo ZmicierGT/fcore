@@ -1272,7 +1272,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
             Returns:
                 array: the fetched quote entries.
-                int: the number of fetched quote entries.
         """
         self.fetch_dividends_if_none(divs_threshold)
         self.fetch_splits_if_none(splits_threshold)

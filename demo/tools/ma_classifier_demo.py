@@ -37,6 +37,7 @@ last_date = "2022-11-1"  # The last date to fetch quotes
 # In this case, DJIA stocks are used to train the models.
 
 # DJIA composition [symbol, quotes_threshold]. More quotes will be fetched if the threshold is not met.
+# TODO MID Check NKE Warning
 symbols = [['MMM', 245, 4],
            ['AXP', 187, 6],
            ['AMGN', 49, 5],
@@ -84,12 +85,11 @@ if __name__ == "__main__":
             print(f"Checking if quotes for {symbol_learn} is already fetched...")
 
             source = YF(symbol=symbol_learn, last_date=last_date)
-            rows, num = source.fetch_stock_data_if_none(divs_threshold, splits_threshold)
+            rows = source.fetch_stock_data_if_none(divs_threshold, splits_threshold)
         except FdataError as e:
             sys.exit(e)
 
-        if num > 0:
-            print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {len(rows)}.")
+        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
 
         allrows.append(rows)
 
@@ -98,14 +98,13 @@ if __name__ == "__main__":
         print(f"\nFetching quotes for {symbol} to validate the model...")
 
         source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-        est_rows, num = source.fetch_if_none()
+        est_rows = source.fetch_if_none()
     except FdataError as e:
         sys.exit(e)
 
     length = len(est_rows)
 
-    if num > 0:
-        print(f"Fetched {num} quotes for {source.symbol}. Total number of quotes used is {length}.")
+    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
 
     #################################
     # Train the model and get results

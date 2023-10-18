@@ -26,8 +26,7 @@ last_date = "2021-10-01"  # The last date to fetch quotes
 symbol1 = 'MMM'
 symbol2 = 'AXP'
 
-symbols = [[symbol1, 245, 4],
-           [symbol2, 187, 6]]
+symbols = [symbol1, symbol2]
 
 period = 14
 support = 30
@@ -45,10 +44,10 @@ if __name__ == "__main__":
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    for symbol, threshold_divs, threshold_splits in symbols:
+    for symbol in symbols:
         try:
             source = YF(symbol=symbol, first_date=first_date, last_date=last_date)
-            rows = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
+            rows = source.fetch_stock_data_if_none()
         except FdataError as e:
             sys.exit(e)
 

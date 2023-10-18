@@ -37,16 +37,16 @@ avi = av.AVStock(symbol=symbol)
 avi.fetch_if_none()
 
 yfi = yf.YF(symbol=symbol)
-yfi.fetch_dividends_if_none(245)
-yfi.fetch_splits_if_none(8)
+yfi.fetch_dividends_if_none()
+yfi.fetch_splits_if_none()
 
 print(f"Fetch fundamental data for {symbol} from AV...")
 
 # Fetch fundamental data and add it to DB
-avi.fetch_earnings_if_none(109)
-avi.fetch_cash_flow_if_none(25)
-avi.fetch_balance_sheet_if_none(25)
-avi.fetch_income_statement_if_none(25)
+avi.fetch_earnings_if_none()
+avi.fetch_cash_flow_if_none()
+avi.fetch_balance_sheet_if_none()
+avi.fetch_income_statement_if_none()
 
 print("Get quotes from DB along with some fundamental data")
 avi.db_connect()

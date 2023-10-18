@@ -33,9 +33,6 @@ output_size = 1  # Number of features to forecast
 
 epochs = 1000
 
-threshold_divs = 124
-threshold_splits = 0
-
 if __name__ == "__main__":
     # Get quotes
     try:
@@ -45,7 +42,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol="SPY", first_date="2005-11-01", last_date="2008-11-01")
-        rows = source.fetch_stock_data_if_none(threshold_divs, threshold_splits)
+        rows = source.fetch_stock_data_if_none()
     except FdataError as e:
         sys.exit(e)
 
@@ -54,8 +51,7 @@ if __name__ == "__main__":
     print(f"The total number of quotes used for {source.symbol} is {length}.\n")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
-    min_len = window_size + forecast_size
-    split_len = len(rows) - min_len
+    split_len = len(rows) - test_length
 
     rows1 = rows[:split_len]  # First batch of data for learning
     rows2 = rows[split_len:len(rows) - forecast_size]  # Next batch of data for learning. Remaining data won't ever be used in the model.

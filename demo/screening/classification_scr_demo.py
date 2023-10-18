@@ -34,37 +34,9 @@ last_date = "2022-11-1"  # The last date to fetch quotes
 # For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
 # In this case, DJIA stocks are used to train the models.
 
-# DJIA composition [symbol, quotes_threshold]. More quotes will be fetched if the threshold is not met.
-symbols = [['MMM', 245, 4],
-           ['AXP', 187, 6],
-           ['AMGN', 49, 5],
-           ['AAPL', 80, 5],
-           ['BA', 228, 8],
-           ['CAT', 198, 5],
-           ['CVX', 217, 5],
-           ['CSCO', 50, 9],
-           ['KO', 245, 8],
-           ['DIS', 124, 8],
-           ['DOW', 18, 0],
-           ['GS', 98, 0],
-           ['HD', 145, 13],
-           ['HON', 246, 9],
-           ['IBM', 245, 8],
-           ['INTC', 124, 8],
-           ['JNJ', 247, 7],
-           ['JPM', 159, 4],
-           ['MCD', 167, 9],
-           ['MRK', 243, 7],
-           ['MSFT', 79, 9],
-           ['NKE', 145, 6],
-           ['PG', 248, 6],
-           ['CRM', 0, 1],
-           ['TRV', 146, 2],
-           ['UNH', 75, 5],
-           ['VZ', 157, 6],
-           ['V', 61, 1],
-           ['WBA', 153, 7],
-           ['WMT', 197, 9]]
+# DJIA composition.
+symbols = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\
+           'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT']
 
 if __name__ == "__main__":
     warning = "WARNING! Using yfinance data for the demonstration.\n" +\
@@ -77,10 +49,10 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn, divs_threshold, splits_threshold in symbols:
+    for symbol_learn in symbols:
         try:
             source = YF(symbol=symbol_learn, last_date=last_date)
-            rows = source.fetch_stock_data_if_none(divs_threshold, splits_threshold)
+            rows = source.fetch_stock_data_if_none()
         except FdataError as e:
             sys.exit(e)
 

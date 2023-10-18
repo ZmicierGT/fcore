@@ -52,19 +52,11 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
-            source = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute, verbosity=True)
-            rows = source.fetch_if_none()
-
-            source.db_connect()
-            min_req = source.get_min_request_ts()
-            max_req = source.get_max_request_ts()
-            source.db_close()
-
-            print(f"Initial min/max request dates: {get_dt(min_req, pytz.UTC)} {get_dt(max_req, pytz.UTC)}")
+            rows = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute, verbosity=True).get()
         except FdataError as e:
             sys.exit(e)
 
-        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
+        print(f"The total number of quotes used for {symbol} is {len(rows)}.\n")
 
         allrows.append(rows)
 

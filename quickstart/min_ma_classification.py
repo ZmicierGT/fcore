@@ -22,8 +22,8 @@ min_width = 2500 # Minimum width for reporting
 height = 250  # Height of each subchart in reporting
 
 # Get data for training/testing. All the data will be cached in a database without the need of further fetching
-rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_stock_data_if_none(124, 0)
-rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_stock_data_if_none(12, 0)
+rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").get()
+rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").get()
 
 # Train the model
 classifier = MAClassifier(period=period,  # SMA Period
@@ -75,7 +75,7 @@ results_cls = classification.get_results()  # Wait till calculation finishes and
 results_cmp = ma.get_results()
 
 # Generate a report with performance comparison
-report = Report(data=results_cls, width=max(length_test, min_width), margin=True)
+report = Report(data=results_cls, width=max(len(rows_test), min_width), margin=True)
 
 fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))

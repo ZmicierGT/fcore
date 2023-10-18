@@ -33,6 +33,8 @@ output_size = 1  # Number of features to forecast
 
 epochs = 1000
 
+symbol = 'SPY'
+
 if __name__ == "__main__":
     # Get quotes
     try:
@@ -41,14 +43,13 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol="SPY", first_date="2005-11-01", last_date="2008-11-01")
-        rows = source.fetch_stock_data_if_none()
+        rows = YF(symbol=symbol, first_date="2005-11-01", last_date="2008-11-01").get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
     split_len = len(rows) - test_length
@@ -163,7 +164,7 @@ if __name__ == "__main__":
 
     # Write the chart
 
-    update_layout(fig, f"LSTM example chart for {source.symbol}", test_length + forecast_size)
+    update_layout(fig, f"LSTM example chart for {symbol}", test_length + forecast_size)
 
     new_file = show_image(fig)
 

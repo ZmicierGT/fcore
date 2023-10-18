@@ -22,6 +22,7 @@ import pandas as pd
 import pandas_ta as ta
 
 period = 50
+symbol = 'SPY'
 
 if __name__ == "__main__":
     # Get quotes
@@ -31,14 +32,13 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows = source.fetch_if_none()
+        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2022-11-1").get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     # Calculate MA
     df = pd.DataFrame(rows)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"SMA/EMA example chart for {source.symbol}", length)
+    update_layout(fig, f"SMA/EMA example chart for {symbol}", length)
 
     fig.update_yaxes(title_text="<b>Price</b>", secondary_y=False)
     fig.update_yaxes(title_text="<b>SMA/EMA</b>", secondary_y=False)

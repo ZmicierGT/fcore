@@ -1397,8 +1397,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self._queries = []  # List of queries to calculate API call pauses
 
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
-    # TODO MID Think of renaming this method to get
-    def fetch_if_none(self):
+    def get(self):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.

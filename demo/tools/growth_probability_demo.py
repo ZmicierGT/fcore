@@ -58,12 +58,11 @@ if __name__ == "__main__":
         try:
             print(f"Checking if quotes for {symbol_learn} is already fetched...")
 
-            source = YF(symbol=symbol_learn, last_date=last_date)
-            rows = source.fetch_stock_data_if_none()
+            rows = YF(symbol=symbol_learn, last_date=last_date).get()
         except FdataError as e:
             sys.exit(e)
 
-        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
+        print(f"The total number of quotes used for {symbol_learn} is {len(rows)}.\n")
 
         allrows.append(rows)
 
@@ -71,14 +70,13 @@ if __name__ == "__main__":
     try:
         print(f"\nFetching quotes for {symbol} to validate the model...")
 
-        source = YF(symbol=symbol, first_date=first_date, last_date=last_date, verbosity=True)
-        est_rows = source.fetch_stock_data_if_none()
+        est_rows = YF(symbol=symbol, first_date=first_date, last_date=last_date, verbosity=True).get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(est_rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     #################################
     # Train the model and get results

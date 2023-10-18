@@ -23,6 +23,7 @@ import sys
 
 long_period = 28
 short_period = 14
+symbol = 'SPY'
 
 if __name__ == "__main__":
     # Get quotes
@@ -32,14 +33,13 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows = source.fetch_if_none()
+        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2022-11-1").get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     # VO calculation
     vo = VO(long_period, short_period, rows, StockQuotes.Volume)
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"VO example chart for {source.symbol}", length)
+    update_layout(fig, f"VO example chart for {symbol}", length)
 
     new_file = show_image(fig)
 

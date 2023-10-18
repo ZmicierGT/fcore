@@ -82,7 +82,6 @@ class YF(stock.StockFetcher):
 
         return self._tz
 
-    # TODO HIGH Intraday quotes are not UTC adjusted
     def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.

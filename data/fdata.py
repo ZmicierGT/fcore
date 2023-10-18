@@ -21,7 +21,7 @@ import settings
 
 import json
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
@@ -1114,39 +1114,41 @@ class ReadOnlyData():
         """
         return self.timespan != Timespans.Day
 
-    def current_ts(self):
+    def current_ts(self, adjusted=False):
         """
             Get the current UTC and time span adjusted timestamp.
+
+            Args:
+                adjusted(bool): indicates if the timestamp is adjusted for timespan.
 
             Returns:
                 int: the current UTC and time span adjusted timestamp.
         """
         now = datetime.now(pytz.UTC)
 
-        if self.is_intraday() is False:
-            now = self.set_eod_time(now)
+        if adjusted:
+            if self.is_intraday() is False:
+                now = self.set_eod_time(now)
+            elif self.timespan == Timespans.Minute:
+                now += timedelta(minutes=1)
+            if self.timespan == Timespans.TwoMinutes:
+                now += timedelta(minutes=2)
+            elif self.timespan == Timespans.FiveMinutes:
+                now += timedelta(minutes=5)
+            elif self.timespan == Timespans.TenMinutes:
+                now += timedelta(minutes=10)
+            elif self.timespan == Timespans.FifteenMinutes:
+                now += timedelta(minutes=15)
+            elif self.timespan == Timespans.TwentyMinutes:
+                now += timedelta(minutes=20)
+            elif self.timespan == Timespans.ThirtyMinutes:
+                now += timedelta(minutes=30)
+            elif self.timespan == Timespans.Hour:
+                now += timedelta(minutes=60)
+            elif self.timespan == Timespans.NinetyMinutes:
+                now += timedelta(minutes=90)
 
         ts = int(now.timestamp())
-
-        # TODO HIGH Test it on intraday requests
-        if self.timespan == Timespans.Minute:
-            ts += 60
-        if self.timespan == Timespans.TwoMinutes:
-            ts += 120
-        elif self.timespan == Timespans.FiveMinutes:
-            ts += 300
-        elif self.timespan == Timespans.TenMinutes:
-            ts += 600
-        elif self.timespan == Timespans.FifteenMinutes:
-            ts += 900
-        elif self.timespan == Timespans.TwentyMinutes:
-            ts += 1200
-        elif self.timespan == Timespans.ThirtyMinutes:
-            ts += 1800
-        elif self.timespan == Timespans.Hour:
-            ts += 3600
-        elif self.timespan == Timespans.NinetyMinutes:
-            ts += 5400
 
         return ts
 
@@ -1318,7 +1320,7 @@ class ReadWriteData(ReadOnlyData):
         """
             Update the earliest requested quote (if needed).
         """
-        now = self.current_ts()
+        now = self.current_ts(adjusted=True)
         ts = min(now, self.last_date_ts)
 
         # TODO LOW Write it in a more rational way
@@ -1384,6 +1386,8 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self.max_queries = None # Maximul allowed number of API queries per minute
         self._queries = []  # List of queries to calculate API call pauses
 
+    # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
+    # TODO MID Think of renaming this method to get
     def fetch_if_none(self):
         """
             Check is the required number of quotes exist in the database and fetch if not.
@@ -1403,6 +1407,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         total_num = self.get_symbol_quotes_num(dt=False)
 
         last_ts_adj = min(self.last_date_ts, self.current_ts())
+        print(last_ts_adj)
 
         # We need to check if the earliest and latest dates in database exceed the requested date for specified
         # source and time span. If not, no need to fetch.

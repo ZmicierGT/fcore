@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, SecType, def_last_date
 
 from data.futils import get_labelled_ndarray, get_dt
 
@@ -588,7 +588,7 @@ class ROStockData(ReadOnlyData):
         """
         return self._get_data_num('earnings')
 
-    def get_dividends(self, last_ts=def_last_date):
+    def get_db_dividends(self, last_ts=def_last_date):
         """
             Get dividends.
 
@@ -624,7 +624,7 @@ class ROStockData(ReadOnlyData):
 
         return divs
 
-    def get_splits(self, last_ts=def_last_date):
+    def get_db_splits(self, last_ts=def_last_date):
         """
             Get stock splits for a specified symbol and time interval.
 
@@ -690,10 +690,10 @@ class ROStockData(ReadOnlyData):
         last_ts = quotes[StockQuotes.TimeStamp][-1]
 
         # Get all dividend data
-        divs = self.get_dividends(last_ts=last_ts)
+        divs = self.get_db_dividends(last_ts=last_ts)
 
         # Get all split data
-        splits = self.get_splits(last_ts=last_ts)
+        splits = self.get_db_splits(last_ts=last_ts)
 
         # TODO MID Find out why adjustment precision is a bit less than expected
         # Adjust the price for dividends
@@ -1385,17 +1385,28 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def fetch_stock_data_if_none(self):
+    def get(self):
         """
-            Fetch stock quotes, divs and splits data if needed.
+            Get stock quotes, divs and splits data if needed.
 
             Returns:
                 array: the fetched quote entries.
         """
-        self.fetch_dividends_if_none()
-        self.fetch_splits_if_none()
+        # Get also divs and splits for stock and etf as theoretically the instance may be used for other sec types
+        if self.sectype in (SecType.Stock, SecType.ETF):
+            self.get_dividends()
+            self.get_splits()
 
-        return self.fetch_if_none()
+        return super().get()
+
+    def get_quotes_only(self):
+        """
+            Get stock quotes only (without dividends and splits data)
+
+            Returns:
+                array: the fetched quote entries.
+        """
+        return super().get()
 
     def _fetch_data_if_none(self, num_method, add_method, fetch_method):
         """
@@ -1425,7 +1436,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return num - current_num
 
-    def fetch_income_statement_if_none(self):
+    def get_income_statement(self):
         """
             Fetch all the available income statement reports if needed.
 
@@ -1444,7 +1455,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return result
 
-    def fetch_balance_sheet_if_none(self):
+    def get_balance_sheet(self):
         """
             Fetch all the available balance sheet reports if needed.
 
@@ -1463,7 +1474,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return result
 
-    def fetch_cash_flow_if_none(self):
+    def get_cash_flow(self):
         """
             Fetch all the available cash flow reports if needed.
 
@@ -1482,7 +1493,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return result
 
-    def fetch_earnings_if_none(self):
+    def get_earnings(self):
         """
             Fetch all the available earnings reports if needed.
 
@@ -1501,7 +1512,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return result
 
-    def fetch_dividends_if_none(self):
+    def get_dividends(self):
         """
             Fetch all the available cash dividends if needed.
 
@@ -1520,7 +1531,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         return result
 
-    def fetch_splits_if_none(self):
+    def get_splits(self):
         """
             Fetch all the available splits if needed.
 

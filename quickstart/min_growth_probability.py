@@ -68,8 +68,8 @@ class Probability(Classifier):
 period_long, period_short = (50, 25)  # Periods for SMAs
 
 # Get data for training/testing a model. It will be cached in a database without the need of further fetching
-rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_stock_data_if_none()
-rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_stock_data_if_none()
+rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").get()
+rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").get()
 
 prob = Probability(period_long=period_long,
                    period_short=period_short,

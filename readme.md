@@ -32,9 +32,9 @@ from data.stock import report_year  # Condition to request annual report.
 
 from datetime import datetime, timedelta
 
-# This example checks if there is at least 565 dayly quotes for SPY in the database and if no
-# then it fetches it from Yahoo Finance. DB connection will be estables automatically (if needed).
-yf.YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_if_none(565)
+# Fetch quotes if needed. Otherwise just take them from a database.
+yf.YF(symbol='SPY', first_date="2010-1-1", last_date="2012-1-1").get()
+yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2022-1-1", verbosity=True).get()
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
@@ -54,19 +54,19 @@ symbol = 'IBM'
 print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
 
 avi = av.AVStock(symbol=symbol)
-avi.fetch_if_none(6007)
+avi.get_quotes_only()  # Do not get dividends and splits
 
 yfi = yf.YF(symbol=symbol)
-yfi.fetch_dividends_if_none(245)
-yfi.fetch_splits_if_none(8)
+yfi.get_dividends()
+yfi.get_splits()
 
 print(f"Fetch fundamental data for {symbol} from AV...")
 
 # Fetch fundamental data and add it to DB
-avi.fetch_earnings_if_none(109)
-avi.fetch_cash_flow_if_none(25)
-avi.fetch_balance_sheet_if_none(25)
-avi.fetch_income_statement_if_none(25)
+avi.get_earnings()
+avi.get_cash_flow()
+avi.get_balance_sheet()
+avi.get_income_statement()
 
 print("Get quotes from DB along with some fundamental data")
 avi.db_connect()
@@ -149,18 +149,10 @@ class Probability(Classifier):
 ###############
 
 period_long, period_short = (50, 25)  # Periods for SMAs
-threshold_learn, threshold_test = 5284, 565  # Quotes num thresholds in db for the learning and testing
-threshold_divs_learn, threshold_divs_test = 124, 8
-threshold_splits = 0
 
-# Get data for training/testing a model with the number of quotes >= threshold
-# All the data will be cached in a database without the need of further fetching
-rows_learn, length_learn = \
-    YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").\
-    fetch_stock_data_if_none(threshold_learn, threshold_divs_learn, threshold_splits)
-rows_test, length_test = \
-    YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").\
-        fetch_stock_data_if_none(threshold_test, threshold_divs_test, threshold_splits)
+# Get data for training/testing a model. It will be cached in a database without the need of further fetching
+rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").get()
+rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").get()
 
 prob = Probability(period_long=period_long,
                    period_short=period_short,
@@ -213,20 +205,14 @@ from data.yf import YF
 
 import plotly.graph_objects as go
 
-threshold_learn = 5284  # Quotes num threshold for the learning
-threshold_test = 565  # Quotes num threshold for the test
-
 period = 50  # SMA period
 
 min_width = 2500 # Minimum width for reporting
 height = 250  # Height of each subchart in reporting
 
-# Get data for training/testing a model with the number of quotes >= threshold
-# All the data will be cached in a database without the need of further fetching
-rows_learn, length_learn = \
-    YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").fetch_stock_data_if_none(threshold_learn, 124, 0)
-rows_test, length_test = \
-    YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").fetch_stock_data_if_none(threshold_test, 12, 0)
+# Get data for training/testing. All the data will be cached in a database without the need of further fetching
+rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").get()
+rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").get()
 
 # Train the model
 classifier = MAClassifier(period=period,  # SMA Period
@@ -278,7 +264,7 @@ results_cls = classification.get_results()  # Wait till calculation finishes and
 results_cmp = ma.get_results()
 
 # Generate a report with performance comparison
-report = Report(data=results_cls, width=max(length_test, min_width), margin=True)
+report = Report(data=results_cls, width=max(len(rows_test), min_width), margin=True)
 
 fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))

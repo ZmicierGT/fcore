@@ -22,6 +22,8 @@ period = 50  # Period used in strategy
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
+symbol = 'NKE'
+
 if __name__ == "__main__":
     # Get quotes
     try:
@@ -30,17 +32,16 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
-        rows = source.fetch_stock_data_if_none()
+        rows = YF(symbol=symbol, first_date="2015-06-01", last_date="2016-06-1").get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     quotes = StockData(rows=rows,
-                          title=source.symbol,
+                          title=symbol,
                           margin_rec=0.4,
                           margin_req=0.7,
                           spread=0.1,
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     # Buy and Hold to compare
 
     quotes_bh = StockData(rows=rows,
-                             title=source.symbol,
+                             title=symbol,
                              spread=0.1,
                             )
 
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     report = Report(data=results, width=max(length, min_width), margin=True)
 
     # Add a chart with quotes
-    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {source.symbol}")
+    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {symbol}")
 
     # Append MA values to the quotes chart
     fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))

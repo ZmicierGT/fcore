@@ -17,6 +17,8 @@ import sys
 min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
+symbol = 'SPY'
+
 if __name__ == "__main__":
     # Get quotes
     try:
@@ -25,19 +27,17 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        source = YF(symbol="SPY", first_date="2020-10-01", last_date="2022-11-1")
-        rows = source.fetch_stock_data_if_none()
+        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2022-11-1").get()
     except FdataError as e:
         sys.exit(e)
 
     length = len(rows)
 
-    print(f"The total number of quotes used for {source.symbol} is {length}.\n")
+    print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     quotes = StockData(rows=rows,
-                          title=source.symbol,
-                          spread=0.1
-                         )
+                       title=symbol,
+                       spread=0.1)
 
     bh = BuyAndHold(
         data=[quotes],
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     report = Report(data=results, width=max(length, min_width))
 
     # Add a chart with quotes
-    fig_quotes = report.add_quotes_chart(title=f"BuyAndHold Example Testing for {source.symbol}")
+    fig_quotes = report.add_quotes_chart(title=f"BuyAndHold Example Testing for {symbol}")
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

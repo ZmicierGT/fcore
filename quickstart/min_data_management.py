@@ -13,8 +13,8 @@ from data.stock import report_year  # Condition to request annual report.
 from datetime import datetime, timedelta
 
 # Fetch quotes if needed. Otherwise just take them from a database.
-yf.YF(symbol='SPY', first_date="2010-1-1", last_date="2012-1-1").fetch_if_none()
-yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2022-1-1", verbosity=True).fetch_if_none()
+yf.YF(symbol='SPY', first_date="2010-1-1", last_date="2012-1-1").get()
+yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2022-1-1", verbosity=True).get()
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
@@ -34,19 +34,19 @@ symbol = 'IBM'
 print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
 
 avi = av.AVStock(symbol=symbol)
-avi.fetch_if_none()
+avi.get_quotes_only()  # Do not get dividends and splits
 
 yfi = yf.YF(symbol=symbol)
-yfi.fetch_dividends_if_none()
-yfi.fetch_splits_if_none()
+yfi.get_dividends()
+yfi.get_splits()
 
 print(f"Fetch fundamental data for {symbol} from AV...")
 
 # Fetch fundamental data and add it to DB
-avi.fetch_earnings_if_none()
-avi.fetch_cash_flow_if_none()
-avi.fetch_balance_sheet_if_none()
-avi.fetch_income_statement_if_none()
+avi.get_earnings()
+avi.get_cash_flow()
+avi.get_balance_sheet()
+avi.get_income_statement()
 
 print("Get quotes from DB along with some fundamental data")
 avi.db_connect()

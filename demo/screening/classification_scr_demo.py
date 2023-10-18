@@ -51,12 +51,11 @@ if __name__ == "__main__":
 
     for symbol_learn in symbols:
         try:
-            source = YF(symbol=symbol_learn, last_date=last_date)
-            rows = source.fetch_stock_data_if_none()
+            rows = YF(symbol=symbol_learn, last_date=last_date).get()
         except FdataError as e:
             sys.exit(e)
 
-        print(f"The total number of quotes used for {source.symbol} is {len(rows)}.\n")
+        print(f"The total number of quotes used for {symbol_learn} is {len(rows)}.\n")
 
         allrows.append(rows)
 

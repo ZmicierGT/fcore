@@ -37,7 +37,7 @@ def get_dt(value, tz=None):
     if isinstance(value, int):
         try:
             if value < 0:
-                dt = datetime(1970, 1, 1).replace(tzinfo=tz) + timedelta(seconds=value)
+                dt = datetime(1970, 1, 1) + timedelta(seconds=value)
             else:
                 if tz == pytz.UTC:
                     dt = datetime.utcfromtimestamp(value)

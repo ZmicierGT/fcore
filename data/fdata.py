@@ -1105,47 +1105,57 @@ class ReadOnlyData():
         except self.Error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
-    def is_intraday(self):
+    def is_intraday(self, timespan=None):
         """
             Checks if current timespan is intraday.
+
+            Args:
+                timespan(Timespan): timespan to override.
 
             Returns:
                 bool: if current timespan is intraday.
         """
-        return self.timespan != Timespans.Day
+        if timespan is None:
+            timespan = self.timespan
 
-    def current_ts(self, adjusted=False):
+        return timespan != Timespans.Day
+
+    def current_ts(self, adjusted=False, timespan=None):
         """
             Get the current UTC and time span adjusted timestamp.
 
             Args:
                 adjusted(bool): indicates if the timestamp is adjusted for timespan.
+                timespan(Timespan): timespan to override
 
             Returns:
                 int: the current UTC and time span adjusted timestamp.
         """
         now = datetime.now(pytz.UTC)
 
+        if timespan is None:
+            timespan = self.timespan
+
         if adjusted:
-            if self.is_intraday() is False:
+            if self.is_intraday(timespan) is False:
                 now = self.set_eod_time(now)
-            elif self.timespan == Timespans.Minute:
+            elif timespan == Timespans.Minute:
                 now += timedelta(minutes=1)
-            if self.timespan == Timespans.TwoMinutes:
+            if timespan == Timespans.TwoMinutes:
                 now += timedelta(minutes=2)
-            elif self.timespan == Timespans.FiveMinutes:
+            elif timespan == Timespans.FiveMinutes:
                 now += timedelta(minutes=5)
-            elif self.timespan == Timespans.TenMinutes:
+            elif timespan == Timespans.TenMinutes:
                 now += timedelta(minutes=10)
-            elif self.timespan == Timespans.FifteenMinutes:
+            elif timespan == Timespans.FifteenMinutes:
                 now += timedelta(minutes=15)
-            elif self.timespan == Timespans.TwentyMinutes:
+            elif timespan == Timespans.TwentyMinutes:
                 now += timedelta(minutes=20)
-            elif self.timespan == Timespans.ThirtyMinutes:
+            elif timespan == Timespans.ThirtyMinutes:
                 now += timedelta(minutes=30)
-            elif self.timespan == Timespans.Hour:
+            elif timespan == Timespans.Hour:
                 now += timedelta(minutes=60)
-            elif self.timespan == Timespans.NinetyMinutes:
+            elif timespan == Timespans.NinetyMinutes:
                 now += timedelta(minutes=90)
 
         ts = int(now.timestamp())
@@ -1407,7 +1417,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         total_num = self.get_symbol_quotes_num(dt=False)
 
         last_ts_adj = min(self.last_date_ts, self.current_ts())
-        print(last_ts_adj)
 
         # We need to check if the earliest and latest dates in database exceed the requested date for specified
         # source and time span. If not, no need to fetch.

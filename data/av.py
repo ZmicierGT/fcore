@@ -89,23 +89,30 @@ class AVStock(stock.StockFetcher):
         else:
             raise FdataError(f"Unsupported timespan: {self.timespan.value}")
 
-    def is_intraday(self):
+    # TODO LOW Think if it is ever needed
+    def is_intraday(self, timespan=None):
         """
             Determine if the current timespan is intraday.
+
+            Args:
+                timespan(Timespan): timespan to override.
 
             Returns:
                 bool: if the current timespan is intraday.
         """
-        if self.timespan in (Timespans.Minute,
-                               Timespans.FiveMinutes,
-                               Timespans.FifteenMinutes,
-                               Timespans.ThirtyMinutes,
-                               Timespans.Hour):
+        if timespan is None:
+            timespan = self.timespan
+
+        if timespan in (Timespans.Minute,
+                        Timespans.FiveMinutes,
+                        Timespans.FifteenMinutes,
+                        Timespans.ThirtyMinutes,
+                        Timespans.Hour):
             return True
-        elif self.timespan == Timespans.Day:
+        elif timespan == Timespans.Day:
             return False
         else:
-            raise FdataError(f"Unsupported timespan: {self.timespan.value}")
+            raise FdataError(f"Unsupported timespan: {timespan}")
 
     def query_and_parse(self, url, timeout=30):
         """

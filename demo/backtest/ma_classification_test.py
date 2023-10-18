@@ -32,10 +32,6 @@ change_percent = 2  # Change of price in percent to consider the trend as change
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 
-threshold_divs_learn = 124
-threshold_divs_test = 8
-threshold_splits = 0
-
 min_width = 2500 # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
@@ -50,7 +46,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol=symbol, first_date="2000-1-1", last_date="2021-1-1")
-        rows_learn = source.fetch_stock_data_if_none(threshold_divs_learn, threshold_splits)
+        rows_learn = source.fetch_stock_data_if_none()
     except FdataError as e:
         sys.exit(e)
 
@@ -61,7 +57,7 @@ if __name__ == "__main__":
     # Get quotes for testing
     try:
         source = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
-        rows = source.fetch_stock_data_if_none(threshold_divs_test, threshold_splits)
+        rows = source.fetch_stock_data_if_none()
     except FdataError as e:
         sys.exit(e)
 

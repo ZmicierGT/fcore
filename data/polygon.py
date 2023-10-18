@@ -87,19 +87,25 @@ class Polygon(stock.StockFetcher):
         else:
             raise FdataError(f"Requested timespan is not supported by Polygon: {self.timespan.value}")
 
-    def is_intraday(self):
+    def is_intraday(self, timespan=None):
         """
             Determine if the current timespan is intraday.
+
+            Args:
+                timespan(Timespan): timespan to override.
 
             Returns:
                 bool: if the current timespan is intraday.
         """
-        if self.timespan in [Timespans.Minute, Timespans.Hour]:
+        if timespan is None:
+            timespan = self.timespan
+
+        if timespan in [Timespans.Minute, Timespans.Hour]:
             return True
-        elif self.timespan == Timespans.Day:
+        elif timespan == Timespans.Day:
             return False
         else:
-            raise FdataError(f"Unknown timespan for Polygon: {self.timespan.value}")
+            raise FdataError(f"Unknown timespan for Polygon: {timespan}")
 
     # TODO LOW Think if it should be abstract in the base class
     def query_and_parse(self, url, timeout=30):

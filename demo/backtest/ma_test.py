@@ -31,7 +31,7 @@ if __name__ == "__main__":
         print(warning)
 
         source = YF(symbol='NKE', first_date="2015-06-01", last_date="2016-06-1")
-        rows = source.fetch_stock_data_if_none(145, 6)
+        rows = source.fetch_stock_data_if_none()
     except FdataError as e:
         sys.exit(e)
 

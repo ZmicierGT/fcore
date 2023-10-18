@@ -7,11 +7,17 @@ Distributed under Fcore License 1.1 (see license.md)
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
 from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date
 
-from data.futils import get_labelled_ndarray
+from data.futils import get_labelled_ndarray, get_dt
 
 import abc
 
 import numpy as np
+
+from datetime import timedelta
+
+from dateutil.relativedelta import relativedelta
+
+import pytz
 
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
@@ -1141,6 +1147,124 @@ class RWStockData(ROStockData, ReadWriteData):
 
         return(num_before, self.get_earnings_num())
 
+    def _get_stock_data_date(self, column, table, period):
+        """
+            Get the timestamp of a particular data entry in stock data tables.
+
+            Args:
+                column(str): the column to query
+                table(str): the table to query
+                period(ReportPeriod): period to get the data (for fundamental reports).
+
+            Returns:
+                int: last modification timestamp.
+
+            Raises:
+                db error: database error during querying happened.
+        """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        period_query = ''
+
+        if period is not None and period not in (ReportPeriod.All, ReportPeriod.Unknown):
+            period_query = f"AND reported_period = (SELECT period_id FROM report_periods WHERE title={period})"
+
+        query_modified = f"""SELECT MAX({column}) FROM {table}
+                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                {period_query};"""
+
+        try:
+            self.cur.execute(query_modified)
+            result = self.cur.fetchone()[0]
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{query_modified}") from e
+        finally:
+            if initially_connected is False:
+                self.db_close()
+
+        return result
+
+    def get_modified_ts(self, table, period=None):
+        """
+            Get the timestamp of the last modification.
+
+            Args:
+                table(str): the table to query
+                period(ReportPeriod): period to get the data (for fundamental reports).
+
+            Returns:
+                int: last modification timestamp.
+        """
+        return self._get_stock_data_date(column='modified', table=table, period=period)
+
+    def get_fiscal_date_ending(self, table, period):
+        """
+            Get fiscal date ending timestamp.
+
+            Args:
+                table(str): the table to query
+                period(ReportPeriod): period to get the data (for fundamental reports).
+
+            Return:
+                int: fiscal date ending timestamp.
+        """
+        return self._get_stock_data_date(column='fiscal_date_ending', table=table, period=period)
+
+    # TODO HIGH Check how to handle the issue when no data present yet (on the remote data source).
+    def need_to_update(self, table, fundamental=False):
+        """
+            Check if we need to update data in the table.
+
+            Args:
+                table(str): table to perform the check.
+                funadamental(bool): indicates if fundamental data should be checked as well.
+
+            Returns:
+                bool: indicates if update is needed.
+        """
+        current = get_dt(self.current_ts(), pytz.UTC)
+
+        modified_ts = self.get_modified_ts(table)
+
+        # No data fetched yet
+        if modified_ts is None:
+            return True
+
+        # No need to fetch if the requested last date is less than modified
+        if self.last_date_ts < modified_ts:
+            return False
+
+        modified = get_dt(modified_ts, pytz.UTC)
+
+        # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
+        if (current - modified).days < 1:
+            return False
+
+        # Check fundamental data if needed
+        if fundamental:
+            # Need to check reports if the difference between the current date and the last annual fiscal date ending
+            # is more than a year.
+            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year), pytz.UTC)).years > 0:
+                return True
+
+            # Need to recheck reports if the difference between any report is more than 3 months
+            # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
+            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Any), pytz.UTC)).months
+
+            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter), pytz.UTC).month != 9:
+                return months_delta >= 3
+            else:
+                return months_delta >= 6
+
+        # Better to re-fetch the data in unexpected situation
+        self.log(f"Warning! Can't determine if {table} data should be updated for {self.symbol}. Updating by default.")
+
+        return True
+
     #################################
     # Dividends / splits data methods
     #################################
@@ -1261,29 +1385,23 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    # TODO HIGH Implement smart fetching to get rid of thresholds
-    def fetch_stock_data_if_none(self, divs_threshold, splits_threshold):
+    def fetch_stock_data_if_none(self):
         """
-            Fetch stock quotes, divs and splits data if the current records in the database do not meet the thresholds.
-
-            Args:
-                divs_threshold(int): Threshold value for dividends
-                splits_threshold(int): Threshold value for splits
+            Fetch stock quotes, divs and splits data if needed.
 
             Returns:
                 array: the fetched quote entries.
         """
-        self.fetch_dividends_if_none(divs_threshold)
-        self.fetch_splits_if_none(splits_threshold)
+        self.fetch_dividends_if_none()
+        self.fetch_splits_if_none()
 
         return self.fetch_if_none()
 
-    def _fetch_data_if_none(self, threshold, num_method, add_method, fetch_method):
+    def _fetch_data_if_none(self, num_method, add_method, fetch_method):
         """
-            Fetch all the available additional data if stored data entries do not meet the specified threshold.
+            Fetch all the available additional data if needed.
 
             Args:
-                treshold(int): the minimum required number of data entries in the database.
                 num_method(method): method to get the current entries number.
                 add_method(method): method to add the entries to the database.
                 fetch_method(method): method to fetch the entries.
@@ -1299,116 +1417,127 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
         current_num = num_method()
 
-        # Fetch entries if there are less than a threshold number of entries in the database
-        if current_num < threshold:
-            add_method(fetch_method())
-            num = num_method()
-
-            if num < threshold:
-                raise FdataError(f"Threshold {threshold} can't be met on specified date/time interval (only {num} entries obtained). Decrease the threshold.")
-        else:
-            num = 0
+        add_method(fetch_method())
+        num = num_method()
 
         if initially_connected is False:
             self.db_close()
 
-        return num
+        return num - current_num
 
-    def fetch_income_statement_if_none(self, threshold):
+    def fetch_income_statement_if_none(self):
         """
-            Fetch all the available income statement reports if data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of reports in the database.
+            Fetch all the available income statement reports if needed.
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_income_statement_num,
-                                        add_method=self.add_income_statement,
-                                        fetch_method=self.fetch_income_statement)
+        result = 0
 
-    def fetch_balance_sheet_if_none(self, threshold):
+        if self.need_to_update('income_statement', fundamental=True):
+            result = self._fetch_data_if_none(num_method=self.get_income_statement_num,
+                                              add_method=self.add_income_statement,
+                                              fetch_method=self.fetch_income_statement)
+        else:
+            self.log(f"No need to fetch income statement for {self.symbol}")
+
+        return result
+
+    def fetch_balance_sheet_if_none(self):
         """
-            Fetch all the available balance sheet reports if data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of reports in the database.
+            Fetch all the available balance sheet reports if needed.
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_balance_sheet_num,
-                                        add_method=self.add_balance_sheet,
-                                        fetch_method=self.fetch_balance_sheet)
+        result = 0
 
-    def fetch_cash_flow_if_none(self, threshold):
+        if self.need_to_update('balance_sheet', fundamental=True):
+            result =  self._fetch_data_if_none(num_method=self.get_balance_sheet_num,
+                                               add_method=self.add_balance_sheet,
+                                               fetch_method=self.fetch_balance_sheet)
+        else:
+            self.log(f"No need to fetch balance sheet for {self.symbol}")
+
+        return result
+
+    def fetch_cash_flow_if_none(self):
         """
-            Fetch all the available cash flow reports if data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of reports in the database.
+            Fetch all the available cash flow reports if needed.
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_cash_flow_num,
-                                        add_method=self.add_cash_flow,
-                                        fetch_method=self.fetch_cash_flow)
+        result = 0
 
-    def fetch_earnings_if_none(self, threshold):
+        if self.need_to_update('cash_flow', fundamental=True):
+            result =  self._fetch_data_if_none(num_method=self.get_cash_flow_num,
+                                              add_method=self.add_cash_flow,
+                                              fetch_method=self.fetch_cash_flow)
+        else:
+            self.log(f"No need to fetch cash flow for {self.symbol}")
+
+        return result
+
+    def fetch_earnings_if_none(self):
         """
-            Fetch all the available earnings reports if data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of reports in the database.
+            Fetch all the available earnings reports if needed.
 
             Returns:
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_earnings_num,
-                                        add_method=self.add_earnings,
-                                        fetch_method=self.fetch_earnings)
+        result = 0
 
-    def fetch_dividends_if_none(self, threshold):
+        if self.need_to_update('earnings', fundamental=True):
+            result = self._fetch_data_if_none(num_method=self.get_earnings_num,
+                                              add_method=self.add_earnings,
+                                              fetch_method=self.fetch_earnings)
+        else:
+            self.log(f"No need to fetch earnings for {self.symbol}")
+
+        return result
+
+    def fetch_dividends_if_none(self):
         """
-            Fetch all the available cash dividends if stored data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of entries in the database.
+            Fetch all the available cash dividends if needed.
 
             Returns:
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_dividends_num,
-                                        add_method=self.add_dividends,
-                                        fetch_method=self.fetch_dividends)
+        result = 0
 
-    def fetch_splits_if_none(self, threshold):
+        if self.need_to_update('cash_dividends'):
+            result = self._fetch_data_if_none(num_method=self.get_dividends_num,
+                                              add_method=self.add_dividends,
+                                              fetch_method=self.fetch_dividends)
+        else:
+            self.log(f"No need to fetch dividends for {self.symbol}")
+
+        return result
+
+    def fetch_splits_if_none(self):
         """
-            Fetch all the available splits if stored data entries do not meet the specified threshold.
-
-            Args:
-                treshold(int): the minimum required number of entries in the database.
+            Fetch all the available splits if needed.
 
             Returns:
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(threshold=threshold,
-                                        num_method=self.get_split_num,
-                                        add_method=self.add_splits,
-                                        fetch_method=self.fetch_splits)
+        result = 0
+
+        if self.need_to_update('stock_splits'):
+            result = self._fetch_data_if_none(num_method=self.get_split_num,
+                                              add_method=self.add_splits,
+                                              fetch_method=self.fetch_splits)
+        else:
+            self.log(f"No need to fetch splits for {self.symbol}")
+
+        return result
 
     @abc.abstractmethod
     def fetch_income_statement(self):

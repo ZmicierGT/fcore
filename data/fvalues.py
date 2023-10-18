@@ -90,6 +90,7 @@ class SecType(str, Enum):
     All = "All"
     Unknown = "Unknown"
     Stock = "Stock"
+    ETF = "ETF"
 
 class Currency(str, Enum):
     """

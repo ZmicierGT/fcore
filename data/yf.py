@@ -12,7 +12,7 @@ import numpy as np
 import yfinance as yfin
 
 from data import stock
-from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
+from data.fvalues import Timespans, SecType, Currency
 from data.fdata import FdataError
 from data.futils import get_labelled_ndarray, get_dt
 

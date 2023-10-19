@@ -1016,12 +1016,12 @@ class ReadOnlyData():
 
         return result
 
-    def _get_ts(self, max=True, table='quotes', column='time_stamp'):
+    def _get_ts(self, is_max=True, table='quotes', column='time_stamp'):
         """
             Get Min/Max timestamp for a particular symbol, source, timespan from a specified table.
 
             Args:
-                max(bool): indicates if Min or Max timestamp should be obtained.
+                is_max(bool): indicates if Min or Max timestamp should be obtained.
                 table(str): table to request.
                 column(str): column to request.
 
@@ -1033,7 +1033,7 @@ class ReadOnlyData():
         """
         minmax = 'MIN'
 
-        if max:
+        if is_max:
             minmax = 'MAX'
 
         self.check_if_connected()
@@ -1080,7 +1080,7 @@ class ReadOnlyData():
             Returns:
                 int: timestamp of a maximum timestamp.
         """
-        return self._get_ts(max=True)
+        return self._get_ts(is_max=True)
 
     def get_min_ts(self):
         """
@@ -1089,7 +1089,7 @@ class ReadOnlyData():
             Returns:
                 int: timestamp of a minimum timestamp.
         """
-        return self._get_ts(max=False)
+        return self._get_ts(is_max=False)
 
     def commit(self):
         """

@@ -12,7 +12,7 @@ from data.fvalues import Timespans
 from data import yf
 
 if __name__ == "__main__":
-    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
+    warning = "WARNING! This screener is just an example and do not treat the obtained signals as an investment advice.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                 "datasource only for demonstation purposes!\n"
     print(warning)

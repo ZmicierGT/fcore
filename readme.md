@@ -46,7 +46,7 @@ p_quotes = pvi.get_quotes_only()
 
 print(f"Total quotes num for 'SPY': {len(p_quotes)}")
 
-print(f"Fetch daily quotes, dividend and split data for 'IBM' from AV/YF...")
+print("Fetch daily quotes, dividend and split data for 'IBM' from AV/YF...")
 
 avi = av.AVStock(symbol='IBM')
 avi.get_quotes_only()  # Do not get dividends and splits

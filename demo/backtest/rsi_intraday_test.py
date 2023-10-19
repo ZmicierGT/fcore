@@ -23,8 +23,6 @@ import pytz
 
 import sys
 
-from data.futils import get_dt
-
 symbols = ['MSFT', 'AAPL']
 
 period = 14

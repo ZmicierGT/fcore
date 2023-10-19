@@ -5,15 +5,13 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, SecType, def_first_date, def_last_date
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date
 
 from data.futils import get_labelled_ndarray, get_dt
 
 import abc
 
 import numpy as np
-
-from datetime import timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -688,7 +686,7 @@ class ROStockData(ReadOnlyData):
 
         return splits
 
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=True):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -698,6 +696,7 @@ class ROStockData(ReadOnlyData):
                 columns(list of tuple): additional pairs of (table, column) to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
+                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
 
             Returns:
                 list: list with quotes data.
@@ -713,7 +712,7 @@ class ROStockData(ReadOnlyData):
         columns.append('0.0 AS divs_pay')
         columns.append('1.0 AS splits')
 
-        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=True)
+        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
 
         if quotes is None:
             return
@@ -1396,7 +1395,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
             # Need to recheck reports if the difference between any report is more than 3 months
             # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
-            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Any), pytz.UTC)).months
+            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All), pytz.UTC)).months
 
             if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter), pytz.UTC).month != 9:
                 return months_delta >= 3

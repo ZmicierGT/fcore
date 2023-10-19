@@ -52,7 +52,7 @@ if __name__ == "__main__":
     print(f"The total number of quotes used for {symbol} is {length}.\n")
 
     # Split data to different datasets to demonstrate learning/forecasting in several stages.
-    split_len = len(rows) - test_length
+    split_len = len(rows) - test_length - forecast_size
 
     rows1 = rows[:split_len]  # First batch of data for learning
     rows2 = rows[split_len:len(rows) - forecast_size]  # Next batch of data for learning. Remaining data won't ever be used in the model.
@@ -93,7 +93,6 @@ if __name__ == "__main__":
             total = (perf_counter() - before) * 1000
             print(f"Training took {round(total, 4)} ms, final loss is {round(loss, 6)}, rmse is {round(rmse, 4)}.\n")
         else:
-            # TODO MID fix it
             print(f"The training was not triggered. Maybe length {len(rows2)} of the additional dataset was too small?\n")
 
         ######################################################################

@@ -31,7 +31,7 @@ class YF(stock.StockFetcher):
         # Default values
         self.source_title = "YF"
 
-        self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar YF queries
+        self.sectype = SecType.Stock  # Be careful as theorefically multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         self._data = None  # Cached data for splits/divs

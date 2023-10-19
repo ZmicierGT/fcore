@@ -51,7 +51,7 @@ class Polygon(stock.StockFetcher):
         elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Commercial:
             self.year_delta = 15
 
-        self.sectype = SecType.Unknown  # Multiple security types may be obtaines by similar Polygon API calls
+        self.sectype = SecType.Stock
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         if self.api_key is None:
@@ -121,6 +121,8 @@ class Polygon(stock.StockFetcher):
         """
         response = self.query_api(url, timeout)
 
+        json_results = None
+
         try:
             json_data = json.loads(response.text)
             json_results = json_data['results']
@@ -133,10 +135,10 @@ class Polygon(stock.StockFetcher):
                 # Not relevant for error reporting
                 pass
 
-            raise FdataError(f"Can't parse json or no symbol found. Is API call limit reached? {error}") from e
+            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {error} URL: {url}")
 
-        if len(json_results) == 0:
-            raise FdataError("No data obtained.")
+        if json_results is not None and len(json_results) == 0:
+            self.log(f"No data obtained for {self.symbol}")
 
         return json_results
 
@@ -171,6 +173,11 @@ class Polygon(stock.StockFetcher):
             url = f"https://api.polygon.io/v2/aggs/ticker/{self.symbol}/range/1/{self.get_timespan_str()}/{first_date}/{last_date}?adjusted=false&sort=asc&limit=50000&apiKey={self.api_key}"
 
             json_results = self.query_and_parse(url)
+
+            if json_results is None:
+                self.log(f"No data obtained for {self.symbol} using {self.source_title}")
+
+                continue
 
             for j in range(len(json_results)):
                 quote = json_results[j]

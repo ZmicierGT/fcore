@@ -210,7 +210,8 @@ def get_labelled_ndarray(rows):
         raise ValueError("Source data length is 0.")
 
     for key, value in dict(rows[0]).items():
-        if isinstance(value, str):
+        # Set Transactions dtype to object as not every data source have it.
+        if isinstance(value, str) or key == 'transactions':
             key_type = 'object'
         else:
             key_type = np.array([value]).dtype

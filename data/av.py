@@ -171,7 +171,7 @@ class AVStock(stock.StockFetcher):
             dict_results = dict(sorted(json_data[json_key].items()))
         except KeyError:
             # It is possible that just there is not data yet for the current month
-            self.log("Can't get data. Likely API key limit or just no data for the requested period.")
+            self.log(f"Can't get data for {self.symbol} using {self.source_title}. Likely API key limit or just no data for the requested period.")
             return (None, None)
 
         return (dict_results, dict_header)
@@ -205,7 +205,7 @@ class AVStock(stock.StockFetcher):
             if last_ts is None:
                 last_date = self.last_date
             else:
-                first_date = get_dt(last_ts, pytz.UTC)
+                last_date = get_dt(last_ts, pytz.UTC)
 
             year = first_date.year
             month = first_date.month
@@ -233,7 +233,7 @@ class AVStock(stock.StockFetcher):
 
         tz = pytz.timezone(tz_str)
 
-        while self.is_intraday() and (year <= self.last_date.year and month < self.last_date.month):
+        while self.is_intraday() and (year <= last_date.year and month < last_date.month):
             month += 1
 
             if month == 13:

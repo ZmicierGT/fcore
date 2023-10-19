@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 12
+DB_VERSION = 13
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -620,18 +620,18 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
-        # Check if we need to create table 'fetched_quotes'
+        # Check if we need to create table 'quote_intervals'
         try:
-            check_fetched_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='fetched_quotes';"
+            check_quote_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='quote_intervals';"
 
-            self.cur.execute(check_fetched_quotes)
+            self.cur.execute(check_quote_intervals)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'fetched_quotes': {e}\n{check_fetched_quotes}") from e
+            raise FdataError(f"Can't execute a query on a table 'quote_intervals': {e}\n{check_quote_intervals}") from e
 
         if len(rows) == 0:
-            create_fetched_quotes = """CREATE TABLE fetched_quotes (
-                                            early_quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            create_quote_intervals = """CREATE TABLE quote_intervals (
+                                            quote_interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             symbol_id INTEGER NOT NULL,
                                             source_id INTEGER NOT NULL,
                                             time_span_id INTEGER NOT NULL,
@@ -653,17 +653,17 @@ class ReadOnlyData():
                                             );"""
 
             try:
-                self.cur.execute(create_fetched_quotes)
+                self.cur.execute(create_quote_intervals)
             except self.Error as e:
-                raise FdataError(f"Can't create table fetched_quotes: {e}") from e
+                raise FdataError(f"Can't create table quote_intervals: {e}") from e
 
-            # Create indexes for fetched_quotes
-            create_fetched_quotes_idx = "CREATE INDEX idx_fetched_quotes ON fetched_quotes(symbol_id, source_id, time_span_id);"
+            # Create indexes for quote_intervals
+            create_quote_intervals_idx = "CREATE INDEX idx_quote_intervals ON quote_intervals(symbol_id, source_id, time_span_id);"
 
             try:
-                self.cur.execute(create_fetched_quotes_idx)
+                self.cur.execute(create_quote_intervals_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create indexes for fetched_quotes table: {e}") from e
+                raise FdataError(f"Can't create indexes for quote_intervals table: {e}") from e
 
         # Check if we need to create table 'quotes'
         try:
@@ -1061,7 +1061,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='fetched_quotes', column='min_request_ts')
+        return self._get_ts(table='quote_intervals', column='min_request_ts')
 
     def get_max_request_ts(self):
         """
@@ -1071,7 +1071,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='fetched_quotes', column='max_request_ts')
+        return self._get_ts(table='quote_intervals', column='max_request_ts')
 
     def get_max_ts(self):
         """
@@ -1315,42 +1315,43 @@ class ReadWriteData(ReadOnlyData):
 
         num_before = self.get_quotes_num()
 
-        for quote in quotes_dict:
-            self._add_base_quote_data(quote)
+        if quotes_dict is not None:
+            for quote in quotes_dict:
+                self._add_base_quote_data(quote)
 
-        self.commit()
+            self.commit()
 
         num_after = self.get_quotes_num()
 
-        self.update_earliest_requested()
+        self.update_quote_intervals()
 
         return (num_before, num_after)
 
-    def update_earliest_requested(self):
+    def update_quote_intervals(self):
         """
             Update the earliest requested quote (if needed).
         """
         now = self.current_ts(adjusted=True)
         ts = min(now, self.last_date_ts)
 
-        # TODO LOW Write it in a more rational way
-        update_fetched = f"""INSERT OR REPLACE INTO fetched_quotes (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
+        # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
+        update_fetched = f"""INSERT OR REPLACE INTO quote_intervals (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                       (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}'),
                                       (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                       (SELECT ifnull(
                                                      (SELECT min(min_request_ts, {self.first_date_ts})
-	                                                  FROM fetched_quotes
+	                                                  FROM quote_intervals
 	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
 	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
 	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
                                               ), {self.first_date_ts})),
                                       (SELECT ifnull(
                                                      (SELECT max(max_request_ts, {ts})
-	                                                  FROM fetched_quotes
-	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
-	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
+                                                      FROM quote_intervals
+                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                      AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
                                               ), {ts}))
                            );"""
 
@@ -1358,7 +1359,7 @@ class ReadWriteData(ReadOnlyData):
             self.cur.execute(update_fetched)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'fetched_quotes': {e}\n{update_fetched}") from e
+            raise FdataError(f"Can't execute a query on a table 'quote_intervals': {e}\n{update_fetched}") from e
 
     def remove_quotes(self):
         """

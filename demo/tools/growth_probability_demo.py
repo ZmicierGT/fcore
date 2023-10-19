@@ -158,7 +158,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"Probabilities example chart for {source.symbol}", length)
+    update_layout(fig, f"Probabilities example chart for {symbol}", length)
 
     new_file = show_image(fig)
 

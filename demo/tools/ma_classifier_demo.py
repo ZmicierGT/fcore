@@ -36,7 +36,6 @@ last_date = "2022-11-1"  # The last date to fetch quotes
 # For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
 # In this case, DJIA stocks are used to train the models.
 
-# TODO MID Check NKE Warning
 # DJIA composition.
 symbols = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\
            'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT']
@@ -168,7 +167,7 @@ if __name__ == "__main__":
     # Write the chart
     ######################
 
-    update_layout(fig, f"MA Classifier example chart for {source.symbol}", length)
+    update_layout(fig, f"MA Classifier example chart for {symbol}", length)
 
     new_file = show_image(fig)
 

@@ -33,34 +33,29 @@ from data.stock import report_year  # Condition to request annual report.
 from datetime import datetime, timedelta
 
 # Fetch quotes if needed. Otherwise just take them from a database.
-yf.YF(symbol='SPY', first_date="2010-1-1", last_date="2012-1-1").get()
-yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2022-1-1", verbosity=True).get()
+# Contigious interval of quotes will be preserved in the database.
+yf.YF(symbol='SPY', first_date="2017-1-1", last_date="2018-1-1").get()
+yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2021-1-1", verbosity=True).get()
 
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
 then = datetime.now() - timedelta(days=7)
 pvi = polygon.Polygon(symbol='SPY', first_date=then, last_date=now, timespan=Timespans.Minute)
 
-p_quotes = pvi.fetch_quotes()  # Fetch quotes but do not add them to DB
+p_quotes = pvi.get_quotes_only()
 
-pvi.db_connect()
-before, after = pvi.add_quotes(p_quotes)  # Add quotes to DB
-pvi.db_close()
+print(f"Total quotes num for 'SPY': {len(p_quotes)}")
 
-print(f"Total quotes num before and after the operation (it won't increase if quotes already present in DB): {before}, {after}")
+print(f"Fetch daily quotes, dividend and split data for 'IBM' from AV/YF...")
 
-symbol = 'IBM'
-
-print(f"Fetch daily quotes, dividend and split data for {symbol} from AV/YF...")
-
-avi = av.AVStock(symbol=symbol)
+avi = av.AVStock(symbol='IBM')
 avi.get_quotes_only()  # Do not get dividends and splits
 
-yfi = yf.YF(symbol=symbol)
+yfi = yf.YF(symbol='IBM')
 yfi.get_dividends()
 yfi.get_splits()
 
-print(f"Fetch fundamental data for {symbol} from AV...")
+print(f"Fetch fundamental data for {'IBM'} from AV...")
 
 # Fetch fundamental data and add it to DB
 avi.get_earnings()
@@ -76,12 +71,12 @@ rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),  # It will
 avi.db_close()
 
 # Print last rows of requested data
-print(f"\nThe last row of obtained quotes and fundamental data for IBM:\n{rows[-1]}")
+print(f"\nThe last row of obtained quotes and fundamental data for 'IBM':\n{rows[-1]}")
 
 # Get the latest quote from Finnhub for AAPL (responce described in fvalues.Quotes)
 aapl_data = fh.FHStock(symbol='AAPL').get_recent_data()
 
-print(f"\nRecent quote data for AAPL: {aapl_data}")
+print(f"\nRecent quote data for 'AAPL': {aapl_data}")
 ```
 
 ## Growth Probability Estimation

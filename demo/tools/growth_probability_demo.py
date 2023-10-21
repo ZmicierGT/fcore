@@ -7,7 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from data.yf import YF
 from data.fdata import FdataError
 
-from data.fvalues import StockQuotes
+from data.fvalues import StockQuotes, djia
 
 from tools.growth_probability import Probability
 
@@ -35,14 +35,6 @@ symbol = 'SPY'  # Symbol to make estimations
 first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
 last_date = "2022-11-1"  # The last date to fetch quotes
 
-# For learning we may use the previous quotes of the same stock or use quotes of other stocks if the used indicators are percent/ratio based.
-# In this case, DJIA stocks are used to train the models.
-
-# DJIA composition.
-symbols = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\
-           'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT']
-
-
 if __name__ == "__main__":
     warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
@@ -54,7 +46,7 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn in symbols:
+    for symbol_learn in djia:
         try:
             print(f"Checking if quotes for {symbol_learn} is already fetched...")
 

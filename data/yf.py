@@ -141,7 +141,7 @@ class YF(stock.StockFetcher):
                 data.loc[data.index < ind, 'High'] = data.loc[data.index < ind, 'High'] * splits['split_ratio'][i]
                 data.loc[data.index < ind, 'Low'] = data.loc[data.index < ind, 'Low'] * splits['split_ratio'][i]
                 data.loc[data.index < ind, 'Close'] = data.loc[data.index < ind, 'Close'] * splits['split_ratio'][i]
-                data.loc[data.index < ind, 'Volume'] = data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i]
+                data.loc[data.index < ind, 'Volume'] = round(data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i])
         else:
             # One more astype to get rid of .0
             data['ts'] = data['Datetime'].astype(int).div(10**9).astype(int)

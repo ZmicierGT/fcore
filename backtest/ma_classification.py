@@ -4,7 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-
 from backtest.ma import MA
 from backtest.base import BackTestError
 

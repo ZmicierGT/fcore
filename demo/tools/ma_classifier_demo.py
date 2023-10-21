@@ -11,7 +11,6 @@ from data.fdata import FdataError
 from data.fvalues import StockQuotes
 
 from tools.ma_classifier import MAClassifier
-from data.fvalues import Algorithm
 
 from tools.base import ToolError
 
@@ -21,12 +20,13 @@ from data.futils import show_image
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+import sklearn
+
 import sys
 
 # Parameters for learning
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
-algorithm = Algorithm.KNC  # The default algorithm to use
 period = 50  # Period for MA calculation
 symbol = 'SPY'  # Symbol to make estimations
 
@@ -80,15 +80,27 @@ if __name__ == "__main__":
     # Train the model and get results
     #################################
 
+    # Split data to test incremental learning
+    split = round(len(allrows) / 2)
+    batch1 = allrows[:split]
+    batch2 = allrows[split:]
+
     ma_cls = MAClassifier(period=period,
+                          model_buy = sklearn.linear_model.SGDClassifier(),
+                          model_sell = sklearn.linear_model.SGDClassifier(),
                           rows=est_rows,
-                          data_to_learn=allrows,
+                          data_to_learn=batch1,
                           true_ratio=true_ratio,
                           cycle_num=cycle_num,
-                          algorithm=algorithm)
+                          partial_fit=True)
 
     try:
+        # Test incremental learning
+        ma_cls.learn()
+        ma_cls.set_data_to_learn(batch2)
+
         ma_cls.calculate()
+
         accuracy_buy_learn, accuracy_sell_learn, total_accuracy_learn = ma_cls.get_learn_accuracy()
         f1_buy_learn, f1_sell_learn, total_f1_learn = ma_cls.get_learn_f1()
         accuracy_buy_est, accuracy_sell_est, total_accuracy_est = ma_cls.get_est_accuracy()

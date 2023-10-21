@@ -314,13 +314,6 @@ Use the following tools to manage quotes and obtain data.
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder and open the image in the default image viewer.
 
-# Roadmap
-
-Overall, the next development steps are (planned to finish in Autumn 2023):
-- ~~Continue to adopt the project to use various data sources and store the fundamental data in a unified way. Data sources are Yahoo Finance (for demonstration purposes only), Polygon.IO, AlphaVantahe and Finnhub.io~~ (already implemented).
-- ~~Continue to implement the API for AI-based analysis of financial markets.~~ Exact description should be written how to use this API.
-- Further improvements in performance and reliability. Scripts for pre-commit validation to the 'main' branch should be written.
-
 # Additional Details
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).

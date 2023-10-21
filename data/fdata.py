@@ -964,7 +964,6 @@ class ReadOnlyData():
 
         return result
 
-    # TODO MID Need to check if correct methods are used each time.
     def get_total_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.

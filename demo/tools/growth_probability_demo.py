@@ -10,7 +10,6 @@ from data.fdata import FdataError
 from data.fvalues import StockQuotes
 
 from tools.growth_probability import Probability
-from data.fvalues import Algorithm
 
 from tools.base import ToolError
 
@@ -22,12 +21,13 @@ from plotly.subplots import make_subplots
 
 from time import perf_counter
 
+from sklearn.ensemble._bagging import BaggingClassifier
+
 import sys
 
 # Parameters for learning
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
-algorithm = Algorithm.KNC  # The default algorithm to use
 period_long = 50  # Long period for MA calculation
 period_short = 25  # Short period for MA calculation
 symbol = 'SPY'  # Symbol to make estimations
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     try:
         print(f"\nFetching quotes for {symbol} to validate the model...")
 
-        est_rows = YF(symbol=symbol, first_date=first_date, last_date=last_date, verbosity=True).get()
+        est_rows = YF(symbol=symbol, first_date=first_date, last_date=last_date).get()
     except FdataError as e:
         sys.exit(e)
 
@@ -82,19 +82,30 @@ if __name__ == "__main__":
     # Train the model and get results
     #################################
 
+    # Split data to test incremental learning
+    split = round(len(allrows) / 2)
+    batch1 = allrows[:split]
+    batch2 = allrows[split:]
+
     prob = Probability(period_long=period_long,
                        period_short=period_short,
+                       model_buy=BaggingClassifier(warm_start=True),
                        rows=est_rows,
-                       data_to_learn=allrows,
+                       data_to_learn=batch1,
                        true_ratio=true_ratio,
                        cycle_num=cycle_num,
-                       algorithm=algorithm,
+                       increase_estimators=True,
                        classify=True  # Needed for metrics only
                        )
 
     try:
         before = perf_counter()
+
+        # Perform incremental learning using warm_start
         prob.learn()
+        prob.set_data_to_learn(batch2)
+        prob.learn()
+
         print(f"Total time for learning: {(perf_counter() - before) * 1000}ms")
 
         before = perf_counter()

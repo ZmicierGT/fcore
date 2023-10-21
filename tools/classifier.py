@@ -27,7 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import accuracy_score, f1_score
 
-# TODO MID Think if it worth using a two models to estimate buy/sell signals
+# TODO LOW Think if it worth using a two models to estimate buy/sell signals (most likely not)
 class Classifier(BaseTool):
     """
         Base signals classifier (true/false) impementation.
@@ -44,7 +44,9 @@ class Classifier(BaseTool):
                  classify=True,
                  probability=False,
                  use_buy=True,
-                 use_sell=True
+                 use_sell=True,
+                 partial_fit=False,
+                 increase_estimators=False
                 ):
         """
             Initialize classifier class.
@@ -63,6 +65,8 @@ class Classifier(BaseTool):
                 probability(bool): indicates if probabilities should be calculated.
                 use_buy(bool): use buy signals in calculations.
                 use_sell(bool): use sell signals in calculations.
+                partial_fit(bool): indicates if partial fit should be used.
+                increase_estimators(bool): indicates if estimators shou
                 offset(int): offset for calculation.
 
             Raises:
@@ -71,8 +75,9 @@ class Classifier(BaseTool):
         super().__init__(rows)
 
         # Some type of model (path to serialized models or objects to models) must present.
-        if (model_buy == None or model_sell == None) and data_to_learn == None:
-            raise ToolError("No models or data to learn provided to make the estimation.")
+        if (self.check_if_fitted(model_buy) == False or self.check_if_fitted(model_sell) == False)\
+            and data_to_learn == None:
+            raise ToolError("No trained models or data to learn provided to make the estimation.")
 
         self._model_buy = model_buy
         self._model_sell = model_sell
@@ -80,6 +85,11 @@ class Classifier(BaseTool):
         self._cycle_num = cycle_num
         self._true_ratio = true_ratio
         self._algorithm = algorithm
+        self._partial_fit = partial_fit
+        self._increase_estimators = increase_estimators
+
+        if self._algorithm is None and (self._model_buy is None and self._model_sell is None):
+            raise ToolError("No algorithm or models is specified. Add argument like algorithm=Algorithm.LDA to classifier initialization.")
 
         self._results_buy_est = None
         self._results_sell_est = None
@@ -107,6 +117,15 @@ class Classifier(BaseTool):
 
         self._data_to_est = None  # Columns to make estimations
         self._data_to_report = None  # Columns for reporting
+
+    def set_data_to_learn(self, data):
+        """
+            Set new data to learn.
+
+            Args:
+                new data to perform learning.
+        """
+        self._data_to_learn = data
 
     def get_buy_signals_to_compare(self):
         """
@@ -184,9 +203,6 @@ class Classifier(BaseTool):
             Returns:
                 model_buy: model to check buy signals
         """
-        if self._model_buy is None:
-            raise ToolError("Buy model was not trained.")
-
         return self._model_buy
 
     def get_sell_model(self):
@@ -199,9 +215,6 @@ class Classifier(BaseTool):
             Returns:
                 model_sell: model to check sell signals
         """
-        if self._model_buy is None:
-            raise ToolError("Sell model was not trained.")
-
         return self._model_sell
 
     #################################################
@@ -266,7 +279,7 @@ class Classifier(BaseTool):
         len_buy = 0
         len_sell = 0
 
-        results_buy_est, results_buy_actual, results_sell_est, results_sell_actual = self.get_signals_to_compare()
+        results_buy_actual, results_buy_est, results_sell_actual, results_sell_est = self.get_signals_to_compare()
 
         if results_buy_est is not None:
             len_buy = len(results_buy_est)
@@ -294,9 +307,6 @@ class Classifier(BaseTool):
             Retunrs:
                 instance to train a model.
         """
-        if self._algorithm is None:
-            raise ToolError("No algorithm is specified. Add argument like algorithm=Algorithm.LDA to classifier initialization.")
-
         if self._algorithm == Algorithm.LR:
             learn = LogisticRegression(class_weight='balanced')
         elif self._algorithm == Algorithm.LDA:
@@ -369,7 +379,13 @@ class Classifier(BaseTool):
             if len(self._data_buy_learn) == 0 or len(self._results_buy_learn) == 0:
                 raise ToolError("No buy signals for learning")
 
-            self._model_buy.fit(self._data_buy_learn, self._results_buy_learn)
+            if self._partial_fit:
+                self._model_buy.partial_fit(self._data_buy_learn, self._results_buy_learn, [0, 1])
+            else:
+                if self._increase_estimators:
+                    self._model_buy.n_estimators += 1
+
+                self._model_buy.fit(self._data_buy_learn, self._results_buy_learn)
 
         if self._use_sell:
             # Create a results numpy array with sell signals
@@ -390,7 +406,13 @@ class Classifier(BaseTool):
             if len(self._data_sell_learn) == 0 or len(self._results_sell_learn) == 0:
                 raise ToolError("No sell signals for learning")
 
-            self._model_sell.fit(self._data_sell_learn, self._results_sell_learn)
+            if self._partial_fit:
+                self._model_sell.partial_fit(self._data_sell_learn, self._results_sell_learn, [0, 1])
+            else:
+                if self._increase_estimators:
+                    self._model_buy.n_estimators += 1
+
+                self._model_sell.fit(self._data_sell_learn, self._results_sell_learn)
 
     def check_buy_signals(self, df_source):
         """
@@ -446,7 +468,10 @@ class Classifier(BaseTool):
             Returns:
                 bool: True if fitted, False otherwise.
         """
-        return hasattr(model, "classes_")
+        if model is not None:
+            return hasattr(model, "classes_")
+
+        return False
 
     def calculate(self):
         """
@@ -459,8 +484,8 @@ class Classifier(BaseTool):
             raise ToolError("No data for testing provided.")
 
         # Check if we need to train the model at first
-        if (self._use_buy and (self._model_buy is None or self.check_if_fitted(self._model_buy) == False)) or \
-           (self._use_sell and (self._model_sell is None or self.check_if_fitted(self._model_sell) == False)):
+        if (self._use_buy and self.check_if_fitted(self._model_buy) == False) or \
+           (self._use_sell and self.check_if_fitted(self._model_sell) == False):
             self.learn()
 
         # DataFrame for the current symbol

@@ -783,7 +783,6 @@ class ReadOnlyData():
 
         return rows
 
-    # TODO LOW Consider a way to omit not used columns from the standard output. For example, some user may not need volume and so on.
     def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
@@ -1397,11 +1396,18 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self._queries = []  # List of queries to calculate API call pauses
 
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
-    def get(self):
+    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
             At the end the connection status will be resumed.
+
+            Args:
+                num(int): the number of rows to get. 0 gets all the quotes.
+                columns(list): additional columns to query.
+                joins(list): additional joins to get data from other tables.
+                queries(list): additional queries from other tables (like funamental, global economic data).
+                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
 
             Returns:
                 array: the fetched data.
@@ -1453,7 +1459,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
                 self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
-        rows = self.get_quotes()
+        rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
 
         if initially_connected is False:
             self.db_close()

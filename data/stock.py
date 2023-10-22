@@ -1464,9 +1464,16 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
     """
-    def get(self):
+    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Get stock quotes, divs and splits data if needed.
+
+            Args:
+                num(int): the number of rows to get. 0 gets all the quotes.
+                columns(list): additional columns to query.
+                joins(list): additional joins to get data from other tables.
+                queries(list): additional queries from other tables (like funamental, global economic data).
+                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
 
             Returns:
                 array: the fetched quote entries.
@@ -1478,7 +1485,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         else:
             self.log(f"Warning! Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
 
-        return super().get()
+        return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
 
     def get_quotes_only(self):
         """
@@ -1523,8 +1530,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         if self.need_to_update(modified_ts=self._get_requested_ts(column, interval_table), table=data_table):
             add_method(fetch_method())
             num = num_method()
-
-            self._update_intervals(column=column, table=interval_table)
 
         if initially_connected is False:
             self.db_close()

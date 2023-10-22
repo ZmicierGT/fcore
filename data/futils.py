@@ -211,7 +211,7 @@ def get_labelled_ndarray(rows):
 
     for key, value in dict(rows[0]).items():
         # Set Transactions dtype to object as not every data source have it.
-        if isinstance(value, str) or key == 'transactions':
+        if isinstance(value, str) or key == 'transactions':  # TODO MID Maybe float for transactions?
             key_type = 'object'
         else:
             key_type = np.array([value]).dtype
@@ -224,6 +224,35 @@ def get_labelled_ndarray(rows):
     data = [tuple(row[name] for name in dtypes.names) for row in rows]
 
     return np.array(data, dtypes)
+
+def add_column(rows, name, dtype=object, default=0.0):
+    """
+        Add column(s) to the labelled numpy array.
+
+        Note that in the case of huge arrays sometimes this operation may be slow. In such case you may get the
+        column in advance during data query. For example: source.get(columns='0.0 AS test')
+
+        Args:
+            rows(ndarray): the initial array.
+            name(str): name of the column.
+            dtype(numpy.dtype): dtype of the column.
+            default: the default value
+
+        Returns:
+            The altered array with added column(s).
+    """
+    dt = rows.dtype.descr
+    dt.append((name, dtype))
+    dt = np.dtype(dt)
+
+    col = (default, )
+
+    rows = rows.astype(dtype=object)
+    rows = [x + col for x in rows]
+
+    rows = np.array(rows, dtype=dt)
+
+    return rows
 
 def logger(verbosity, message):
     """

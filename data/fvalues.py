@@ -9,6 +9,8 @@ from enum import IntEnum, Enum
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
 
+trading_days_per_year = 252
+
 # DJIA composition.
 # TODO LOW Check why sometimes there is a warning regarding NKE
 djia = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\

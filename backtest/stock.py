@@ -156,6 +156,6 @@ class StockOperations(BackTestOperations):
             if self.is_long():
                 self.get_caller().add_other_profit(current_yield)
             else:
-                self.get_caller().add_other_expense(current_yield)
+                self.get_caller().add_other_profit(-abs(current_yield))
 
         self.check_for_split()

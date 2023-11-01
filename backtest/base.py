@@ -13,7 +13,7 @@ from itertools import repeat
 
 import time
 
-from data.fvalues import Quotes
+from data.fvalues import Quotes, trading_days_per_year
 
 import numpy as np
 
@@ -436,13 +436,14 @@ class BackTestOperations():
         """
         return self.get_all_calc_data()[num]
 
-    def get_calc_data_val(self, index=None, num=0, offset=0):
+    def get_calc_data_val(self, index=None, num=0, col=-1, offset=0):
         """
             Get the value of a calculated data at the current(specified) index.
 
             Args:
                 index(int): optional index of the value to get. Default is None.
                 num(int): index of the data tool.
+                col(int, str): the column to get.
                 offset(int): offset from the index.
 
             Returns:
@@ -451,8 +452,13 @@ class BackTestOperations():
         if index == None:
             index = self.get_caller_index()
 
+        df = self.get_calc_data(num)
+
         try:
-            value = self.get_calc_data(num)[index - offset]
+            if type(df).__name__ == 'DataFrame' and len(df.columns) > 1:
+                value = value = self.get_calc_data(num).iloc[index - offset, col]
+            else:
+                value = self.get_calc_data(num).loc[index - offset]
         except IndexError:
             value = None
 
@@ -636,7 +642,7 @@ class BackTestOperations():
             Returns:
                 float: current daily margin expenses for the symbol.
         """
-        return self.get_margin_positions() * self.get_close() * self.data().get_margin_fee() / 100 / 240
+        return self.get_margin_positions() * self.get_close() * self.data().get_margin_fee() / 100 / trading_days_per_year
 
     def get_spread_deviation(self):
         """
@@ -1469,7 +1475,8 @@ class BackTest(metaclass=abc.ABCMeta):
                  commission_share=0,
                  initial_deposit=0,
                  periodic_deposit=0,
-                 deposit_interval=00,
+                 deposit_interval=0,
+                 cash_interest=0,
                  inflation=0,
                  margin_req=0,
                  margin_rec=0,
@@ -1488,6 +1495,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 initial_deposit(float): initial deposit to test the strategy.
                 periodic_deposit(float): periodic deposit to the account.
                 deposit_interval(int): interval (in days) to add a periodic deposit to the account.
+                cash_interest(int): interest on cash balance.
                 inflation(float): annual inflation used in the calculation.
                 margin_req(float): determines the buying power of the cash balance for a margin account.
                 margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
@@ -1535,6 +1543,9 @@ class BackTest(metaclass=abc.ABCMeta):
         if deposit_interval < 0:
             raise BackTestError(f"deposit_interval can't be less than 0. Specified value is {deposit_interval}")
         self._deposit_interval = deposit_interval
+
+        # Interest on cash (it may be negative as well):
+        self._cash_interest = cash_interest
 
         # Annual inflation (in percent) to correct the periodic deposit
         if inflation < 0 or inflation > 100:
@@ -1759,6 +1770,15 @@ class BackTest(metaclass=abc.ABCMeta):
             self._deposits += self._periodic_deposit
             self._deposit_counter = 0
 
+    def cash_interest(self):
+        """
+            Check if we have any interest on the cash balance.
+        """
+        if self._cash_interest:
+            amount = self._cash * (self._cash_interest / 100 / trading_days_per_year)
+
+            self.add_other_profit(amount)
+
     def is_multi_symbol(self):
         """
             Check if data for several symbols was added during the initialization.
@@ -1930,20 +1950,8 @@ class BackTest(metaclass=abc.ABCMeta):
                 float: other profit to add to the statistics.
         """
         self._other_profit += other_profit
-        self.add_cash(other_profit)
-
-    def add_other_expense(self, other_expense):
-        """
-            Add other expense to the statistics.
-
-            Args:
-                other_expense(float): other expense to add to the statistics.
-        """
-        self._other_expense += other_expense
         # TODO LOW Need to check here if balance may go negative on a non-margin account.
-        # Currently it is not relevant because the stock is the only financial intrument where other expenses may be applied
-        # and it happens only on a margin account (dividend expenses while holding a short position).
-        self.add_cash(-abs(other_expense))
+        self.add_cash(other_profit)
 
     def add_debt_expense(self, debt_expense):
         """
@@ -2379,6 +2387,9 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Check if we need to make a deposit today. Deposit if we need.
         self.deposit()
+
+        # Check if we have an interest on cash. Apply it if we need.
+        self.cash_interest()
 
         # Calculate and apply margin expenses per day
         for ex in self.__exec:

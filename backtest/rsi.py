@@ -133,7 +133,7 @@ class RSI(BackTest):
                     min_ex = ex
 
             if (
-                max_ex.get_calc_data_val(offset=1) != None and
+                max_ex.get_calc_data_val(offset=1) is not None and max_ex.get_calc_data_val() is not None and
                 max_ex.get_calc_data_val(offset=1) > self.__resistance and
                 max_ex.get_calc_data_val() < self.__resistance
                ):
@@ -144,7 +144,7 @@ class RSI(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_calc_data_val(offset=1) != None and
+                min_ex.get_calc_data_val(offset=1) is not None and min_ex.get_calc_data_val() is not None and
                 min_ex.get_calc_data_val(offset=1) < self.__support and
                 min_ex.get_calc_data_val() > self.__support
                ):

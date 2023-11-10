@@ -64,20 +64,25 @@ class StockOperations(BackTestOperations):
             Returns:
                 float: the yield incoming in the current cycle.
         """
+        idx = self.get_index()
+
+        if idx is None:
+            return
+
         current_yield = 0
 
         # Check if we have opened long positions at ex_date
-        if self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] != None and self._long_positions > 0:
+        if self.data().get_rows()[idx][StockQuotes.ExDividends] != None and self._long_positions > 0:
             self._yield_positions = self._long_positions
 
         # Calculate dividends to pay for long positions which were opened at ex_date
-        if self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] != None and self._yield_positions > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.PayDividends] * self._yield_positions
+        if self.data().get_rows()[idx][StockQuotes.PayDividends] != None and self._yield_positions > 0:
+            current_yield = self.data().get_rows()[idx][StockQuotes.PayDividends] * self._yield_positions
             self._yield_positions = 0
 
         # Calculate dividends for short positions to get payed to a borrower
-        if self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] != None and self._short_positions > 0:
-            current_yield = self.data().get_rows()[self.get_caller_index()][StockQuotes.ExDividends] * self._short_positions
+        if self.data().get_rows()[idx][StockQuotes.ExDividends] != None and self._short_positions > 0:
+            current_yield = self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions
 
         return current_yield
 
@@ -85,10 +90,15 @@ class StockOperations(BackTestOperations):
         """
             Check for a stock split and apply split to the portfolio if any.
         """
-        ratio = self.data().get_rows()[self.get_caller_index()][StockQuotes.Splits]
-        old_close = self.data().get_rows()[self.get_caller_index() - 1][StockQuotes.Close]
+        idx = self.get_index()
 
-        if ratio != 1 and self.get_caller_index() != 0:
+        if idx is None:
+            return
+
+        ratio = self.data().get_rows()[idx][StockQuotes.Splits]
+        old_close = self.data().get_rows()[idx - 1][StockQuotes.Close]
+
+        if ratio != 1 and idx != 0:
             if self.is_long():
                 margin_positions = self._long_positions - self._long_positions_cash
                 self._long_positions_cash *= ratio
@@ -130,21 +140,21 @@ class StockOperations(BackTestOperations):
                 if self._short_positions != 0:
                     buying_power = self._short_positions * old_close
 
-                delta = 0
+                    delta = 0
 
-                # Close (commission and spread fee) all short positions
-                for _ in range(self._short_positions):
-                    delta += self._portfolio.pop() - old_close
+                    # Close (commission and spread fee) all short positions
+                    for _ in range(self._short_positions):
+                        delta += self._portfolio.pop() - old_close
 
-                self.get_caller().add_cash(delta)
+                    self.get_caller().add_cash(delta)
 
-                # Open (spread and commission free) new short positions withing the previously available margin
-                new_short_positions = round(buying_power / self.get_buy_price())
+                    # Open (spread and commission free) new short positions withing the previously available margin
+                    new_short_positions = round(buying_power / self.get_buy_price())
 
-                self._portfolio = []
-                self._portfolio.extend(repeat(self.get_sell_price(), new_short_positions))
+                    self._portfolio = []
+                    self._portfolio.extend(repeat(self.get_sell_price(), new_short_positions))
 
-                self._short_positions = new_short_positions
+                    self._short_positions = new_short_positions
 
     def apply_other_balance_changes(self):
         """

@@ -7,6 +7,8 @@ Distributed under Fcore License 1.1 (see license.md)
 from backtest.base import BackTest
 from backtest.base import BackTestError
 
+from data.futils import add_column
+
 import pandas as pd
 import pandas_ta as ta
 
@@ -79,8 +81,11 @@ class RSI(BackTest):
                 ex(BackTestOperations): Operations instance class.
         """
         df = pd.DataFrame(ex.data().get_rows())
+        rsi = ta.rsi(df[ex.data().close], length=self._period)
 
-        ex.append_calc_data(ta.rsi(df[ex.data().close], length = self._period))
+        # Add the column with rsi data to the dataset
+        ex.data().set_rows(rows=add_column(ex.data().get_rows(), name='rsi', dtype=float))
+        ex.data().get_rows()['rsi'] = rsi
 
     def do_calculation(self):
         """
@@ -126,16 +131,21 @@ class RSI(BackTest):
             open_short = False
 
             for ex in self.all_exec():
-                if max_ex == None or ex.get_calc_data_val() > max_ex.get_calc_data_val():
+                if ex.get_index():
+                    ex_val = ex.get_row()['rsi']
+                else:
+                    ex_val = None
+
+                if max_ex is None or (ex_val is not None and ex_val > max_ex.get_row()['rsi']):
                     max_ex = ex
 
-                if min_ex == None or ex.get_calc_data_val() < min_ex.get_calc_data_val():
+                if min_ex is None or (ex_val is not None and ex_val < min_ex.get_row()['rsi']):
                     min_ex = ex
 
             if (
-                max_ex.get_calc_data_val(offset=1) is not None and max_ex.get_calc_data_val() is not None and
-                max_ex.get_calc_data_val(offset=1) > self.__resistance and
-                max_ex.get_calc_data_val() < self.__resistance
+                max_ex.get_row(offset=-1)['rsi'] is not None and max_ex.get_row()['rsi'] is not None and
+                max_ex.get_row(offset=-1)['rsi'] > self.__resistance and
+                max_ex.get_row()['rsi'] < self.__resistance
                ):
 
                 max_ex.close_all_long()
@@ -144,9 +154,9 @@ class RSI(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_calc_data_val(offset=1) is not None and min_ex.get_calc_data_val() is not None and
-                min_ex.get_calc_data_val(offset=1) < self.__support and
-                min_ex.get_calc_data_val() > self.__support
+                min_ex.get_row(offset=-1)['rsi'] is not None and min_ex.get_row()['rsi'] is not None and
+                min_ex.get_row(offset=-1)['rsi'] < self.__support and
+                min_ex.get_row()['rsi'] > self.__support
                ):
 
                 min_ex.close_all_short()

@@ -46,7 +46,7 @@ if __name__ == "__main__":
                           margin_req=0.7,
                           spread=0.1,
                           margin_fee=1,
-                          trend_change_period=2,
+                          trend_change_period=1,
                           trend_change_percent=2
                          )
 
@@ -66,9 +66,8 @@ if __name__ == "__main__":
     # Buy and Hold to compare
 
     quotes_bh = StockData(rows=rows,
-                             title=symbol,
-                             spread=0.1,
-                            )
+                          title=symbol,
+                          spread=0.1)
 
     bh = BuyAndHold(
         data=[quotes_bh],
@@ -99,7 +98,7 @@ if __name__ == "__main__":
     fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {symbol}")
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=results.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
+    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=quotes.get_rows()['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

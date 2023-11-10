@@ -33,7 +33,7 @@ class Probability(Classifier):
 
     def prepare(self, rows=None):
         """Prepare the DataFrame for learning/estimation."""
-        df = pd.DataFrame(self._rows) if rows is None else pd.DataFrame(rows)  # Create the dataframe base on provided data
+        df = pd.DataFrame(self._rows) if rows is None else pd.DataFrame(rows)  # Create the dataframe based on provided data
 
         # Calculate required technical indicators
         ma_long = ta.sma(df[StockQuotes.AdjClose], length = self._period_long)  # Long SMA
@@ -55,7 +55,7 @@ class Probability(Classifier):
         return df[self._period_long-1:].reset_index().drop(['index'], axis=1)
 
     def get_buy_condition(self, df):
-        """Get buy condiiton to check signals."""
+        """Get buy conditon to check signals."""
         curr_quote = df[StockQuotes.AdjClose]
         next_quote = df[StockQuotes.AdjClose].shift(-abs(self._cycle_num))
 

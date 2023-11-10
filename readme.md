@@ -5,7 +5,7 @@
 - Obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and store it in an unified way.
 - Use an API to ease the development of AI-strategies for financial markets analysis.
 - Utilize the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach.
-- Use the own backtesting engine which takes into account a lot of expenses related to an actual trade/investment and supports strategies involving multiple securities.
+- Use the own backtesting engine which takes into account a lot of issues related to an actual trade/investment and supports strategies involving multiple securities.
 - Perform a real-time screening of the market using the screening API.
 - Generate reports.
 
@@ -15,13 +15,13 @@
 
 # Quick Start
 
-Here are some basic examples of how to use Fcore. Please note that all the provided examples are the kind of 'Hello World's' and are not intended to be a real market strategies.
+Here are some basic examples of how to use Fcore. Please note that all the provided examples are a kind of 'Hello World's' and are not intended to be a real market strategies.
 
 **The latest version of yfinance library is required to run these examples. Always update yfinace to the latest version using 'pip install yfinance --upgrade'**
 
 ## Data Management
 
-Fcore supports simultaneous usage of varios data sources. For example, you may obtain quotes using one data source and use another for fundamental data. The data will be cached in a database and also requests to sources which involve maximum number of queries per minute will be automatically delayed to avoid data source errors.
+Fcore supports simultaneous usage of varios data sources. For example, you may obtain quotes using one data source and use another for fundamental data. The data will be cached in a database and also requests to sources which involve maximum number of queries per minute will be automatically delayed to avoid data source errors. Make sure to add your API keys to the [settings.py](settings.py) file at first.
 
 ```python
 # Fetch quotes if needed. Otherwise just take them from a database.
@@ -34,15 +34,17 @@ avi.get_cash_flow()
 quotes = avi.get_quotes(queries=[Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 ```
 
-Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']* Invoke **python -m quickstart.min_data_management** to run the full example.
+Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']*
+
+Invoke **python -m quickstart.min_data_management** to run the full example.
 
 ## Tools
 
 Fcore has a Tools API to ease a data processing routine work. A tools may just perform some basic calculations (like technical indicators). However, it may also be used for automating complex machine learning tasks including incremental learning and traing a model based on datasets which do not fit in a memory.
 
-AI API is divided in two parts: The Classification API which allows to classify nearly every market event and The Regression API. As a basic example of using the Classification API, you may classify if it is a good time to open a long/short position.
+AI API is divided into two parts: The Classification API which allows to classify nearly every market event and The Regression API. As a basic example of using the Classification API you may classify if it is a good time to open a long/short position.
 
-You need to inherit a *Classification* class and override at least two methods: *prepare* for data structures preparation and *get_buy_condition / get_sell_condition* for establishing signals. For example, in this example we are trying to estimate if the security will grow in the nearest N trading cycles (depending on time span) based on the current fast and slow moving averages and volatility.
+You need to inherit a *Classification* class and override at least two methods: *prepare* for data structures preparation and *get_buy_condition / get_sell_condition* for establishing signals. For example, here we are trying to estimate if the security will grow in the nearest N trading cycles (depending on a time span) based on the current fast and slow moving averages and volatility.
 
 ```python
 class Probability(Classifier):
@@ -71,7 +73,7 @@ class Probability(Classifier):
         return (next_quote - curr_quote) / curr_quote >= self._true_ratio
 ```
 
-Using such basic tool we can train a model which will estimate if a security is most likely to grow in the following N trading cycles and give probabilities of a potential growth. The tool is used in this way:
+Using such basic tool we can train a model which will estimate if a security is most likely to grow in the following N trading cycles and give probabilities of the potential growth. The tool is used in this way:
 
 ```python
 prob = Probability(period_long=period_long,
@@ -84,6 +86,9 @@ prob = Probability(period_long=period_long,
                                       # quote in the following 5 cycles after getting the signal.
                    cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
                    algorithm=Algorithm.KNC)
+
+prob.learn()
+prob.calculate()
 ```
 
 Invoke **python -m quickstart.min_growth_probability** to run the example.

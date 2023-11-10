@@ -19,7 +19,7 @@ import numpy as np
 
 from threading import Thread, Event
 
-from data.futils import thread_available, logger
+from data.futils import thread_available, logger, add_column
 
 import copy
 
@@ -200,17 +200,6 @@ class BackTestData():
         """
         return self._rows
 
-    # TODO HIGH It is not thread safe and all calculated data should be stored separately in BackTestOperations
-    # instance. Data may be quickly grouped by the request from the operations instance. But here it should be read only.
-    def set_rows(self, rows):
-        """
-            Set data used in calculations.
-
-            Args:
-                ndarray: Data used in the backtesting strategy.
-        """
-        self._rows = rows
-
     def get_title(self):
         """
             Get symbol title.
@@ -315,19 +304,6 @@ class BackTestData():
         """
         return BackTestOperations(data=self, caller=caller)
 
-    # TODO HIGH It is not thread safe and should be moved to utils.
-    def delete_row(self, row_num):
-        """
-            Deletes a row from data.
-
-            Args:
-                row_num(int): row number
-        """
-        try:
-            self._rows = np.delete(self._rows, row_num, 0)
-        except IndexError as e:
-            raise BackTestError(f"Can not delete row {row_num} as it does not exist") from e
-
 #############################
 # Base backtesting operations
 #############################
@@ -388,6 +364,14 @@ class BackTestOperations():
         self._price_margin_req_long = None
         self._price_margin_req_short = None
 
+        ##############################
+        # Data specific initialization
+        ##############################
+
+        # Need to create a labelled numpy array of the same length as the main dataset with time stamp colomn
+        self._calc = np.zeros([len(self.data().get_rows()), ], dtype=[('ts', '<i8')])
+        self._calc['ts'] = self.data().get_rows()[Quotes.TimeStamp]
+
     def data(self):
         """
             Gets the used data class instance.
@@ -397,9 +381,70 @@ class BackTestOperations():
         """
         return self.__data
 
-    ############################################################
-    # General methodss with calculations for a particular symbol
-    ############################################################
+    def add_col(self, name, data=None, dtype=object):
+        """
+            Add new column to the calculations array.
+
+            Args:
+                name(str): label for the column
+                data(1d ndarray): data to add
+                dtype: type of data
+        """
+        if data is not None and len(data) != len(self._calc):
+            raise BackTestError(f"Length of appending data should equal the length of the base data: {len(data)} != {len(self._calc)}")
+
+        self._calc = add_column(self._calc, name, dtype, default=np.nan)
+
+        if data is not None:
+            self._calc[name] = data
+
+    def get_vals(self):
+        """
+            Get the calculated values dataset.
+
+            Returns:
+                ndarray: the calculated values dataset.
+        """
+        return self._calc
+
+    # TODO LOW Refactor the functions above (to get indexes, rows, values)
+    def get_val(self, offset=0, ts=None):
+        """
+            Get the row from the calculations dataset for a specified time stamp.
+
+            Args:
+                offset(int): offset from the time stamp row.
+                ts(int): time stamp to get the row. None for the current one.
+
+            Returns:
+                ndarray: or None if none found.
+        """
+        local_index = self.get_index(ts)
+
+        if local_index is None:
+            return None
+        else:
+            local_index += offset
+            return self._calc[local_index]
+
+    def get_avail_val(self, offset=0, ts=None):
+        """
+            Get the last available row from the calculations dataset for a specified time stamp.
+
+            Args:
+                offset(int): offset from the time stamp row.
+                ts(int): time stamp to get the row. None for the current one.
+
+            Returns:
+                ndarray: or None if none found.
+        """
+        local_index = self.get_avail_index(ts)
+
+        if local_index is None:
+            return None
+        else:
+            local_index += offset
+            return self._calc[local_index]
 
     def get_row(self, offset=0, ts=None):
         """
@@ -407,7 +452,10 @@ class BackTestOperations():
 
             Args:
                 offset(int): offset from the time stamp row.
-                ts(int): time stamp to get the row. None is no row found for this time stamp.
+                ts(int): time stamp to get the row. None for the current one.
+
+            Returns:
+                ndarray: or None if none found.
         """
         local_index = self.get_index(ts)
 
@@ -422,7 +470,10 @@ class BackTestOperations():
             Get the index of the current security data according to the time stamp.
 
             Args:
-                ts(int): time stamp to get the index for. None if not found.
+                ts(int): time stamp to get the index for. None for the current one.
+
+            Returns:
+                int: index or None if not found.
         """
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
@@ -440,7 +491,10 @@ class BackTestOperations():
 
             Args:
                 offset(int): offset from the time stamp row.
-                ts(int): time stamp to get the row. None is no row found for this time stamp.
+                ts(int): time stamp to get the row. None for the current one.
+
+            Returns:
+                ndarray: or None if none found.
         """
         local_index = self.get_avail_index(ts)
 
@@ -456,6 +510,9 @@ class BackTestOperations():
 
             Args:
                 ts(int): time stamp to get the last available index for. None if not found.
+
+            Returns:
+                int: index or None if not found.
         """
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
@@ -466,6 +523,10 @@ class BackTestOperations():
 
         if len(idx):
             return idx[-1]
+
+    ############################################################
+    # General methodss with calculations for a particular symbol
+    ############################################################
 
     def check_if_finished(self):
         """

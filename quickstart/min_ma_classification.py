@@ -78,10 +78,10 @@ results_cmp = ma.get_results()
 report = Report(data=results_cls, width=max(len(rows_test), min_width), margin=True)
 
 fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
-fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=results_cls.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
+fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
 
 fig_cmp = report.add_quotes_chart(title="Regular MA/Quote cross Example for Comparison", data=results_cmp, height=height)
-fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.Symbols[0].Tech[0], mode='lines', name="MA", line=dict(color="green")))
+fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
 
 fig_portf = report.add_portfolio_chart(height=height)
 fig_portf.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.TotalValue, mode='lines', name="MA Cross Results"))

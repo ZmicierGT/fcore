@@ -7,8 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 from backtest.base import BackTest
 from backtest.base import BackTestError
 
-from data.futils import add_column
-
 import pandas as pd
 import pandas_ta as ta
 
@@ -69,7 +67,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_row()['ma'] <= self.exec().get_close(True)
+        return self.exec().get_val()['ma'] <= self.exec().get_close(True)
 
     def do_tech_calculation(self, ex):
         """
@@ -85,8 +83,8 @@ class MA(BackTest):
         else:
             ma = ta.ema(df[ex.data().close], length = self._period)
 
-        ex.data().set_rows(rows=add_column(ex.data().get_rows(), name='ma', dtype=float))
-        ex.data().get_rows()['ma'] = ma
+        # Append data to the calculations dataset
+        ex.add_col(name='ma', data=ma, dtype=float)
 
     def do_calculation(self):
         """

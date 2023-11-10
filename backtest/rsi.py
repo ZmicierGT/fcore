@@ -83,9 +83,8 @@ class RSI(BackTest):
         df = pd.DataFrame(ex.data().get_rows())
         rsi = ta.rsi(df[ex.data().close], length=self._period)
 
-        # Add the column with rsi data to the dataset
-        ex.data().set_rows(rows=add_column(ex.data().get_rows(), name='rsi', dtype=float))
-        ex.data().get_rows()['rsi'] = rsi
+        # Append data to the calculations dataset
+        ex.add_col(name='rsi', data=rsi, dtype=float)
 
     def do_calculation(self):
         """
@@ -132,20 +131,20 @@ class RSI(BackTest):
 
             for ex in self.all_exec():
                 if ex.get_index():
-                    ex_val = ex.get_row()['rsi']
+                    ex_val = ex.get_val()['rsi']
                 else:
                     ex_val = None
 
-                if max_ex is None or (ex_val is not None and ex_val > max_ex.get_row()['rsi']):
+                if max_ex is None or (ex_val is not None and ex_val > max_ex.get_val()['rsi']):
                     max_ex = ex
 
-                if min_ex is None or (ex_val is not None and ex_val < min_ex.get_row()['rsi']):
+                if min_ex is None or (ex_val is not None and ex_val < min_ex.get_val()['rsi']):
                     min_ex = ex
 
             if (
-                max_ex.get_row(offset=-1)['rsi'] is not None and max_ex.get_row()['rsi'] is not None and
-                max_ex.get_row(offset=-1)['rsi'] > self.__resistance and
-                max_ex.get_row()['rsi'] < self.__resistance
+                max_ex.get_val(offset=-1)['rsi'] is not None and max_ex.get_val()['rsi'] is not None and
+                max_ex.get_val(offset=-1)['rsi'] > self.__resistance and
+                max_ex.get_val()['rsi'] < self.__resistance
                ):
 
                 max_ex.close_all_long()
@@ -154,9 +153,9 @@ class RSI(BackTest):
                     open_short = True
 
             if (
-                min_ex.get_row(offset=-1)['rsi'] is not None and min_ex.get_row()['rsi'] is not None and
-                min_ex.get_row(offset=-1)['rsi'] < self.__support and
-                min_ex.get_row()['rsi'] > self.__support
+                min_ex.get_val(offset=-1)['rsi'] is not None and min_ex.get_val()['rsi'] is not None and
+                min_ex.get_val(offset=-1)['rsi'] < self.__support and
+                min_ex.get_val()['rsi'] > self.__support
                ):
 
                 min_ex.close_all_short()

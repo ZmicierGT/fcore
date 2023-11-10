@@ -89,14 +89,7 @@ if __name__ == "__main__":
 
     # Perform a backtest
 
-    quotes_cls = StockData(rows=rows,
-                           title=symbol,
-                           spread=0.1,
-                           trend_change_period=change_period,
-                           trend_change_percent=change_percent
-                          )
-
-    quotes_cmp = StockData(rows=rows,
+    quotes = StockData(rows=rows,
                            title=symbol,
                            spread=0.1,
                            trend_change_period=change_period,
@@ -104,7 +97,7 @@ if __name__ == "__main__":
                           )
 
     try:
-        classification = MAClassification(data=[quotes_cls],
+        classification = MAClassification(data=[quotes],
                                           commission=2.5,
                                           initial_deposit=10000,
                                           periodic_deposit=500,
@@ -136,7 +129,7 @@ if __name__ == "__main__":
     # Compare with regular MA-cross strategy
 
     # Create the 'regular' MA-Cross result for comparison
-    ma = MA(data=[quotes_cmp],
+    ma = MA(data=[quotes],
             commission=2.5,
             initial_deposit=10000,
             periodic_deposit=500,
@@ -163,13 +156,13 @@ if __name__ == "__main__":
     fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=quotes_cls.get_rows()['ma'], mode='lines', name="MA", line=dict(color="green")))
+    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add strategy comparison to the second chart
     fig_cmp = report.add_quotes_chart(title="Regular MA/Quote cross Example for Comparison", data=results_cmp, height=height)
 
     # Append MA values to the comparison chart
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=quotes_cmp.get_rows()['ma'], mode='lines', name="MA", line=dict(color="green")))
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

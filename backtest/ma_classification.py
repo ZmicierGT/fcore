@@ -77,10 +77,10 @@ class MAClassification(MA):
 
         # Set MA values used by base testing class. Add empty values at the beginning or the column.
         ma = pd.DataFrame([np.nan] * (self._period - 1))
+        ma = pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True)
 
-        # Append MA values to the main dataset
-        ex.data().set_rows(rows=add_column(ex.data().get_rows(), name='ma', dtype=float))
-        ex.data().get_rows()['ma'] = pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True)
+        # Append data to the calculations dataset
+        ex.add_col(name='ma', data=ma, dtype=float)
 
     def classifier(self):
         """

@@ -115,8 +115,8 @@ if __name__ == "__main__":
     # Add a custom chart with RSI values
     rsi_fig = subplots.make_subplots()
 
-    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=data_a.get_rows()['rsi'], mode='lines', name=f"RSI {symbols[0]}"))
-    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=data_b.get_rows()['rsi'], mode='lines', name=f"RSI {symbols[1]}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=rsi.exec(0).get_vals()['rsi'], mode='lines', name=f"RSI {symbols[0]}"))
+    rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=rsi.exec(1).get_vals()['rsi'], mode='lines', name=f"RSI {symbols[1]}"))
 
     # Add support and resistance lines to the second chart
     rsi_fig.add_trace(go.Scatter(x=results.DateTime, y=support_arr, mode='lines', name="Support"))

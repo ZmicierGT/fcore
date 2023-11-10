@@ -254,6 +254,21 @@ def add_column(rows, name, dtype=object, default=0.0):
 
     return rows
 
+def delete_row(self, data, row_num):
+    """
+        Deletes a row from data.
+
+        Args:
+            data(ndarray): dataset to delete a row
+            row_num(int): row number
+    """
+    try:
+        self._rows = np.delete(data, row_num, 0)
+    except IndexError as e:
+        raise KeyError(f"Can not delete row {row_num} as it does not exist") from e
+
+    return data
+
 def logger(verbosity, message):
     """
         Depending on a verbosity flag, display a logging message.

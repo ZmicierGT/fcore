@@ -7,6 +7,8 @@ Distributed under Fcore License 1.1 (see license.md)
 from backtest.ma import MA
 from backtest.base import BackTestError
 
+from data.futils import add_column
+
 from tools.ma_classifier import MAClassifier
 from tools.base import ToolError
 
@@ -74,12 +76,11 @@ class MAClassification(MA):
             raise BackTestError(e) from e
 
         # Set MA values used by base testing class. Add empty values at the beginning or the column.
-        ma = pd.DataFrame([np.nan] * self._period)
-        # Append MA values to tech
-        ex.append_calc_data(pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True))
+        ma = pd.DataFrame([np.nan] * (self._period - 1))
 
-        # Append MA Classifier values to Tech
-        ex.append_calc_data(self._ma_cls.get_results())
+        # Append MA values to the main dataset
+        ex.data().set_rows(rows=add_column(ex.data().get_rows(), name='ma', dtype=float))
+        ex.data().get_rows()['ma'] = pd.concat([ma[0], self._ma_cls.get_results()['ma']], ignore_index=True)
 
     def classifier(self):
         """

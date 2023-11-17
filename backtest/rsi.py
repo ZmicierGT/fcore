@@ -104,6 +104,7 @@ class RSI(BackTest):
 
         length = len(self.get_main_data().get_rows())
 
+        # TODO MID This check may be put to setup
         if length < self._period:
             raise BackTestError(f"Not enough data to calculate a period: {length} < {self._period}")
 

@@ -109,8 +109,8 @@ class StockOperations(BackTestOperations):
                 if excess != 0:
                     self._long_positions_cash = round(self._long_positions_cash)
                     self.get_caller().add_cash(excess * self.get_close())
-                else:
-                    self._long_positions_cash = int(self._long_positions_cash)  # Get rid of possible .0
+
+                self._long_positions_cash = int(self._long_positions_cash)  # Get rid of possible .0
 
                 # In the case of margin positions, calculate total margin used and readjust all the margin portfolio.
                 # The adjustment is implemented as a comission and spread free closure of all margin positions with
@@ -135,6 +135,8 @@ class StockOperations(BackTestOperations):
                     self._portfolio.extend(repeat(self.get_buy_price(), new_margin_positions))
 
                     self._long_positions = self._long_positions_cash + new_margin_positions
+                else:
+                    self._long_positions = self._long_positions_cash
             else:
                 # Handling short positions
                 if self._short_positions != 0:
@@ -155,6 +157,9 @@ class StockOperations(BackTestOperations):
                     self._portfolio.extend(repeat(self.get_sell_price(), new_short_positions))
 
                     self._short_positions = new_short_positions
+
+            self.get_caller().log(f"New long positions after split (total long/cash long/short): "
+                                  f"{self.get_long_positions} / {self._long_positions_cash} / {self._short_positions}")
 
     def apply_other_balance_changes(self):
         """

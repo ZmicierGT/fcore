@@ -1017,6 +1017,7 @@ class BackTestOperations():
         return int(self.get_future_margin_buying_power() / self.get_buy_price())
 
     # TODO LOW check if this max() is needed.
+    # TODO LOW consider renaming to avoid the word 'shares' as it may be not share-related.
     def get_total_shares_num(self):
         """
             Get total number of shares which we may buy.

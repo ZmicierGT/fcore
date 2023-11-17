@@ -50,6 +50,7 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
+            # TODO MID Check why update warning is displayed
             rows = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute, verbosity=True).get()
         except FdataError as e:
             sys.exit(e)

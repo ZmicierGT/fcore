@@ -51,6 +51,14 @@ snp = ['A', 'AAL', 'AAP', 'AAPL', 'ABBV', 'ABC', 'ABMD', 'ABT', 'ACN', 'ADBE', '
        'WFC', 'WHR', 'WLTW', 'WM', 'WMB', 'WMT', 'WRB', 'WRK', 'WST', 'WU', 'WY', 'WYNN', 'XEL', 'XLNX', 'XOM', 'XRAY',\
        'XYL', 'YUM', 'ZBH', 'ZBRA', 'ZION', 'ZTS']
 
+# SCHD Composition
+schd = ['AMGN', 'AVGO', 'VZ', 'KO', 'MRK', 'PEP', 'ABBV', 'CSCO', 'HD', 'PFE', 'TXN', 'CVX', 'UPS', 'LMT', 'BLK', 'ADP',\
+        'MO', 'EOG', 'BX', 'ITW', 'MMM', 'USB', 'VLO', 'KMB', 'F', 'PAYX', 'ALL', 'FAST', 'OKE', 'NEM', 'LYB', 'TROW',\
+        'CTRA', 'MTB', 'DRI', 'FITB', 'HBAN', 'NTRS', 'RF', 'SNA', 'PKG', 'K', 'TSN', 'AMCR', 'WSO', 'BBY', 'FNF', 'IP',\
+        'IPG', 'NRG', 'KEY', 'WSM', 'RHI', 'UNM', 'HRB', 'PARA', 'WHR', 'FAF', 'CMA', 'ZION', 'MSM', 'WU', 'RDN', 'HUN',\
+        'OZK', 'SNV', 'AAP', 'JHG', 'LAZ', 'WEN', 'LEG', 'CRI', 'CATY', 'APAM', 'MDC', 'IBOC', 'CVBF', 'BOH', 'OFG',\
+        'BANR', 'AGM', 'CBRL', 'CHCO', 'NWBI', 'CNS', 'FCF', 'STC', 'KFRC', 'STBA', 'BKE', 'SRCE', 'RGR',\
+        'CWEN-A', 'GES', 'PFC', 'ETD', 'HFWA', 'EBF', 'HAFC', 'CPF']
 
 # TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 # TODO LOW remove plurals here

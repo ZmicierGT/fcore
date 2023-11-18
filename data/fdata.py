@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 14
+DB_VERSION = 15
 
 # TODO LOW Consider checking of sqlite version as well
 

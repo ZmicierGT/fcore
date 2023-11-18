@@ -295,8 +295,5 @@ class Polygon(stock.StockFetcher):
     def fetch_cash_flow(self):
         raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
 
-    def fetch_earnings(self):
-        raise FdataError(f"Earnings statement data is not supported (yet) for the source {type(self).__name__}")
-
     def get_recent_data(self, to_cache=False):
         raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")

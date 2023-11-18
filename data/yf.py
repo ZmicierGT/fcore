@@ -284,6 +284,3 @@ class YF(stock.StockFetcher):
 
     def fetch_cash_flow(self):
         raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
-
-    def fetch_earnings(self):
-        raise FdataError(f"Earnings statement data is not supported (yet) for the source {type(self).__name__}")

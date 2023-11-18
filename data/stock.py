@@ -206,7 +206,7 @@ class ROStockData(ReadOnlyData):
                                 is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
-                                reported_date INTEGER NOT NULL,
+                                reported_date INTEGER,
                                 reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 gross_profit INTEGER,
@@ -272,7 +272,7 @@ class ROStockData(ReadOnlyData):
                                 bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
-                                reported_date INTEGER NOT NULL,
+                                reported_date INTEGER,
                                 reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 total_assets INTEGER,
@@ -351,7 +351,7 @@ class ROStockData(ReadOnlyData):
                                 cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
-                                reported_date INTEGER NOT NULL,
+                                reported_date INTEGER,
                                 reported_period INTEGER NOT NULL,
                                 fiscal_date_ending INTEGER NOT NULL,
                                 operating_cashflow INTEGER,
@@ -942,7 +942,6 @@ class RWStockData(ROStockData, ReadWriteData):
         num_before = self.get_balance_sheet_num()
 
         for report in reports:
-            print(report['fiscalDateEnding'])
             insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
                                         source_id,
 										reported_date,
@@ -1636,10 +1635,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def fetch_cash_flow(self):
         """Abstract method to fetch cash flow"""
-
-    @abc.abstractmethod
-    def fetch_earnings(self):
-        """Abstract method to fetch earnings"""
 
     @abc.abstractmethod
     def fetch_dividends(self):

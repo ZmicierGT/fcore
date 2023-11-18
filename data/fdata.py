@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 13
+DB_VERSION = 14
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -67,10 +67,10 @@ class Subquery():
         """
         subquery = f"""(SELECT {self.column}
                             FROM {self.table} report_tbl
-                            WHERE reported_date <= time_stamp
+                            WHERE fiscal_date_ending <= time_stamp
                             AND symbol_id = quotes.symbol_id
                             {self.condition}
-                            ORDER BY reported_date DESC LIMIT 1) AS {self.title}\n"""
+                            ORDER BY fiscal_date_ending DESC LIMIT 1) AS {self.title}\n"""
 
         return subquery
 

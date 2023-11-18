@@ -37,11 +37,6 @@ class AVStock(stock.StockFetcher):
         self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for AV
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
-        # Cached earnings to estimate reporting dates.
-        self.earnings = None
-        self.earnings_first_date = None
-        self.earnings_last_date = None
-
         # Cached EOD quotes to get dividends and split data
         self._eod = None
         self._eod_symbol = None
@@ -290,10 +285,6 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: fundamental data
         """
-        # Check if earnings data is cached for this interval. If not, fetch it.
-        if self.earnings_cached() is False:
-            self.fetch_earnings()
-
         url = f'https://www.alphavantage.co/query?function={function}&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get fundamental data
@@ -319,27 +310,12 @@ class AVStock(stock.StockFetcher):
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(get_dt)
         reports['fiscalDateEnding'] = reports['fiscalDateEnding'].apply(lambda x: int(datetime.timestamp(x)))
 
-        # Align data in both reports
-        adj_earnings = self.earnings[self.earnings['fiscalDateEnding'].isin(reports['fiscalDateEnding'])]
-        adj_earnings = adj_earnings.reset_index(drop=True)
-
-        # Drop exceeding rows. Sometimes they may present due to the broken data obtained through API.
-        len_diff = adj_earnings.shape[0] - reports.shape[0]
-
-        if len_diff > 0:
-            adj_earnings = adj_earnings.drop(adj_earnings.tail(len_diff).index)
-        elif len_diff < 0:
-            reports = reports.drop(reports.tail(-abs(len_diff)).index)
-
-        # Add reporting date from earnings
-        try:
-            reports['reportedDate'] = np.where(reports['fiscalDateEnding'].equals(adj_earnings['fiscalDateEnding']), \
-                adj_earnings['reportedDate'], None)
-        except ValueError as e:
-            raise FdataError(f"Can't align dates of reports. This may be due to the broken data obtained from API: {e}") from e
+        reports['reportedDate'] = np.nan
 
         # Replace AV "None" to SQL 'NULL'
         reports = reports.replace(['None'], 'NULL')
+        # Replave Python None to SQL 'NULL'
+        reports = reports.fillna(value='NULL')
 
         # Convert dataframe to dictionary
         fundamental_results = reports.T.to_dict().values()
@@ -382,6 +358,9 @@ class AVStock(stock.StockFetcher):
         """
         return self._fetch_fundamentals('CASH_FLOW')
 
+    # TODO MID This information is particular to AV data source. Think of setting up a database in
+    # data source implementation
+
     # TODO LOW Think if the behavior above is correct.
     # If eventually reportedEPS is None (sometimes it is possible because of API issue), it won't be added to the DB.
     # However, it may be used for reported date estimation for other reports.
@@ -395,10 +374,6 @@ class AVStock(stock.StockFetcher):
             Returns:
                 list: earnings data
         """
-        # Check if earnings are already cached for this interval
-        if self.earnings_cached():
-            return self.earnings.T.to_dict().values()
-
         url = f'https://www.alphavantage.co/query?function=EARNINGS&symbol={self.symbol}&apikey={self.api_key}'
 
         # Get earnings data
@@ -411,7 +386,6 @@ class AVStock(stock.StockFetcher):
             raise FdataError(f"Can't parse results. Likely because of API key limit: {e}") from e
 
         # Convert reported date to UTC-adjusted timestamp
-        # TODO LOW Check if it is needed
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(get_dt)
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 
@@ -441,10 +415,6 @@ class AVStock(stock.StockFetcher):
         earnings = earnings.replace(['None'], 'NULL')
         # Replave Python None to SQL 'NULL'
         earnings = earnings.fillna(value='NULL')
-
-        self.earnings = earnings
-        self.earnings_first_date = self.first_date
-        self.earnings_last_date = self.last_date
 
         # Convert dataframe to dictionary
         earnings_results = earnings.T.to_dict().values()
@@ -593,15 +563,3 @@ class AVStock(stock.StockFetcher):
         df_result['split_ratio'] = df['split']
 
         return df_result.T.to_dict().values()
-
-    def earnings_cached(self):
-        """
-            Check if earnings are cached for the current interval.
-            Reporting dates present in earnings reports only. They are needed to estimate reporting dates for
-            other fundamentals.
-
-            Returns:
-                bool: indicates if earnings are cached.
-        """
-        return self.earnings is not None and self.earnings_first_date == self.first_date \
-            and self.earnings_last_date == self.last_date

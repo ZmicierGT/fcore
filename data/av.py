@@ -411,6 +411,7 @@ class AVStock(stock.StockFetcher):
             raise FdataError(f"Can't parse results. Likely because of API key limit: {e}") from e
 
         # Convert reported date to UTC-adjusted timestamp
+        # TODO LOW Check if it is needed
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(get_dt)
         quarterly_earnings['reportedDate'] = quarterly_earnings['reportedDate'].apply(lambda x: int(datetime.timestamp(x)))
 

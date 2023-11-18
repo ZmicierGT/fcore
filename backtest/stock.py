@@ -158,8 +158,8 @@ class StockOperations(BackTestOperations):
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"New long positions after split (total long/cash long/short): "
-                                  f"{self.get_long_positions} / {self._long_positions_cash} / {self._short_positions}")
+            self.get_caller().log(f"New positions after split (total long / cash long / short): "
+                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions}")
 
     def apply_other_balance_changes(self):
         """

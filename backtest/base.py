@@ -13,7 +13,7 @@ from itertools import repeat
 
 import time
 
-from data.fvalues import Quotes, trading_days_per_year
+from data.fvalues import Quotes, trading_days_per_year, Weighted
 
 import numpy as np
 
@@ -1548,6 +1548,7 @@ class BackTest(metaclass=abc.ABCMeta):
                  inflation=0,
                  margin_req=0,
                  margin_rec=0,
+                 weighted=Weighted.Equal,
                  offset=0,
                  timeout=10,
                  verbosity=False
@@ -1567,6 +1568,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 inflation(float): annual inflation used in the calculation.
                 margin_req(float): determines the buying power of the cash balance for a margin account.
                 margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
+                weighted(Weighted): portfolio weighting method.
                 offset(int): the offset for the calculation.
                 timeout(int): timeout in seconds to cancel the calculation if some thread can not finish in time.
                 verbosity(bool): indicates if to print the debug information during calculation.
@@ -1635,6 +1637,9 @@ class BackTest(metaclass=abc.ABCMeta):
         # Recommended loan to cash should be less than required
         if margin_rec > margin_req:
             raise BackTestError(f"load_to_asset_rec should be less than margin_req, however {margin_rec} is not < {margin_req}")
+
+        # Portfolio weighting method
+        self._weighted = weighted
 
         # Offset for calculation
         if offset < 0:

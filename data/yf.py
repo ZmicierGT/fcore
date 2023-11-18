@@ -123,7 +123,8 @@ class YF(stock.StockFetcher):
         length = len(data)
 
         if length == 0:
-            raise FdataError(f"Can not fetch quotes for {self.symbol}. No quotes fetched.")
+            self.log(f"Can not fetch quotes for {self.symbol}. No quotes fetched.")
+            return
 
         data = data.reset_index()
 

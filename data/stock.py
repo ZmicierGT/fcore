@@ -942,6 +942,7 @@ class RWStockData(ROStockData, ReadWriteData):
         num_before = self.get_balance_sheet_num()
 
         for report in reports:
+            print(report['fiscalDateEnding'])
             insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
                                         source_id,
 										reported_date,

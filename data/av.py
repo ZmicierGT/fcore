@@ -358,9 +358,6 @@ class AVStock(stock.StockFetcher):
         """
         return self._fetch_fundamentals('CASH_FLOW')
 
-    # TODO MID This information is particular to AV data source. Think of setting up a database in
-    # data source implementation
-
     # TODO LOW Think if the behavior above is correct.
     # If eventually reportedEPS is None (sometimes it is possible because of API issue), it won't be added to the DB.
     # However, it may be used for reported date estimation for other reports.

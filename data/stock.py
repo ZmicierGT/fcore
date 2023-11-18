@@ -192,6 +192,8 @@ class ROStockData(ReadOnlyData):
             except self.Error as e:
                 raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
 
+        # TODO MID As fundamental data is not standartised, separate tables should be set up for each data source.
+
         # Check if we need to create a table income_statement
         try:
             check_income_statement = "SELECT name FROM sqlite_master WHERE type='table' AND name='income_statement';"
@@ -420,10 +422,10 @@ class ROStockData(ReadOnlyData):
                                     earnings_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     source_id INTEGER NOT NULL,
                                     symbol_id INTEGER NOT NULL,
-                                    reported_date INTEGER NOT NULL,
+                                    reported_date INTEGER,
                                     reported_period INTEGER NOT NULL,
                                     fiscal_date_ending INTEGER NOT NULL,
-                                    reported_eps INTEGER NOT NULL,
+                                    reported_eps INTEGER,
                                     estimated_eps INTEGER,
                                     surprise INTEGER,
                                     surprise_percentage INTEGER,

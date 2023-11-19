@@ -493,7 +493,7 @@ class AVStock(stock.StockFetcher):
         num_before = self.get_income_statement_num()
 
         for report in reports:
-            insert_report = f"""INSERT OR {self._update} INTO income_statement (symbol_id,
+            insert_report = f"""INSERT OR {self._update} INTO {self._income_statement_tbl} (symbol_id,
                                         source_id,
 										reported_date,
 										reported_period,
@@ -586,7 +586,7 @@ class AVStock(stock.StockFetcher):
         num_before = self.get_balance_sheet_num()
 
         for report in reports:
-            insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
+            insert_report = f"""INSERT OR {self._update} INTO {self._balance_sheet_tbl} (symbol_id,
                                         source_id,
 										reported_date,
 										reported_period,
@@ -701,7 +701,7 @@ class AVStock(stock.StockFetcher):
         num_before = self.get_cash_flow_num()
 
         for report in reports:
-            insert_report = f"""INSERT OR {self._update} INTO cash_flow (symbol_id,
+            insert_report = f"""INSERT OR {self._update} INTO {self._cash_flow_tbl} (symbol_id,
                                         source_id,
 										reported_date,
 										reported_period,
@@ -800,7 +800,7 @@ class AVStock(stock.StockFetcher):
         num_before = self.get_earnings_num()
 
         for report in reports:
-            insert_report = f"""INSERT OR {self._update} INTO earnings (symbol_id,
+            insert_report = f"""INSERT OR {self._update} INTO av_earnings (symbol_id,
                                         source_id,
 										reported_date,
 										reported_period,
@@ -823,7 +823,7 @@ class AVStock(stock.StockFetcher):
             try:
                 self.cur.execute(insert_report)
             except self.Error as e:
-                raise FdataError(f"Can't add a record to a table 'earnings': {e}\n\nThe query is\n{insert_report}") from e
+                raise FdataError(f"Can't add a record to a table 'av_earnings': {e}\n\nThe query is\n{insert_report}") from e
 
         self.commit()
 
@@ -841,7 +841,7 @@ class AVStock(stock.StockFetcher):
         """
         return self._fetch_data_if_none(column='earnings_max_ts',
                                         interval_table='av_earnings_intervals',
-                                        data_table='earnings',
+                                        data_table='av_earnings',
                                         num_method=self.get_earnings_num,
                                         add_method=self.add_earnings,
                                         fetch_method=self.fetch_earnings)

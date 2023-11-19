@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 15
+DB_VERSION = 16
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -33,46 +33,6 @@ class FdataError(Exception):
     """
         Base data exception class.
     """
-
-class Subquery():
-    """
-        Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
-    """
-    def __init__(self, table, column, condition='', title=None):
-        """
-            Initializes the instance of Subquery class.
-
-            Args:
-                table(str): table for subquery.
-                column(str): column to obtain.
-                condition(str): additional SQL condition for the subquery.
-                title(str): optional title for the output column (the same as column name by default)
-        """
-        self.table = table
-        self.column = column
-        self.condition = condition
-
-        # Use the default column name as the title if the title is not specified
-        if title is None:
-            self.title = column
-        else:
-            self.title = title
-
-    def generate(self):
-        """
-            Generates the subquery based on the provided data.
-
-            Returns:
-                str: SQL expression for the subquery
-        """
-        subquery = f"""(SELECT {self.column}
-                            FROM {self.table} report_tbl
-                            WHERE fiscal_date_ending <= time_stamp
-                            AND symbol_id = quotes.symbol_id
-                            {self.condition}
-                            ORDER BY fiscal_date_ending DESC LIMIT 1) AS {self.title}\n"""
-
-        return subquery
 
 class ReadOnlyData():
     """

@@ -11,12 +11,11 @@ def_last_date = 9999999999  # Latest supported timestamp
 
 trading_days_per_year = 252
 
-# DJIA composition (EDOW for equal weighted ETF for comparison)
-# TODO LOW Check why sometimes there is a warning regarding NKE
+# DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted)
 djia = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\
         'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT']
 
-# S&P 500 Composition (RSP for equal weighted ETF for comparison)
+# S&P 500 Composition (RSP for equal weighted ETF for comparison, SPY for Cap)
 snp500 = ['A', 'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI', 'ADM', 'ADP', 'ADSK', 'AEE', 'AEP', \
        'AES', 'AFL', 'AIG', 'AIZ', 'AJG', 'AKAM', 'ALB', 'ALGN', 'ALK', 'ALL', 'ALLE', 'AMAT', 'AMCR', 'AMD', 'AME', \
        'AMGN', 'AMP', 'AMT', 'AMZN', 'ANET', 'ANSS', 'AON', 'AOS', 'APA', 'APD', 'APH', 'APTV', 'ARE', 'ATO', 'AVB', \
@@ -51,7 +50,7 @@ snp500 = ['A', 'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI
        'WAT', 'WBA', 'WBD', 'WDC', 'WEC', 'WELL', 'WFC', 'WHR', 'WM', 'WMB', 'WMT', 'WRB', 'WRK', 'WST', 'WTW', 'WY', \
        'WYNN', 'XEL', 'XOM', 'XRAY', 'XYL', 'YUM', 'ZBH', 'ZBRA', 'ZION', 'ZTS']
 
-# SCHD Composition
+# SCHD Composition (Cap)
 schd = ['AMGN', 'AVGO', 'VZ', 'KO', 'MRK', 'PEP', 'ABBV', 'CSCO', 'HD', 'PFE', 'TXN', 'CVX', 'UPS', 'LMT', 'BLK', 'ADP',\
         'MO', 'EOG', 'BX', 'ITW', 'MMM', 'USB', 'VLO', 'KMB', 'F', 'PAYX', 'ALL', 'FAST', 'OKE', 'NEM', 'LYB', 'TROW',\
         'CTRA', 'MTB', 'DRI', 'FITB', 'HBAN', 'NTRS', 'RF', 'SNA', 'PKG', 'K', 'TSN', 'AMCR', 'WSO', 'BBY', 'FNF', 'IP',\
@@ -60,15 +59,16 @@ schd = ['AMGN', 'AVGO', 'VZ', 'KO', 'MRK', 'PEP', 'ABBV', 'CSCO', 'HD', 'PFE', '
         'BANR', 'AGM', 'CBRL', 'CHCO', 'NWBI', 'CNS', 'FCF', 'STC', 'KFRC', 'STBA', 'BKE', 'SRCE', 'RGR',\
         'CWEN-A', 'GES', 'PFC', 'ETD', 'HFWA', 'EBF', 'HAFC', 'CPF']
 
-# RSPT Composition
-rspt = ['AAPL', 'ACN', 'ADBE', 'ADI', 'ADSK', 'AGPXX', 'AKAM', 'AMAT', 'AMD', 'ANET', 'ANSS', 'APH', \
+# RSPT Composition (Equal)
+# TODO LOW Likely need to remove AGPXX
+rspt = ['AAPL', 'ACN', 'ADBE', 'ADI', 'ADSK', 'AKAM', 'AMAT', 'AMD', 'ANET', 'ANSS', 'APH', \
         'AVGO', 'CDNS', 'CDW', 'CRM', 'CSCO', 'CTSH', 'ENPH', 'EPAM', 'FFIV', 'FICO', 'FSLR', 'FTNT', \
         'GEN', 'GLW', 'HPE', 'HPQ', 'IBM', 'INTC', 'INTU', 'IT', 'JNPR', 'KEYS', 'KLAC', 'LRCX', 'MCHP', \
         'MPWR', 'MSFT', 'MSI', 'MU', 'NOW', 'NTAP', 'NVDA', 'NXPI', 'ON', 'ORCL', 'PANW', 'PTC', 'QCOM', \
         'QRVO', 'ROP', 'SEDG', 'SNPS', 'STX', 'SWKS', 'TDY', 'TEL', 'TER', 'TRMB', 'TXN', 'TYL', 'VRSN', \
         'WDC', 'ZBRA']
 
-# Nasdaq 100 composition (QQQE for equal weighted ETF for comparison)
+# Nasdaq 100 composition (QQQE for equal weighted ETF for comparison, QQQ for Cap)
 nasdaq100 = ['AAPL', 'ABNB', 'ADBE', 'ADI', 'ADP', 'ADSK', 'AEP', 'ALGN', 'AMAT', 'AMD', 'AMGN', 'AMZN', 'ANSS', 'ASML', \
              'ATVI', 'AVGO', 'AZN', 'BIIB', 'BKNG', 'BKR', 'CDNS', 'CEG', 'CHTR', 'CMCSA', 'COST', 'CPRT', 'CRWD', \
              'CSCO', 'CSGP', 'CSX', 'CTAS', 'CTSH', 'DDOG', 'DLTR', 'DXCM', 'EA', 'EBAY', 'ENPH', 'EXC', 'FANG', 'FAST', \

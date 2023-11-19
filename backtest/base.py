@@ -485,6 +485,8 @@ class BackTestOperations():
         if len(idx):
             return idx[0]
 
+        return None
+
     def get_avail_row(self, offset=0, ts=None):
         """
             Get the last available row from dataset for a specified time stamp.

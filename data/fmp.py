@@ -208,7 +208,10 @@ class FmpStock(stock.StockFetcher):
 
         for result in results:
             # Need to convert date to a time stamp
-            result['date'] = int(get_dt(result['date'], pytz.UTC).replace(hour=23, minute=59, second=59).timestamp())
+            try:
+                result['date'] = int(get_dt(result['date'], pytz.UTC).replace(hour=23, minute=59, second=59).timestamp())
+            except TypeError as e:
+                raise FdataError(f"Unexpected data. API key limit is possible. {e}")
 
             insert_cap = f"""INSERT OR {self._update} INTO fmp_capitalization (symbol_id,
                                         source_id,
@@ -238,17 +241,19 @@ class FmpStock(stock.StockFetcher):
         if self.is_connected() is False:
             self.db_connect()
 
-        num = self.get_last_modified('fmp_capitalization')
+        num = self.get_cap_num()
 
-        current = min(datetime.now(), self.last_date)
+        mod_ts = self.get_last_modified('fmp_capitalization')
+
+        current = min(datetime.now(pytz.UTC).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
         # Fetch data if no data presend or day difference between current/requested data more than 1 day
-        if num is None:
+        if mod_ts is None:
             self.add_cap(self.fetch_cap())
         else:
-            days_delta = (current - get_dt(num, pytz.UTC)).days
+            days_delta = (current - get_dt(mod_ts, pytz.UTC)).days
 
-            if days_delta:
+            if self.last_date_ts > mod_ts and days_delta:
                 self.add_cap(self.fetch_cap(days_delta + 1))
 
         new_num = self.get_cap_num()

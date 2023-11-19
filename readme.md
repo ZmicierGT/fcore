@@ -31,7 +31,7 @@ avi = av.AVStock(symbol='IBM')  # Use another source for fundamentals
 avi.get_cash_flow()
 
 # Get combined data (quotes + fundamentals) in one query
-quotes = avi.get_quotes(queries=[Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
+quotes = avi.get_quotes(queries=[av.AvSubquery('av_cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 ```
 
 Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']*

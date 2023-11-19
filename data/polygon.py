@@ -297,3 +297,21 @@ class Polygon(stock.StockFetcher):
 
     def get_recent_data(self, to_cache=False):
         raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")
+
+    def get_income_statement_num(self):
+        raise FdataError(f"Income statement reports num data is not supported (yet) for the source {type(self).__name__}")
+
+    def get_balance_sheet_num(self):
+        raise FdataError(f"Balance sheet reports num data is not supported (yet) for the source {type(self).__name__}")
+
+    def get_cash_flow_num(self):
+        raise FdataError(f"Cash flow reports num data is not supported (yet) for the source {type(self).__name__}")
+
+    def add_income_statement(self, reports):
+        raise FdataError(f"Adding income statement data is not supported (yet) for the source {type(self).__name__}")
+
+    def add_balance_sheet(self, reports):
+        raise FdataError(f"Adding balance sheet data is not supported (yet) for the source {type(self).__name__}")
+
+    def add_cash_flow(self, reports):
+        raise FdataError(f"Adding cash flow data is not supported (yet) for the source {type(self).__name__}")

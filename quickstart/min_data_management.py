@@ -7,7 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 # Edit settings.py to add your API keys for data sources. Free API keys are sufficient for this example.
 from data import av, fh, yf, polygon  # API wrappers for popular data sources (please note that they are unofficial)
 from data.fvalues import Timespans
-from data.fdata import Subquery
 from data.stock import report_year  # Condition to request annual report.
 
 from datetime import datetime, timedelta
@@ -20,7 +19,7 @@ yf.YF(symbol='SPY', first_date="2020-1-1", last_date="2021-1-1", verbosity=True)
 # Fetch last week of minute SPY quotes from Polygon
 now = datetime.now()
 then = datetime.now() - timedelta(days=7)
-pvi = polygon.Polygon(symbol='SPY', first_date=then, last_date=now, timespan=Timespans.Minute)
+pvi = polygon.Polygon(symbol='SPY', first_date=then, last_date=now, timespan=Timespans.Minute, verbosity=True)
 
 p_quotes = pvi.get_quotes_only()
 
@@ -45,9 +44,9 @@ avi.get_income_statement()
 
 print("Get quotes from DB along with some fundamental data")
 avi.db_connect()
-rows = avi.get_quotes(queries=[Subquery('earnings', 'reported_date'),  # It will get both quarterly and annual reports
-                               Subquery('earnings', 'reported_eps'),
-                               Subquery('cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
+rows = avi.get_quotes(queries=[av.AvSubquery('av_earnings', 'reported_date'),  # It will get both quarterly and annual reports
+                               av.AvSubquery('av_earnings', 'reported_eps'),
+                               av.AvSubquery('av_cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
 avi.db_close()
 
 # Print last rows of requested data

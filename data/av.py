@@ -21,6 +21,46 @@ from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
+class AvSubquery():
+    """
+        Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
+    """
+    def __init__(self, table, column, condition='', title=None):
+        """
+            Initializes the instance of Subquery class.
+
+            Args:
+                table(str): table for subquery.
+                column(str): column to obtain.
+                condition(str): additional SQL condition for the subquery.
+                title(str): optional title for the output column (the same as column name by default)
+        """
+        self.table = table
+        self.column = column
+        self.condition = condition
+
+        # Use the default column name as the title if the title is not specified
+        if title is None:
+            self.title = column
+        else:
+            self.title = title
+
+    def generate(self):
+        """
+            Generates the subquery based on the provided data.
+
+            Returns:
+                str: SQL expression for the subquery
+        """
+        subquery = f"""(SELECT {self.column}
+                            FROM {self.table} report_tbl
+                            WHERE fiscal_date_ending <= time_stamp
+                            AND symbol_id = quotes.symbol_id
+                            {self.condition}
+                            ORDER BY fiscal_date_ending DESC LIMIT 1) AS {self.title}\n"""
+
+        return subquery
+
 class AVStock(stock.StockFetcher):
     """
         AlphaVantage API wrapper class.
@@ -58,6 +98,757 @@ class AVStock(stock.StockFetcher):
 
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at alphavantage.co and put it in setting.py")
+
+        # Data related to fundamental tables
+        self._fundamental_intervals_tbl = 'av_fundamental_intervals'
+        self._income_statement_tbl = 'av_income_statement'
+        self._balance_sheet_tbl = 'av_balance_sheet'
+        self._cash_flow_tbl = 'av_cash_flow'
+
+    def check_database(self):
+        """
+            Database create/integrity check method for stock data related tables.
+            Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        super().check_database()
+
+        # Check if we need to create a table income_statement
+        try:
+            check_income_statement = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{self._income_statement_tbl}';"
+
+            self.cur.execute(check_income_statement)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table '{self._income_statement_tbl}': {e}\n{check_income_statement}") from e
+
+        if len(rows) == 0:
+            create_is = f"""CREATE TABLE {self._income_statement_tbl}(
+                                av_is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                reported_date INTEGER,
+                                reported_period INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                gross_profit INTEGER,
+                                total_revenue INTEGER,
+                                cost_of_revenue INTEGER,
+                                cost_of_goods_and_services_sold INTEGER,
+                                operating_income INTEGER,
+                                selling_general_and_administrative INTEGER,
+                                research_and_development INTEGER,
+                                operating_expenses INTEGER,
+                                investment_income_net INTEGER,
+								net_interest_income INTEGER,
+								interest_income INTEGER,
+								interest_expense INTEGER,
+								non_interest_income INTEGER,
+								other_non_operating_income INTEGER,
+								depreciation INTEGER,
+								depreciation_and_amortization INTEGER,
+								income_before_tax INTEGER,
+								income_tax_expense INTEGER,
+								interest_and_debt_expense INTEGER,
+								net_income_from_continuing_operations INTEGER,
+								comprehensive_income_net_of_tax INTEGER,
+								ebit INTEGER,
+								ebitda INTEGER,
+								net_income INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_is)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table '{self._income_statement_tbl}': {e}\n{create_is}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_is_idx = f"CREATE INDEX idx_{self._income_statement_tbl} ON {self._income_statement_tbl}(symbol_id, reported_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_is_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index {self._income_statement_tbl}(symbol_id, reported_date): {e}") from e
+
+        # Check if we need to create a table balance_sheet
+        try:
+            check_balance_sheet = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{self._balance_sheet_tbl}';"
+
+            self.cur.execute(check_balance_sheet)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table '{self._balance_sheet_tbl}': {e}\n{check_balance_sheet}") from e
+
+        if len(rows) == 0:
+            create_bs = f"""CREATE TABLE {self._balance_sheet_tbl}(
+                                av_bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                reported_date INTEGER,
+                                reported_period INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                total_assets INTEGER,
+                                total_current_assets INTEGER,
+                                cash_and_cash_equivalents_at_carrying_value INTEGER,
+                                cash_and_short_term_investments INTEGER,
+                                inventory INTEGER,
+                                current_net_receivables INTEGER,
+                                total_non_current_assets INTEGER,
+                                property_plant_equipment INTEGER,
+                                accumulated_depreciation_amortization_ppe INTEGER,
+								intangible_assets INTEGER,
+								intangible_assets_excluding_goodwill INTEGER,
+								goodwill INTEGER,
+								investments INTEGER,
+								long_term_investments INTEGER,
+								short_term_investments INTEGER,
+								other_current_assets INTEGER,
+								other_non_current_assets INTEGER,
+								total_liabilities INTEGER,
+								total_current_liabilities INTEGER,
+								current_accounts_payable INTEGER,
+								deferred_revenue INTEGER,
+								current_debt INTEGER,
+								short_term_debt INTEGER,
+								total_non_current_liabilities INTEGER,
+								capital_lease_obligations INTEGER,
+								long_term_debt INTEGER,
+								current_long_term_debt INTEGER,
+								long_term_debt_noncurrent INTEGER,
+								short_long_term_debt_total INTEGER,
+								other_noncurrent_liabilities INTEGER,
+								other_non_current_liabilities INTEGER,
+								total_shareholder_equity INTEGER,
+								treasury_stock INTEGER,
+								retained_earnings INTEGER,
+								common_stock INTEGER,
+								common_stock_shares_outstanding INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_bs)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table '{self._balance_sheet_tbl}': {e}\n{create_bs}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_bs_idx = f"CREATE INDEX idx_{self._balance_sheet_tbl} ON {self._balance_sheet_tbl}(symbol_id, reported_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_bs_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index {self._balance_sheet_tbl}(symbol_id, reported_date): {e}") from e
+
+        # Check if we need to create a table cash_flow
+        try:
+            check_cash_flow = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{self._cash_flow_tbl}';"
+
+            self.cur.execute(check_cash_flow)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table '{self._cash_flow_tbl}': {e}\n{check_cash_flow}") from e
+
+        # TODO LOW Get rid of tabulations above
+        if len(rows) == 0:
+            create_cf = f"""CREATE TABLE {self._cash_flow_tbl}(
+                                av_cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                reported_date INTEGER,
+                                reported_period INTEGER NOT NULL,
+                                fiscal_date_ending INTEGER NOT NULL,
+                                operating_cashflow INTEGER,
+                                payments_for_operating_activities INTEGER,
+                                proceeds_from_operating_activities INTEGER,
+                                change_in_operating_liabilities INTEGER,
+                                change_in_operating_assets INTEGER,
+                                depreciation_depletion_and_amortization INTEGER,
+                                capital_expenditures INTEGER,
+                                change_in_receivables INTEGER,
+                                change_in_inventory INTEGER,
+								profit_loss INTEGER,
+								cashflow_from_investment INTEGER,
+								cashflow_from_financing INTEGER,
+								proceeds_from_repayments_of_short_term_debt INTEGER,
+								payments_for_repurchase_of_common_stock INTEGER,
+								payments_for_repurchase_of_equity INTEGER,
+								payments_for_repurchase_of_preferred_stock INTEGER,
+								dividend_payout INTEGER,
+								dividend_payout_common_stock INTEGER,
+								dividend_payout_preferred_stock INTEGER,
+								proceeds_from_issuance_of_common_stock INTEGER,
+								proceeds_from_issuance_of_long_term_debt_and_capital_securities_net INTEGER,
+								proceeds_from_issuance_of_preferred_stock INTEGER,
+								proceeds_from_repurchase_of_equity INTEGER,
+								proceeds_from_sale_of_treasury_stock INTEGER,
+								change_in_cash_and_cash_equivalents INTEGER,
+								change_in_exchange_rate INTEGER,
+								net_income INTEGER,
+                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                UNIQUE(symbol_id, fiscal_date_ending, reported_period)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_cf)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table '{self._cash_flow_tbl}': {e}\n{create_cf}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_cf_idx = f"CREATE INDEX idx_{self._cash_flow_tbl} ON {self._cash_flow_tbl}(symbol_id, reported_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_cf_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index {self._cash_flow_tbl}(symbol_id, reported_date): {e}") from e
+
+        # Check if we need to create a table earnings
+        try:
+            check_earnings = "SELECT name FROM sqlite_master WHERE type='table' AND name='av_earnings';"
+
+            self.cur.execute(check_earnings)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'av_earnings': {e}\n{check_earnings}") from e
+
+        if len(rows) == 0:
+            create_earnings = """CREATE TABLE av_earnings(
+                                    av_earnings_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    source_id INTEGER NOT NULL,
+                                    symbol_id INTEGER NOT NULL,
+                                    reported_date INTEGER,
+                                    reported_period INTEGER NOT NULL,
+                                    fiscal_date_ending INTEGER NOT NULL,
+                                    reported_eps INTEGER,
+                                    estimated_eps INTEGER,
+                                    surprise INTEGER,
+                                    surprise_percentage INTEGER,
+                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                    UNIQUE(symbol_id, fiscal_date_ending, reported_period)
+                                    CONSTRAINT fk_symbols,
+                                        FOREIGN KEY (symbol_id)
+                                        REFERENCES symbols(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_sources,
+                                        FOREIGN KEY (source_id)
+                                        REFERENCES sources(source_id)
+                                        ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_earnings)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'av_earnings': {e}\n{create_earnings}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_is_idx = "CREATE INDEX idx_av_earnings ON av_earnings(symbol_id, reported_date);"
+
+            try:
+                self.cur.execute(create_symbol_date_is_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index av_earnings(symbol_id, reported_date): {e}") from e
+
+        # Check if we need to create table 'fundamental_intervals'
+        try:
+            check_fundamental_intervals = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{self._fundamental_intervals_tbl}';"
+
+            self.cur.execute(check_fundamental_intervals)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table '{self._fundamental_intervals_tbl}': {e}\n{check_fundamental_intervals}") from e
+
+        if len(rows) == 0:
+            create_fundamental_intervals = f"""CREATE TABLE {self._fundamental_intervals_tbl} (
+                                                av_f_interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                symbol_id INTEGER NOT NULL,
+                                                source_id INTEGER NOT NULL,
+                                                income_statement_max_ts INTEGER,
+                                                balance_sheet_max_ts INTEGER,
+                                                cash_flow_max_ts INTEGER,
+                                                    CONSTRAINT fk_source
+                                                        FOREIGN KEY (source_id)
+                                                        REFERENCES sources(source_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_symbols
+                                                        FOREIGN KEY (symbol_id)
+                                                        REFERENCES symbols(symbol_id)
+                                                        ON DELETE CASCADE
+                                                UNIQUE(symbol_id, source_id)
+                                            );"""
+
+            try:
+                self.cur.execute(create_fundamental_intervals)
+            except self.Error as e:
+                raise FdataError(f"Can't create table {self._fundamental_intervals_tbl}: {e}") from e
+
+            # Create indexes for fundamental_intervals
+            create_fundamental_intervals_idx = f"CREATE INDEX idx_{self._fundamental_intervals_tbl} ON {self._fundamental_intervals_tbl}(symbol_id, source_id);"
+
+            try:
+                self.cur.execute(create_fundamental_intervals_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create indexes for {self._fundamental_intervals_tbl} table: {e}") from e
+
+        # TODO LOW Unite it with general fundamentals table
+        # Check if we need to create table 'earnings_intervals'
+        try:
+            check_earnings_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='av_earnings_intervals';"
+
+            self.cur.execute(check_earnings_intervals)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'av_earnings_intervals': {e}\n{check_earnings_intervals}") from e
+
+        if len(rows) == 0:
+            create_earnings_intervals = """CREATE TABLE av_earnings_intervals (
+                                                av_e_interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                symbol_id INTEGER NOT NULL,
+                                                source_id INTEGER NOT NULL,
+                                                earnings_max_ts INTEGER NOT NULL,
+                                                    CONSTRAINT fk_source
+                                                        FOREIGN KEY (source_id)
+                                                        REFERENCES sources(source_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_symbols
+                                                        FOREIGN KEY (symbol_id)
+                                                        REFERENCES symbols(symbol_id)
+                                                        ON DELETE CASCADE
+                                                UNIQUE(symbol_id, source_id)
+                                            );"""
+
+            try:
+                self.cur.execute(create_earnings_intervals)
+            except self.Error as e:
+                raise FdataError(f"Can't create table av_earnings_intervals: {e}") from e
+
+            # Create indexes for earnings_intervals
+            create_earnings_intervals_idx = "CREATE INDEX idx_av_earnings_intervals ON av_earnings_intervals(symbol_id, source_id);"
+
+            try:
+                self.cur.execute(create_earnings_intervals_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create indexes for av_earnings_intervals table: {e}") from e
+
+    ##########################
+    # Fundamental data methods
+    ##########################
+
+    def get_earnings_num(self):
+        """Get the number of earnings reports.
+
+            Returns:
+                int: the number of earnings entries in the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num('av_earnings')
+
+    def add_income_statement(self, reports):
+        """
+            Add income_statement entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): income statements entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of income statements reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_income_statement_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO income_statement (symbol_id,
+                                        source_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										gross_profit,
+										total_revenue,
+										cost_of_revenue,
+										cost_of_goods_and_services_sold,
+										operating_income,
+										selling_general_and_administrative,
+										research_and_development,
+										operating_expenses,
+										investment_income_net,
+										net_interest_income,
+										interest_income,
+										interest_expense,
+										non_interest_income,
+										other_non_operating_income,
+										depreciation,
+										depreciation_and_amortization,
+										income_before_tax,
+										income_tax_expense,
+										interest_and_debt_expense,
+										net_income_from_continuing_operations,
+										comprehensive_income_net_of_tax,
+										ebit,
+										ebitda,
+										net_income)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['grossProfit']},
+											{report['totalRevenue']},
+											{report['costOfRevenue']},
+											{report['costofGoodsAndServicesSold']},
+											{report['operatingIncome']},
+											{report['sellingGeneralAndAdministrative']},
+											{report['researchAndDevelopment']},
+											{report['operatingExpenses']},
+											{report['investmentIncomeNet']},
+											{report['netInterestIncome']},
+											{report['interestIncome']},
+											{report['interestExpense']},
+											{report['nonInterestIncome']},
+											{report['otherNonOperatingIncome']},
+											{report['depreciation']},
+											{report['depreciationAndAmortization']},
+											{report['incomeBeforeTax']},
+											{report['incomeTaxExpense']},
+											{report['interestAndDebtExpense']},
+											{report['netIncomeFromContinuingOperations']},
+											{report['comprehensiveIncomeNetOfTax']},
+											{report['ebit']},
+											{report['ebitda']},
+											{report['netIncome']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'income_statement': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        self._update_intervals('income_statement_max_ts', self._fundamental_intervals_tbl)
+
+        return(num_before, self.get_income_statement_num())
+
+    def add_balance_sheet(self, reports):
+        """
+            Add balance sheet entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): balance sheet entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of income statements reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_balance_sheet_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO balance_sheet (symbol_id,
+                                        source_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										total_assets,
+										total_current_assets,
+										cash_and_cash_equivalents_at_carrying_value,
+										cash_and_short_term_investments,
+										inventory,
+										current_net_receivables,
+										total_non_current_assets,
+										property_plant_equipment,
+										accumulated_depreciation_amortization_ppe,
+										intangible_assets,
+										intangible_assets_excluding_goodwill,
+										goodwill,
+										investments,
+										long_term_investments,
+										short_term_investments,
+										other_current_assets,
+										other_non_current_assets,
+										total_liabilities,
+										total_current_liabilities,
+										current_accounts_payable,
+										deferred_revenue,
+										current_debt,
+										short_term_debt,
+										total_non_current_liabilities,
+                                        capital_lease_obligations,
+                                        long_term_debt,
+                                        current_long_term_debt,
+                                        long_term_debt_noncurrent,
+                                        short_long_term_debt_total,
+                                        other_noncurrent_liabilities,
+                                        total_shareholder_equity,
+                                        treasury_stock,
+                                        retained_earnings,
+                                        common_stock,
+                                        common_stock_shares_outstanding)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['totalAssets']},
+											{report['totalCurrentAssets']},
+											{report['cashAndCashEquivalentsAtCarryingValue']},
+											{report['cashAndShortTermInvestments']},
+											{report['inventory']},
+											{report['currentNetReceivables']},
+											{report['totalNonCurrentAssets']},
+											{report['propertyPlantEquipment']},
+											{report['accumulatedDepreciationAmortizationPPE']},
+											{report['intangibleAssets']},
+											{report['intangibleAssetsExcludingGoodwill']},
+											{report['goodwill']},
+											{report['investments']},
+											{report['longTermInvestments']},
+											{report['shortTermInvestments']},
+											{report['otherCurrentAssets']},
+											{report['otherNonCurrentAssets']},
+											{report['totalLiabilities']},
+											{report['totalCurrentLiabilities']},
+											{report['currentAccountsPayable']},
+											{report['deferredRevenue']},
+											{report['currentDebt']},
+											{report['shortTermDebt']},
+											{report['totalNonCurrentLiabilities']},
+                                            {report['capitalLeaseObligations']},
+											{report['longTermDebt']},
+											{report['currentLongTermDebt']},
+											{report['longTermDebtNoncurrent']},
+											{report['shortLongTermDebtTotal']},
+											{report['otherNonCurrentLiabilities']},
+											{report['totalShareholderEquity']},
+											{report['treasuryStock']},
+											{report['retainedEarnings']},
+											{report['commonStock']},
+											{report['commonStockSharesOutstanding']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'balance_sheet': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        self._update_intervals('balance_sheet_max_ts', self._fundamental_intervals_tbl)
+
+        return(num_before, self.get_balance_sheet_num())
+
+    def add_cash_flow(self, reports):
+        """
+            Add cash flow entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): cash flow entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of cash flow reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_cash_flow_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO cash_flow (symbol_id,
+                                        source_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										operating_cashflow,
+										payments_for_operating_activities,
+										proceeds_from_operating_activities,
+										change_in_operating_liabilities,
+										change_in_operating_assets,
+										depreciation_depletion_and_amortization,
+										capital_expenditures,
+										change_in_receivables,
+										change_in_inventory,
+										profit_loss,
+										cashflow_from_investment,
+										cashflow_from_financing,
+										proceeds_from_repayments_of_short_term_debt,
+										payments_for_repurchase_of_common_stock,
+										payments_for_repurchase_of_equity,
+										payments_for_repurchase_of_preferred_stock,
+										dividend_payout,
+										dividend_payout_common_stock,
+										dividend_payout_preferred_stock,
+										proceeds_from_issuance_of_common_stock,
+										proceeds_from_issuance_of_long_term_debt_and_capital_securities_net,
+										proceeds_from_issuance_of_preferred_stock,
+										proceeds_from_repurchase_of_equity,
+										proceeds_from_sale_of_treasury_stock,
+                                        change_in_cash_and_cash_equivalents,
+                                        change_in_exchange_rate,
+                                        net_income)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['operatingCashflow']},
+											{report['paymentsForOperatingActivities']},
+											{report['proceedsFromOperatingActivities']},
+											{report['changeInOperatingLiabilities']},
+											{report['changeInOperatingAssets']},
+											{report['depreciationDepletionAndAmortization']},
+											{report['capitalExpenditures']},
+											{report['changeInReceivables']},
+											{report['changeInInventory']},
+											{report['profitLoss']},
+											{report['cashflowFromInvestment']},
+											{report['cashflowFromFinancing']},
+											{report['proceedsFromRepaymentsOfShortTermDebt']},
+											{report['paymentsForRepurchaseOfCommonStock']},
+											{report['paymentsForRepurchaseOfEquity']},
+											{report['paymentsForRepurchaseOfPreferredStock']},
+											{report['dividendPayout']},
+											{report['dividendPayoutCommonStock']},
+											{report['dividendPayoutPreferredStock']},
+											{report['proceedsFromIssuanceOfCommonStock']},
+											{report['proceedsFromIssuanceOfLongTermDebtAndCapitalSecuritiesNet']},
+											{report['proceedsFromIssuanceOfPreferredStock']},
+											{report['proceedsFromRepurchaseOfEquity']},
+											{report['proceedsFromSaleOfTreasuryStock']},
+                                            {report['changeInCashAndCashEquivalents']},
+											{report['changeInExchangeRate']},
+											{report['netIncome']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add record to a table 'cash_flow': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        self._update_intervals('cash_flow_max_ts', self._fundamental_intervals_tbl)
+
+        return(num_before, self.get_cash_flow_num())
+
+    def add_earnings(self, reports):
+        """
+            Add earnings entries to the database.
+
+            Args:
+                quotes_dict(list of dictionaries): earnings entries obtained from an API wrapper.
+
+            Returns:
+                (int, int): total number of earnings reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_earnings_num()
+
+        for report in reports:
+            insert_report = f"""INSERT OR {self._update} INTO earnings (symbol_id,
+                                        source_id,
+										reported_date,
+										reported_period,
+										fiscal_date_ending,
+										reported_eps,
+                                        estimated_eps,
+                                        surprise,
+                                        surprise_percentage)
+									VALUES (
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+											{report['reportedDate']},
+											(SELECT period_id FROM report_periods WHERE title = '{report['period']}'),
+											{report['fiscalDateEnding']},
+											{report['reportedEPS']},
+											{report['estimatedEPS']},
+											{report['surprise']},
+											{report['surprisePercentage']});"""
+
+            try:
+                self.cur.execute(insert_report)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'earnings': {e}\n\nThe query is\n{insert_report}") from e
+
+        self.commit()
+
+        self._update_intervals('earnings_max_ts', 'av_earnings_intervals')
+
+        return(num_before, self.get_earnings_num())
+
+    def get_earnings(self):
+        """
+            Fetch all the available earnings reports if needed.
+
+            Returns:
+                array: the fetched reports.
+                int: the number of fetched reports.
+        """
+        return self._fetch_data_if_none(column='earnings_max_ts',
+                                        interval_table='av_earnings_intervals',
+                                        data_table='earnings',
+                                        num_method=self.get_earnings_num,
+                                        add_method=self.add_earnings,
+                                        fetch_method=self.fetch_earnings)
+
+    ##########################
+    # Fetching-related methods
+    ##########################
 
     def get_timespan_str(self):
         """

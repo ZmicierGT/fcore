@@ -240,14 +240,16 @@ class FmpStock(stock.StockFetcher):
 
         num = self.get_last_modified('fmp_capitalization')
 
-        current = min(datetime.now().replace(tzinfo=pytz.UTC), self.last_date)
+        current = min(datetime.now(), self.last_date)
 
         # Fetch data if no data presend or day difference between current/requested data more than 1 day
         if num is None:
             self.add_cap(self.fetch_cap())
         else:
             days_delta = (current - get_dt(num, pytz.UTC)).days
-            self.add_cap(self.fetch_cap(days_delta + 1))
+
+            if days_delta:
+                self.add_cap(self.fetch_cap(days_delta + 1))
 
         new_num = self.get_cap_num()
 

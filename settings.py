@@ -58,3 +58,19 @@ class Finnhub():
         Default settings for Finnhub data source.
     """
     api_key = None  # Get your free api key at finnhub.io
+
+class FMP():
+    """
+        Default settings for FMP data source.
+    """
+    class Plan(Enum):
+        """
+            Enumeration for subscription plans
+        """
+        Basic = 0
+        Starter = 1
+        Premium = 2
+        Ultimate = 3
+
+    plan = Plan.Basic
+    api_key = None

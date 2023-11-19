@@ -156,7 +156,6 @@ class AVStock(stock.StockFetcher):
 								ebit INTEGER,
 								ebitda INTEGER,
 								net_income INTEGER,
-                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -234,7 +233,6 @@ class AVStock(stock.StockFetcher):
 								retained_earnings INTEGER,
 								common_stock INTEGER,
 								common_stock_shares_outstanding INTEGER,
-                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -304,7 +302,6 @@ class AVStock(stock.StockFetcher):
 								change_in_cash_and_cash_equivalents INTEGER,
 								change_in_exchange_rate INTEGER,
 								net_income INTEGER,
-                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -350,7 +347,6 @@ class AVStock(stock.StockFetcher):
                                     estimated_eps INTEGER,
                                     surprise INTEGER,
                                     surprise_percentage INTEGER,
-                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                     UNIQUE(symbol_id, fiscal_date_ending, reported_period)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
@@ -368,10 +364,10 @@ class AVStock(stock.StockFetcher):
                 raise FdataError(f"Can't execute a query on a table 'av_earnings': {e}\n{create_earnings}") from e
 
             # Create index for symbol_id
-            create_symbol_date_is_idx = "CREATE INDEX idx_av_earnings ON av_earnings(symbol_id, reported_date);"
+            create_symbol_date_e_idx = "CREATE INDEX idx_av_earnings ON av_earnings(symbol_id, reported_date);"
 
             try:
-                self.cur.execute(create_symbol_date_is_idx)
+                self.cur.execute(create_symbol_date_e_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index av_earnings(symbol_id, reported_date): {e}") from e
 

@@ -164,6 +164,7 @@ Use the following tools to manage quotes and obtain data.
 - *Polygon.IO* API wrapper - [data/polygon.py](data/polygon.py))
 - API wrapper for *Alpha Vantage* stock data - [data/av.py](data/av.py)
 - API wrapper for *Finnhub* real time data - [data/fh.py](data/fh.py)
+- API wrapper for *Financial Modeling Prep* data - [data/fmp.py](data/fmp.py)
 
 ### Examples of custom data processing tools which are relied on AI
 - [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )

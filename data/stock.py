@@ -128,7 +128,6 @@ class ROStockData(ReadOnlyData):
                                 record_date INTEGER,
                                 payment_date INTEGER,
                                 amount REAL NOT NULL,
-                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, ex_date)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -173,7 +172,6 @@ class ROStockData(ReadOnlyData):
                                     symbol_id INTEGER NOT NULL,
                                     split_date INTEGER NOT NULL,
                                     split_ratio REAL,
-                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                     UNIQUE(symbol_id, split_date)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
@@ -787,6 +785,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         """
         return super().get()
 
+    # TODO LOW Think if need to move it to the base class
     def _fetch_data_if_none(self,
                             column,
                             interval_table,
@@ -806,7 +805,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 data_table(str): table with data to check for maximum fiscal date ending
 
             Returns:
-                array: the fetched entries.
                 int: the number of fetched entries.
         """
         initially_connected = self.is_connected()

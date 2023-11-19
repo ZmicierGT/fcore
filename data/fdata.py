@@ -923,6 +923,34 @@ class ReadOnlyData():
 
         return result
 
+    def get_last_modified(self, table):
+        """
+            Get the last modification timestamp from a table.
+
+            Args:
+                table(str): table name
+
+            Returns:
+                int: last modification timestamp.
+        """
+        self.check_if_connected()
+
+        get_mod_ts = f"""SELECT modified FROM {table}
+                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}
+                            ORDER BY modified DESC LIMIT 1');"""
+
+        try:
+            self.cur.execute(get_mod_ts)
+        except self.Error as e:
+            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_mod_ts}") from e
+
+        result = self.cur.fetchone()
+
+        if result is None:
+            return 0
+
+        return result[0]
+
     def get_total_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.

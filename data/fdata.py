@@ -936,8 +936,8 @@ class ReadOnlyData():
         self.check_if_connected()
 
         get_mod_ts = f"""SELECT modified FROM {table}
-                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}
-                            ORDER BY modified DESC LIMIT 1');"""
+                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
+                            ORDER BY modified DESC LIMIT 1;"""
 
         try:
             self.cur.execute(get_mod_ts)

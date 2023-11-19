@@ -177,7 +177,7 @@ class Polygon(stock.StockFetcher):
             if json_results is None:
                 self.log(f"No data obtained for {self.symbol} using {self.source_title}")
 
-                continue
+                break
 
             for j in range(len(json_results)):
                 quote = json_results[j]

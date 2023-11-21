@@ -72,6 +72,9 @@ class FHStock(stock.StockFetcher):
     def fetch_splits(self):
         raise FdataError(f"Splits statement data is not supported (yet) for the source {type(self).__name__}")
 
+    def fetch_info(self):
+        raise FdataError(f"Stock info data is not supported (yet) for the source {type(self).__name__}")
+
     def add_income_statement(self, reports):
         raise FdataError(f"Adding income statement data is not supported (yet) for the source {type(self).__name__}")
 

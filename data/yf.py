@@ -18,6 +18,9 @@ from data.futils import get_labelled_ndarray, get_dt
 
 import pytz
 
+import urllib.error
+import http.client
+
 class YF(stock.StockFetcher):
     """
         Yahoo Finance wrapper class.
@@ -275,6 +278,22 @@ class YF(stock.StockFetcher):
             Fetch the split data.
         """
         return self.__fetch_splits().T.to_dict().values()
+
+    def fetch_info(self):
+        """
+            Fetch and return the info of the security.
+
+            Returns:
+                dict: dictionary with the info
+        """
+        ticker = yfin.Ticker(self.symbol)
+
+        try:
+            info = ticker.info
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
+            raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
+
+        return info
 
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

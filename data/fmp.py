@@ -173,7 +173,7 @@ class FmpStock(stock.StockFetcher):
             cap_url = f"https://financialmodelingprep.com/api/v3/historical-market-capitalization/{self.symbol}?apikey={self.api_key}"
 
         # Get capitalization data
-        response = self.query_api(cap_url)
+        response = self.query_api(cap_url, timeout=120)
 
         # Get json
         json_data = response.json()
@@ -234,7 +234,7 @@ class FmpStock(stock.StockFetcher):
 
     def get_cap(self):
         """
-            Fetch (if needed) and return capitalization data.
+            Fetch (if needed) the capitalization data.
         """
         initially_connected = self.is_connected()
 
@@ -247,7 +247,7 @@ class FmpStock(stock.StockFetcher):
 
         current = min(datetime.now(pytz.UTC).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
-        # Fetch data if no data presend or day difference between current/requested data more than 1 day
+        # Fetch data if no data present or day difference between current/requested data more than 1 day
         if mod_ts is None:
             self.add_cap(self.fetch_cap())
         else:
@@ -307,6 +307,9 @@ class FmpStock(stock.StockFetcher):
 
     def fetch_splits(self):
         raise FdataError(f"Splits statement data is not supported (yet) for the source {type(self).__name__}")
+
+    def fetch_info(self):
+        raise FdataError(f"Stock info data is not supported (yet) for the source {type(self).__name__}")
 
     def add_income_statement(self, reports):
         raise FdataError(f"Adding income statement data is not supported (yet) for the source {type(self).__name__}")

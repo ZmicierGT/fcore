@@ -98,7 +98,8 @@ class BackTestData():
                  trend_change_period=0,
                  trend_change_percent=0,
                  timespan=None,
-                 source=None
+                 source=None,
+                 info=None
                 ):
         """Initializes BackTestData class.
 
@@ -115,6 +116,7 @@ class BackTestData():
                     immediately. Default is 0.
                 timespan(Timespan): time span used in data.
                 source(string): data source.
+                info(dict): security profile information.
 
             Raises:
                 BackTestError: inaproppriate values were provided.                 
@@ -172,6 +174,9 @@ class BackTestData():
 
         # Data source
         self._source = source
+
+        # Security profile information.
+        self._info = info
 
     #####################
     # Properties
@@ -2435,8 +2440,8 @@ class BackTest(metaclass=abc.ABCMeta):
 
         for ex in self.__exec:
             if ex.get_index() is not None:
-                ex.apply_margin_fee()  # Calculate and apply margin expenses per day
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
+                ex.apply_margin_fee()  # Calculate and apply margin expenses per day
                 ex.check_margin_requirements()  # Check if margin requirements are met
 
         return True

@@ -25,6 +25,20 @@ class StockData(BackTestData):
         # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
         self._close = StockQuotes.AdjClose
 
+    ############
+    # Properties
+    ############
+
+    @property
+    def sector(self):
+        """
+            Get the stock sector.
+
+            Returns:
+                str: the sector of the stock.
+        """
+        return self._info['sector']
+
     def create_exec(self, caller):
         """
             Create StockOperations instance based on BackTestData instance.

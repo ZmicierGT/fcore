@@ -947,7 +947,7 @@ class ReadOnlyData():
         result = self.cur.fetchone()
 
         if result is None:
-            return 0
+            return result
 
         return result[0]
 
@@ -1524,6 +1524,18 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Returns:
                 str: timespan string.
         """
+
+    @abc.abstractmethod
+    def fetch_info(self):
+        """Abstract method to fetch security info"""
+
+    @abc.abstractmethod
+    def add_info(self):
+        """Abstract method to add security info"""
+
+    @abc.abstractmethod
+    def get_info(self):
+        """Abstract method to get security info"""
 
     def query_and_parse(self, url, timeout=30):
         """

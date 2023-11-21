@@ -105,6 +105,9 @@ class AVStock(stock.StockFetcher):
         self._balance_sheet_tbl = 'av_balance_sheet'
         self._cash_flow_tbl = 'av_cash_flow'
 
+    def fetch_info(self):
+        raise FdataError(f"Stock info data is not supported (yet) for the source {type(self).__name__}")
+
     def check_database(self):
         """
             Database create/integrity check method for stock data related tables.

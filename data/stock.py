@@ -15,6 +15,7 @@ import numpy as np
 
 from dateutil.relativedelta import relativedelta
 
+from datetime import datetime
 import pytz
 
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
@@ -235,6 +236,119 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_stock_intervals_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for stock_intervals table: {e}") from e
+
+        # Check if we need to create table 'stock_sectors'
+        try:
+            check_stock_sectors = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_sectors';"
+
+            self.cur.execute(check_stock_sectors)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{check_stock_sectors}") from e
+
+        if len(rows) == 0:
+            create_stock_sectors = """CREATE TABLE stock_sectors (
+                                                stock_sector_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                title TEXT NOT NULL UNIQUE
+                                            );"""
+
+            try:
+                self.cur.execute(create_stock_sectors)
+            except self.Error as e:
+                raise FdataError(f"Can't create table stock_sectors: {e}") from e
+
+            # Create index for stock_sectors title
+            create_stock_sectors_title_idx = "CREATE INDEX idx_stock_sectors_title ON stock_sectors(title);"
+
+            try:
+                self.cur.execute(create_stock_sectors_title_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
+
+        # Check if stock_sectors table is empty
+        try:
+            all_sectors = "SELECT COUNT(*) FROM stock_sectors;"
+
+            self.cur.execute(all_sectors)
+            sectors_length = self.cur.fetchone()[0]
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{all_sectors}") from e
+
+        if sectors_length != 12:
+            # Insert data into stock sectors
+
+            insert_sectors = """INSERT INTO stock_sectors ('title') VALUES
+                                    ('Unknown'), ('Technology'), ('Financial Services'),
+                                    ('Healthcare'), ('Consumer Cyclical'), ('Industrials'),
+                                    ('Communication Services'), ('Consumer Defensive'), ('Energy'),
+                                    ('Basic Materials'), ('Real Estate'), ('Utilities');"""
+
+            try:
+                self.cur.execute(insert_sectors)
+                self.commit()
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{insert_sectors}") from e
+
+        # Check if we need to create table 'stock_info'
+        try:
+            check_stock_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_info';"
+
+            self.cur.execute(check_stock_info)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{check_stock_info}") from e
+
+        if len(rows) == 0:
+
+            create_stock_info = """CREATE TABLE stock_info (
+                                                stock_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                symbol_id INTEGER NOT NULL,
+                                                source_id INTEGER NOT NULL,
+                                                stock_sector_id INTEGER,
+                                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                                UNIQUE(symbol_id, stock_info_id)
+                                                    CONSTRAINT fk_source
+                                                        FOREIGN KEY (source_id)
+                                                        REFERENCES sources(source_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_symbols
+                                                        FOREIGN KEY (symbol_id)
+                                                        REFERENCES symbols(symbol_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_stock_sectors
+                                                        FOREIGN KEY (stock_sector_id)
+                                                        REFERENCES stock_sectors(stock_sector_id)
+                                                        ON DELETE CASCADE
+                                                UNIQUE(symbol_id, source_id)
+                                            );"""
+
+            try:
+                self.cur.execute(create_stock_info)
+            except self.Error as e:
+                raise FdataError(f"Can't create table stock_info: {e}") from e
+
+            # Create indexes for stock_info
+            create_stock_info_idx = "CREATE INDEX idx_stock_info ON stock_info(symbol_id);"
+
+            try:
+                self.cur.execute(create_stock_info_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
+
+            # Create trigger to last modified time on stock_info
+            create_fmp_cap_trigger = """CREATE TRIGGER update_stock_info
+                                                BEFORE UPDATE
+                                                    ON stock_info
+                                        BEGIN
+                                            UPDATE stock_info
+                                            SET modified = strftime('%s', 'now')
+                                            WHERE fmp_cap_id = old.fmp_cap_id;
+                                        END;"""
+
+            try:
+                self.cur.execute(create_fmp_cap_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 
     def get_db_dividends(self, last_ts=def_last_date):
         """
@@ -749,6 +863,38 @@ class RWStockData(ROStockData, ReadWriteData):
 
         return(num_before, self.get_split_num())
 
+    def add_info(self, info):
+        """
+            Add stock info to the database.
+
+            Args:
+                info(dict): Stock info obtained from an API wrapper.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
+                                    source_id,
+                                    stock_sector_id)
+                                VALUES (
+                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                        (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                        (SELECT stock_sector_id FROM stock_sectors WHERE title = '{info['sector']}')
+                                       );"""
+
+        try:
+            self.cur.execute(insert_info)
+        except self.Error as e:
+            raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
+
+        self.commit()
+
 class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
         Abstract class to fetch quotes by API wrapper and add them to the database.
@@ -784,6 +930,37 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched quote entries.
         """
         return super().get()
+
+    def get_info(self):
+        """
+            Fetch (if needed) and return stock info data.
+        """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        mod_ts = self.get_last_modified('stock_info')
+
+        # Fetch data if no data present
+        if mod_ts is None:
+            self.add_info(self.fetch_info())
+
+        # Just sector title is used from info for now
+        info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
+                            (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
+                                (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
+
+        try:
+            self.cur.execute(info_query)
+            row = self.cur.fetchone()[0]
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
+
+        if initially_connected is False:
+            self.db_close()
+
+        return {'sector': row}
 
     # TODO LOW Think if need to move it to the base class
     def _fetch_data_if_none(self,

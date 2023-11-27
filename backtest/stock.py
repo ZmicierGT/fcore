@@ -64,8 +64,8 @@ class StockOperations(BackTestOperations):
         """
         super().__init__(**kwargs)
 
-        # Number of positions to get dividends at payment date
-        self._yield_positions = 0
+        # The future incoming yield
+        self._future_yield = 0
 
     #############################################################
     # General methods with calculations for a particular symbol
@@ -86,17 +86,20 @@ class StockOperations(BackTestOperations):
         current_yield = 0
 
         # Check if we have opened long positions at ex_date
-        if self.data().get_rows()[idx][StockQuotes.ExDividends] != None and self._long_positions > 0:
-            self._yield_positions = self._long_positions
+        if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
+            self._future_yield = self._long_positions * self.data().get_rows()[idx][StockQuotes.ExDividends]
 
         # Calculate dividends to pay for long positions which were opened at ex_date
-        if self.data().get_rows()[idx][StockQuotes.PayDividends] != None and self._yield_positions > 0:
-            current_yield = self.data().get_rows()[idx][StockQuotes.PayDividends] * self._yield_positions
-            self._yield_positions = 0
+        if self.data().get_rows()[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
+            current_yield = self._future_yield
+            self._future_yield = 0
 
         # Calculate dividends for short positions to get payed to a borrower
-        if self.data().get_rows()[idx][StockQuotes.ExDividends] != None and self._short_positions > 0:
+        if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
             current_yield = self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions
+
+        # if current_yield:
+        #     self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data().get_title()} - {current_yield}")
 
         return current_yield
 
@@ -109,10 +112,17 @@ class StockOperations(BackTestOperations):
         if idx is None:
             return
 
+        if self.get_long_positions() == 0 or self._short_positions == 0:
+            return
+
         ratio = self.data().get_rows()[idx][StockQuotes.Splits]
         old_close = self.data().get_rows()[idx - 1][StockQuotes.Close]
 
         if ratio != 1 and idx != 0:
+            long_before = self.get_long_positions()
+            long_cash_before = self._long_positions_cash
+            short_before = self._short_positions
+
             if self.is_long():
                 margin_positions = self._long_positions - self._long_positions_cash
                 self._long_positions_cash *= ratio
@@ -172,8 +182,10 @@ class StockOperations(BackTestOperations):
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"New positions after split (total long / cash long / short): "
-                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions}")
+            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split "
+                                  f"(total long / cash long / short) for {self.data().get_title()}: "
+                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions}\n"
+                                  f"Positions before split: {long_before} {long_cash_before} {short_before}")
 
     def apply_other_balance_changes(self):
         """
@@ -188,3 +200,15 @@ class StockOperations(BackTestOperations):
                 self.get_caller().add_other_profit(-abs(current_yield))
 
         self.check_for_split()
+
+    def get_total_value(self):
+        """
+            Get the total value of positions opened for the particular symbol.
+
+            Returns:
+                float: the total value of the all opened positions.
+        """
+        total_value = super().get_total_value()
+        total_value += self._future_yield
+
+        return total_value

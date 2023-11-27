@@ -612,7 +612,7 @@ class BackTestOperations():
 
     def get_datetime_str(self, index=None):
         """
-            Get the datetime string for the current index or for a particular offset
+            Get the datetime string for the current or specified index
 
             Returns:
                 str: datetime string for the current position or specified offset.
@@ -624,7 +624,7 @@ class BackTestOperations():
 
     def get_datetime(self, index=None):
         """
-            Get the datetime for the current index or for a particular offset
+            Get the datetime for the current or specified index
 
             Returns:
                 DateTime: datetime for the current position or specified offset.
@@ -1720,6 +1720,10 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Indicates if multiple symbol data should be expected
         self._is_multi = False
+
+        # Expect multi symbol data
+        if len(self.get_data()) > 1:
+            self._is_multi = True
 
         ###################################################
         # Properties related to multithreading calculations

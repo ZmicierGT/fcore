@@ -197,3 +197,4 @@ class Weighted(IntEnum):
     Equal = 0
     Price = 1
     Cap = 2
+    Sector = 3

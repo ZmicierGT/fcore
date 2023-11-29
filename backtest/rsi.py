@@ -59,9 +59,6 @@ class RSI(BackTest):
         # Indicates if we should open short positions when price goes below resistance
         self.__to_short = to_short
 
-        # Expect multi symbol data
-        self._is_multi = True
-
     def skip_criteria(self, index):
         """
             Check if the current cycle should be skipped.

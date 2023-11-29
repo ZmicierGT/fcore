@@ -4,23 +4,16 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-import abc
-
-from datetime import datetime
-from enum import IntEnum
-
-from itertools import repeat
-
-import time
-
 from data.fvalues import Quotes, trading_days_per_year, Weighted
-
-import numpy as np
-
-from threading import Thread, Event
-
 from data.futils import thread_available, logger, add_column
 
+import abc
+from datetime import datetime
+from enum import IntEnum
+from itertools import repeat
+import time
+import numpy as np
+from threading import Thread, Event
 import copy
 
 # Enum class for backtesting results data order.
@@ -1555,7 +1548,7 @@ class BackTest(metaclass=abc.ABCMeta):
                  inflation=0,
                  margin_req=0,
                  margin_rec=0,
-                 weighted=Weighted.Equal,
+                 weighted=None,
                  offset=0,
                  timeout=10,
                  verbosity=False
@@ -1718,13 +1711,6 @@ class BackTest(metaclass=abc.ABCMeta):
         # Instances for calculations
         self.__exec = []
 
-        # Indicates if multiple symbol data should be expected
-        self._is_multi = False
-
-        # Expect multi symbol data
-        if len(self.get_data()) > 1:
-            self._is_multi = True
-
         ###################################################
         # Properties related to multithreading calculations
         ###################################################
@@ -1747,6 +1733,15 @@ class BackTest(metaclass=abc.ABCMeta):
                 True if calculation is finished, False otherwise.
         """
         return self.__is_finished
+
+    def get_weighted(self):
+        """
+            Get the portfolio weighting method.
+
+            Returns:
+                Weighted: the portfolio weighting method
+        """
+        return self._weighted
 
     def get_initial_deposit(self):
         """
@@ -2339,9 +2334,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         if self.__is_setup:
             raise BackTestError("Setup has been already performed.")
-
-        if self.is_multi_symbol() != self._is_multi:
-            raise BackTestError(f"Provided data does not correspond multi symbol expectation: {self._is_multi}")
 
         # Get the initial year
         self._year = self.get_main_data().get_first_year()

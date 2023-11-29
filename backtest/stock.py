@@ -4,12 +4,86 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from backtest.base import BackTestData
-from backtest.base import BackTestOperations
-
-from data.fvalues import StockQuotes
+from backtest.base import BackTestData, BackTestOperations, BackTestError
+from data.fvalues import StockQuotes, Weighted
 
 from itertools import repeat
+from math import inf
+
+# These are helper functions which are non class members. Calling standalone functions is preferred than
+# creating a derived class for BackTest for every security type because each backtest may include different
+# security types in the future.
+
+sector_titles = ['Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical', 'Industrials', \
+           'Communication Services', 'Consumer Defensive', 'Energy', 'Basic Materials', 'Real Estate', 'Utilities']
+
+def get_sector_values(all_exec):
+    """
+        Calculate value for each sector
+
+        Args:
+            all_exec(list of StockOperations): list of all execs to calculate the value
+
+        Returns:
+            dict: sectors with values
+    """
+    sectors_dict = {key: None for key in sector_titles}
+
+    for ex in all_exec:
+        if ex.get_index():
+            if sectors_dict[ex.sector] is None:
+                sectors_dict[ex.sector] = 0
+
+            sectors_dict[ex.sector] += ex.get_long_positions() * ex.get_close()
+
+    return sectors_dict
+
+def get_min_sector_value(sectors_dict, nonzero=False):
+    """
+        Get the minimum value of the sector (among those which present in datasets).
+
+        Args:
+            sectors_dict(dict): dictionary with value per sector.
+            nonzero(bool): if zero values should be processed
+
+        Returns:
+            float: the minimum sector value (including 0)
+    """
+    if nonzero:
+        key = min(sectors_dict, key=lambda x: sectors_dict[x] or inf)
+    else:
+        key = min(sectors_dict, key = lambda x: sectors_dict[x] if sectors_dict[x] != None else inf)
+
+    return sectors_dict[key]
+
+def get_min_sector_keys(sectors_dict, nonzero=False):
+    """
+        Get the list of sector keys with minimum values
+
+        Args:
+            sectors_dict(dict): dictionary with value per sector
+            nonzero(bool): if zero values should be processed
+
+        Returns:
+            list: the list of sector titles with minimum value
+    """
+    min_value = get_min_sector_value(sectors_dict, nonzero)
+
+    return [key for key, value in sectors_dict.items() if value == min_value]
+
+def get_max_sector_value(sectors_dict):
+    """
+        Get the maximum value of the sector (among those which present in datasets).
+
+        Args:
+            sectors_dict(dict): dictionary with value per sector.
+
+        Returns:
+            float: the maximum sector value
+    """
+    key = max(sectors_dict, key = lambda x: sectors_dict[x] if sectors_dict[x] != None else -1)
+
+    return sectors_dict[key]
 
 class StockData(BackTestData):
     """
@@ -24,20 +98,6 @@ class StockData(BackTestData):
 
         # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
         self._close = StockQuotes.AdjClose
-
-    ############
-    # Properties
-    ############
-
-    @property
-    def sector(self):
-        """
-            Get the stock sector.
-
-            Returns:
-                str: the sector of the stock.
-        """
-        return self._info['sector']
 
     def create_exec(self, caller):
         """
@@ -64,8 +124,30 @@ class StockOperations(BackTestOperations):
         """
         super().__init__(**kwargs)
 
+        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().get_rows().dtype.names:
+            raise BackTestError(f"No 'cap' column in dataset for {self.data().get_title()} but it is required by the weighting method.")
+
         # The future incoming yield
         self._future_yield = 0
+
+    ############
+    # Properties
+    ############
+
+    @property
+    def sector(self):
+        """
+            Get the stock sector.
+
+            Returns:
+                str: the sector of the stock.
+        """
+        sector = self.data()._info['sector']
+
+        if sector not in sector_titles:
+            sector = 'Unknown'
+
+        return sector
 
     #############################################################
     # General methods with calculations for a particular symbol
@@ -112,7 +194,7 @@ class StockOperations(BackTestOperations):
         if idx is None:
             return
 
-        if self.get_long_positions() == 0 or self._short_positions == 0:
+        if self.get_long_positions() == 0 and self._short_positions == 0:
             return
 
         ratio = self.data().get_rows()[idx][StockQuotes.Splits]

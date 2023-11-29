@@ -41,7 +41,8 @@ if __name__ == "__main__":
 
     # As YF is used as the default data source, the data should be withing the last 30 days. Use the last week as the interval.
     # TODO LOW Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
-    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=6)
+    # TODO MID Think what to do if we can't maintain a continuous request withing 7 days
+    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=5)
 
     warning = "WARNING! Using yfinance data for the demonstration.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\

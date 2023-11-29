@@ -17,7 +17,7 @@ import sys
 min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
-symbol = 'SPY'
+symbol = 'RSPT'
 
 if __name__ == "__main__":
     # Get quotes
@@ -27,7 +27,7 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2022-11-1").get()
+        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2023-11-1").get()
     except FdataError as e:
         sys.exit(e)
 
@@ -45,7 +45,8 @@ if __name__ == "__main__":
         periodic_deposit=500,
         deposit_interval=30,
         inflation=2.5,
-        initial_deposit=10000
+        initial_deposit=10000,
+        verbosity=True
     )
 
     try:

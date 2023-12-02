@@ -34,7 +34,7 @@ def get_sector_values(all_exec):
             if sectors_dict[ex.sector] is None:
                 sectors_dict[ex.sector] = 0
 
-            sectors_dict[ex.sector] += ex.get_long_positions() * ex.get_close()
+            sectors_dict[ex.sector] += ex.get_total_value()
 
     return sectors_dict
 
@@ -264,9 +264,9 @@ class StockOperations(BackTestOperations):
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split "
+            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data().get_title()}"
                                   f"(total long / cash long / short) for {self.data().get_title()}: "
-                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions}\n"
+                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions} "
                                   f"Positions before split: {long_before} {long_cash_before} {short_before}")
 
     def apply_other_balance_changes(self):

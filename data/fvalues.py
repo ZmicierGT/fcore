@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from enum import IntEnum, Enum
+from enum import IntEnum, Enum, StrEnum
 
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
@@ -77,10 +77,9 @@ nasdaq100 = ['AAPL', 'ABNB', 'ADBE', 'ADI', 'ADP', 'ADSK', 'AEP', 'ALGN', 'AMAT'
              'RIVN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'TEAM', 'TMUS', 'TSLA', 'TXN', 'VRSK', 'VRTX', 'WBA',\
              'WBD', 'WDAY', 'XEL', 'ZM', 'ZS']
 
-# TODO LOW Switch these enumerations to StrEnum when appropriate versions of Python become more popular.
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order
-class Quotes(str, Enum):
+class Quotes(StrEnum):
     """
         Enum class for the database query result.
     """
@@ -93,7 +92,7 @@ class Quotes(str, Enum):
     Volume = 'volume'
     Transactions = 'transactions'
 
-class StockQuotes(str, Enum):
+class StockQuotes(StrEnum):
     """
         Enum class for the database stock quote query result.
     """
@@ -110,7 +109,7 @@ class StockQuotes(str, Enum):
     PayDividends = 'divs_pay'
     Splits = 'splits'
 
-class Dividends(str, Enum):
+class Dividends(StrEnum):
     """
         Enumeration for stock dividends data.
     """
@@ -122,7 +121,7 @@ class Dividends(str, Enum):
     Currency = 'currency'
     Source = 'source'
 
-class StockSplits(str, Enum):
+class StockSplits(StrEnum):
     """
         Enumeration for stock splits data.
     """
@@ -132,7 +131,7 @@ class StockSplits(str, Enum):
 
 # TODO LOW Think that in DB only Minute, Day and in the future Tick quotes are stored.
 # Other timespans are calculated manually based on the minute or EOD data.
-class Timespans(str, Enum):
+class Timespans(StrEnum):
     """
         Enum class for timespans.
     """
@@ -150,7 +149,7 @@ class Timespans(str, Enum):
     NinetyMinutes = "90_Minutes"  # YF only
     Day = "Day"
 
-class SecType(str, Enum):
+class SecType(StrEnum):
     """
         Enum class for security types.
     """
@@ -159,7 +158,7 @@ class SecType(str, Enum):
     Stock = "Stock"
     ETF = "ETF"
 
-class Currency(str, Enum):
+class Currency(StrEnum):
     """
         Enum class for currencies.
     """
@@ -167,7 +166,7 @@ class Currency(str, Enum):
     Unknown = "Unknown"
     USD = "USD"
 
-class ReportPeriod(str, Enum):
+class ReportPeriod(StrEnum):
     """
         Enum class for reports period.
     """

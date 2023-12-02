@@ -4,7 +4,15 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from enum import IntEnum, Enum, StrEnum
+from enum import IntEnum
+
+# There is no native 'StrEnum' in Python prior to 3.10 and workaround like using (str, Enum) as base
+# classes does not work correctly on 3.10+ (however, it works correctly on earlier versions of Python).
+# That is why we need another workaround to handle correctly both 3.10+ and prior versions.
+try:
+    from enum import StrEnum
+except ImportError:
+    from strenum import StrEnum
 
 def_first_date = -2147483648  # Earliest supported timestamp
 def_last_date = 9999999999  # Latest supported timestamp
@@ -175,7 +183,7 @@ class ReportPeriod(StrEnum):
     Quarter = "Quarter"
     Year = "Year"
 
-class DbTypes(Enum):
+class DbTypes(StrEnum):
     """
         Database types enum. Currently only SQLite is supported.
     """

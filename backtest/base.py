@@ -370,6 +370,8 @@ class BackTestOperations():
         self._calc = np.zeros([len(self.data().get_rows()), ], dtype=[('ts', '<i8')])
         self._calc['ts'] = self.data().get_rows()[Quotes.TimeStamp]
 
+        self._last_total_value = 0  # Total value at the moment of opening the last position
+
     def data(self):
         """
             Gets the used data class instance.
@@ -1081,6 +1083,8 @@ class BackTestOperations():
 
         self.get_caller().log(log)
 
+        self._last_total_value = self.get_total_value()
+
     def get_total_shares_num_short(self):
         """
             Get the total number of shares which we can short.
@@ -1139,6 +1143,8 @@ class BackTestOperations():
 
         self.get_caller().log(log)
 
+        self._last_total_value = self.get_total_value()
+
     # Open maxumum possible positions
     def open_long_max(self):
         """
@@ -1177,6 +1183,8 @@ class BackTestOperations():
             self.close_long(num, margin_call)
         else:
             self.close_short(num, margin_call)
+
+        self._last_total_value = self.get_total_value()
 
     def close_long(self, num, margin_call=False):
         """

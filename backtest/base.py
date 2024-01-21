@@ -336,8 +336,9 @@ class BackTestOperations():
         # Backtesting class instance
         self.__caller = caller
 
-        # Portfolio with long/short positions for the symbol
-        self._portfolio = []
+        # TODO LOW rename the first one to indicate that in involves margin
+        self._portfolio = []  # Portfolio with margin long/short positions for the symbol
+        self._portfolio_cash = []  # Portfolio with cash long positions only
 
         # Quote to calculate signal change
         self._signal_quote = None
@@ -371,6 +372,7 @@ class BackTestOperations():
         self._calc['ts'] = self.data().get_rows()[Quotes.TimeStamp]
 
         self._last_total_value = 0  # Total value at the moment of opening the last position
+        self._total_profit = 0  # Total profit of all operations with this security
 
     def data(self):
         """
@@ -504,6 +506,7 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
+
             return self.data().get_rows()[local_index]
 
     def get_avail_index(self, ts=None):
@@ -526,9 +529,38 @@ class BackTestOperations():
         if len(idx):
             return idx[-1]
 
-    ############################################################
-    # General methodss with calculations for a particular symbol
-    ############################################################
+    ###########################################################
+    # General methods with calculations for a particular symbol
+    ###########################################################
+
+    def get_total_profit(self):
+        """
+            Get the total profit of the operations with the security.
+
+            Returns:
+                float: the total profit since the last trade
+        """
+        profit = self._total_profit
+
+        if self.is_long():
+            for price_cash in self._portfolio_cash:
+                profit += self.get_sell_price() - price_cash
+            for price_margin in self._portfolio:
+                profit += self.get_sell_price() - price_margin
+        else:
+            for price_short in self._portfolio:
+                profit += price_short - self.get_buy_price()
+
+        return profit
+
+    def get_last_total_profit(self):
+        """
+            Get the total profit at the moment when the last trade was performed.
+
+            Returns:
+                float: the total profit since the last trade
+        """
+        return (self.get_total_value() - self._last_total_value) / self._last_total_value * 100
 
     def check_if_finished(self):
         """
@@ -1084,6 +1116,7 @@ class BackTestOperations():
         self.get_caller().log(log)
 
         self._last_total_value = self.get_total_value()
+        self._portfolio_cash.extend(repeat(self.get_buy_price(), num))
 
     def get_total_shares_num_short(self):
         """
@@ -1221,13 +1254,18 @@ class BackTestOperations():
 
         total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
+        # TODO LOW Think if it is rational (trimming)
+        # Trim cash portfolio (used for total profit calculations)
+        self._portfolio_cash = self._portfolio_cash[:cash_positions]
+
         # Close cash long positions
         self.get_caller().add_cash(self.get_sell_price() * cash_positions)
         self.get_caller().add_cash(-abs(total_commission))
         
         self.get_caller().add_commission_expense(total_commission)
-        self.get_caller().add_spread_expense(self.get_spread_deviation() * self._long_positions)
+        self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
 
+        # TODO MID Likely need to close margin positions at first
         # Close margin long positions
         delta = 0
 
@@ -1241,6 +1279,8 @@ class BackTestOperations():
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
+
+        self._total_profit += self.get_caller().get_cash() - ex_cash
 
         # Log if requested
         log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data().get_title()} with price "
@@ -1299,6 +1339,8 @@ class BackTestOperations():
 
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
+
+        self._total_profit += self.get_caller().get_cash() - ex_cash
 
         log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data().get_title()} with price "
                f"{round(self.get_buy_price(), 2)} for {round(total_commission + num * self.get_buy_price(), 2)} in total and "

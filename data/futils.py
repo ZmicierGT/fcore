@@ -45,8 +45,6 @@ def get_dt(value, tz=None):
                     dt = datetime.fromtimestamp(value).replace(tzinfo=tz)
         except (OverflowError, OSError) as e:
             raise ValueError(f"Too big/small timestamp value: {e}") from e
-
-        return dt
     # String
     elif isinstance(value, str):
         if len(value) <= 10:
@@ -62,8 +60,8 @@ def get_dt(value, tz=None):
     else:
         raise ValueError(f"Unknown type provided for datetime: {type(value).__name__}")
 
-    # Always keep datetimes in UTC time zone!
-    dt = dt.astimezone(pytz.UTC)
+    # Remove time zone from UTC adjusted datetime
+    dt = dt.replace(tzinfo=None)
 
     return dt
 

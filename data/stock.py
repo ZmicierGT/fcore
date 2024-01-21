@@ -277,6 +277,7 @@ class ROStockData(ReadOnlyData):
         if sectors_length != 12:
             # Insert data into stock sectors
 
+            # TODO MID Replace if with the values from sectors list
             insert_sectors = """INSERT INTO stock_sectors ('title') VALUES
                                     ('Unknown'), ('Technology'), ('Financial Services'),
                                     ('Healthcare'), ('Consumer Cyclical'), ('Industrials'),

@@ -209,6 +209,7 @@ class StockOperations(BackTestOperations):
                 margin_positions = self._long_positions - self._long_positions_cash
                 self._long_positions_cash *= ratio
 
+                # TODO LOW Think if excessive cash should be treated as profit or loss (depending on the price of opening the position)
                 excess = self._long_positions_cash - round(self._long_positions_cash)
 
                 # Add excess cash to the cash balance (in case of any decimal parts of share number)
@@ -264,7 +265,7 @@ class StockOperations(BackTestOperations):
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data().get_title()}"
+            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data().get_title()} "
                                   f"(total long / cash long / short) for {self.data().get_title()}: "
                                   f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions} "
                                   f"Positions before split: {long_before} {long_cash_before} {short_before}")
@@ -278,8 +279,10 @@ class StockOperations(BackTestOperations):
         if current_yield != 0:
             if self.is_long():
                 self.get_caller().add_other_profit(current_yield)
+                self._total_profit += current_yield
             else:
                 self.get_caller().add_other_profit(-abs(current_yield))
+                self._total_profit -= current_yield
 
         self.check_for_split()
 

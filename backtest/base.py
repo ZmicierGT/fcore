@@ -16,6 +16,12 @@ import numpy as np
 from threading import Thread, Event
 import copy
 
+# TODO HIGH Priorities:
+# - Implement taxation calculation with taxation models as in PL, NL, IE.
+#   Calculate also total value after taxes (taking into account open positions)
+# - Implemnt limit orders. In the future implement limit orders with higher resolution data.
+# - Implement dynamic index composition to take into account when stocks are added/removed from an index.
+
 # Enum class for backtesting results data order.
 class BTDataEnum(IntEnum):
     """Enum to describe a list with backtesting result."""
@@ -624,6 +630,24 @@ class BackTestOperations():
             raise BackTestError(f"Can not hold long and short positions for {self.data().get_title()} the same time: long - {self._long_positions}, short - {self._short_positions}")
 
         return self._long_positions > 0
+
+    def get_long_positions_cash(self):
+        """
+            Get the number of non-margin long positions.
+
+            Returns
+                int: the number of non-margin long positions.
+        """
+        return self._long_positions_cash
+
+    def get_last_total_value(self):
+        """
+            Get the total value at the moment of opening the last position.
+
+            Returns:
+                float: the total value at the moment of opening the last position.
+        """
+        return self._last_total_value
 
     def get_margin_positions(self):
         """

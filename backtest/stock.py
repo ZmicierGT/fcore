@@ -31,6 +31,9 @@ def get_sector_values(all_exec):
 
     for ex in all_exec:
         if ex.get_index():
+            if ex.sector == 'Unknown':
+                continue
+
             if sectors_dict[ex.sector] is None:
                 sectors_dict[ex.sector] = 0
 
@@ -142,10 +145,13 @@ class StockOperations(BackTestOperations):
             Returns:
                 str: the sector of the stock.
         """
-        sector = self.data()._info['sector']
+        sector = ''
+
+        if self.data()._info is not None and 'sector' in self.data()._info:
+            sector = self.data()._info['sector']
 
         if sector not in sector_titles:
-            sector = 'Unknown'
+            return 'Unknown'
 
         return sector
 

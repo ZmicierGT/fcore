@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fvalues import Quotes, trading_days_per_year, Weighted
-from data.futils import thread_available, logger, add_column
+from data.futils import thread_available, logger, add_column, get_dt
 
 import abc
 from datetime import datetime
@@ -17,8 +17,6 @@ from threading import Thread, Event
 import copy
 
 # TODO HIGH Priorities:
-# - Implement taxation calculation with taxation models as in PL, NL, IE.
-#   Calculate also total value after taxes (taking into account open positions)
 # - Implemnt limit orders. In the future implement limit orders with higher resolution data.
 # - Implement dynamic index composition to take into account when stocks are added/removed from an index.
 
@@ -379,6 +377,19 @@ class BackTestOperations():
 
         self._last_total_value = 0  # Total value at the moment of opening the last position
         self._total_profit = 0  # Total profit of all operations with this security
+
+        ##############
+        # Limit Orders
+        ##############
+
+        self._limit_buy = 0  # Price to buy
+        self._limit_sell = 0  # Price to sell
+        self._limit_deviation = 0  # Acceptable price deviation for a limit order
+
+        self._limit_num = None  # Number of shares for a limit order. None means max
+
+        self._limit_date = None  # Limit order placement date
+        self._limit_validity = 2  # Limit order validity in days
 
     def data(self):
         """
@@ -1038,6 +1049,89 @@ class BackTestOperations():
                 # Close the positions which exceed margin requirement
                 self.close(shares_num, margin_call=True)
 
+    ###################
+    # Trades processing
+    ###################
+
+    # TODO LOW Implement using a higher resolution for order procesing.
+    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2):
+        """
+            Perform a buy trade.
+
+            Args:
+                num(int): the number of shares. None if max.
+                limit(float): price for a limit order. None for a market order (spread will be taken into account then).
+                limit_deviation(float): acceptable price deviation for a limit order to be executed.
+                limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+        """
+        # Process market order
+        if limit is None:
+            if num is None:
+                self.close_all_short()
+                self.open_long_max()
+            else:
+                if self.get_short_positions():
+                    num_close = min(self.get_short_positions(), num)
+                    self.close_short(num_close)
+                    num = num - num_close
+
+                if num > 0:
+                    self.open_long(num)
+        else:
+            # Place a limit order
+            self._limit_buy = limit
+
+            self._limit_num = num
+            self._limit_deviation = limit_deviation
+            self._limit_validity = limit_validity
+            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+
+    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2):
+        """
+            Perform a sell trade.
+
+            Args:
+                num(int): the number of shares. None if max.
+                limit(float): price for a limit order. None for a market order (spread will be taken into account then).
+                limit_deviation(float): acceptable price deviation for a limit order to be executed.
+                limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+        """
+        # Process market order
+        if limit is None:
+            if num is None:
+                self.close_all_long()
+                self.open_short_max()
+            else:
+                if self.get_long_positions():
+                    num_close = min(self.get_long_positions(), num)
+                    self.close_long(num_close)
+                    num = num - num_close
+
+                if num > 0:
+                    self.open_short(num)
+        else:
+            # Place a limit order
+            self._limit_buy = limit
+
+            self._limit_num = num
+            self._limit_deviation = limit_deviation
+            self._limit_validity = limit_validity
+            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+
+    def cancel_limit_order(self):
+        """
+            Cancel a limit order.
+        """
+        # Setting the values to default
+        self._limit_buy = 0  # Price to buy
+        self._limit_sell = 0  # Price to sell
+        self._limit_deviation = 0  # Acceptable price deviation for a limit order
+
+        self._limit_num = None  # Number of shares for a limit order. None means max
+
+        self._limit_date = None  # Limit order placement date
+        self._limit_validity = 2  # Limit order validity in days
+
     #######################################
     # Methods related to opening positions.
     #######################################
@@ -1085,12 +1179,13 @@ class BackTestOperations():
         """
         return max(0, self.get_shares_num_cash()[0] + self.get_shares_num_margin())
 
-    def open_long(self, num):
+    def open_long(self, num, price=None):
         """
             Open the specified number of long position.
 
             Args:
                 num(int): the number of shares to buy.
+                price(float): force the trade to be executed using this price.
 
             Raises:
                 BackTestError: not enough cash/margin to open the position.
@@ -1113,14 +1208,19 @@ class BackTestOperations():
         shares_num_margin = max(0, num - shares_num_cash)
         total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
 
-        total_spread_expense = self.get_spread_deviation() * num
-        total_cash_price = self.get_buy_price() * shares_num_cash
+        if price:
+            total_spread_expense = 0
+        else:
+            total_spread_expense = self.get_spread_deviation() * num
+            price = self.get_buy_price()
+
+        total_cash_price = price * shares_num_cash
 
         self.get_caller().add_cash(-abs(total_commission + total_cash_price))
         self._long_positions += num
         self._long_positions_cash += shares_num_cash
 
-        self._portfolio.extend(repeat(self.get_buy_price(), shares_num_margin))
+        self._portfolio.extend(repeat(price, shares_num_margin))
 
         # Add expenses for this trade
         self.get_caller().add_commission_expense(total_commission)
@@ -1129,18 +1229,18 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
-        self._price_open_long = self.get_buy_price(adjusted=True)
+        self._price_open_long = self.get_buy_price(adjusted=True)  # Used only for charting
 
         # Log if requested
         log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data().get_title()} with price "
-               f"{round(self.get_buy_price(), 2)} for {round(total_commission + num * self.get_buy_price(), 2)} in total when "
+               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
 
         self.get_caller().log(log)
 
         self._last_total_value = self.get_total_value()
-        self._portfolio_cash.extend(repeat(self.get_buy_price(), num))
+        self._portfolio_cash.extend(repeat(price, num))
 
     def get_total_shares_num_short(self):
         """
@@ -1151,12 +1251,13 @@ class BackTestOperations():
         """
         return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
 
-    def open_short(self, num):
+    def open_short(self, num, price=None):
         """
             Open the short position.
 
             Args:
                 num(int): the number of shares to short.
+                price(float): force the trade to be executed using this price.
 
             Raises:
                 BackTestError: not enough cash/margin to open the position.
@@ -1180,21 +1281,24 @@ class BackTestOperations():
         self.get_caller().add_cash(-abs(self.get_share_fee() * num + self.get_caller().get_commission()))
         self._short_positions += num
 
-        self._portfolio.extend(repeat(self.get_sell_price(), num))
+        if price is None:
+            self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
+            price = self.get_sell_price()
+
+        self._portfolio.extend(repeat(price, num))
 
         # Calculate expenses for this trade
         self.get_caller().add_commission_expense(self.get_caller().get_commission() + self.get_share_fee() * num)
-        self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
-        self._price_open_short = self.get_sell_price(adjusted=True)
+        self._price_open_short = self.get_sell_price(adjusted=True)  # Used only in charting
 
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
 
         log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.data().get_title()} with price "
-               f"{round(self.get_sell_price(), 2)} for {round(total_commission + num * self.get_sell_price(), 2)} in total when "
+               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
 
@@ -1243,13 +1347,14 @@ class BackTestOperations():
 
         self._last_total_value = self.get_total_value()
 
-    def close_long(self, num, margin_call=False):
+    def close_long(self, num, margin_call=False, price=None):
         """
             Close the number of long positions.
 
             Args:
                 num(int): the number of positions to close.
                 margin_call(bool): indicates if the trade is initiated by margin requirement.
+                price(float): force the trade to be executed using this price.
 
             Raises:
                 BackTestError: to many positions to close.
@@ -1271,6 +1376,7 @@ class BackTestOperations():
         if num > self._long_positions_cash:
             margin_positions = num - self._long_positions_cash
 
+        # Used only in charging
         if margin_call:
             self._price_margin_req_long = self.get_sell_price(adjusted=True)
         else:
@@ -1282,19 +1388,22 @@ class BackTestOperations():
         # Trim cash portfolio (used for total profit calculations)
         self._portfolio_cash = self._portfolio_cash[:cash_positions]
 
+        if price is None:
+            price = self.get_sell_price()
+            self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
+
         # Close cash long positions
-        self.get_caller().add_cash(self.get_sell_price() * cash_positions)
+        self.get_caller().add_cash(price * cash_positions)
         self.get_caller().add_cash(-abs(total_commission))
         
         self.get_caller().add_commission_expense(total_commission)
-        self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
 
         # TODO MID Likely need to close margin positions at first
         # Close margin long positions
         delta = 0
 
         for _ in range(margin_positions):
-            delta += self.get_sell_price() - self._portfolio.pop()
+            delta += price - self._portfolio.pop()
 
         self._long_positions -= num
         self._long_positions_cash -= cash_positions
@@ -1308,20 +1417,21 @@ class BackTestOperations():
 
         # Log if requested
         log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data().get_title()} with price "
-               f"{round(self.get_sell_price(), 2)} for {round(total_commission + num * self.get_sell_price(), 2)} in total and "
+               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
                f"Margin call is {margin_call}")
 
         self.get_caller().log(log)
 
-    def close_short(self, num, margin_call=False):
+    def close_short(self, num, margin_call=False, price=None):
         """
             Close the number of short positions.
 
             Args:
                 num(int): the number of positions to close.
                 margin_call(bool): indicates if the trade is initiated by margin requirement.
+                price(float): force the trade to be executed using this price.
 
             Raises:
                 BackTestError: too many positions to close.
@@ -1337,15 +1447,21 @@ class BackTestOperations():
         ex_margin = self.get_caller().get_available_margin()
         initial_commission = self.get_caller().get_commission_expense()
 
+        if price:
+            spread = 0
+        else:
+            price = self.get_buy_price()
+            spread = self.get_spread_deviation()
+
         delta = 0
 
         for _ in range (num):
-            delta += self._portfolio.pop() - self.get_buy_price()
+            delta += self._portfolio.pop() - price
             # Assume that slightly negative cash balance is possible on a margin account
             self.get_caller().add_cash(-abs(self.get_share_fee()))
 
             self.get_caller().add_commission_expense(self.get_share_fee())
-            self.get_caller().add_spread_expense(self.get_spread_deviation())
+            self.get_caller().add_spread_expense(spread)
 
         self.get_caller().add_commission_expense(self.get_caller().get_commission())
 
@@ -1356,6 +1472,7 @@ class BackTestOperations():
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
 
+        # Used only in charting
         if margin_call:
             self._price_margin_req_short = self.get_buy_price(adjusted=True)
         else:
@@ -1367,7 +1484,7 @@ class BackTestOperations():
         self._total_profit += self.get_caller().get_cash() - ex_cash
 
         log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data().get_title()} with price "
-               f"{round(self.get_buy_price(), 2)} for {round(total_commission + num * self.get_buy_price(), 2)} in total and "
+               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
                f"Margin call is {margin_call}")

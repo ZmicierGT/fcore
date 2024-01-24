@@ -34,7 +34,7 @@ def get_dt(value, tz=None):
             datetime: datetime obtained from the provided value.
     """
     # Timestamp
-    if isinstance(value, int):
+    if isinstance(value, int) or isinstance(value, np.int64):
         try:
             if value < 0:
                 dt = datetime(1970, 1, 1).replace(tzinfo=tz) + timedelta(seconds=value)

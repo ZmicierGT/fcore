@@ -17,7 +17,6 @@ from threading import Thread, Event
 import copy
 
 # TODO HIGH Priorities:
-# - Implemnt limit orders. In the future implement limit orders with higher resolution data.
 # - Implement dynamic index composition to take into account when stocks are added/removed from an index.
 
 # Enum class for backtesting results data order.
@@ -386,7 +385,7 @@ class BackTestOperations():
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
 
-        self._limit_num = None  # Number of shares for a limit order. None means max
+        self._limit_num = -1  # Number of shares for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
@@ -1054,7 +1053,9 @@ class BackTestOperations():
     ###################
 
     # TODO LOW Implement using a higher resolution for order procesing.
-    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2):
+    # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
+    #      strategies. Think how to implement it in a safer way.
+    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, price=None):
         """
             Perform a buy trade.
 
@@ -1063,8 +1064,10 @@ class BackTestOperations():
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+                exact(bool): indicates if the exact number of requested positions should be opened.
+                price(float): force the trade to be executed using this price.
         """
-        # Process market order
+        # Process a market order
         if limit is None:
             if num is None:
                 self.close_all_short()
@@ -1076,9 +1079,17 @@ class BackTestOperations():
                     num = num - num_close
 
                 if num > 0:
-                    self.open_long(num)
+                    self.open_long(num, exact=exact)
         else:
             # Place a limit order
+            if self._limit_buy or self._limit_sell:
+                direction = 'BUY' if self._limit_buy else 'SELL'
+
+                log = (f"Cancelling {direction} limit order for {self.data().get_title()} as the new order is being placed.")
+                self.get_caller().log(log)
+
+            self.cancel_limit_order()
+
             self._limit_buy = limit
 
             self._limit_num = num
@@ -1086,7 +1097,20 @@ class BackTestOperations():
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
 
-    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2):
+            max_price = round(self._limit_buy + self._limit_buy * self._limit_deviation, 2)
+
+            if self._limit_num is not None:
+                order_num = self._limit_num
+            else:
+                order_num = 'maximum possible'
+
+            log = (f"BUY Limit order is placed for {self.data().get_title()} for the {order_num} number or shares "
+                   f"with the price {round(self._limit_buy, 2)} "
+                   f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
+
+            self.get_caller().log(log)
+
+    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, price=None):
         """
             Perform a sell trade.
 
@@ -1095,8 +1119,10 @@ class BackTestOperations():
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+                exact(bool): indicates if the exact number of requested positions should be opened.
+                price(float): force the trade to be executed using this price.
         """
-        # Process market order
+        # Process a market order
         if limit is None:
             if num is None:
                 self.close_all_long()
@@ -1108,15 +1134,36 @@ class BackTestOperations():
                     num = num - num_close
 
                 if num > 0:
-                    self.open_short(num)
+                    self.open_short(num, exact=exact)
         else:
             # Place a limit order
-            self._limit_buy = limit
+            if self._limit_buy or self._limit_sell:
+                direction = 'BUY' if self._limit_buy else 'SELL'
+
+                log = (f"Cancelling {direction} limit order for {self.data().get_title()} as the new order is being placed.")
+                self.get_caller().log(log)
+
+            self.cancel_limit_order()
+
+            self._limit_sell = limit
 
             self._limit_num = num
             self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+
+            max_price = round(self._limit_sell - self._limit_sell * self._limit_deviation, 2)
+
+            if self._limit_num is not None:
+                order_num = self._limit_num
+            else:
+                order_num = 'maximum possible'
+
+            log = (f"SELL Limit order is placed for {self.data().get_title()} for {order_num} number of shares "
+                   f"with the price {round(self._limit_sell, 2)} "
+                   f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
+
+            self.get_caller().log(log)
 
     def cancel_limit_order(self):
         """
@@ -1127,10 +1174,62 @@ class BackTestOperations():
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
 
-        self._limit_num = None  # Number of shares for a limit order. None means max
+        self._limit_num = -1  # Number of shares for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
+
+    def process_limit_order(self):
+        """
+            Execute limit order (if any).
+        """
+        if self._limit_num is not None and self._limit_num == -1:
+            return
+
+        currrent_date = get_dt(self.get_row()[Quotes.TimeStamp])
+
+        delta = currrent_date - self._limit_date
+        days_delta = delta.days
+
+        # If limit order is valid more than for the current day then ignore the weekends
+        if self._limit_date.weekday() == 5 and self._limit_validity > 1:
+            days_delta -= 2
+
+        if days_delta > self._limit_validity:
+            log = (f"Limit order expired for {self.data().get_title()} as in the {days_delta} days the desired price "
+                   f"{round(max(self._limit_buy, self._limit_sell), 2)} "
+                   f"with the maximum deviation of {self._limit_deviation} wasn't achieved. "
+                   f"the current close price is {self.get_row()[Quotes.Close]}.")
+
+            self.get_caller().log(log)
+
+            self.cancel_limit_order()
+
+            return
+
+        if self._limit_buy is not None and self._limit_buy != 0:
+            current_low = self.get_row()[Quotes.Low]
+
+            if current_low <= self._limit_buy + self._limit_buy * self._limit_deviation:
+                self.buy(num=self._limit_num, price=current_low)
+
+                diff = current_low - self._limit_buy
+                if diff > 0:
+                    self.get_caller().add_spread_expense(diff)
+
+                self.cancel_limit_order()
+
+        if self._limit_sell is not None and self._limit_sell != 0:
+            current_high = self.get_row()[Quotes.High]
+
+            if current_high >= self._limit_sell + self._limit_sell * self._limit_deviation:
+                self.sell(num=self._limit_num, price=current_high)
+
+                diff = current_high - self._limit_sell
+                if diff > 0:
+                    self.get_caller().add_spread_expense(diff)
+
+                self.cancel_limit_order()
 
     #######################################
     # Methods related to opening positions.
@@ -1179,13 +1278,14 @@ class BackTestOperations():
         """
         return max(0, self.get_shares_num_cash()[0] + self.get_shares_num_margin())
 
-    def open_long(self, num, price=None):
+    def open_long(self, num, price=None, exact=False):
         """
             Open the specified number of long position.
 
             Args:
                 num(int): the number of shares to buy.
                 price(float): force the trade to be executed using this price.
+                exact(bool): indicates if the exact number of requested positions should be opened.
 
             Raises:
                 BackTestError: not enough cash/margin to open the position.
@@ -1195,7 +1295,10 @@ class BackTestOperations():
             raise BackTestError(f"Can't open negative number of long positions: {num}")
 
         if num > self.get_total_shares_num():
-            raise BackTestError(f"Not enough cash/margin to open the position. {num} > {self.get_total_shares_num()}")
+            if exact:
+                raise BackTestError(f"Not enough cash/margin to open the position. {num} > {self.get_total_shares_num()}")
+            else:
+                num = min(num, self.get_total_shares_num())
 
         if num == 0:
             return
@@ -1251,26 +1354,30 @@ class BackTestOperations():
         """
         return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
 
-    def open_short(self, num, price=None):
+    def open_short(self, num, price=None, exact=False):
         """
             Open the short position.
 
             Args:
                 num(int): the number of shares to short.
                 price(float): force the trade to be executed using this price.
+                exact(bool): indicates if the exact number of requested positions should be opened.
 
             Raises:
                 BackTestError: not enough cash/margin to open the position.
                 BackTestError: Can't open the negative number of positions.
         """
-        if num > self.get_total_shares_num_short():
-            raise BackTestError(f"Not enough margin to buy {num} shares. Available margin is for {self.get_total_shares_num_short()} shares only.")
-
         if num < 0:
             raise BackTestError(f"Can't open negative number of short positions: {num}")
 
         if num == 0:
             return
+
+        if num > self.get_total_shares_num_short():
+            if exact:
+                raise BackTestError(f"Not enough margin to buy {num} shares. Available margin is for {self.get_total_shares_num_short()} shares only.")
+            else:
+                num = min(num, self.get_total_shares_num_short())
 
         # Needed for logging
         ex_cash = self.get_caller().get_cash()
@@ -2630,6 +2737,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
                 ex.apply_margin_fee()  # Calculate and apply margin expenses per day
                 ex.check_margin_requirements()  # Check if margin requirements are met
+                ex.process_limit_order()  # Execute limit order (if any)
 
         return True
 

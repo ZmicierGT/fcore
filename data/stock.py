@@ -442,7 +442,11 @@ class ROStockData(ReadOnlyData):
         if isinstance(columns, list) is False:
             columns = []
 
+        columns.append('opened AS adj_open')
+        columns.append('high AS adj_high')
+        columns.append('low AS adj_low')
         columns.append('closed AS adj_close')
+        columns.append('volume AS adj_volume')
         columns.append('0.0 AS divs_ex')
         columns.append('0.0 AS divs_pay')
         columns.append('1.0 AS splits')
@@ -508,9 +512,9 @@ class ROStockData(ReadOnlyData):
                     if closed:
                         c_ratio -= amount / closed
 
-                    quotes[StockQuotes.Open][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
-                    quotes[StockQuotes.High][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio
-                    quotes[StockQuotes.Low][:idx_ex] = quotes[StockQuotes.Low][:idx_ex] * l_ratio
+                    quotes[StockQuotes.AdjOpen][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
+                    quotes[StockQuotes.AdjHigh][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio
+                    quotes[StockQuotes.AdjLow][:idx_ex] = quotes[StockQuotes.Low][:idx_ex] * l_ratio
                     quotes[StockQuotes.AdjClose][:idx_ex] = quotes[StockQuotes.AdjClose][:idx_ex] * c_ratio
                 except IndexError:
                     pass
@@ -537,12 +541,11 @@ class ROStockData(ReadOnlyData):
 
                     if ratio != 1:
                         # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
-                        quotes[StockQuotes.Open][:idx_split] = quotes[StockQuotes.Open][:idx_split] / ratio
-                        quotes[StockQuotes.High][:idx_split] = quotes[StockQuotes.High][:idx_split] / ratio
-                        quotes[StockQuotes.Low][:idx_split] = quotes[StockQuotes.Low][:idx_split] / ratio
-                        quotes[StockQuotes.Volume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * ratio
-
+                        quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.Open][:idx_split] / ratio
+                        quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.High][:idx_split] / ratio
+                        quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.Low][:idx_split] / ratio
                         quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / ratio
+                        quotes[StockQuotes.AdjVolume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * ratio
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass

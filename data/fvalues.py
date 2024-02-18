@@ -19,9 +19,50 @@ def_last_date = 9999999999  # Latest supported timestamp
 
 trading_days_per_year = 252
 
-# DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted)
+# DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted). As of August 31, 2020
 djia = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'KO', 'DIS', 'DOW', 'GS', 'HD', 'HON', 'IBM', 'INTC',\
         'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'WBA', 'WMT']
+
+# NOTE: KRFT Historical quotes (delisted) are not provided by any supported data source yet.
+djia_jun_08_2009 = ['MMM', 'DD', 'MCD', 'AA', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'T', 'HPQ', 'PFE', 'BAC', 'HD', 'PG',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'KRFT', 'DIS']
+
+djia_sep_24_2012 = ['MMM', 'DD', 'MCD', 'AA', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'T', 'HPQ', 'PFE', 'BAC', 'HD', 'PG',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_sep_23_2013 = ['MMM', 'DD', 'MCD', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'T', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_mar_19_2015 = ['MMM', 'DD', 'MCD', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+# Actually there were no changes in tickers - just one company was renamed. So basically index composition is as the previous
+djia_sep_01_2017 = ['MMM', 'DD', 'MCD', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+# Actually there were no changes in tickers - just one company was renamed. So basically index composition is as the previous
+djia_feb_01_2018 = ['MMM', 'DD', 'MCD', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_jun_26_2018 = ['MMM', 'DD', 'MCD', 'XOM', 'MRK', 'AXP', 'WBA', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_apr_02_2019 = ['MMM', 'DOW', 'MCD', 'XOM', 'MRK', 'AXP', 'WBA', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_apr_06_2020 = ['MMM', 'DOW', 'MCD', 'XOM', 'MRK', 'AXP', 'WBA', 'MSFT', 'AAPL', 'PFE', 'HD', 'PG', 'NKE', 'GS', 'V',\
+                    'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'RTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
+
+djia_combined = list(set(djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + djia_jun_26_2018 + djia_apr_02_2019 + \
+                         djia_apr_06_2020 + djia))
+
+djia_dict = {'2012-09-24': djia_sep_24_2012,
+             '2013-09-23': djia_sep_23_2013,
+             '2015-03-19': djia_mar_19_2015,
+             '2018-06-26': djia_mar_19_2015,
+             '2019-04-02': djia_apr_02_2019,
+             '2020-04-06': djia_apr_06_2020,
+             '2020-08-31': djia}
 
 # S&P 500 Composition (RSP for equal weighted ETF for comparison, SPY for Cap)
 snp500 = ['A', 'AAL', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI', 'ADM', 'ADP', 'ADSK', 'AEE', 'AEP', \

@@ -286,9 +286,15 @@ class StockOperations(BackTestOperations):
             if self.is_long():
                 self.get_caller().add_other_profit(current_yield)
                 self._total_profit += current_yield
+
+                log = f"Added {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+                self.get_caller().log(log)
             else:
                 self.get_caller().add_other_profit(-abs(current_yield))
                 self._total_profit -= current_yield
+
+                log = f"Deducted {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+                self.get_caller().log(log)
 
         self.check_for_split()
 

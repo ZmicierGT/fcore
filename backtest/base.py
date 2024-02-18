@@ -281,14 +281,9 @@ class BackTestData():
             Raises:
                 BackTestError: incorrect date in the provided data.
         """
-        dt_str = self._rows[0][Quotes.DateTime]
+        dt = get_dt(self._rows[0][Quotes.TimeStamp])
 
-        try:
-            dt = datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S')
-        except ValueError as e:
-            raise BackTestError(f"The date {dt_str} is incorrect: {e}") from e
-
-        return dt
+        return dt.year
 
     def create_exec(self, caller):
         """
@@ -2146,6 +2141,9 @@ class BackTest(metaclass=abc.ABCMeta):
             self._cash += self._periodic_deposit
             self._deposits += self._periodic_deposit
             self._deposit_counter = 0
+
+            self.log(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.get_cash(), 2)}.")
+
 
     def cash_interest(self):
         """

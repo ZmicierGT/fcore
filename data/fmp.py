@@ -146,6 +146,68 @@ class FmpStock(stock.StockFetcher):
             except self.Error as e:
                 raise FdataError(f"Can't create trigger for fmp_capitalization: {e}") from e
 
+        # TODO LOW Think if we should alter caching so multiple queries for companies with no reports yet won't be requested
+        # Check if we need to create a table for earnings surprises
+        try:
+            check_surprises = "SELECT name FROM sqlite_master WHERE type='table' AND name='fmp_surprises';"
+
+            self.cur.execute(check_surprises)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'fmp_surprises': {e}\n{check_surprises}") from e
+
+        if len(rows) == 0:
+            create_surprises = f"""CREATE TABLE fmp_surprises(
+                                    fmp_surp_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    source_id INTEGER NOT NULL,
+                                    symbol_id INTEGER NOT NULL,
+                                    time_stamp INTEGER NOT NULL,
+                                    actualEarning REAL,
+                                    estimatedEarning REAL,
+                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                    UNIQUE(symbol_id, time_stamp)
+                                    CONSTRAINT fk_symbols,
+                                        FOREIGN KEY (symbol_id)
+                                        REFERENCES symbols(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_sources,
+                                        FOREIGN KEY (source_id)
+                                        REFERENCES sources(source_id)
+                                        ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_surprises)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'fmp_surprises': {e}\n{create_surprises}") from e
+
+            # Create index for symbol_id
+            create_symbol_date_surprises_idx = "CREATE INDEX idx_fmp_surprises ON fmp_surprises(symbol_id, time_stamp);"
+
+            try:
+                self.cur.execute(create_symbol_date_surprises_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index fmp_surprises(symbol_id, time_stamp): {e}") from e
+
+            # Create trigger to last modified time
+            create_fmp_surprises_trigger = """CREATE TRIGGER update_fmp_surprises
+                                                BEFORE UPDATE
+                                                    ON fmp_surprises
+                                                BEGIN
+                                                    UPDATE fmp_surprises
+                                                    SET modified = strftime('%s', 'now')
+                                                    WHERE fmp_surp_id = old.fmp_surp_id;
+                                                END;"""
+
+            try:
+                self.cur.execute(create_fmp_surprises_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for fmp_surprises: {e}") from e
+
+    ###################################################
+    # Methods related to capitalization data processing
+    ###################################################
+
     def get_cap_num(self):
         """Get the number of capitalization data entries.
 
@@ -263,9 +325,142 @@ class FmpStock(stock.StockFetcher):
 
         return (new_num - num)
 
-    ##########################################
-    # Methods which are not implemented (yet).
-    ##########################################
+    ######################################################
+    # Methods related to earnings surprise data processing
+    ######################################################
+
+    def get_surprises_num(self):
+        """Get the number of surprises data entries.
+
+            Returns:
+                int: the number of surprises data entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num('fmp_surprises')
+
+    def fetch_surprises(self, num=None):
+        """
+            Fetch the surprises data.
+
+            Args:
+                num(int): the number of days to limit the request.
+
+            Returns:
+                list: surprises data.
+        """
+        if num is not None:
+            surprises_url = f"https://financialmodelingprep.com/api/v3/earnings-surprises/{self.symbol}?limit={num}&apikey={self.api_key}"
+        else:
+            surprises_url = f"https://financialmodelingprep.com/api/v3/earnings-surprises/{self.symbol}?apikey={self.api_key}"
+
+        # Get the surprises data
+        response = self.query_api(surprises_url, timeout=120)
+
+        # Get json
+        json_data = response.json()
+
+        results = list(json_data)
+
+        if len(results) == 0 or results == ['Error Message']:
+            self.log(f"No surprises data obtained for {self.symbol}")
+
+        return results
+
+    def add_surprises(self, results):
+        """
+            Add surprises data to the database.
+
+            Args:
+                results(list): the surprises data
+
+            Returns:
+                (int, int): total number of earnings reports before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_surprises_num()
+
+        for result in results:
+            # Need to convert date to a time stamp
+            try:
+                result['date'] = int(get_dt(result['date'], pytz.UTC).timestamp())
+
+                if result['actualEarningResult'] == None:
+                    result['actualEarningResult'] = 'NULL'
+
+                if result['estimatedEarning'] is None:
+                    result['estimatedEarning'] = 'NULL'
+            except TypeError as e:
+                raise FdataError(f"Unexpected data. API key limit is possible. {e}")
+
+            insert_surprises = f"""INSERT OR {self._update} INTO fmp_surprises (symbol_id,
+                                        source_id,
+                                        time_stamp,
+                                        actualEarning,
+                                        estimatedEarning)
+                                    VALUES (
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            {result['date']},
+                                            {result['actualEarningResult']},
+                                            {result['estimatedEarning']});"""
+
+            try:
+                self.cur.execute(insert_surprises)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'fmp_surprises': {e}\n\nThe query is\n{insert_surprises}") from e
+
+        self.commit()
+
+        return(num_before, self.get_surprises_num())
+
+    def get_surprises(self):
+        """
+            Fetch (if needed) the surprises data.
+        """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        num = self.get_surprises_num()
+
+        mod_ts = self.get_last_modified('fmp_surprises')
+
+        current = min(datetime.now(pytz.UTC).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+
+        # TODO LOW Ideally here implementation based on earnings calendar is needed
+        # Fetch data if no data present or day difference between current/requested data more than 90 days
+        if mod_ts is None:
+            self.add_surprises(self.fetch_surprises())
+        else:
+            last_ts = self.get_last_timestamp('fmp_surprises')
+
+            days_delta = (current - get_dt(last_ts, pytz.UTC)).days
+            days_delta_mod = (current - get_dt(mod_ts, pytz.UTC)).days
+
+            if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
+                self.add_surprises(self.fetch_surprises(round(days_delta / 90 + 1)))
+
+        new_num = self.get_surprises_num()
+
+        if initially_connected is False:
+            self.db_close()
+
+        return (new_num - num)
+
+    #########################################
+    # Methods which are not implemented (yet)
+    #########################################
 
     def get_timespan_str(self):
         """

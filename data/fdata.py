@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # Current database compatibility version
-DB_VERSION = 16
+DB_VERSION = 17
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -923,19 +923,20 @@ class ReadOnlyData():
 
         return result
 
-    def get_last_modified(self, table):
+    def get_max_value(self, table, column):
         """
-            Get the last modification timestamp from a table.
+            Get the maximum value from a table.
 
             Args:
-                table(str): table name
+                table(str): table to take the value
+                column(str): columnt to take the value
 
             Returns:
-                int: last modification timestamp.
+                The maximum value from the column
         """
         self.check_if_connected()
 
-        get_mod_ts = f"""SELECT modified FROM {table}
+        get_mod_ts = f"""SELECT {column} FROM {table}
                             WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
                             ORDER BY modified DESC LIMIT 1;"""
 
@@ -950,6 +951,30 @@ class ReadOnlyData():
             return result
 
         return result[0]
+
+    def get_last_modified(self, table):
+        """
+            Get the last modification timestamp from a table.
+
+            Args:
+                table(str): table name
+
+            Returns:
+                int: last modification timestamp.
+        """
+        return self.get_max_value(table, 'modified')
+
+    def get_last_timestamp(self, table):
+        """
+            Get the last timestamp from a table.
+
+            Args:
+                table(str): table name
+
+            Returns:
+                int: last timestamp.
+        """
+        return self.get_max_value(table, 'time_stamp')
 
     def get_total_symbol_quotes_num(self):
         """

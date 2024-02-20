@@ -343,7 +343,7 @@ class ROStockData(ReadOnlyData):
                                         BEGIN
                                             UPDATE stock_info
                                             SET modified = strftime('%s', 'now')
-                                            WHERE fmp_cap_id = old.fmp_cap_id;
+                                            WHERE stock_info_id = old.stock_info_id;
                                         END;"""
 
             try:

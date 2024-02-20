@@ -16,9 +16,6 @@ import numpy as np
 from threading import Thread, Event
 import copy
 
-# TODO HIGH Priorities:
-# - Implement dynamic index composition to take into account when stocks are added/removed from an index.
-
 # Enum class for backtesting results data order.
 class BTDataEnum(IntEnum):
     """Enum to describe a list with backtesting result."""
@@ -1117,6 +1114,9 @@ class BackTestOperations():
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 price(float): force the trade to be executed using this price.
         """
+        if num < 0:
+            raise BackTestError(f"The number of securities can't be less than 0. {num} is provided.")
+
         # Process a market order
         if limit is None:
             if num is None:
@@ -2356,6 +2356,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._commission_expense += expense
 
+    # TODO HIGH Check why strange spread values when executing limit orders
     def add_spread_expense(self, expense):
         """
             Add spread expense to the statistics.

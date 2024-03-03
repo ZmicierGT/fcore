@@ -1114,7 +1114,7 @@ class BackTestOperations():
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 price(float): force the trade to be executed using this price.
         """
-        if num < 0:
+        if num is not None and num < 0:
             raise BackTestError(f"The number of securities can't be less than 0. {num} is provided.")
 
         # Process a market order
@@ -2356,7 +2356,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._commission_expense += expense
 
-    # TODO HIGH Check why strange spread values when executing limit orders
     def add_spread_expense(self, expense):
         """
             Add spread expense to the statistics.

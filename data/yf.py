@@ -119,9 +119,9 @@ class YF(stock.StockFetcher):
         last_date_str = last_date.strftime('%Y-%m-%d')
 
         data = yfin.download(self.symbol,
-                                interval=self.get_timespan_str(),
-                                start=first_date_str,
-                                end=last_date_str)
+                             interval=self.get_timespan_str(),
+                             start=first_date_str,
+                             end=last_date_str)
 
         length = len(data)
 

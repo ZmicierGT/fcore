@@ -345,7 +345,7 @@ class Report():
         performance = f"Invested:     {round(invested, 2)}\n"\
                       f"Total value:  {round(final_value, 2)}\n"\
                       f"Profit:       {round(profit, 2)}%\n"\
-                      f"Yield profit: {round(data.OtherProfit[-1], 2)}\n"\
+                      f"Other profit: {round(data.OtherProfit[-1], 2)}\n"\
                       f"Total trades: {data.TotalTrades[-1]}"\
 
 
@@ -353,7 +353,7 @@ class Report():
                    f"Commission expense: {round(data.CommissionExpense[-1], 2)}\n"\
                    f"Spread expense:     {round(data.SpreadExpense[-1], 2)}\n"\
                    f"Debt expense:       {round(data.DebtExpense[-1], 2)}\n"\
-                   f"Yield expense:      {round(data.OtherExpense[-1], 2)}"\
+                   f"Other expense:      {round(data.OtherExpense[-1], 2)}"\
 
         # Put annotations to the image
         draw = ImageDraw.Draw(result)

@@ -37,6 +37,7 @@ def get_sector_values(all_exec):
             if sectors_dict[ex.sector] is None:
                 sectors_dict[ex.sector] = 0
 
+            # TODO MID Likely need a temp value for total value as it is slow to calculate
             sectors_dict[ex.sector] += ex.get_total_value()
 
     return sectors_dict

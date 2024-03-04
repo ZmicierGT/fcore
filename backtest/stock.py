@@ -185,7 +185,7 @@ class StockOperations(BackTestOperations):
 
         # Calculate dividends for short positions to get payed to a borrower
         if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
-            current_yield = self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions
+            current_yield = -abs(self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions)
 
         # if current_yield:
         #     self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data().get_title()} - {current_yield}")
@@ -284,18 +284,19 @@ class StockOperations(BackTestOperations):
         current_yield = self.get_current_yield()
 
         if current_yield != 0:
-            if self.is_long():
-                self.get_caller().add_other_profit(current_yield)
-                self._total_profit += current_yield
+            txt = 'Added'
 
-                log = f"Added {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
-                self.get_caller().log(log)
-            else:
-                self.get_caller().add_other_profit(-abs(current_yield))
-                self._total_profit -= current_yield
+            if current_yield < 0:
+                txt = 'Deducted'
 
-                log = f"Deducted {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
-                self.get_caller().log(log)
+            self.get_caller().add_other_profit(current_yield)
+            self._total_profit += current_yield
+
+            if current_yield < 0:
+                self.get_caller().add_other_expense(current_yield)
+
+            log = f"{txt} {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+            self.get_caller().log(log)
 
         self.check_for_split()
 

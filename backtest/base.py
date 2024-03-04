@@ -1226,6 +1226,46 @@ class BackTestOperations():
 
                 self.cancel_limit_order()
 
+    #####################
+    # Check for delisting
+    #####################
+
+    def check_delisting(self):
+        """
+            Check if s security was delisted. Consider a security to be delisted if the were no consecutive
+            quotes updates in N number of days (7 by default).
+        """
+        # Get the current trading timestamp of the base data
+        base_ts = self.get_caller().exec().get_row()[Quotes.TimeStamp]
+        # Get the last trading timestamp of the current symbol
+        current_ts = self.data().get_rows()[Quotes.TimeStamp][-1]
+
+        if current_ts < base_ts:
+            base_dt = get_dt(base_ts)
+            current_dt = get_dt(current_ts)
+
+            delta = current_dt - base_dt
+
+            if delta.days > 7:
+                # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
+                if self.get_long_positions():
+                    last_close = self.data().get_rows()[Quotes.Close][-1]
+                    # TODO LOW Think if margin long positions should be treaded differently
+                    total_lost = last_close * self._long_positions
+
+                    self.get_caller().log(f"At {self.get_datetime_str()} {self.data().get_title()} was consdered as delisted and "
+                                        f"total positions of {self.get_long_positions()} of total worth {total_lost} "
+                                        f"({last_close} per share) were lost.")
+
+                    self.get_caller().add_other_profit(-abs(total_lost))
+                    self.get_caller()._total_proit -= total_lost
+                    self.get_caller().add_other_expense(total_lost)
+
+                    self._long_positions = 0
+                    self._long_positions_cash = 0
+                else:
+                    self._short_positions = 0
+
     #######################################
     # Methods related to opening positions.
     #######################################
@@ -2338,6 +2378,16 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._debt_expense += debt_expense
 
+    def add_other_expense(self, other_expense):
+        """
+            Add other expenses to the statistics. It may be dividend expense of short positions or delisting expenses
+            in the case of stocks.
+
+            Args:
+                other_expenses(float): other expenses
+        """
+        self._other_expense += other_expense
+
     def add_total_trades(self, num):
         """
             Add total trades number to the statistics.
@@ -2732,6 +2782,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         for ex in self.__exec:
             if ex.get_index() is not None:
+                ex.check_delisting()  # Check is a security was delisted
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
                 ex.apply_margin_fee()  # Calculate and apply margin expenses per day
                 ex.check_margin_requirements()  # Check if margin requirements are met

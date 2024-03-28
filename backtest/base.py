@@ -1068,10 +1068,12 @@ class BackTestOperations():
                 if self.get_short_positions():
                     num_close = min(self.get_short_positions(), num)
                     self.close_short(num_close)
+                    self.get_caller()._short_positions_num -= num_close
                     num = num - num_close
 
                 if num > 0:
                     self.open_long(num, exact=exact)
+                    self.get_caller()._long_positions_num += num
         else:
             # Place a limit order
             if self._limit_buy or self._limit_sell:
@@ -1126,10 +1128,12 @@ class BackTestOperations():
                 if self.get_long_positions():
                     num_close = min(self.get_long_positions(), num)
                     self.close_long(num_close)
+                    self.get_caller()._long_positions_num -= num_close
                     num = num - num_close
 
                 if num > 0:
                     self.open_short(num, exact=exact)
+                    self.get_caller()._short_positions_num += num
         else:
             # Place a limit order
             if self._limit_buy or self._limit_sell:
@@ -2054,6 +2058,9 @@ class BackTest(metaclass=abc.ABCMeta):
         # Separate thread for calculation
         self.__thread = None
 
+        self._long_positions_num = 0  # The total number of opened positions
+        self._short_positions_num = 0  # The total number of opened short positions
+
     #############
     # Methods
     #############
@@ -2075,6 +2082,24 @@ class BackTest(metaclass=abc.ABCMeta):
                 Weighted: the portfolio weighting method
         """
         return self._weighted
+
+    def get_long_positions_num(self):
+        """
+            Return the total number of opened long positions (including margin).
+
+            Returns:
+                int: the total number of opened long positions
+        """
+        return self._long_positions_num
+
+    def get_short_positions_num(self):
+        """
+            Return the total number of opened short positions.
+
+            Returns:
+                int: the total number of opened short positions
+        """
+        return self._short_positions_num
 
     def get_initial_deposit(self):
         """

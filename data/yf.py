@@ -171,6 +171,7 @@ class YF(stock.StockFetcher):
 
         return quotes_data
 
+    # TODI MID For correct screeners work it should correspond the data in the main dataset.
     def get_recent_data(self, to_cache=False):
         """
             Get pseudo real time data. Used in screening demonstration.
@@ -193,9 +194,13 @@ class YF(stock.StockFetcher):
                   'high': row['High'],
                   'low': row['Low'],
                   'closed': row['Close'],
-                  'volume': row['Volume'],
+                  'volume': int(row['Volume']),
                   'transactions': None,
+                  'adj_open': row['Open'],
+                  'adj_high': row['High'],
+                  'adj_low': row['Low'],
                   'adj_close': row['Close'],
+                  'adj_volume': int(row['Volume']),
                   'divs_ex': 0.0,
                   'divs_pay': 0.0,
                   'splits': 1.0

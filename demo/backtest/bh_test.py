@@ -45,8 +45,7 @@ if __name__ == "__main__":
         periodic_deposit=500,
         deposit_interval=30,
         inflation=2.5,
-        initial_deposit=10000,
-        verbosity=True
+        initial_deposit=10000
     )
 
     try:

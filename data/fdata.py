@@ -1409,6 +1409,8 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self._queries = []  # List of queries to calculate API call pauses
 
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
+    # TODO HIGH check if fetching the current quotes is processed currectly. For example, 4hr bars no need to re-check
+    # for 4 hours.
     def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Check is the required number of quotes exist in the database and fetch if not.
@@ -1453,7 +1455,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 elif self.first_date_ts < self.get_min_request_ts() and last_ts_adj < self.get_min_request_ts():
                     intervals.append([self.first_date_ts, self.get_min_request_ts()])
 
-                # New interval is completely after the new interval
+                # New interval is completely after the old interval
                 elif self.first_date_ts > self.get_max_request_ts() and last_ts_adj > self.get_max_request_ts():
                     intervals.append([self.get_max_request_ts(), last_ts_adj])
 

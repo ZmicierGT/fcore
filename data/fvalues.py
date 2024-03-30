@@ -201,6 +201,7 @@ class Timespans(StrEnum):
     ThirtyMinutes = "30_Minutes"  # All except Polygon
     Hour = "Hour"  # All
     NinetyMinutes = "90_Minutes"  # YF only
+    FourHour = "4_Hours"  # FMP only
     Day = "Day"
 
 class SecType(StrEnum):

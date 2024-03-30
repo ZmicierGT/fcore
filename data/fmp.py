@@ -508,6 +508,19 @@ class FmpStock(stock.StockFetcher):
     # Methods to fetch quotes
     #########################
 
+    def query_and_parse(self, url, timeout=30):
+        """
+            Query the data source and parse the response.
+
+            Args:
+                url(str): the url for a request.
+                timeout(int): timeout for the request.
+
+            Returns:
+                Parsed data.
+        """
+
+
     def get_timespan_str(self):
         """
             Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
@@ -572,7 +585,7 @@ class FmpStock(stock.StockFetcher):
             else:
                 url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.symbol}?from={first_date}&to={last_date}&apikey={self.api_key}"
 
-            # TODO MID The routine abobe should be added to a separate function (like query_and_parse)
+            # TODO LOW The routine abobe should be added to a separate function (like query_and_parse)
             response = self.query_api(url)
 
             json_results = None
@@ -649,11 +662,7 @@ class FmpStock(stock.StockFetcher):
 
         try:
             json_data = json.loads(response.text)
-
-            if self.is_intraday():
-                json_results = json_data
-            else:
-                json_results = json_data['historical']
+            json_results = json_data['historical']
         except (json.JSONDecodeError, KeyError) as e:
             self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url_divs}")
 
@@ -719,11 +728,7 @@ class FmpStock(stock.StockFetcher):
 
         try:
             json_data = json.loads(response.text)
-
-            if self.is_intraday():
-                json_results = json_data
-            else:
-                json_results = json_data['historical']
+            json_results = json_data['historical']
         except (json.JSONDecodeError, KeyError) as e:
             self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url_splits}")
 
@@ -772,7 +777,7 @@ class FmpStock(stock.StockFetcher):
 
         return results
 
-    # TODO MID The usage of this method should be limited even for screening as data request from DB vary and also
+    # TODO HIGH The usage of this method should be limited even for screening as data request from DB vary and also
     # it involves some calculations (like adjustments). Using data from this method may lead to incorrect results.
     def get_recent_data(self, to_cache=False):
         quote_url = f"https://financialmodelingprep.com/api/v3/quote-order/{self.symbol}?apikey={self.api_key}"

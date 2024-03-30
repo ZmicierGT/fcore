@@ -11,7 +11,9 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.fvalues import Timespans
-from data.yf import YF
+from data.fmp import FmpStock
+
+import settings
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -33,26 +35,16 @@ min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
-    print("Using YF as the data source for demonstration purposes only! Please note that the data is delayed (especially volume)")
-    print("and exceptions due to network errors may happen.\n")
+    if settings.FMP.api_key is None:
+        sys.exit("This test requires FMP api key. Get the free key at financialmodelingprep.com")
 
     # Array for the fetched data for all symbols
     allrows = []
 
-    # As YF is used as the default data source, the data should be withing the last 30 days. Use the last week as the interval.
-    # TODO LOW Currently the start and end data processing may be different based on data source and database (included or not included). Needs to be adjusted.
-    # TODO MID Think what to do if we can't maintain a continuous request withing 7 days
-    then = datetime.now().replace(tzinfo=pytz.utc) - timedelta(days=5)
-
-    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
-                "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
-                "datasource only for demonstation purposes!\n"
-    print(warning)
-
     for symbol in symbols:
         try:
             # TODO MID Check why update warning is displayed
-            rows = YF(symbol=symbol, first_date=then, timespan=Timespans.Minute, verbosity=True).get()
+            rows = FmpStock(symbol=symbol, first_date='2023-01-01', last_date='2023-02-01', timespan=Timespans.Hour, verbosity=True).get()
         except FdataError as e:
             sys.exit(e)
 

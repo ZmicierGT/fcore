@@ -1,9 +1,4 @@
-"""Module for some globally used default variables and enumerations.
-
-The author is Zmicier Gotowka
-
-Distributed under Fcore License 1.1 (see license.md)
-"""
+"""Module for some globally used default variables and enumerations."""
 from enum import IntEnum
 
 # There is no native 'StrEnum' in Python prior to 3.10 and workaround like using (str, Enum) as base
@@ -126,6 +121,57 @@ nasdaq100 = ['AAPL', 'ABNB', 'ADBE', 'ADI', 'ADP', 'ADSK', 'AEP', 'ALGN', 'AMAT'
              'MU', 'NFLX', 'NVDA', 'NXPI', 'ODFL', 'ORLY', 'PANW', 'PAYX', 'PCAR', 'PDD', 'PEP', 'PYPL', 'QCOM', 'REGN', \
              'RIVN', 'ROST', 'SBUX', 'SGEN', 'SIRI', 'SNPS', 'TEAM', 'TMUS', 'TSLA', 'TXN', 'VRSK', 'VRTX', 'WBA',\
              'WBD', 'WDAY', 'XEL', 'ZM', 'ZS']
+
+# Timezon abbreviations used in data sources but which may not present on all system (and packages like tzdata).
+Timezones = {
+    'ACDT': 'Australia/Adelaide',
+    'ACST': 'Australia/Darwin',
+    'ADT':  'America/Halifax',
+    'AEDT': 'Australia/Sydney',
+    'AEST': 'Australia/Brisbane',
+    'AKDT': 'America/Anchorage',
+    'AKST': 'America/Anchorage',
+    'AST':  'America/Santo_Domingo',
+    'AWST': 'Australia/Perth',
+    'BST':  'Europe/London',
+    'CAT':  'Africa/Maputo',
+    'CDT':  'America/Chicago',
+    'CEST': 'Europe/Paris',
+    'CET':  'Europe/Paris',
+    'CST':  'Asia/Shanghai',
+    'EAT':  'Africa/Nairobi',
+    'EDT':  'America/New_York',
+    'EEST': 'Europe/Athens',
+    'EET':  'Europe/Athens',
+    'EST':  'America/Jamaica',
+    'GMT':  'Africa/Abidjan',
+    'HDT':  'America/Adak',
+    'HKT':  'Asia/Hong_Kong',
+    'HST':  'Pacific/Honolulu',
+    'IST':  'Asia/Kolkata',
+    'JST':  'Asia/Tokyo',
+    'KST':  'Asia/Seoul',
+    'MDT':  'America/Denver',
+    'MSK':  'Europe/Moscow',
+    'MST':  'America/Denver',
+    'NDT':  'America/St_Johns',
+    'NST':  'America/St_Johns',
+    'NZDT': 'Pacific/Auckland',
+    'NZST': 'Pacific/Auckland',
+    'PDT':  'America/Los_Angeles',
+    'PHT':  'Asia/Manila',
+    'PKT':  'Asia/Karachi',
+    'PST':  'America/Los_Angeles',
+    'SAST': 'Africa/Johannesburg',
+    'SST':  'Pacific/Pago_Pago',
+    'UTC':  'Africa/Abidjan',
+    'WAT':  'Africa/Lagos',
+    'WEST': 'Europe/Lisbon',
+    'WET':  'Europe/Lisbon',
+    'WIB':  'Asia/Jakarta',
+    'WIT':  'Asia/Jayapura',
+    'WITA': 'Asia/Makassar'
+}
 
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order

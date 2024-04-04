@@ -70,6 +70,8 @@ class Polygon(stock.StockFetcher):
             new_last_date = new_last_date.replace(hour=23, minute=59, second=59)
             self.last_date = new_last_date
 
+        print(f"Warning! The datasource {type(self).__name__} is not maintained any more. Consider using YF or FMP datasources.")
+
     def get_timespan_str(self):
         """
             Get the timespan for queries.

@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import stock
-from data.fvalues import SecType, Currency, Timespans
+from data.fvalues import SecType, Currency, Timespans, Timezones
 from data.fdata import FdataError
 
 from data.futils import get_dt, get_labelled_ndarray
@@ -13,8 +13,8 @@ from data.futils import get_dt, get_labelled_ndarray
 import settings
 
 from datetime import datetime, timedelta
-
-import pytz
+from dateutil import tz
+import calendar
 
 import json
 
@@ -39,6 +39,9 @@ class FmpSubquery():
         self.column = column
         self.condition = condition
         self.fill = fill
+
+        self._sec_info_supported = True
+        self._stock_info_supported = True
 
         # Use the default column name as the title if the title is not specified
         if title is None:
@@ -244,12 +247,12 @@ class FmpStock(stock.StockFetcher):
                 list: capitalization data.
         """
         if first_ts is not None:
-            first_date = get_dt(first_ts, pytz.UTC).date()
+            first_date = get_dt(first_ts, self.get_timezone()).date()
         else:
             first_date = self.first_date.date()
 
         if last_ts is not None:
-            last_date = get_dt(last_ts, pytz.UTC).date()
+            last_date = get_dt(last_ts, self.get_timezone()).date()
         else:
             last_date = self.last_date.date()
 
@@ -261,18 +264,7 @@ class FmpStock(stock.StockFetcher):
             cap_url = f"https://financialmodelingprep.com/api/v3/historical-market-capitalization/AAPL?limit={num}&from={first_date}&to={last_date}&apikey={self.api_key}"
 
             # Get capitalization data
-            response = self.query_api(cap_url, timeout=120)
-
-            # Get json
-            try:
-                json_data = response.json()
-            except (json.JSONDecodeError, KeyError) as e:
-                self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {cap_url}")
-
-            results = list(json_data)
-
-            if len(results) == 0 or results == ['Error Message']:
-                self.log(f"No capitalization data obtained for {self.symbol}")
+            results = self.query_and_parse(cap_url)
 
             # Remove the last element as it was re-fetched
             if len(cap_data):
@@ -280,10 +272,9 @@ class FmpStock(stock.StockFetcher):
 
             cap_data += results
 
-            # If we are still getting data, need to check the earliest date to distinguish if we have to
-            # continue fetching.
+            # If we are still getting data, need to check the earliest date to distinguish if we have to continue fetching.
             last_element = results[-1]
-            earliest_date = get_dt(last_element['date'], pytz.UTC).date()
+            earliest_date = get_dt(last_element['date'], self.get_timezone()).date()
 
             if earliest_date <= first_date or earliest_date == last_date or earliest_date == '1980-12-12' or len(results) < 1000:
                 break
@@ -317,7 +308,8 @@ class FmpStock(stock.StockFetcher):
         for result in results:
             # Need to convert date to a time stamp
             try:
-                result['date'] = int(get_dt(result['date'], pytz.UTC).replace(hour=23, minute=59, second=59).timestamp())
+                dt = get_dt(result['date'], self.get_timezone()).replace(hour=23, minute=59, second=59)
+                result['date'] = calendar.timegm(dt.utctimetuple())
             except TypeError as e:
                 raise FdataError(f"Unexpected data. API key limit is possible. {e}")
 
@@ -353,13 +345,13 @@ class FmpStock(stock.StockFetcher):
 
         mod_ts = self.get_last_modified('fmp_capitalization')
 
-        current = min(datetime.now(pytz.UTC).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+        current = min(datetime.now(self.get_timezone()).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
         # Fetch data if no data present or day difference between current/requested data more than 1 day
         if mod_ts is None:
             self.add_cap(self.fetch_cap())
         else:
-            days_delta = (current - get_dt(mod_ts, pytz.UTC)).days
+            days_delta = (current - get_dt(mod_ts, self.get_timezone())).days
 
             if self.last_date_ts > mod_ts and days_delta:
                 self.add_cap(self.fetch_cap(days_delta + 1))
@@ -402,15 +394,7 @@ class FmpStock(stock.StockFetcher):
             surprises_url = f"https://financialmodelingprep.com/api/v3/earnings-surprises/{self.symbol}?apikey={self.api_key}"
 
         # Get the surprises data
-        response = self.query_api(surprises_url, timeout=120)
-
-        # Get json
-        json_data = response.json()
-
-        results = list(json_data)
-
-        if len(results) == 0 or results == ['Error Message']:
-            self.log(f"No surprises data obtained for {self.symbol}")
+        results = self.query_and_parse(surprises_url, timeout=120)
 
         return results
 
@@ -438,7 +422,8 @@ class FmpStock(stock.StockFetcher):
         for result in results:
             # Need to convert date to a time stamp
             try:
-                result['date'] = int(get_dt(result['date'], pytz.UTC).timestamp())
+                dt = get_dt(result['date'], self.get_timezone())
+                result['date'] = calendar.timegm(dt.utctimetuple())
 
                 if result['actualEarningResult'] == None:
                     result['actualEarningResult'] = 'NULL'
@@ -482,7 +467,7 @@ class FmpStock(stock.StockFetcher):
 
         mod_ts = self.get_last_modified('fmp_surprises')
 
-        current = min(datetime.now(pytz.UTC).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+        current = min(datetime.now(self.get_timezone()).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
         # TODO LOW Ideally here implementation based on earnings calendar is needed
         # Fetch data if no data present or day difference between current/requested data more than 90 days
@@ -491,8 +476,8 @@ class FmpStock(stock.StockFetcher):
         else:
             last_ts = self.get_last_timestamp('fmp_surprises')
 
-            days_delta = (current - get_dt(last_ts, pytz.UTC)).days
-            days_delta_mod = (current - get_dt(mod_ts, pytz.UTC)).days
+            days_delta = (current - get_dt(last_ts, self.get_timezone())).days
+            days_delta_mod = (current - get_dt(mod_ts, self.get_timezone())).days
 
             if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
                 self.add_surprises(self.fetch_surprises(round(days_delta / 90 + 1)))
@@ -508,18 +493,39 @@ class FmpStock(stock.StockFetcher):
     # Methods to fetch quotes
     #########################
 
-    def query_and_parse(self, url, timeout=30):
+    def query_and_parse(self, url, historical=False, timeout=30):
         """
             Query the data source and parse the response.
 
             Args:
                 url(str): the url for a request.
+                historical(bool): indicates if historical data is fetched.
                 timeout(int): timeout for the request.
 
             Returns:
                 Parsed data.
         """
+        # Get the data
+        response = self.query_api(url)
 
+        # Get json
+        try:
+            json_data = response.json()
+        except (json.JSONDecodeError, KeyError) as e:
+            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url}")
+
+        results = json_data
+
+        if historical:
+            try:
+                results = json_data['historical']
+            except KeyError as e:
+                raise FdataError(f"Can't get the historical data when {url} is requested. Likely API key limit is reached.")
+
+        if results is not None and (len(results) == 0 or results == ['Error Message']):
+            self.log(f"No data obtained for {self.symbol} using the query {url}")
+
+        return results
 
     def get_timespan_str(self):
         """
@@ -562,12 +568,12 @@ class FmpStock(stock.StockFetcher):
                 FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
         """
         if first_ts is not None:
-            first_datetime = get_dt(first_ts, pytz.UTC)
+            first_datetime = get_dt(first_ts, self.get_timezone())
         else:
             first_datetime = self.first_date
 
         if last_ts is not None:
-            last_datetime = get_dt(last_ts, pytz.UTC)
+            last_datetime = get_dt(last_ts, self.get_timezone())
         else:
             last_datetime = self.last_date
 
@@ -585,24 +591,10 @@ class FmpStock(stock.StockFetcher):
             else:
                 url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.symbol}?from={first_date}&to={last_date}&apikey={self.api_key}"
 
-            # TODO LOW The routine abobe should be added to a separate function (like query_and_parse)
-            response = self.query_api(url)
-
-            json_results = None
-
-            try:
-                json_data = json.loads(response.text)
-
-                if self.is_intraday():
-                    json_results = json_data
-                else:
-                    json_results = json_data['historical']
-            except (json.JSONDecodeError, KeyError) as e:
-                self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url}")
+            historical = not self.is_intraday()
+            json_results = self.query_and_parse(url, historical=historical)
 
             if json_results is not None and (len(json_results) == 0 or json_results == ['Error Message']):
-                self.log(f"No data obtained for {self.symbol}")
-
                 break
 
             quotes_data += json_results
@@ -610,7 +602,7 @@ class FmpStock(stock.StockFetcher):
             # If we are still getting data, need to check the earliest date to distinguish if we have to
             # continue fetching.
             last_element = json_results[-1]
-            earliest_datetime = get_dt(last_element['date'], pytz.UTC)
+            earliest_datetime = get_dt(last_element['date'], self.get_timezone())
 
             if earliest_datetime <= first_datetime or earliest_datetime == last_datetime or \
                earliest_datetime.date() == '1980-12-12':
@@ -624,17 +616,18 @@ class FmpStock(stock.StockFetcher):
         quotes = []  # Processed quotes
 
         for quote in quotes_data:
-            dt = get_dt(quote['date'], pytz.UTC)
+            dt = get_dt(quote['date'], self.get_timezone())
 
             if self.is_intraday():
                 volume = quote['volume']
             else:
                 # Keep all non-intraday timestamps at 23:59:59
                 dt = dt.replace(hour=23, minute=59, second=59)
+
                 volume = quote['unadjustedVolume']
 
             quote_dict = {
-                'ts': dt.timestamp(),
+                'ts': calendar.timegm(dt.utctimetuple()),
                 'open': quote['open'],
                 'high': quote['high'],
                 'low': quote['low'],
@@ -656,18 +649,8 @@ class FmpStock(stock.StockFetcher):
         """
         url_divs = f"https://financialmodelingprep.com/api/v3/historical-price-full/stock_dividend/{self.symbol}?apikey={self.api_key}"
 
-        response = self.query_api(url_divs)
-
         json_results = None
-
-        try:
-            json_data = json.loads(response.text)
-            json_results = json_data['historical']
-        except (json.JSONDecodeError, KeyError) as e:
-            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url_divs}")
-
-        if json_results is not None and (len(json_results) == 0 or json_results == ['Error Message']):
-            self.log(f"No data obtained for {self.symbol}")
+        json_results = self.query_and_parse(url_divs, historical=True)
 
         divs_data = []
 
@@ -680,28 +663,28 @@ class FmpStock(stock.StockFetcher):
 
             # Consider that the declaration date was a week before entry date if no data
             if decl_text == '':
-                decl_date = get_dt(date_text, pytz.UTC) - timedelta(days=7)
+                decl_date = get_dt(date_text, self.get_timezone()) - timedelta(days=7)
             else:
-                decl_date = get_dt(decl_text, pytz.UTC)
+                decl_date = get_dt(decl_text, self.get_timezone())
 
             # Consider that the record date was a week after the entry date if no data
             if record_text == '':
-                record_date = get_dt(date_text, pytz.UTC) + timedelta(days=7)
+                record_date = get_dt(date_text, self.get_timezone()) + timedelta(days=7)
             else:
-                record_date = get_dt(record_text, pytz.UTC)
+                record_date = get_dt(record_text, self.get_timezone())
 
             # Consider that the payment date was a week after the entry date if no data
             if pay_text == '':
-                pay_date = get_dt(date_text, pytz.UTC) + timedelta(days=30)
+                pay_date = get_dt(date_text, self.get_timezone()) + timedelta(days=30)
             else:
-                pay_date = get_dt(pay_text, pytz.UTC)
+                pay_date = get_dt(pay_text, self.get_timezone())
 
             ex_date = record_date - timedelta(days=1)  # Record date is one day after the ex date
 
-            decl_ts = int(datetime.timestamp(decl_date))
-            ex_ts = int(datetime.timestamp(ex_date))
-            record_ts = int(datetime.timestamp(record_date))
-            pay_ts = int(datetime.timestamp(pay_date))
+            decl_ts = calendar.timegm(decl_date.utctimetuple())
+            ex_ts = calendar.timegm(ex_date.utctimetuple())
+            record_ts = calendar.timegm(record_date.utctimetuple())
+            pay_ts = calendar.timegm(pay_date.utctimetuple())
 
             div_dict = {
                 'amount': div['dividend'],
@@ -722,24 +705,14 @@ class FmpStock(stock.StockFetcher):
         """
         url_splits = f"https://financialmodelingprep.com/api/v3/historical-price-full/stock_split/{self.symbol}?apikey={self.api_key}"
 
-        response = self.query_api(url_splits)
-
         json_results = None
-
-        try:
-            json_data = json.loads(response.text)
-            json_results = json_data['historical']
-        except (json.JSONDecodeError, KeyError) as e:
-            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {url_splits}")
-
-        if json_results is not None and (len(json_results) == 0 or json_results == ['Error Message']):
-            self.log(f"No data obtained for {self.symbol}")
+        json_results = self.query_and_parse(url_splits, historical=True)
 
         splits_data = []
 
         for split in json_results:
-            dt = get_dt(split['date'], pytz.UTC)
-            ts = int(datetime.timestamp(dt))
+            dt = get_dt(split['date'], self.get_timezone())
+            ts = calendar.timegm(dt.utctimetuple())
 
             split_to = int(split['denominator'])
             split_from = int(split['numerator'])
@@ -762,18 +735,21 @@ class FmpStock(stock.StockFetcher):
         profile_url = f"https://financialmodelingprep.com/api/v3/profile/{self.symbol}?apikey={self.api_key}"
 
         # Get company profile
-        response = self.query_api(profile_url)
-
-        # Get json
-        try:
-            json_data = response.json()
-        except (json.JSONDecodeError, KeyError) as e:
-            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {profile_url}")
+        json_data = self.query_and_parse(profile_url)
 
         results = json_data[0]
 
-        if len(results) == 0 or results == ['Error Message']:
-            self.log(f"No profile data obtained for {self.symbol}")
+        # Need to fetch time zone data. In the basic info there is no time zone information so we need to obtain
+        # an exchange info to extract the time zone from exchange working hours.
+
+        exchange_url = f"https://financialmodelingprep.com/api/v3/is-the-market-open?exchange={results['exchangeShortName']}&apikey={self.api_key}"
+
+        # Get exchange data
+        json_data = self.query_and_parse(exchange_url)
+
+        ex_info = json_data['stockMarketHours']
+        tz_str = ex_info['openingHour'].split(' ')[-1]
+        results['time_zone'] = tz_str
 
         return results
 
@@ -783,21 +759,17 @@ class FmpStock(stock.StockFetcher):
         quote_url = f"https://financialmodelingprep.com/api/v3/quote-order/{self.symbol}?apikey={self.api_key}"
 
         # Get company profile
-        response = self.query_api(quote_url)
-
-        # Get json
-        try:
-            json_data = response.json()
-        except (json.JSONDecodeError, KeyError) as e:
-            self.log(f"Can't parse json or no symbol found. Is API call limit reached? {e} URL: {quote_url}")
+        json_data = self.query_and_parse(quote_url)
 
         quote = json_data[0]
 
         if len(quote) == 0 or quote == ['Error Message']:
             self.log(f"No quote data obtained for {self.symbol}")
 
-        result = {'time_stamp': int(get_dt(quote['timestamp'], pytz.UTC).timestamp()),
-                  'date_time': get_dt(quote['timestamp'], pytz.UTC).replace(tzinfo=None).isoformat(' '),
+        dt = get_dt(quote['timestamp'], self.get_timezone())
+
+        result = {'time_stamp': calendar.timegm(dt.utctimetuple()),
+                  'date_time': dt.isoformat(' '),
                   'opened': quote['open'],
                   'high': quote['dayHigh'],
                   'low': quote['dayLow'],

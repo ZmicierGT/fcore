@@ -5,6 +5,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from datetime import datetime, timedelta
+from dateutil import tz
+import calendar
 
 import pandas as pd
 import numpy as np
@@ -15,8 +17,6 @@ from data import stock
 from data.fvalues import Timespans, SecType, Currency
 from data.fdata import FdataError
 from data.futils import get_labelled_ndarray, get_dt
-
-import pytz
 
 import urllib.error
 import http.client
@@ -40,8 +40,8 @@ class YF(stock.StockFetcher):
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self.symbol  # Symbol of cached data
 
-        self._tz = None  # Cached time zone
-        self._tz_symbol = self.symbol  # Symbl for cached time zone
+        self._sec_info_supported = True
+        self._stock_info_supported = True
 
     def get_timespan_str(self):
         """
@@ -72,19 +72,7 @@ class YF(stock.StockFetcher):
         else:
             raise FdataError(f"Requested timespan is not supported by YF: {self.timespan.value}")
 
-    def get_timezone(self):
-        """
-            Get the time zone of the specified symbol.
-
-            Returns:
-                string: time zone.
-        """
-        # Check if time zone is already obtained
-        if self._tz is None or self.symbol != self._tz_symbol:
-            self._tz = yfin.Ticker(self.symbol).info['timeZoneFullName']
-
-        return self._tz
-
+    # TODO MID Think how to handle a situation that YF fetches the current quote even if period is incomplete
     def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
@@ -104,13 +92,13 @@ class YF(stock.StockFetcher):
         if last_ts is None:
             last_ts = self.last_date_ts
 
-        current_ts = int((datetime.now().replace(tzinfo=pytz.UTC) + timedelta(days=1)).timestamp())
+        current_ts = int((datetime.now().replace(tzinfo=tz.UTC) + timedelta(days=1)).timestamp())
 
         if last_ts > current_ts:
             last_ts = current_ts
 
-        first_date = get_dt(first_ts, pytz.UTC)
-        last_date = get_dt(last_ts, pytz.UTC)
+        first_date = get_dt(first_ts, tz.UTC)
+        last_date = get_dt(last_ts, tz.UTC)
 
         if (last_date - first_date).days == 0:
             first_date = first_date - timedelta(days=1)
@@ -129,9 +117,13 @@ class YF(stock.StockFetcher):
             self.log(f"Can not fetch quotes for {self.symbol}. No quotes fetched.")
             return
 
+        pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self.get_timezone()).utctimetuple()))
+
         data = data.reset_index()
 
         if self.is_intraday() is False:
+            # TODO LOW For simplicity just set time to 23:59:59 without time zone adjustments.
+            # For some markets (non-US) timestamps (which are supposed to be UTC-adjusted) may be incorrect.
             data['ts'] = data['Date'].dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
             data['ts'] = data['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
 
@@ -147,8 +139,7 @@ class YF(stock.StockFetcher):
                 data.loc[data.index < ind, 'Close'] = data.loc[data.index < ind, 'Close'] * splits['split_ratio'][i]
                 data.loc[data.index < ind, 'Volume'] = round(data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i])
         else:
-            # One more astype to get rid of .0
-            data['ts'] = data['Datetime'].astype(int).div(10**9).astype(int)
+            data['ts'] = pick_ts(data['Datetime'])
 
         # Create a list of dictionaries with quotes
         quotes_data = []
@@ -297,6 +288,8 @@ class YF(stock.StockFetcher):
             info = ticker.info
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
+
+        info['time_zone'] = info['timeZoneFullName']
 
         return info
 

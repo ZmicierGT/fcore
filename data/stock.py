@@ -16,7 +16,7 @@ import numpy as np
 from dateutil.relativedelta import relativedelta
 
 from datetime import datetime
-import pytz
+from dateutil import tz
 
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
@@ -38,6 +38,8 @@ class ROStockData(ReadOnlyData):
         self._income_statement_tbl = None
         self._balance_sheet_tbl = None
         self._cash_flow_tbl = None
+
+        self._stock_info_supported = False  # Indicates if stock info is supported
 
     def check_database(self):
         """
@@ -306,6 +308,7 @@ class ROStockData(ReadOnlyData):
                                                 symbol_id INTEGER NOT NULL,
                                                 source_id INTEGER NOT NULL,
                                                 stock_sector_id INTEGER,
+                                                time_zone TEXT,
                                                 modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 UNIQUE(symbol_id, stock_info_id)
                                                     CONSTRAINT fk_source
@@ -710,7 +713,7 @@ class RWStockData(ROStockData, ReadWriteData):
             Returns:
                 bool: indicates if update is needed.
         """
-        current = get_dt(self.current_ts(), pytz.UTC)
+        current = get_dt(self.current_ts(), tz.UTC)
 
         # No data fetched yet
         if modified_ts is None:
@@ -720,7 +723,7 @@ class RWStockData(ROStockData, ReadWriteData):
         if self.last_date_ts < modified_ts:
             return False
 
-        modified = get_dt(modified_ts, pytz.UTC)
+        modified = get_dt(modified_ts, tz.UTC)
 
         # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
         if (current - modified).days < 1:
@@ -730,14 +733,14 @@ class RWStockData(ROStockData, ReadWriteData):
         if table is not None:
             # Need to check reports if the difference between the current date and the last annual fiscal date ending
             # is more than a year.
-            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year), pytz.UTC)).years > 0:
+            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year), tz.UTC)).years > 0:
                 return True
 
             # Need to recheck reports if the difference between any report is more than 3 months
             # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
-            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All), pytz.UTC)).months
+            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All), tz.UTC)).months
 
-            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter), pytz.UTC).month != 9:
+            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter), tz.UTC).month != 9:
                 return months_delta >= 3
             else:
                 return months_delta >= 6
@@ -883,21 +886,29 @@ class RWStockData(ROStockData, ReadWriteData):
         if self.get_total_symbol_quotes_num() == 0:
             self.add_symbol()
 
-        insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
-                                    source_id,
-                                    stock_sector_id)
-                                VALUES (
-                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
-                                        (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
-                                        (SELECT stock_sector_id FROM stock_sectors WHERE title = '{info['sector']}')
-                                       );"""
+        super().add_info(info)
 
         try:
-            self.cur.execute(insert_info)
-        except self.Error as e:
-            raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
+            sector = info['sector']
+        except KeyError as e:
+            raise FdataError(f"Key is not found. Likely broken data is obtained (due to data source issues): {e}")
 
-        self.commit()
+        if self._stock_info_supported:
+            insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
+                                        source_id,
+                                        stock_sector_id)
+                                    VALUES (
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT stock_sector_id FROM stock_sectors WHERE title = '{sector}')
+                                        );"""
+
+            try:
+                self.cur.execute(insert_info)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
+
+            self.commit()
 
 class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     """
@@ -939,6 +950,9 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         """
             Fetch (if needed) and return stock info data.
         """
+        if self._stock_info_supported is False:
+            return {}
+
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
@@ -961,10 +975,15 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
 
+        base_info = super().get_info()
+
         if initially_connected is False:
             self.db_close()
 
-        return {'sector': row}
+        stock_info = {'sector': row}
+        base_info.update(stock_info)
+
+        return base_info
 
     # TODO LOW Think if need to move it to the base class
     def _fetch_data_if_none(self,

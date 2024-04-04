@@ -11,6 +11,7 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.fvalues import Timespans
+from data.futils import trim_time
 from data.fmp import FmpStock
 
 import settings
@@ -19,9 +20,6 @@ import plotly.graph_objects as go
 from plotly import subplots
 
 from itertools import repeat
-
-from datetime import datetime, timedelta
-import pytz
 
 import sys
 
@@ -49,6 +47,10 @@ if __name__ == "__main__":
             sys.exit(e)
 
         print(f"The total number of quotes used for {symbol} is {len(rows)}.\n")
+
+        print(rows)
+        rows = trim_time(rows, start='13:30', end='21:00')
+        print(f"The total number of quotes used for {symbol} after picking market open time only is {len(rows)}.\n")
 
         allrows.append(rows)
 

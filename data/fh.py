@@ -31,6 +31,8 @@ class FHStock(stock.StockFetcher):
         self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for FH
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
+        print(f"Warning! The datasource {type(self).__name__} is not maintained any more. Consider using YF or FMP datasources.")
+
     def get_timespan_str(self):
         """
             Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified

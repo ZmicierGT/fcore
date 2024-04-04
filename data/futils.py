@@ -4,8 +4,10 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+from data.fvalues import Quotes
+
 from datetime import datetime, timedelta
-import pytz
+from dateutil import tz
 
 import os
 from os.path import exists
@@ -19,13 +21,15 @@ import time
 import platform
 import subprocess
 
-def get_dt(value, tz=None):
+from dateutil.parser import parse
+
+def get_dt(value, timezone=None):
     """
         Get datetime from one of provided types: datetime, string, timestamp.
 
         Args:
             value(datetime, str, int): value to get datetime from.
-            tz(pytz): the initial time zone.
+            timezone: the initial time zone.
 
         Raises:
             ValueError: unknown type or can't generate a datetime.
@@ -37,28 +41,26 @@ def get_dt(value, tz=None):
     if isinstance(value, int) or isinstance(value, np.int64):
         try:
             if value < 0:
-                dt = datetime(1970, 1, 1).replace(tzinfo=tz) + timedelta(seconds=value)
+                dt = datetime(1970, 1, 1) + timedelta(seconds=value)
             else:
-                if tz == pytz.UTC:
-                    dt = datetime.utcfromtimestamp(value)
-                else:
-                    dt = datetime.fromtimestamp(value).replace(tzinfo=tz)
+                dt = datetime.fromtimestamp(value)
         except (OverflowError, OSError) as e:
             raise ValueError(f"Too big/small timestamp value: {e}") from e
     # String
     elif isinstance(value, str):
-        if len(value) <= 10:
-            dt = datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=tz)
-        elif len(value) > 10 and len(value) <= 16:
-            dt = datetime.strptime(value, '%Y-%m-%d %H:%M').replace(tzinfo=tz)
-        else:
-            dt = datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=tz)
+        dt = parse(value)
     # DateTime
     elif isinstance(value, datetime):
-        dt = value.replace(tzinfo=tz)
+        dt = value
     # Unknown type
     else:
         raise ValueError(f"Unknown type provided for datetime: {type(value).__name__}")
+
+    # Set the time zone
+    dt = dt.replace(tzinfo=timezone)
+
+    # UTC adjust the datetime
+    dt = dt.astimezone(tz.UTC)
 
     # Remove time zone from UTC adjusted datetime
     dt = dt.replace(tzinfo=None)
@@ -266,6 +268,28 @@ def delete_row(self, data, row_num):
         raise KeyError(f"Can not delete row {row_num} as it does not exist") from e
 
     return data
+
+def trim_time(data, start=None, end=None):
+    """
+        Trim the time which is out of the time windows.
+        For example, if start='13:30' and end='21:00' then all quotes which are outside of this window will be deleted
+        from the dataset.
+    """
+    new_arr = data[Quotes.TimeStamp]
+
+    print(new_arr)
+
+    pick_time = np.vectorize(lambda x: datetime.utcfromtimestamp(x).time())
+
+    if start is not None:
+        start_time = datetime.strptime(start, '%H:%M').time()
+        new_arr = new_arr[np.where(pick_time(new_arr) >= start_time)]
+
+    if end is not None and len(new_arr):
+        end_time = datetime.strptime(end, '%H:%M').time()
+        new_arr = new_arr[np.where(pick_time(new_arr) <= end_time)]
+
+    return data[new_arr]
 
 def logger(verbosity, message):
     """

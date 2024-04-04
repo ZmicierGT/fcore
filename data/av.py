@@ -45,6 +45,8 @@ class AvSubquery():
         else:
             self.title = title
 
+        print(f"Warning! The datasource {type(self).__name__} is not maintained any more. Consider using YF or FMP datasources.")
+
     def generate(self):
         """
             Generates the subquery based on the provided data.

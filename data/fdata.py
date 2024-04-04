@@ -14,7 +14,7 @@ import requests
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes, Timezones
 from data.futils import get_dt, get_labelled_ndarray, logger
 
 import settings
@@ -22,10 +22,10 @@ import settings
 import json
 
 from datetime import datetime, timedelta
-import pytz
+from dateutil import tz
 
 # Current database compatibility version
-DB_VERSION = 17
+DB_VERSION = 18
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -91,6 +91,9 @@ class ReadOnlyData():
 
         self._verbosity = verbosity
 
+        self._sec_info_supported = False  # Indicates if security info is supported
+        self._time_zone = None  # Cached time zone to avoid too many db queries
+
     ########################################################
     # Get/set datetimes (depending on the input value type).
     ########################################################
@@ -114,7 +117,7 @@ class ReadOnlyData():
             Raises:
                 ValueError, OSError: incorrect datetime representation.
         """
-        self._first_date = get_dt(value, pytz.UTC)
+        self._first_date = get_dt(value, tz.UTC)
 
     @property
     def last_date(self):
@@ -136,7 +139,7 @@ class ReadOnlyData():
             Raises:
                 ValueError, OSError: incorrect datetime representation.
         """
-        self._last_date = get_dt(value, pytz.UTC)
+        self._last_date = get_dt(value, tz.UTC)
 
     @property
     def first_date_ts(self):
@@ -208,8 +211,8 @@ class ReadOnlyData():
             Returns:
                 datetime: the adjustd datetime.
         """
-        dt = get_dt(dt, pytz.UTC)
-        return dt.replace(hour=23, minute=59, second=59, tzinfo=pytz.UTC)
+        dt = get_dt(dt, tz.UTC)
+        return dt.replace(hour=23, minute=59, second=59, tzinfo=tz.UTC)
 
     def first_date_set_eod(self):
         """
@@ -675,6 +678,63 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for quotes table: {e}") from e
 
+        # Check if we need to create table 'sec_info'
+        try:
+            check_sec_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='sec_info';"
+
+            self.cur.execute(check_sec_info)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{check_sec_info}") from e
+
+        if len(rows) == 0:
+
+            create_sec_info = """CREATE TABLE sec_info (
+                                                sec_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                symbol_id INTEGER NOT NULL,
+                                                source_id INTEGER NOT NULL,
+                                                time_zone TEXT,
+                                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                                UNIQUE(symbol_id, sec_info_id)
+                                                    CONSTRAINT fk_source
+                                                        FOREIGN KEY (source_id)
+                                                        REFERENCES sources(source_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_symbols
+                                                        FOREIGN KEY (symbol_id)
+                                                        REFERENCES symbols(symbol_id)
+                                                        ON DELETE CASCADE
+                                                UNIQUE(symbol_id, source_id)
+                                            );"""
+
+            try:
+                self.cur.execute(create_sec_info)
+            except self.Error as e:
+                raise FdataError(f"Can't create table sec_info: {e}") from e
+
+            # Create indexes for sec_info
+            create_sec_info_idx = "CREATE INDEX idx_sec_info ON sec_info(symbol_id);"
+
+            try:
+                self.cur.execute(create_sec_info_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
+
+            # Create trigger to last modified time on sec_info
+            create_fmp_cap_trigger = """CREATE TRIGGER update_sec_info
+                                                BEFORE UPDATE
+                                                    ON sec_info
+                                        BEGIN
+                                            UPDATE sec_info
+                                            SET modified = strftime('%s', 'now')
+                                            WHERE sec_info_id = old.sec_info_id;
+                                        END;"""
+
+            try:
+                self.cur.execute(create_fmp_cap_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for sec_info: {e}") from e
+
         self.conn.commit()
 
     def check_source(self):
@@ -1102,19 +1162,64 @@ class ReadOnlyData():
         """
         return self._get_ts(is_max=False)
 
-    def commit(self):
+    def get_info(self):
         """
-            Commit the change to the database.
+            Fetch (if needed) and return security info data.
+        """
+        if self._sec_info_supported is False:
+            return {}
 
-            Raises:
-                FdataError: sql error happened.
-        """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        mod_ts = self.get_last_modified('sec_info')
+
+        # Fetch data if no data present
+        if mod_ts is None:
+            self.add_info(self.fetch_info())
+
+        # Just time zone is used from info for now
+        info_query = f"""SELECT time_zone FROM sec_info WHERE symbol_id =
+                                (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
 
         try:
-            self.conn.commit()
+            self.cur.execute(info_query)
+            row = self.cur.fetchone()[0]
         except self.Error as e:
-            raise FdataError(f"Can't commit: {e}") from e
+            raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
+
+        if initially_connected is False:
+            self.db_close()
+
+        return {'time_zone': row}
+
+    def get_timezone(self):
+        """
+            Get the time zone of the specified symbol.
+
+            Returns:
+                tz: time zone.
+        """
+        if self._sec_info_supported is False:
+            self._time_zone = tz.gettz('America/New_York')  # Return ET by default. Supposed to be overridden.
+
+        if self._time_zone is None:
+            info = self.get_info()
+
+            if info is not None and len(info.keys()):
+                timezone = tz.gettz(info['time_zone'])
+
+                if timezone is None:
+                    self._time_zone = tz.gettz(Timezones[info['time_zone']])
+                else:
+                    self._time_zone = timezone
+            else:
+                self.log("Time zone data is not found. Returning UTC.")
+                self._time_zone = tz.UTC
+
+        return self._time_zone
 
     def is_intraday(self, timespan=None):
         """
@@ -1142,7 +1247,7 @@ class ReadOnlyData():
             Returns:
                 int: the current UTC and time span adjusted timestamp.
         """
-        now = datetime.now(pytz.UTC)
+        now = datetime.now(tz.UTC)
 
         if timespan is None:
             timespan = self.timespan
@@ -1172,6 +1277,20 @@ class ReadOnlyData():
         ts = int(now.timestamp())
 
         return ts
+
+    def commit(self):
+        """
+            Commit the change to the database.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        try:
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't commit: {e}") from e
 
 #############################
 # Read/Write operations class
@@ -1394,6 +1513,44 @@ class ReadWriteData(ReadOnlyData):
         if self.get_total_symbol_quotes_num() == 0:
             self.remove_symbol()
 
+    def add_info(self, info):
+        """
+            Add security info to the database.
+
+            Args:
+                info(dict): Security info obtained from an API wrapper.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        if self._sec_info_supported:
+            self.check_if_connected()
+
+            # Insert new symbols to 'symbols' table (if the symbol does not exist)
+            if self.get_total_symbol_quotes_num() == 0:
+                self.add_symbol()
+
+            try:
+                sector = info['time_zone']
+            except KeyError as e:
+                raise FdataError(f"Key is not found. Likely broken data is obtained (due to data soruce issues): {e}")
+
+            insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
+                                        source_id,
+                                        time_zone)
+                                    VALUES (
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            ('{info['time_zone']}')
+                                        );"""
+
+            try:
+                self.cur.execute(insert_info)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
+
+            self.commit()
+
 ##########################
 # Base data fetching class
 ##########################
@@ -1470,7 +1627,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 intervals.append([self.first_date_ts, last_ts_adj])
 
             for first_ts, last_ts in intervals:
-                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, pytz.UTC)} to {get_dt(last_ts, pytz.UTC)}...")
+                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, tz.UTC)} to {get_dt(last_ts, tz.UTC)}...")
 
                 self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
@@ -1556,14 +1713,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
     def fetch_info(self):
         """Abstract method to fetch security info"""
 
-    @abc.abstractmethod
-    def add_info(self):
-        """Abstract method to add security info"""
-
-    @abc.abstractmethod
-    def get_info(self):
-        """Abstract method to get security info"""
-
     def query_and_parse(self, url, timeout=30):
         """
             Query the data source and parse the response. Used to handle data source API call limit.
@@ -1575,12 +1724,3 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             Returns:
                 Parsed data.
         """
-
-    def get_timezone(self):
-        """
-            Get the time zone of the specified symbol.
-
-            Returns:
-                string: time zone.
-        """
-        return 'UTC'  # UTC by default, supposed to be overridden

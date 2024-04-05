@@ -1869,7 +1869,6 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
-# TODO HIGH Time frame should be implemented. In intraday calculations/charting, time outside of the frame won't be taken into account.
 # TODO LOW Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
 # TODO LOW Add margin expenses
 class BackTest(metaclass=abc.ABCMeta):

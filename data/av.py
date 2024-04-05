@@ -963,7 +963,6 @@ class AVStock(stock.StockFetcher):
 
         return (dict_results, dict_header)
 
-    # TODO MID Check if it is ok that non-overridden TS's are fetched to adjust the data
     def fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.

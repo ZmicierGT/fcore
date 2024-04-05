@@ -15,8 +15,7 @@ import numpy as np
 
 from dateutil.relativedelta import relativedelta
 
-from datetime import datetime
-from dateutil import tz
+import calendar
 
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
@@ -555,7 +554,12 @@ class ROStockData(ReadOnlyData):
         else:
             self.log(f"Warning: No split data for {self.symbol} in the requested period.")
 
-        max_idx = min(len(quotes), max(np.where(quotes[StockQuotes.TimeStamp] <= self.last_date_ts)[0]) + 1)
+        last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
+
+        if ignore_last_date:
+            last_date_ts = def_last_date
+
+        max_idx = min(len(quotes), max(np.where(quotes[StockQuotes.TimeStamp] <= last_date_ts)[0]) + 1)
 
         return quotes[:max_idx]
 
@@ -713,7 +717,7 @@ class RWStockData(ROStockData, ReadWriteData):
             Returns:
                 bool: indicates if update is needed.
         """
-        current = get_dt(self.current_ts(), tz.UTC)
+        current = get_dt(self.current_ts())
 
         # No data fetched yet
         if modified_ts is None:
@@ -723,7 +727,7 @@ class RWStockData(ROStockData, ReadWriteData):
         if self.last_date_ts < modified_ts:
             return False
 
-        modified = get_dt(modified_ts, tz.UTC)
+        modified = get_dt(modified_ts)
 
         # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
         if (current - modified).days < 1:
@@ -733,14 +737,14 @@ class RWStockData(ROStockData, ReadWriteData):
         if table is not None:
             # Need to check reports if the difference between the current date and the last annual fiscal date ending
             # is more than a year.
-            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year), tz.UTC)).years > 0:
+            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year))).years > 0:
                 return True
 
             # Need to recheck reports if the difference between any report is more than 3 months
             # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
-            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All), tz.UTC)).months
+            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All))).months
 
-            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter), tz.UTC).month != 9:
+            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter)).month != 9:
                 return months_delta >= 3
             else:
                 return months_delta >= 6
@@ -950,38 +954,37 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         """
             Fetch (if needed) and return stock info data.
         """
-        if self._stock_info_supported is False:
-            return {}
-
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
             self.db_connect()
 
-        mod_ts = self.get_last_modified('stock_info')
-
-        # Fetch data if no data present
-        if mod_ts is None:
-            self.add_info(self.fetch_info())
-
-        # Just sector title is used from info for now
-        info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
-                            (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
-                                (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
-
-        try:
-            self.cur.execute(info_query)
-            row = self.cur.fetchone()[0]
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
-
+        # Get base security info
         base_info = super().get_info()
+
+        if self._stock_info_supported:
+            mod_ts = self.get_last_modified('stock_info')
+
+            # Fetch data if no data present
+            if mod_ts is None:
+                self.add_info(self.fetch_info())
+
+            # Just sector title is used from info for now
+            info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
+                                (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
+                                    (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
+
+            try:
+                self.cur.execute(info_query)
+                row = self.cur.fetchone()[0]
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
+
+            stock_info = {'sector': row}
+            base_info.update(stock_info)
 
         if initially_connected is False:
             self.db_close()
-
-        stock_info = {'sector': row}
-        base_info.update(stock_info)
 
         return base_info
 

@@ -40,9 +40,6 @@ class YF(stock.StockFetcher):
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self.symbol  # Symbol of cached data
 
-        self._sec_info_supported = True
-        self._stock_info_supported = True
-
     def get_timespan_str(self):
         """
             Get the timespan for queries.
@@ -87,29 +84,17 @@ class YF(stock.StockFetcher):
             Raises:
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
-        if first_ts is None:
-            first_ts = self.first_date_ts
-        if last_ts is None:
-            last_ts = self.last_date_ts
+        # Adjust dates for the exchange time zone for the request
+        first_date, last_date = self.get_request_dates(first_ts, last_ts)
 
-        current_ts = int((datetime.now().replace(tzinfo=tz.UTC) + timedelta(days=1)).timestamp())
-
-        if last_ts > current_ts:
-            last_ts = current_ts
-
-        first_date = get_dt(first_ts, tz.UTC)
-        last_date = get_dt(last_ts, tz.UTC)
-
+        # Dates should differ or no data obtained
         if (last_date - first_date).days == 0:
             first_date = first_date - timedelta(days=1)
 
-        first_date_str = first_date.strftime('%Y-%m-%d')
-        last_date_str = last_date.strftime('%Y-%m-%d')
-
         data = yfin.download(self.symbol,
                              interval=self.get_timespan_str(),
-                             start=first_date_str,
-                             end=last_date_str)
+                             start=first_date,
+                             end=last_date)
 
         length = len(data)
 

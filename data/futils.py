@@ -7,6 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from data.fvalues import Quotes
 
 from datetime import datetime, timedelta
+from dateutil.parser import parse
 from dateutil import tz
 
 import os
@@ -21,9 +22,7 @@ import time
 import platform
 import subprocess
 
-from dateutil.parser import parse
-
-def get_dt(value, timezone=None):
+def get_dt(value, timezone=tz.UTC):
     """
         Get datetime from one of provided types: datetime, string, timestamp.
 
@@ -275,21 +274,17 @@ def trim_time(data, start=None, end=None):
         For example, if start='13:30' and end='21:00' then all quotes which are outside of this window will be deleted
         from the dataset.
     """
-    new_arr = data[Quotes.TimeStamp]
-
-    print(new_arr)
-
     pick_time = np.vectorize(lambda x: datetime.utcfromtimestamp(x).time())
 
     if start is not None:
-        start_time = datetime.strptime(start, '%H:%M').time()
-        new_arr = new_arr[np.where(pick_time(new_arr) >= start_time)]
+        start_time = datetime.strptime(start, '%H:%M').replace(tzinfo=tz.UTC).time()
+        data = data[np.where(pick_time(data[Quotes.TimeStamp]) >= start_time)]
 
-    if end is not None and len(new_arr):
-        end_time = datetime.strptime(end, '%H:%M').time()
-        new_arr = new_arr[np.where(pick_time(new_arr) <= end_time)]
+    if end is not None and len(data):
+        end_time = datetime.strptime(end, '%H:%M').replace(tzinfo=tz.UTC).time()
+        data = data[np.where(pick_time(data[Quotes.TimeStamp]) <= end_time)]
 
-    return data[new_arr]
+    return data
 
 def logger(verbosity, message):
     """

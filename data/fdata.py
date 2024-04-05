@@ -23,6 +23,9 @@ import json
 
 from datetime import datetime, timedelta
 from dateutil import tz
+import calendar
+
+# TODO HIGH Use sql-formatter on SQL code
 
 # Current database compatibility version
 DB_VERSION = 18
@@ -149,7 +152,7 @@ class ReadOnlyData():
             Returns:
                 int: the first datetime's timestamp in queries.
         """
-        return int(self.first_date.timestamp())
+        return calendar.timegm(self.first_date.utctimetuple())
 
     @property
     def last_date_ts(self):
@@ -159,7 +162,7 @@ class ReadOnlyData():
             Returns:
                 int: the last datetime's timestamp.
         """
-        return int(self.last_date.timestamp())
+        return calendar.timegm(self.last_date.utctimetuple())
 
     @property
     def first_datetime_str(self):
@@ -214,6 +217,7 @@ class ReadOnlyData():
         dt = get_dt(dt, tz.UTC)
         return dt.replace(hour=23, minute=59, second=59, tzinfo=tz.UTC)
 
+    # TODO LOW It is not used now. Is there a sence to keep it?
     def first_date_set_eod(self):
         """
             Set the first date's h/m/s/ to EOD (23:59:59)
@@ -868,7 +872,7 @@ class ReadOnlyData():
             for join in joins:
                 additional_joins += join + '\n'
 
-        last_date_ts = self.last_date_ts
+        last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
 
         if ignore_last_date:
             last_date_ts = def_last_date
@@ -1065,8 +1069,10 @@ class ReadOnlyData():
 
         dt_str = ''
 
+        last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
+
         if dt:
-            dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts}"
+            dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {last_date_ts}"
 
         num_query = f"""SELECT COUNT(*) FROM quotes
                             WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
@@ -1216,8 +1222,8 @@ class ReadOnlyData():
                 else:
                     self._time_zone = timezone
             else:
-                self.log("Time zone data is not found. Returning UTC.")
-                self._time_zone = tz.UTC
+                self.log("Time zone data is not found. Returning ET.")
+                self._time_zone = tz.gettz('America/New_York')
 
         return self._time_zone
 
@@ -1273,8 +1279,10 @@ class ReadOnlyData():
                 now += timedelta(minutes=60)
             elif timespan == Timespans.NinetyMinutes:
                 now += timedelta(minutes=90)
+            elif timespan == Timespans.FourHour:
+                now += timedelta(minutes=240)
 
-        ts = int(now.timestamp())
+        ts = calendar.timegm(now.utctimetuple())
 
         return ts
 
@@ -1627,7 +1635,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 intervals.append([self.first_date_ts, last_ts_adj])
 
             for first_ts, last_ts in intervals:
-                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts, tz.UTC)} to {get_dt(last_ts, tz.UTC)}...")
+                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
                 self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
@@ -1673,6 +1681,55 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         return response
 
+    def get_request_datetimes(self, first_ts, last_ts):
+        """
+            Get the datetimes adjusted to the time zone of symbol's exchange for the request.
+
+            Args:
+                num(int): the number of days to limit the request.
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+
+            Returns:
+                tuple(datetime): the adjusted datetimes.
+        """
+        if first_ts is not None:
+            first_dt = get_dt(first_ts)
+        else:
+            first_dt = self.first_date
+
+        if last_ts is not None:
+            last_dt = get_dt(last_ts)
+        else:
+            last_dt = self.last_date
+
+        # Convert dates to the symbol's time zome for the request. In DB timestamps are always UTC adjusted,
+        # but data source usually expect dates in the timezone of the exchange. When we convert dates
+        # consider that the current time is noon to avoid excessive dates shift if time zone difference is not big.
+        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
+        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
+
+        return (first_datetime, last_datetime)
+
+    def get_request_dates(self, first_ts, last_ts):
+        """
+            Get the dates adjusted to the time zone of symbol's exchange for the request.
+
+            Args:
+                num(int): the number of days to limit the request.
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+
+            Returns:
+                tuple(datetime.date): the adjusted dates.
+        """
+        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts)
+
+        first_date = first_dt.date()
+        last_date = last_dt.date()
+
+        return (first_date, last_date)
+
     @abc.abstractmethod
     def get_recent_data(self, to_cache=False):
         """
@@ -1713,6 +1770,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
     def fetch_info(self):
         """Abstract method to fetch security info"""
 
+    # TODO MID Think if it be implemented here or made abstract
     def query_and_parse(self, url, timeout=30):
         """
             Query the data source and parse the response. Used to handle data source API call limit.

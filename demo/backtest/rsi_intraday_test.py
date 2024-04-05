@@ -41,16 +41,11 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
-            # TODO MID Check why update warning is displayed
-            rows = FmpStock(symbol=symbol, first_date='2023-01-01', last_date='2023-02-01', timespan=Timespans.Hour, verbosity=True).get()
+            rows = FmpStock(symbol=symbol, first_date='2023-01-07', last_date='2023-01-10', timespan=Timespans.Minute, verbosity=True).get()
         except FdataError as e:
             sys.exit(e)
 
         print(f"The total number of quotes used for {symbol} is {len(rows)}.\n")
-
-        print(rows)
-        rows = trim_time(rows, start='13:30', end='21:00')
-        print(f"The total number of quotes used for {symbol} after picking market open time only is {len(rows)}.\n")
 
         allrows.append(rows)
 

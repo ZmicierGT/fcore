@@ -13,7 +13,6 @@ from data.futils import get_dt, get_labelled_ndarray
 import settings
 
 from datetime import datetime, timedelta
-from dateutil import tz
 import calendar
 
 import json
@@ -39,9 +38,6 @@ class FmpSubquery():
         self.column = column
         self.condition = condition
         self.fill = fill
-
-        self._sec_info_supported = True
-        self._stock_info_supported = True
 
         # Use the default column name as the title if the title is not specified
         if title is None:
@@ -94,6 +90,9 @@ class FmpStock(stock.StockFetcher):
             self.max_queries = 750
         if settings.AV.plan == settings.FMP.Plan.Ultimate:
             self.max_queries = 3000
+
+        self._sec_info_supported = True
+        self._stock_info_supported = True
 
     def check_database(self):
         """
@@ -246,15 +245,8 @@ class FmpStock(stock.StockFetcher):
             Returns:
                 list: capitalization data.
         """
-        if first_ts is not None:
-            first_date = get_dt(first_ts, self.get_timezone()).date()
-        else:
-            first_date = self.first_date.date()
-
-        if last_ts is not None:
-            last_date = get_dt(last_ts, self.get_timezone()).date()
-        else:
-            last_date = self.last_date.date()
+        # Adjust dates for the exchange time zone for the request
+        first_date, last_date = self.get_request_dates(first_ts, last_ts)
 
         earliest_date = last_date
 
@@ -274,7 +266,7 @@ class FmpStock(stock.StockFetcher):
 
             # If we are still getting data, need to check the earliest date to distinguish if we have to continue fetching.
             last_element = results[-1]
-            earliest_date = get_dt(last_element['date'], self.get_timezone()).date()
+            earliest_date = get_dt(last_element['date']).date()
 
             if earliest_date <= first_date or earliest_date == last_date or earliest_date == '1980-12-12' or len(results) < 1000:
                 break
@@ -351,7 +343,7 @@ class FmpStock(stock.StockFetcher):
         if mod_ts is None:
             self.add_cap(self.fetch_cap())
         else:
-            days_delta = (current - get_dt(mod_ts, self.get_timezone())).days
+            days_delta = (current - get_dt(mod_ts)).days
 
             if self.last_date_ts > mod_ts and days_delta:
                 self.add_cap(self.fetch_cap(days_delta + 1))
@@ -476,8 +468,8 @@ class FmpStock(stock.StockFetcher):
         else:
             last_ts = self.get_last_timestamp('fmp_surprises')
 
-            days_delta = (current - get_dt(last_ts, self.get_timezone())).days
-            days_delta_mod = (current - get_dt(mod_ts, self.get_timezone())).days
+            days_delta = (current - get_dt(last_ts)).days
+            days_delta_mod = (current - get_dt(mod_ts)).days
 
             if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
                 self.add_surprises(self.fetch_surprises(round(days_delta / 90 + 1)))
@@ -520,7 +512,7 @@ class FmpStock(stock.StockFetcher):
             try:
                 results = json_data['historical']
             except KeyError as e:
-                raise FdataError(f"Can't get the historical data when {url} is requested. Likely API key limit is reached.")
+                self.log(f"Can't get the historical data when {url} is requested. Likely API key limit is reached.")
 
         if results is not None and (len(results) == 0 or results == ['Error Message']):
             self.log(f"No data obtained for {self.symbol} using the query {url}")
@@ -567,15 +559,8 @@ class FmpStock(stock.StockFetcher):
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened, invalid timespan or no data obtained.
         """
-        if first_ts is not None:
-            first_datetime = get_dt(first_ts, self.get_timezone())
-        else:
-            first_datetime = self.first_date
-
-        if last_ts is not None:
-            last_datetime = get_dt(last_ts, self.get_timezone())
-        else:
-            last_datetime = self.last_date
+        # Adjust dates for the exchange time zone for the request
+        first_datetime, last_datetime = self.get_request_datetimes(first_ts, last_ts)
 
         earliest_datetime = last_datetime
 
@@ -601,8 +586,8 @@ class FmpStock(stock.StockFetcher):
 
             # If we are still getting data, need to check the earliest date to distinguish if we have to
             # continue fetching.
-            last_element = json_results[-1]
-            earliest_datetime = get_dt(last_element['date'], self.get_timezone())
+            first_element = json_results[-1]
+            earliest_datetime = get_dt(first_element['date'])
 
             if earliest_datetime <= first_datetime or earliest_datetime == last_datetime or \
                earliest_datetime.date() == '1980-12-12':
@@ -749,7 +734,7 @@ class FmpStock(stock.StockFetcher):
 
         ex_info = json_data['stockMarketHours']
         tz_str = ex_info['openingHour'].split(' ')[-1]
-        results['time_zone'] = tz_str
+        results['time_zone'] = Timezones[tz_str]
 
         return results
 

@@ -327,7 +327,7 @@ class ReadOnlyData():
 
         # Check if environment table has data
         if len(rows) > 1:  # This table should have one row only
-            raise FdataError(f"The environment table is broken. Please, delete the database file {settings.Quotes.db_name} or change db patch in settings.py")
+            raise FdataError(f"The environment table is broken. Please, delete the database file {self.db_name} or change db patch in settings.py")
         elif len(rows) == 0:
             # Insert the environment data to the table
             insert_environment = f"""INSERT INTO environment (version)
@@ -348,7 +348,7 @@ class ReadOnlyData():
             version = self.cur.fetchone()[0]
 
             if version != DB_VERSION:
-                raise FdataError(f"DB Version is unexpected. Please, delete the database file {settings.Quotes.db_name} or change db patch in settings.py")
+                raise FdataError(f"DB Version is unexpected. Please, delete the database file {self.db_name} or change db patch in settings.py")
 
         # Check if we need to create table 'currency'
         try:
@@ -698,6 +698,7 @@ class ReadOnlyData():
                                                 symbol_id INTEGER NOT NULL,
                                                 source_id INTEGER NOT NULL,
                                                 time_zone TEXT,
+                                                sec_type_id INTEGER NOT NULL,
                                                 modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 UNIQUE(symbol_id, sec_info_id)
                                                     CONSTRAINT fk_source
@@ -708,6 +709,10 @@ class ReadOnlyData():
                                                         FOREIGN KEY (symbol_id)
                                                         REFERENCES symbols(symbol_id)
                                                         ON DELETE CASCADE
+                                                    CONSTRAINT fk_sectypes
+                                                        FOREIGN KEY (sec_type_id)
+                                                        REFERENCES sectypes(sec_type_id)
+                                                        ON DELETE CASCADE
                                                 UNIQUE(symbol_id, source_id)
                                             );"""
 
@@ -717,10 +722,12 @@ class ReadOnlyData():
                 raise FdataError(f"Can't create table sec_info: {e}") from e
 
             # Create indexes for sec_info
-            create_sec_info_idx = "CREATE INDEX idx_sec_info ON sec_info(symbol_id);"
+            create_sec_info_idx_symbol = "CREATE INDEX idx_sec_info_symbol ON sec_info(symbol_id);"
+            create_sec_info_idx_sectype = "CREATE INDEX idx_sec_info_sectype ON sec_info(sec_type_id);"
 
             try:
-                self.cur.execute(create_sec_info_idx)
+                self.cur.execute(create_sec_info_idx_symbol)
+                self.cur.execute(create_sec_info_idx_sectype)
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
@@ -1095,7 +1102,7 @@ class ReadOnlyData():
 
     def _get_ts(self, is_max=True, table='quotes', column='time_stamp'):
         """
-            Get Min/Max timestamp for a particular symbol, source, timespan from a specified table.
+            Get Min/Max timestamp for a particular symbol, source, timespan from the specified table.
 
             Args:
                 is_max(bool): indicates if Min or Max timestamp should be obtained.
@@ -1187,19 +1194,22 @@ class ReadOnlyData():
             self.add_info(self.fetch_info())
 
         # Just time zone is used from info for now
-        info_query = f"""SELECT time_zone FROM sec_info WHERE symbol_id =
-                                (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
+        info_query = f"""SELECT time_zone, title as sec_type FROM sec_info si
+                            INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
+                            WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
 
         try:
             self.cur.execute(info_query)
-            row = self.cur.fetchone()[0]
+            rows = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
 
         if initially_connected is False:
             self.db_close()
 
-        return {'time_zone': row}
+        row = rows[0]
+
+        return {'time_zone': row['time_zone'], 'sec_type': row['sec_type']}
 
     def get_timezone(self):
         """
@@ -1539,17 +1549,20 @@ class ReadWriteData(ReadOnlyData):
                 self.add_symbol()
 
             try:
-                sector = info['time_zone']
+                time_zone = info['fc_time_zone']
+                sec_type = info['fc_sec_type']
             except KeyError as e:
                 raise FdataError(f"Key is not found. Likely broken data is obtained (due to data soruce issues): {e}")
 
             insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
                                         source_id,
-                                        time_zone)
+                                        time_zone,
+                                        sec_type_id)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
-                                            ('{info['time_zone']}')
+                                            ('{time_zone}'),
+                                            (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}')
                                         );"""
 
             try:

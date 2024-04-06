@@ -13,6 +13,7 @@ from data.futils import get_dt, get_labelled_ndarray
 import settings
 
 from datetime import datetime, timedelta
+from dateutil import tz
 import calendar
 
 import json
@@ -728,13 +729,19 @@ class FmpStock(stock.StockFetcher):
         except KeyError as e:
             raise FdataError(f"Can't find exchange or timezone data: {e}")
 
-        results['time_zone'] = tz_str
+        results['fc_time_zone'] = tz_str
+        results['fc_sec_type'] = SecType.Stock
 
         return results
 
-    # TODO HIGH The usage of this method should be limited even for screening as data request from DB vary and also
-    # it involves some calculations (like adjustments). Using data from this method may lead to incorrect results.
     def get_recent_data(self, to_cache=False):
+        """
+            Get the resent quote data.
+
+            The usage of this method should be limited even for screening as data request from DB (and this request is
+            not DB related) may involve additional data and also it performs adjustment calculations. Here raw data
+            (as obtained from the data source) returned.
+        """
         quote_url = f"https://financialmodelingprep.com/api/v3/quote-order/{self.symbol}?apikey={self.api_key}"
 
         # Get company profile
@@ -745,7 +752,7 @@ class FmpStock(stock.StockFetcher):
         if len(quote) == 0 or quote == ['Error Message']:
             self.log(f"No quote data obtained for {self.symbol}")
 
-        dt = get_dt(quote['timestamp'], self.get_timezone())
+        dt = get_dt(quote['timestamp'], tz.UTC)  # It is returned in UTC, not exchange time zone
 
         result = {'time_stamp': calendar.timegm(dt.utctimetuple()),
                   'date_time': dt.isoformat(' '),
@@ -765,10 +772,7 @@ class FmpStock(stock.StockFetcher):
                   'splits': 1.0
                  }
 
-        result = [result]
-        result = get_labelled_ndarray(result)
-
-        return result
+        return get_labelled_ndarray([result])
 
     #########################################
     # Methods which are not implemented (yet)

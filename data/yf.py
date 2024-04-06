@@ -34,11 +34,15 @@ class YF(stock.StockFetcher):
         # Default values
         self.source_title = "YF"
 
+        # TODO HIGH This is security related and multiple securities may be used with the sama datasource instance
         self.sectype = SecType.Stock  # Be careful as theorefically multiple security types may be obtaines by similar YF queries
         self.currency = Currency.Unknown  # Currencies are not supported yet
 
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self.symbol  # Symbol of cached data
+
+        self._sec_info_supported = True
+        self._stock_info_supported = True
 
     def get_timespan_str(self):
         """
@@ -274,7 +278,17 @@ class YF(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
 
-        info['time_zone'] = info['timeZoneFullName']
+        info['fc_time_zone'] = info['timeZoneFullName']
+        info['fc_sec_type'] = SecType.Unknown
+
+        sec_type = info['quoteType']
+
+        if sec_type == 'EQUITY':
+            info['fc_sec_type'] = SecType.Stock
+        elif sec_type == 'CRYPTOCURRENCY':
+            info['fc_sec_type'] = SecType.Crypto
+        elif sec_type == 'ETF':
+            info['fc_sec_type'] = SecType.ETF
 
         return info
 

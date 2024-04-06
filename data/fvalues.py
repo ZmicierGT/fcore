@@ -279,6 +279,7 @@ class SecType(StrEnum):
     Unknown = "Unknown"
     Stock = "Stock"
     ETF = "ETF"
+    Crypto = "Crypto"
 
 class Currency(StrEnum):
     """

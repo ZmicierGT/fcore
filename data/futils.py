@@ -42,7 +42,7 @@ def get_dt(value, timezone=tz.UTC):
             if value < 0:
                 dt = datetime(1970, 1, 1) + timedelta(seconds=value)
             else:
-                dt = datetime.fromtimestamp(value)
+                dt = datetime.utcfromtimestamp(value)
         except (OverflowError, OSError) as e:
             raise ValueError(f"Too big/small timestamp value: {e}") from e
     # String

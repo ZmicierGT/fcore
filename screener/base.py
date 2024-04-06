@@ -273,7 +273,11 @@ class ScrData():
         self.get_source().db_connect()
 
         if init_status is False:
-            self.__max_datetime = get_dt(self.get_source().get_max_ts(), tz.UTC)
+            max_ts = self.get_source().get_max_ts()
+
+            if max_ts is not None:
+                self.__max_datetime = get_dt(max_ts)
+                print(f"{max_ts} {self.__max_datetime}")
             self.__quotes_num = self.get_source().get_total_symbol_quotes_num()
         else:
             data = self.get_source().get_recent_data()
@@ -341,6 +345,8 @@ class ScrData():
         """
         # Get yesterday to fetch current quotes
         yesterday = datetime.now() - timedelta(days=1)
+
+        self.get_source().get_info()
 
         self.get_source().first_date = yesterday
         self.get_source().last_date = yesterday + timedelta(days=self.get_init_days())

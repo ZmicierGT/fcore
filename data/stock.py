@@ -895,12 +895,12 @@ class RWStockData(ROStockData, ReadWriteData):
 
         super().add_info(info)
 
-        try:
-            sector = info['sector']
-        except KeyError as e:
-            raise FdataError(f"Key is not found. Likely broken data is obtained (due to data source issues): {e}")
+        if self._stock_info_supported and info['fc_sec_type'] == SecType.Stock:
+            try:
+                sector = info['sector']
+            except KeyError as e:
+                raise FdataError(f"Key is not found. Likely broken data is obtained (due to data source issues): {e}")
 
-        if self._stock_info_supported:
             insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
                                         source_id,
                                         stock_sector_id)
@@ -965,7 +965,11 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         # Get base security info
         base_info = super().get_info()
 
-        if self._stock_info_supported:
+        # Some data sources may allow to query different security types with same requests. Need to ensure that our type
+        # is really stock.
+        sec_type = base_info['sec_type']
+
+        if self._stock_info_supported and sec_type == SecType.Stock:
             mod_ts = self.get_last_modified('stock_info')
 
             # Fetch data if no data present

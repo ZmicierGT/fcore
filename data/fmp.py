@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import stock
-from data.fvalues import SecType, Currency, Timespans, Timezones
+from data.fvalues import SecType, Currency, Timespans, Exchanges
 from data.fdata import FdataError
 
 from data.futils import get_dt, get_labelled_ndarray
@@ -722,19 +722,13 @@ class FmpStock(stock.StockFetcher):
         # Get company profile
         json_data = self.query_and_parse(profile_url)
 
-        results = json_data[0]
+        try:
+            results = json_data[0]
+            tz_str = Exchanges[results['exchangeShortName']]
+        except KeyError as e:
+            raise FdataError(f"Can't find exchange or timezone data: {e}")
 
-        # Need to fetch time zone data. In the basic info there is no time zone information so we need to obtain
-        # an exchange info to extract the time zone from exchange working hours.
-
-        exchange_url = f"https://financialmodelingprep.com/api/v3/is-the-market-open?exchange={results['exchangeShortName']}&apikey={self.api_key}"
-
-        # Get exchange data
-        json_data = self.query_and_parse(exchange_url)
-
-        ex_info = json_data['stockMarketHours']
-        tz_str = ex_info['openingHour'].split(' ')[-1]
-        results['time_zone'] = Timezones[tz_str]
+        results['time_zone'] = tz_str
 
         return results
 

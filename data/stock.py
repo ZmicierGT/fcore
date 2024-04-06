@@ -423,6 +423,7 @@ class ROStockData(ReadOnlyData):
 
         return splits
 
+    # TODO MID Think if ignore last date is needed here
     def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=True):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
@@ -556,10 +557,12 @@ class ROStockData(ReadOnlyData):
 
         last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
 
-        if ignore_last_date:
-            last_date_ts = def_last_date
+        idx = np.where(quotes[StockQuotes.TimeStamp] <= last_date_ts)[0]
 
-        max_idx = min(len(quotes), max(np.where(quotes[StockQuotes.TimeStamp] <= last_date_ts)[0]) + 1)
+        if len(idx):
+            max_idx = min(len(quotes), max(idx) + 1)
+        else:
+            max_idx = 0
 
         return quotes[:max_idx]
 

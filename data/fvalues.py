@@ -173,6 +173,27 @@ Timezones = {
     'WITA': 'Asia/Makassar'
 }
 
+# Time zones of some popular exchanges
+Exchanges = {
+    'AMEX':     'America/New_York',
+    'ASX':      'Australia/Sydney',
+    'BSE':      'Asia/Kolkata',
+    'EURONEXT': 'Europe/Paris',
+    'HKSE':     'Asia/Hong_Kong',
+    'JPX':      'Asia/Tokyo',
+    'LSE':      'Europe/London',
+    'NASDAQ':   'America/New_York',
+    'NSE':      'Asia/Kolkata',
+    'NYSE':     'America/New_York',
+    'OTC':      'America/New_York',
+    'PNK':      'America/New_York',
+    'SSE':      'Asia/Shanghai',
+    'SHH':      'Asia/Shanghai',
+    'SHZ':      'Asia/Shanghai',
+    'TSX':      'America/Toronto',
+    'XETRA':    'Europe/Frankfurt'
+}
+
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order
 class Quotes(StrEnum):

@@ -28,9 +28,6 @@ class FHStock(stock.StockFetcher):
         self.source_title = "Finnhub"
         self.api_key = settings.Finnhub.api_key
 
-        self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for FH
-        self.currency = Currency.Unknown  # Currencies are not supported yet
-
         print(f"Warning! The datasource {type(self).__name__} is not maintained any more. Consider using YF or FMP datasources.")
 
     def get_timespan_str(self):

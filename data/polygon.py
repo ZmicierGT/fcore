@@ -51,9 +51,6 @@ class Polygon(stock.StockFetcher):
         elif settings.Polygon.stocks_plan == settings.Polygon.Stocks.Commercial:
             self.year_delta = 15
 
-        self.sectype = SecType.Stock
-        self.currency = Currency.Unknown  # Currencies are not supported yet
-
         if self.api_key is None:
             raise FdataError("API key is needed for this data source. Get your free API key at polygon.io and put it in setting.py")
 
@@ -254,7 +251,7 @@ class Polygon(stock.StockFetcher):
                 'ex_ts': ex_ts,
                 'record_ts': record_ts,
                 'pay_ts': pay_ts,
-                'currency': self.currency.value  # TODO LOW For now it is consider that divident currency is the same as stock currency
+                'currency': self.get_currency()  # TODO LOW For now it is consider that divident currency is the same as stock currency
             }
 
             divs_data.append(div_dict)

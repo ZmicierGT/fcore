@@ -76,9 +76,6 @@ class AVStock(stock.StockFetcher):
         self.api_key = settings.AV.api_key
         self.compact = False  # Indicates if a limited number (100) of quotes should be obtained
 
-        self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for AV
-        self.currency = Currency.Unknown  # Currencies are not supported yet
-
         # Cached EOD quotes to get dividends and split data
         self._eod = None
         self._eod_symbol = None
@@ -1330,7 +1327,7 @@ class AVStock(stock.StockFetcher):
         df_result['amount'] = df['divs']
 
         # Not used in this data source
-        df_result['currency'] = self.currency.value
+        df_result['currency'] = self.get_currency()
         df_result['decl_ts'] = 'NULL'
         df_result['record_ts'] = 'NULL'
         df_result['pay_ts'] = 'NULL'

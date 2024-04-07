@@ -34,10 +34,6 @@ class YF(stock.StockFetcher):
         # Default values
         self.source_title = "YF"
 
-        # TODO HIGH This is security related and multiple securities may be used with the sama datasource instance
-        self.sectype = SecType.Stock  # Be careful as theorefically multiple security types may be obtaines by similar YF queries
-        self.currency = Currency.Unknown  # Currencies are not supported yet
-
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self.symbol  # Symbol of cached data
 
@@ -245,7 +241,7 @@ class YF(stock.StockFetcher):
         df_result['amount'] = divs.reset_index()['Dividends']
 
         # Not used in this data source
-        df_result['currency'] = self.currency.value
+        df_result['currency'] = self.get_currency()
         df_result['decl_ts'] = 'NULL'
         df_result['record_ts'] = 'NULL'
         df_result['pay_ts'] = 'NULL'

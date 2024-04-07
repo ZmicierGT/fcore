@@ -263,7 +263,11 @@ class FmpStock(stock.StockFetcher):
             cap_data += results
 
             # If we are still getting data, need to check the earliest date to distinguish if we have to continue fetching.
-            last_element = results[-1]
+
+            try:
+                last_element = results[-1]
+            except KeyError as e:
+                raise FdataError(f"Can't fetch data (may be due to API key limit). Url is {cap_url}, erro is {e}")
             earliest_date = get_dt(last_element['date']).date()
 
             if earliest_date <= first_date or earliest_date == last_date or earliest_date == '1980-12-12' or len(results) < 1000:
@@ -724,7 +728,7 @@ class FmpStock(stock.StockFetcher):
             results = json_data[0]
             tz_str = Exchanges[results['exchangeShortName']]
         except KeyError as e:
-            raise FdataError(f"Can't find exchange or timezone data: {e}")
+            raise FdataError(f"Can't fetch info (API key limit is possible): {e}, url is {profile_url}")
 
         results['fc_time_zone'] = tz_str
         results['fc_sec_type'] = SecType.Stock

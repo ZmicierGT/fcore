@@ -11,14 +11,24 @@ from data.fvalues import Timespans
 
 from data import yf
 
+import sqlite3
+
+db_name = 'file:fcdb?mode=memory&cache=shared'
+
 if __name__ == "__main__":
     warning = "WARNING! This screener is just an example and do not treat the obtained signals as an investment advice.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
+    # Keep in-memory DB connected while screening
+    fcdb = sqlite3.connect(db_name)
+
     source_btc = yf.YF()
     source_ltc = yf.YF()
+
+    source_btc.db_name = db_name
+    source_ltc.db_name = db_name
 
     btc = {'Title': 'BTC-USD', 'Source': source_btc}
     ltc = {'Title': 'LTC-USD', 'Source': source_ltc}

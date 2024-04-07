@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 19
+DB_VERSION = 20
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -1629,8 +1629,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         self._queries = []  # List of queries to calculate API call pauses
 
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
-    # TODO HIGH check if fetching the current quotes is processed currectly. For example, 4hr bars no need to re-check
-    # for 4 hours.
     def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Check is the required number of quotes exist in the database and fetch if not.

@@ -25,10 +25,10 @@ from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
 
-# TODO HIGH Use sql-formatter on SQL code
+# TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 18
+DB_VERSION = 19
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -71,10 +71,6 @@ class ReadOnlyData():
 
         self.timespan = timespan
 
-        # Get all security types nominated in all currencies by default
-        self.sectype = SecType.All
-        self.currency = Currency.All
-
         # Source title should be overridden in derived classes for particular data sources
         self.source_title = ''
 
@@ -96,6 +92,8 @@ class ReadOnlyData():
 
         self._sec_info_supported = False  # Indicates if security info is supported
         self._time_zone = None  # Cached time zone to avoid too many db queries
+        self._sec_type = None  # Cached security type to avoid too many db queries
+        self._currency = None  # Cached security type to avoid too many db queries
 
     ########################################################
     # Get/set datetimes (depending on the input value type).
@@ -474,18 +472,8 @@ class ReadOnlyData():
             create_symbols = """CREATE TABLE symbols(
                                 symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ticker TEXT NOT NULL UNIQUE,
-                                sec_type_id INTEGER NOT NULL,
-                                currency_id INTEGER NOT NULL,
                                 isin TEXT UNIQUE,
                                 description TEXT,
-                                CONSTRAINT fk_sectypes
-                                    FOREIGN KEY (sec_type_id)
-                                    REFERENCES sectypes(sec_type_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_currency
-                                    FOREIGN KEY (currency_id)
-                                    REFERENCES currency(currency_id)
-                                    ON DELETE CASCADE
                                 UNIQUE(symbol_id)
                                 );"""
 
@@ -697,8 +685,9 @@ class ReadOnlyData():
                                                 sec_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                 symbol_id INTEGER NOT NULL,
                                                 source_id INTEGER NOT NULL,
-                                                time_zone TEXT,
+                                                time_zone TEXT NOT NULL,
                                                 sec_type_id INTEGER NOT NULL,
+                                                currency_id INTEGER NOT NULL,
                                                 modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 UNIQUE(symbol_id, sec_info_id)
                                                     CONSTRAINT fk_source
@@ -713,6 +702,10 @@ class ReadOnlyData():
                                                         FOREIGN KEY (sec_type_id)
                                                         REFERENCES sectypes(sec_type_id)
                                                         ON DELETE CASCADE
+                                                    CONSTRAINT fk_currency
+                                                        FOREIGN KEY (currency_id)
+                                                        REFERENCES currency(currency_id)
+                                                        ON DELETE CASCADE
                                                 UNIQUE(symbol_id, source_id)
                                             );"""
 
@@ -724,10 +717,12 @@ class ReadOnlyData():
             # Create indexes for sec_info
             create_sec_info_idx_symbol = "CREATE INDEX idx_sec_info_symbol ON sec_info(symbol_id);"
             create_sec_info_idx_sectype = "CREATE INDEX idx_sec_info_sectype ON sec_info(sec_type_id);"
+            create_sec_info_idx_currency = "CREATE INDEX idx_sec_info_currency ON sec_info(currency_id);"
 
             try:
                 self.cur.execute(create_sec_info_idx_symbol)
                 self.cur.execute(create_sec_info_idx_sectype)
+                self.cur.execute(create_sec_info_idx_currency)
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
@@ -844,14 +839,14 @@ class ReadOnlyData():
         # # Sectype subquery
         # sectype_query = ""
 
-        # if self.sectype != SecType.All:
-        #     sectype_query = "AND sectypes.title = '" + self.sectype.value + "'"
+        # if self.get_sectype() != SecType.All:
+        #     sectype_query = "AND sectypes.title = '" + self.get_sectype() + "'"
 
         # # Currency subquery
         # currency_query = ""
 
-        # if self.currency != Currency.All:
-        #     currency_query = "AND currency.title = '" + self.currency.value + "'"
+        # if self.get_currency() != Currency.All:
+        #     currency_query = "AND currency.title = '" + self.get_currency() + "'"
 
         # Quotes number subquery
         num_query = ""
@@ -1194,8 +1189,9 @@ class ReadOnlyData():
             self.add_info(self.fetch_info())
 
         # Just time zone is used from info for now
-        info_query = f"""SELECT time_zone, title as sec_type FROM sec_info si
+        info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
                             INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
+                            INNER JOIN currency c ON si.currency_id = c.currency_id
                             WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
 
         try:
@@ -1209,7 +1205,7 @@ class ReadOnlyData():
 
         row = rows[0]
 
-        return {'time_zone': row['time_zone'], 'sec_type': row['sec_type']}
+        return {'time_zone': row['time_zone'], 'sec_type': row['sec_type'], 'currency': row['curr']}
 
     def get_timezone(self):
         """
@@ -1224,7 +1220,7 @@ class ReadOnlyData():
         if self._time_zone is None:
             info = self.get_info()
 
-            if info is not None and len(info.keys()):
+            if info is not None and len(info.keys()) and 'time_zone' in info.keys():
                 timezone = tz.gettz(info['time_zone'])
 
                 if timezone is None:
@@ -1236,6 +1232,51 @@ class ReadOnlyData():
                 self._time_zone = tz.gettz('America/New_York')
 
         return self._time_zone
+
+    def get_sectype(self):
+        """
+            Get the security type of the specified symbol.
+
+            Returns:
+                (SecType): security typy.
+        """
+        if self._sec_info_supported is False:
+            self._sec_type = SecType.Unknown  # Return Unknown by default.
+
+        if self._sec_type is None:
+            info = self.get_info()
+
+            if info is not None and len(info.keys()) and 'sec_type' in info.keys():
+                self._sec_type = info['sec_type']
+            else:
+                self._sec_type = SecType.Unknown
+
+                self.log(f"Security type data is not found. Returning {self._sec_type.value}.")
+
+        return self._sec_type
+
+    # TODO LOW Note that Unknown will be returned each time as currencies are not supported yet.
+    def get_currency(self):
+        """
+            Get the currency of the specified symbol.
+
+            Returns:
+                (Currency): security typy.
+        """
+        if self._sec_info_supported is False:
+            self._currency = Currency.Unknown  # Return Unknown by default.
+
+        if self._currency is None:
+            info = self.get_info()
+
+            if info is not None and len(info.keys()) and 'currency' in info.keys():
+                self._currency = info['currency']
+            else:
+                self._currency = Currency.Unknown
+
+                self.log(f"Currency data is not found. Returning {self._currency.value}.")
+
+        return self._currency
 
     def is_intraday(self, timespan=None):
         """
@@ -1364,11 +1405,8 @@ class ReadWriteData(ReadOnlyData):
         """
         self.check_if_connected()
 
-        insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker, sec_type_id, currency_id) VALUES (
-                                '{self.symbol}',
-                                (SELECT sec_type_id FROM sectypes WHERE sectypes.title = '{self.sectype}' COLLATE NOCASE),
-                                (SELECT currency_id FROM currency WHERE currency.title = '{self.currency}' COLLATE NOCASE)
-                                );"""
+        insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker) VALUES (
+                                '{self.symbol}');"""
 
         try:
             self.cur.execute(insert_symbol)
@@ -1554,15 +1592,19 @@ class ReadWriteData(ReadOnlyData):
             except KeyError as e:
                 raise FdataError(f"Key is not found. Likely broken data is obtained (due to data soruce issues): {e}")
 
+            currency = Currency.Unknown  # Currencies are not supported yet
+
             insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
                                         source_id,
                                         time_zone,
-                                        sec_type_id)
+                                        sec_type_id,
+                                        currency_id)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                             ('{time_zone}'),
-                                            (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}')
+                                            (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),
+                                            (SELECT currency_id FROM currency WHERE title = '{currency}')
                                         );"""
 
             try:

@@ -30,8 +30,6 @@ class ROStockData(ReadOnlyData):
         """
         super().__init__(**kwargs)
 
-        self.sectype = SecType.Stock
-
         # Data related to fundamental tables. Need to be overridden in the derived class.
         self._fundamental_intervals_tbl = None
         self._income_statement_tbl = None
@@ -936,11 +934,11 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched quote entries.
         """
         # Get also divs and splits for stock and etf as theoretically the instance may be used for other sec types
-        if self.sectype in (SecType.Stock, SecType.ETF):
+        if self.get_sectype() in (SecType.Stock, SecType.ETF):
             self.get_dividends()
             self.get_splits()
         else:
-            self.log(f"Warning! Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
+            self.log(f"Warning! Security type is not stock or ETF ({self.get_sectype()}) so split/dividend data is not obtained.")
 
         return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
 

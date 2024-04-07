@@ -80,9 +80,6 @@ class FmpStock(stock.StockFetcher):
         self.source_title = "FMP"
         self.api_key = settings.FMP.api_key
 
-        self.sectype = SecType.Stock  # TODO LOW Distinguish stock and ETF for FMP
-        self.currency = Currency.Unknown  # Currencies are not supported yet
-
         if settings.FMP.plan == settings.FMP.Plan.Basic:
             self.max_queries = 250
         if settings.AV.plan == settings.FMP.Plan.Starter:
@@ -678,7 +675,7 @@ class FmpStock(stock.StockFetcher):
                 'ex_ts': ex_ts,
                 'record_ts': record_ts,
                 'pay_ts': pay_ts,
-                'currency': self.currency.value  # TODO LOW For now it is consider that divident currency is the same as stock currency
+                'currency': self.get_currency()  # TODO LOW For now it is consider that divident currency is the same as stock currency
             }
 
             divs_data.append(div_dict)

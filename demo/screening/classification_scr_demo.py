@@ -18,7 +18,11 @@ from data.fvalues import Algorithm
 
 from tools.base import ToolError
 
+import sqlite3
+
 import sys
+
+db_name = 'file:fcdb?mode=memory&cache=shared'
 
 # Parameters for learning
 true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
@@ -82,8 +86,14 @@ if __name__ == "__main__":
 
     # Perform screening
 
+    # Keep in-memory DB connected while screening
+    fcdb = sqlite3.connect(db_name)
+
     source_btc = YF()
     source_ltc = YF()
+
+    source_btc.db_name = db_name
+    source_ltc.db_name = db_name
 
     # Despite having a model trained using stock quotes, lets use crypto to make estimations as crypto quotes change 24/7
     btc = {'Title': 'BTC-USD', 'Source': source_btc}

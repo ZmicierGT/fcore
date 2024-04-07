@@ -305,7 +305,6 @@ class ROStockData(ReadOnlyData):
                                                 symbol_id INTEGER NOT NULL,
                                                 source_id INTEGER NOT NULL,
                                                 stock_sector_id INTEGER,
-                                                time_zone TEXT,
                                                 modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 UNIQUE(symbol_id, stock_info_id)
                                                     CONSTRAINT fk_source

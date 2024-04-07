@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
-            rows = FmpStock(symbol=symbol, first_date='2023-01-07', last_date='2023-01-10', timespan=Timespans.Minute, verbosity=True).get()
+            rows = FmpStock(symbol=symbol, first_date='2024-01-10', last_date='2024-01-10', timespan=Timespans.Minute, verbosity=True).get()
         except FdataError as e:
             sys.exit(e)
 

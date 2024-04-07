@@ -422,7 +422,7 @@ class ROStockData(ReadOnlyData):
         return splits
 
     # TODO MID Think if ignore last date is needed here
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=True):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)

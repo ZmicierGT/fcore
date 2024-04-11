@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import stock
-from data.fvalues import SecType, Currency, Timespans, Exchanges
+from data.fvalues import SecType, Timespans, Exchanges
 from data.fdata import FdataError
 
 from data.futils import get_dt, get_labelled_ndarray
@@ -17,6 +17,9 @@ from dateutil import tz
 import calendar
 
 import json
+
+# TODO HIGH If any fetching was interrupted (like due to API key limit) the exception (not warning) should be triggered
+# as it may lead to incomplete data which won't be re-fetched (as intervals are set already).
 
 # TODO MID Make subquery universal for any data source
 class FmpSubquery():
@@ -33,7 +36,7 @@ class FmpSubquery():
                 condition(str): additional SQL condition for the subquery.
                 title(str): optional title for the output column (the same as column name by default)
                 fill(bool): Indicates if all rows should have the value. False if only a row with the most
-                            suitable data should have it.
+                            suitable data (according to time stamp) should have it.
         """
         self.table = table
         self.column = column
@@ -57,7 +60,7 @@ class FmpSubquery():
 
         if self.fill is False:
             ts_query = """ AND report_tbl.time_stamp >
-                           (SELECT time_stamp FROM quotes qqq WHERE qqq.quote_id < quotes.quote_id ORDER BY qqq.quote_id DESC LIMIT 1)"""
+                           (SELECT time_stamp FROM quotes qqq WHERE qqq.quote_id > quotes.quote_id ORDER BY qqq.quote_id ASC LIMIT 1)"""
 
         subquery = f"""(SELECT {self.column}
                             FROM {self.table} report_tbl
@@ -251,7 +254,7 @@ class FmpStock(stock.StockFetcher):
         cap_data = []
 
         while True:
-            cap_url = f"https://financialmodelingprep.com/api/v3/historical-market-capitalization/AAPL?limit={num}&from={first_date}&to={last_date}&apikey={self.api_key}"
+            cap_url = f"https://financialmodelingprep.com/api/v3/historical-market-capitalization/{self.symbol}?limit={num}&from={first_date}&to={last_date}&apikey={self.api_key}"
 
             # Get capitalization data
             results = self.query_and_parse(cap_url)
@@ -334,6 +337,11 @@ class FmpStock(stock.StockFetcher):
 
         if self.is_connected() is False:
             self.db_connect()
+
+        quote_num = self.get_total_symbol_quotes_num()
+
+        if quote_num == 0:
+            raise FdataError("Quotes should be fetched at first before fetching capitalization data.")
 
         num = self.get_cap_num()
 
@@ -457,6 +465,11 @@ class FmpStock(stock.StockFetcher):
         if self.is_connected() is False:
             self.db_connect()
 
+        quote_num = self.get_total_symbol_quotes_num()
+
+        if quote_num == 0:
+            raise FdataError("Quotes should be fetched at first before fetching surprises data.")
+
         num = self.get_surprises_num()
 
         mod_ts = self.get_last_modified('fmp_surprises')
@@ -473,8 +486,10 @@ class FmpStock(stock.StockFetcher):
             days_delta = (current - get_dt(last_ts)).days
             days_delta_mod = (current - get_dt(mod_ts)).days
 
+            # TODO LOW It should be done in a better way than just checking for 90 days difference.
             if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
-                self.add_surprises(self.fetch_surprises(round(days_delta / 90 + 1)))
+                #self.add_surprises(self.fetch_surprises(round(days_delta / 90 + 1)))
+                self.add_surprises(self.fetch_surprises())
 
         new_num = self.get_surprises_num()
 
@@ -727,7 +742,7 @@ class FmpStock(stock.StockFetcher):
         try:
             results = json_data[0]
             tz_str = Exchanges[results['exchangeShortName']]
-        except KeyError as e:
+        except (KeyError, IndexError) as e:
             raise FdataError(f"Can't fetch info (API key limit is possible): {e}, url is {profile_url}")
 
         results['fc_time_zone'] = tz_str

@@ -2060,6 +2060,36 @@ class BackTest(metaclass=abc.ABCMeta):
         self._long_positions_num = 0  # The total number of opened positions
         self._short_positions_num = 0  # The total number of opened short positions
 
+        self._compositions = None  # Index compositions in a moment of time
+
+        self._all_symbols = None  # All symbols used in the back test
+        self._current_cmp = None  # Current composition of symbols (depends on date time)
+
+    ###################
+    # Public properties
+    ###################
+
+    @property
+    def composition(self):
+        """
+            Get the current composition (depends on the current date).
+            Used in multy-symbol strategies if index composition changes over time.
+
+            Returns:
+                list: the current symbol composition
+        """
+        return self._current_cmp
+
+    @property
+    def all_symbols(self):
+        """
+            Get all the symbols used in the test.
+
+            Returns:
+                list: all the symbols used in the test.
+        """
+        return self._all_symbols
+
     #############
     # Methods
     #############
@@ -2711,6 +2741,9 @@ class BackTest(metaclass=abc.ABCMeta):
         for data in self.__data:
             self.__exec.append(data.create_exec(self))
 
+        # Get all symbols values used in the test
+        self._all_symbols = self._get_all_symbols()
+
         # Calculate technical data for each symbol
         self.calculate_all_tech()
 
@@ -2750,6 +2783,42 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"Can not find the instance with index {num}.") from e
 
         return instance
+
+    def _get_all_symbols(self):
+        """
+            Get all the symbols used in the test.
+
+            Returns:
+                list: the list of all symbols.
+        """
+        symbols = []
+
+        for ex in self.all_exec():
+            symbols.append(ex.data().get_title())
+
+        return symbols
+
+    def _get_current_cmp(self):
+        """
+            Get current index compositions if it differs over time during the test.
+
+            Returns:
+                list: current index composition.
+        """
+        current_dt = get_dt(self.exec().get_row()[Quotes.TimeStamp])
+        current_cmp = self._all_symbols
+
+        if self._compositions is not None:
+            for key in self._compositions.keys():
+                key_dt = get_dt(key)
+
+                if current_dt > key_dt:
+                    current_cmp = self._compositions[key]
+                else:
+                    # Take the first composition if the date of the first rebalancing haven't happened yet
+                    current_cmp = next(iter(self._compositions.values()))
+
+        return current_cmp
 
     def do_cycle(self, index):
         """
@@ -2794,6 +2863,9 @@ class BackTest(metaclass=abc.ABCMeta):
         # Reset symbol specific-data
         for ex in self.__exec:
             ex.reset_trade_prices()
+
+        # Set the current compositions depends on the date
+        self._current_cmp = self._get_current_cmp()
 
         # Calculate days delta between the cycles and check if day counter increased
         self.adjust_days_delta()
@@ -2840,7 +2912,11 @@ class BackTest(metaclass=abc.ABCMeta):
                 self.__is_finished = False
                 break
 
-        self.log(f"Finished calculating row {self.get_index() + 1} of {len(self.get_main_data().get_rows())}")
+        dt = self.exec().get_row()[Quotes.DateTime]
+        tv = round(self._results.TotalValue[-1], 2)
+        length = len(self.get_main_data().get_rows())
+
+        self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
 
     def calculate(self):
         """

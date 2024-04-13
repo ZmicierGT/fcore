@@ -2913,10 +2913,12 @@ class BackTest(metaclass=abc.ABCMeta):
                 break
 
         dt = self.exec().get_row()[Quotes.DateTime]
-        tv = round(self._results.TotalValue[-1], 2)
+        # TODO MID The existing data structures for reporting should be altered (replaced by pandas or np.array)
+        #tv = round(self._results.TotalValue[-1], 2)
         length = len(self.get_main_data().get_rows())
 
-        self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
+        #self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
+        self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt}")
 
     def calculate(self):
         """

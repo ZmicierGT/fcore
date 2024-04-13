@@ -360,6 +360,11 @@ class ROStockData(ReadOnlyData):
             Returns:
                 ndarray: dividends for a symbol.
         """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
         get_divs = f"""SELECT	declaration_date,
                                 ex_date,
                                 record_date,
@@ -371,6 +376,7 @@ class ROStockData(ReadOnlyData):
                             WHERE s.ticker = '{self.symbol}'
                             AND ex_date >= {self.first_date_ts}
                             AND ex_date <= {last_ts}
+                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                             ORDER BY ex_date;"""
 
         try:
@@ -384,6 +390,9 @@ class ROStockData(ReadOnlyData):
         else:
             divs = None
 
+        if initially_connected is False:
+            self.db_close()
+
         return divs
 
     def get_db_splits(self, last_ts=def_last_date):
@@ -396,6 +405,11 @@ class ROStockData(ReadOnlyData):
             Returns:
                 ndarray: splits for a symbol.
         """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
         get_splits = f"""SELECT	split_date,
 		                        split_ratio,
 		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
@@ -403,6 +417,7 @@ class ROStockData(ReadOnlyData):
 	                        WHERE s.ticker = '{self.symbol}'
                             AND split_date >= {self.first_date_ts}
                             AND split_date <= {last_ts}
+                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                             ORDER BY split_date;"""
 
         try:
@@ -417,6 +432,9 @@ class ROStockData(ReadOnlyData):
             splits = get_labelled_ndarray(splits)
         else:
             splits = None
+
+        if initially_connected is False:
+            self.db_close()
 
         return splits
 
@@ -512,9 +530,9 @@ class ROStockData(ReadOnlyData):
                     if closed:
                         c_ratio -= amount / closed
 
-                    quotes[StockQuotes.AdjOpen][:idx_ex] = quotes[StockQuotes.Open][:idx_ex] * o_ratio
-                    quotes[StockQuotes.AdjHigh][:idx_ex] = quotes[StockQuotes.High][:idx_ex] * h_ratio
-                    quotes[StockQuotes.AdjLow][:idx_ex] = quotes[StockQuotes.Low][:idx_ex] * l_ratio
+                    quotes[StockQuotes.AdjOpen][:idx_ex] = quotes[StockQuotes.AdjOpen][:idx_ex] * o_ratio
+                    quotes[StockQuotes.AdjHigh][:idx_ex] = quotes[StockQuotes.AdjHigh][:idx_ex] * h_ratio
+                    quotes[StockQuotes.AdjLow][:idx_ex] = quotes[StockQuotes.AdjLow][:idx_ex] * l_ratio
                     quotes[StockQuotes.AdjClose][:idx_ex] = quotes[StockQuotes.AdjClose][:idx_ex] * c_ratio
                 except IndexError:
                     pass
@@ -541,11 +559,11 @@ class ROStockData(ReadOnlyData):
 
                     if ratio != 1:
                         # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
-                        quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.Open][:idx_split] / ratio
-                        quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.High][:idx_split] / ratio
-                        quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.Low][:idx_split] / ratio
+                        quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.AdjOpen][:idx_split] / ratio
+                        quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.AdjHigh][:idx_split] / ratio
+                        quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.AdjLow][:idx_split] / ratio
                         quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / ratio
-                        quotes[StockQuotes.AdjVolume][:idx_split] = quotes[StockQuotes.Volume][:idx_split] * ratio
+                        quotes[StockQuotes.AdjVolume][:idx_split] = quotes[StockQuotes.AdjVolume][:idx_split] * ratio
                 except IndexError:
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass
@@ -943,7 +961,10 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
     def get_quotes_only(self):
         """
-            Get stock quotes only (without dividends and splits data)
+            Get stock quotes only (without dividends and splits data).
+
+            Note that for some datasources getting quotes only (without splits) is not possible as
+            splits are needed for reverse-adjustment.
 
             Returns:
                 array: the fetched quote entries.

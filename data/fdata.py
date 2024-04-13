@@ -69,6 +69,9 @@ class ReadOnlyData():
         self.first_date = first_date
         self.last_date = last_date
 
+        if self.first_date > self.last_date:
+            raise FdataError(f"First date can't be bigger than the last date: {self.first_date} > {self.last_date}")
+
         self.timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources

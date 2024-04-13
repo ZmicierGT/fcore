@@ -4,6 +4,8 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+from termcolor import colored
+print(colored("This demo is outdated and needs to be rewritten.", "red"))
 # Edit settings.py to add your API keys for data sources. Free API keys are sufficient for this example.
 from data import av, fh, yf, polygon  # API wrappers for popular data sources (please note that they are unofficial)
 from data.fvalues import Timespans

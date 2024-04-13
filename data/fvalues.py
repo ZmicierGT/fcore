@@ -49,8 +49,8 @@ djia_apr_06_2020 = ['MMM', 'DOW', 'MCD', 'XOM', 'MRK', 'AXP', 'WBA', 'MSFT', 'AA
                     'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'RTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'UNH', 'DIS']
 
 # Note that each time sorting of the resulting list may be different
-djia_combined = list(set(djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + djia_jun_26_2018 + djia_apr_02_2019 + \
-                         djia_apr_06_2020 + djia))
+djia_combined = sorted(list(set(djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + djia_jun_26_2018 + djia_apr_02_2019 + \
+                                djia_apr_06_2020 + djia)))
 
 djia_dict = {'2012-09-24': djia_sep_24_2012,
              '2013-09-23': djia_sep_23_2013,

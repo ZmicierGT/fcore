@@ -12,6 +12,9 @@ from data.futils import get_dt, get_labelled_ndarray
 
 import settings
 
+import numpy as np
+import math
+
 from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
@@ -584,6 +587,9 @@ class FmpStock(stock.StockFetcher):
         # Parsed quotes data. Lets keep it in the same object because it is very unlikely that it won't fit in the memory.
         quotes_data = []
 
+        self.get_splits()  # Split data is necessary for reverse-adjustment. Can't proceed without split data (it any).
+        splits = self.get_db_splits()
+
         while True:
             first_date = first_datetime.date()
             last_date = last_datetime.date()
@@ -603,11 +609,14 @@ class FmpStock(stock.StockFetcher):
 
             # If we are still getting data, need to check the earliest date to distinguish if we have to
             # continue fetching.
-            first_element = json_results[-1]
+            try:
+                first_element = json_results[-1]
+            except KeyError as e:
+                raise FdataError(f"Incorrect data obtained using URL {url} (is API key limit reached)?\n{e}")
+
             earliest_datetime = get_dt(first_element['date'])
 
-            if earliest_datetime <= first_datetime or earliest_datetime == last_datetime or \
-               earliest_datetime.date() == '1980-12-12':
+            if earliest_datetime <= first_datetime or earliest_datetime == last_datetime:
                 break
 
             # Need to continue fetching
@@ -628,13 +637,25 @@ class FmpStock(stock.StockFetcher):
 
                 volume = quote['unadjustedVolume']
 
+            # Get the combined split ratio over the available history
+            ratio = 1
+
+            ts = calendar.timegm(dt.utctimetuple())
+
+            if splits is not None:
+                idx = np.where(ts <= splits['split_date'])
+                ratio = math.prod(splits['split_ratio'][idx])
+
+            if ratio == 0:
+                ratio = 1
+
             quote_dict = {
-                'ts': calendar.timegm(dt.utctimetuple()),
-                'open': quote['open'],
-                'high': quote['high'],
-                'low': quote['low'],
-                'close': quote['close'],
-                'volume': volume,
+                'ts': ts,
+                'open': quote['open'] * ratio,
+                'high': quote['high'] * ratio,
+                'low': quote['low'] * ratio,
+                'close': quote['close'] * ratio,
+                'volume': volume / ratio,
                 'transactions': 'NULL',
             }
 
@@ -716,9 +737,9 @@ class FmpStock(stock.StockFetcher):
             dt = get_dt(split['date'], self.get_timezone())
             ts = calendar.timegm(dt.utctimetuple())
 
-            split_to = int(split['denominator'])
-            split_from = int(split['numerator'])
-            split_ratio = split_to / split_from
+            numerator = int(split['numerator'])
+            denominator = int(split['denominator'])
+            split_ratio = numerator / denominator
 
             split_dict = {
                 'ts': ts,
@@ -734,6 +755,12 @@ class FmpStock(stock.StockFetcher):
     ###############
 
     def fetch_info(self):
+        """
+            Fetch stock related info.
+
+            Returns
+                dict: stock info.
+        """
         profile_url = f"https://financialmodelingprep.com/api/v3/profile/{self.symbol}?apikey={self.api_key}"
 
         # Get company profile
@@ -755,8 +782,7 @@ class FmpStock(stock.StockFetcher):
             Get the resent quote data.
 
             The usage of this method should be limited even for screening as data request from DB (and this request is
-            not DB related) may involve additional data and also it performs adjustment calculations. Here raw data
-            (as obtained from the data source) returned.
+            not DB related) may involve additional data.
         """
         quote_url = f"https://financialmodelingprep.com/api/v3/quote-order/{self.symbol}?apikey={self.api_key}"
 

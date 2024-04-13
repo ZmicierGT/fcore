@@ -248,6 +248,7 @@ class YF(stock.StockFetcher):
 
         return df_result
 
+    # TODO MID Dividends are adjusted by default!
     def fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.

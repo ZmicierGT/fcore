@@ -459,6 +459,8 @@ class FmpStock(stock.StockFetcher):
 
         return(num_before, self.get_surprises_num())
 
+    # TODO MID It should use intervals table.
+    # TODO MID Do not check surprises for ETF.
     def get_surprises(self):
         """
             Fetch (if needed) the surprises data.

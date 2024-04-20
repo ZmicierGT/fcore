@@ -2065,6 +2065,8 @@ class BackTest(metaclass=abc.ABCMeta):
         self._all_symbols = None  # All symbols used in the back test
         self._current_cmp = None  # Current composition of symbols (depends on date time)
 
+        self.__main_data_idx = self._get_biggest_data_idx()  # The index of the main dataset
+
     ###################
     # Public properties
     ###################
@@ -2093,6 +2095,30 @@ class BackTest(metaclass=abc.ABCMeta):
     #############
     # Methods
     #############
+
+    def _get_biggest_data_idx(self):
+        """
+            Choose the dataset which will be used as the main data.
+            The chosen dataset is the biggest one.
+
+            Returns:
+                int: the index of the biggest dataset index.
+        """
+        num = 0
+        target_idx = 0
+
+        for i in range(len(self.get_data())):
+            data = self.get_data()[i]
+
+            current_len = len(data.get_rows())
+
+            if current_len > num:
+                num = current_len
+                target_idx = i
+
+        self.log(f"Using dataset {self.get_data()[target_idx].get_title()} with the index {target_idx} as the main dataset.")
+
+        return target_idx
 
     def is_finished(self):
         """
@@ -2264,7 +2290,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 BackTestData: the first instance added during initialization.
         """
-        return self.get_data()[0]
+        return self.get_data()[self.__main_data_idx]
 
     def get_data(self):
         """
@@ -2758,18 +2784,21 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self.__exec
 
-    def exec(self, num=0, data=None):
+    def exec(self, num=None, data=None):
         """
             Get the BackTestOperations instance to execute the calculations specific to a particular data.
 
             Args:
-                num(int): index for the instance to return.
+                num(int): index for the instance to return. None for main data.
                 data(BackTestData): data instance with the associated operations instance.
 
             Returns:
                 BackTestOperations: operations instance.
         """
         instance = None
+
+        if num is None:
+            num = self.__main_data_idx
 
         if data != None:
             try:

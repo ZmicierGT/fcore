@@ -92,6 +92,7 @@ class BackTestData():
                  trend_change_percent=0,
                  timespan=None,
                  source=None,
+                 weighted=True,
                  info=None
                 ):
         """Initializes BackTestData class.
@@ -109,6 +110,7 @@ class BackTestData():
                     immediately. Default is 0.
                 timespan(Timespan): time span used in data.
                 source(string): data source.
+                weighed(bool): indicates if the symbol is supposed to be weighted in a portfolio (market cap, equally etc.)
                 info(dict): security profile information.
 
             Raises:
@@ -170,6 +172,8 @@ class BackTestData():
 
         # Security profile information.
         self._info = info
+
+        self._weighted = weighted
 
     #####################
     # Properties
@@ -376,11 +380,49 @@ class BackTestOperations():
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
+        self._limit_recalculate = False  # Indicates if weightening values should be recalculated
 
         self._limit_num = -1  # Number of shares for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
+
+        self._weight = 0  # The weight of the current position
+
+    ###################
+    # Properties
+    ###################
+
+    @property
+    def weighted(self):
+        """
+            Indicates if the symbol is supposed to be weighted in a portfolio.
+
+            Returns:
+                bool: indicates if the current security is weighted.
+        """
+        return self.data()._weighted
+
+    @property
+    def weight(self):
+        """
+            The weight of the current security in the portfolio. Weight depends of the weightening method.
+            Smaller weight (in comparison to mean) indicates that the security share in a portfolio is low.
+
+            Returns:
+                float: the weight of the current security in the portfolio.
+        """
+        return self._weight
+
+    @property
+    def has_positions(self):
+        """
+            Indicates of the current security has any positions opened.
+
+            Returns:
+                bool: indicates if the current security has any positions opened.
+        """
+        return self.get_long_positions() or self.get_short_positions()
 
     def data(self):
         """
@@ -1044,10 +1086,107 @@ class BackTestOperations():
     # Trades processing
     ###################
 
+    def calc_weight(self):
+        """
+            Calculate and set the weight value only for the current security.
+        """
+        # TODO HIGH Think what to do with short positions.
+        current_weight = 0
+
+        if self.get_caller().weighted == Weighted.Price:
+            current_weight = self.get_long_positions()
+        elif self.get_caller().weighted == Weighted.Equal:
+            current_weight = self.get_long_positions() * self.get_close()
+        elif self.get_caller().weighted == Weighted.Cap:
+                if self.get_long_positions():
+                    ratio = self.get_caller().max_cap / self.get_row()['cap']
+                    current_weight = ratio * self.get_total_value()
+
+        self._weight = current_weight
+
+    def calc_weight_values(self, had_positions, has_positions, ex_total_value):
+        """
+            Calculate and set the weightening values after performing a trade.
+
+            Args:
+                had_positions(bool): indicates if the security had positions before the trade
+                has_positions(bool): indicates if the security has positions after the trade
+                ex_total_value(float): total value before making a trade
+        """
+        if self.get_caller().weighted == Weighted.Unweighted:
+            return
+
+        mult_adj_num = 0
+
+        if had_positions and has_positions is False:
+            mult_adj_num = -1
+        elif had_positions is False and has_positions:
+            mult_adj_num = 1
+
+        ex_weight = self.weight
+
+        self.calc_weight()
+        self.get_caller().adjust_weight_values(ex=self,
+                                               mult_adj_num=mult_adj_num,
+                                               ex_weight=ex_weight,
+                                               ex_total_value=ex_total_value)
+
+    def get_trade_num(self, deviation):
+        """
+            Get the shares num for a trade to keep the portfolio weighted. The value may be negative.
+
+            Arguments:
+                deviation(float): the maximum deviation for securities number calculation.
+
+            Returns:
+                int: the number of shares for a trade to keep the portfolio balanced.
+        """
+        num = self.get_total_shares_num()
+
+        if self.get_caller().weighted == Weighted.Price:
+            if self.weight:
+                num = self.get_caller().mean_weight * deviation - self.weight
+        elif self.get_caller().weighted == Weighted.Equal:
+            if self.weight:
+                num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
+        elif self.get_caller().weighted == Weighted.Cap:
+            ratio = self.get_row()['cap'] / self.get_caller().max_cap
+            num = ratio * self.get_total_shares_num() * deviation - self.get_long_positions()
+
+        return int(num)
+
+    def get_buy_num(self):
+        """
+            The number of securities to buy and keep the portfolio balanced as much as possible.
+
+            Returns:
+                int: the number of securities to buy
+        """
+        num = self.get_trade_num(self.get_caller().open_deviation)
+
+        if num < 0:
+            num = 0
+
+        return num
+
+    def get_sell_num(self):
+        """
+            The number of securities to sell and keep the portfolio balanced as much as possible.
+
+            Returns:
+                int: the number of securities to sell
+        """
+        num = self.get_trade_num(self.get_caller().close_deviation)
+
+        if num > 0:
+            num = 0
+
+        return abs(num)
+
     # TODO LOW Implement using a higher resolution for order procesing.
     # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
     #      strategies. Think how to implement it in a safer way.
-    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, price=None):
+    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=False, price=None):
         """
             Perform a buy trade.
 
@@ -1057,10 +1196,18 @@ class BackTestOperations():
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
                 exact(bool): indicates if the exact number of requested positions should be opened.
+                recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
+                                   the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
         """
         # Process a market order
         if limit is None:
+            had_positions = self.has_positions
+            ex_total_value = self.get_total_value()
+
+            if num is None and self.get_caller().weighted != Weighted.Unweighted and self.weighted:
+                num = self.get_buy_num()
+
             if num is None:
                 self.close_all_short()
                 self.open_long_max()
@@ -1074,6 +1221,11 @@ class BackTestOperations():
                 if num > 0:
                     self.open_long(num, exact=exact)
                     self.get_caller()._long_positions_num += num
+
+            if recalculate:
+                self.calc_weight_values(had_positions=had_positions,
+                                        has_positions=self.has_positions,
+                                        ex_total_value=ex_total_value)
         else:
             # Place a limit order
             if self._limit_buy or self._limit_sell:
@@ -1090,6 +1242,7 @@ class BackTestOperations():
             self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+            self._limit_recalculate = recalculate
 
             max_price = round(self._limit_buy + self._limit_buy * self._limit_deviation, 2)
 
@@ -1104,7 +1257,7 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
-    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, price=None):
+    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=False, price=None):
         """
             Perform a sell trade.
 
@@ -1114,6 +1267,8 @@ class BackTestOperations():
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
                 exact(bool): indicates if the exact number of requested positions should be opened.
+                recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
+                                   the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
         """
         if num is not None and num < 0:
@@ -1121,6 +1276,12 @@ class BackTestOperations():
 
         # Process a market order
         if limit is None:
+            had_positions = self.has_positions
+            ex_total_value = self.get_total_value()
+
+            if num is None and self.get_caller().weighted != Weighted.Unweighted and self.weighted:
+                num = self.get_sell_num()
+
             if num is None:
                 self.close_all_long()
                 self.open_short_max()
@@ -1134,6 +1295,11 @@ class BackTestOperations():
                 if num > 0:
                     self.open_short(num, exact=exact)
                     self.get_caller()._short_positions_num += num
+
+            if recalculate:
+                self.calc_weight_values(had_positions=had_positions,
+                                        has_positions=self.has_positions,
+                                        ex_total_value=ex_total_value)
         else:
             # Place a limit order
             if self._limit_buy or self._limit_sell:
@@ -1150,6 +1316,7 @@ class BackTestOperations():
             self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+            self._limit_recalculate = recalculate
 
             max_price = round(self._limit_sell - self._limit_sell * self._limit_deviation, 2)
 
@@ -1172,6 +1339,7 @@ class BackTestOperations():
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
+        self._limit_recalculate = False  # If weightening values should be recalculated
 
         self._limit_num = -1  # Number of shares for a limit order. None means max
 
@@ -1210,7 +1378,7 @@ class BackTestOperations():
             current_low = self.get_row()[Quotes.Low]
 
             if current_low <= self._limit_buy + self._limit_buy * self._limit_deviation:
-                self.buy(num=self._limit_num, price=current_low)
+                self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
 
                 diff = current_low - self._limit_buy
                 if diff > 0:
@@ -1222,7 +1390,7 @@ class BackTestOperations():
             current_high = self.get_row()[Quotes.High]
 
             if current_high >= self._limit_sell + self._limit_sell * self._limit_deviation:
-                self.sell(num=self._limit_num, price=current_high)
+                self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate)
 
                 diff = current_high - self._limit_sell
                 if diff > 0:
@@ -1884,7 +2052,9 @@ class BackTest(metaclass=abc.ABCMeta):
                  inflation=0,
                  margin_req=0,
                  margin_rec=0,
-                 weighted=None,
+                 weighted=Weighted.Unweighted,
+                 open_deviation=1.5,
+                 close_deviation=2,
                  offset=0,
                  timeout=10,
                  verbosity=False
@@ -1905,6 +2075,9 @@ class BackTest(metaclass=abc.ABCMeta):
                 margin_req(float): determines the buying power of the cash balance for a margin account.
                 margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
                 weighted(Weighted): portfolio weighting method.
+                open_deviation(float): balance deviation multiplier for opening a position. 1 means that no deviation
+                                       is acceptable. 2 means that the 'ideal' weight may be violated up to 2 times.
+                close_deviation(float): balance deviation multiplier for closing a position.
                 offset(int): the offset for the calculation.
                 timeout(int): timeout in seconds to cancel the calculation if some thread can not finish in time.
                 verbosity(bool): indicates if to print the debug information during calculation.
@@ -2067,6 +2240,18 @@ class BackTest(metaclass=abc.ABCMeta):
 
         self.__main_data_idx = self._get_biggest_data_idx()  # The index of the main dataset
 
+        # The values used for a diversification
+        self._multiplier = 0  # The current multiplier for portfolio weightening
+        self._mean_weight = 0  # The mean weight value
+        self._total_weighted_value = 0
+        self._max_cap = 0
+
+        if open_deviation > close_deviation:
+            raise BackTestError(f"Opening balance deviation should be equal or less than closing one. {open_deviation} > {close_deviation}")
+
+        self._open_deviation = open_deviation
+        self._close_deviation = close_deviation
+
     ###################
     # Public properties
     ###################
@@ -2092,9 +2277,155 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._all_symbols
 
+    @property
+    def weighted(self):
+        """
+            Returns the weightening method.
+
+            Returns:
+                Weighted: the weightening method.
+        """
+        return self._weighted
+
+    @property
+    def multiplier(self):
+        """
+            The multiplier value equals the number of all securities with any positions opened.
+
+            Returns:
+                int: the multiplier.
+        """
+        return self._multiplier
+
+    @property
+    def mean_weight(self):
+        """
+            Get the mean weight value used for portfolio diversification.
+
+            Returns:
+                float: the mean weight value
+        """
+        return self._mean_weight
+
+    @property
+    def total_weighted_value(self):
+        """
+            The total value of the weighted symbols of the portfolio.
+
+            Returns:
+                float: the total value of the weighted securities.
+        """
+        return self._total_weighted_value
+
+    @property
+    def max_cap(self):
+        """
+            The maximum capitalization of the securities in the portfolio.
+
+            Returns:
+                float: the maximum capitalization of the securities in the portfolio
+        """
+        return self._max_cap
+
+    @property
+    def mean_weight(self):
+        """
+            The mean weight of the whole portfolio.
+
+            Returns:
+                float: the mean weight of the whole portfolio
+        """
+        return self._mean_weight
+
+    @property
+    def open_deviation(self):
+        """
+            The maximum portfolio balance deviation when opening a position. 1 means no deviation acceptable.
+
+            Returns:
+                float: the open deviation multiplier.
+        """
+        return self._open_deviation
+
+    @property
+    def close_deviation(self):
+        """
+            The maximum portfolio balance deviation when closing a position. 1 means no deviation acceptable.
+
+            Returns:
+                float: the close deviation multiplier.
+        """
+        return self._close_deviation
+
     #############
     # Methods
     #############
+
+    # TODO HIGH Many values should be calculated not just buy/sell but at the beginning of each cycle.
+    def calc_global_weight_values(self):
+        """
+            Calculate and set the global weight values for the current portfolio.
+            The values are used by diversification functions.
+        """
+        if self.weighted == Weighted.Unweighted:
+            return
+
+        multiplier = 0
+        mean_weight = 0
+        total_weighted_value = 0
+
+        for ex in self.all_exec():
+            if ex.weighted and ex.has_positions:
+                multiplier += 1
+
+                ex.calc_weight()
+                mean_weight += ex.weight
+
+                total_weighted_value += ex.get_total_value()
+
+        if multiplier:
+            mean_weight = mean_weight / multiplier
+
+        self._multiplier = multiplier
+        self._mean_weight = mean_weight
+        self._total_weighted_value = total_weighted_value
+
+    def calc_global_cap_values(self):
+        """
+            Calculate and set the global capitalization values.
+        """
+        if self.weighted != Weighted.Cap:
+            return
+
+        max_cap = 0
+
+        for ex in self.all_exec():
+            if ex.weighted and ex.get_index():
+                current_cap = ex.get_row()['cap']
+
+                max_cap = max(max_cap, current_cap)
+
+        self._max_cap = max_cap
+
+    def adjust_weight_values(self, ex, mult_adj_num, ex_weight, ex_total_value):
+        """
+            Calculate and set the mean weight of a portfolio.
+
+            Args:
+                ex(BackTestOperations): the security execulable
+                mult_adj_num(int): the value to adjust the multiplier
+                ex_weight(float): the previous weight
+                ex_total_value(float): the total value before making a trade
+        """
+        if self.weighted == Weighted.Unweighted:
+            return
+
+        self._multiplier += mult_adj_num
+
+        if self.multiplier:
+            self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
+
+        self._total_weighted_value - ex_total_value + ex.get_total_value()
 
     def _get_biggest_data_idx(self):
         """
@@ -2895,6 +3226,10 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Set the current compositions depends on the date
         self._current_cmp = self._get_current_cmp()
+
+        # Calculate and set the global capitalization data (if needed)
+        self.calc_global_cap_values()
+        self.calc_global_weight_values()
 
         # Calculate days delta between the cycles and check if day counter increased
         self.adjust_days_delta()

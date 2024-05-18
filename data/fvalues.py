@@ -139,6 +139,9 @@ Exchanges = {
     'XETRA':    'Europe/Frankfurt'
 }
 
+sector_titles = ['Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical', 'Industrials', \
+           'Communication Services', 'Consumer Defensive', 'Energy', 'Basic Materials', 'Real Estate', 'Utilities']
+
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order
 class Quotes(StrEnum):

@@ -424,6 +424,56 @@ class BackTestOperations():
         """
         return self.get_long_positions() or self.get_short_positions()
 
+    @property
+    def group(self):
+        """
+            The value of the grouping attribute.
+
+            Returns:
+                The value of an attributed used to group the weighted securities in the portfolio.
+        """
+        value = None
+        attr_title = self.get_caller().grouping_attr
+
+        if attr_title is not None and hasattr(self.data(), attr_title):
+            value = self.data().__getattribute__(attr_title)
+
+        return value
+
+    @property
+    def group_share(self):
+        """
+            Get the grouping share for the current attribute value.
+
+            Returns:
+                float: the grouping share for the current security.
+        """
+        share = None
+
+        if self.group is not None:
+            share = self.get_caller().get_grouping_share(self.group)
+
+        return share
+
+    @property
+    def group_total_value(self):
+        """
+            Get the total_value of the current group.
+
+            Returns:
+                float: the total value of the current group
+        """
+        share = None
+
+        if self.group is not None:
+            share = self.get_caller().grouping_values[self.group]
+
+        return share
+
+    ################
+    # Methods
+    ################
+
     def data(self):
         """
             Gets the used data class instance.
@@ -1090,7 +1140,7 @@ class BackTestOperations():
         """
             Calculate and set the weight value only for the current security.
         """
-        # TODO HIGH Think what to do with short positions.
+        # TODO MID Think what to do with short positions.
         current_weight = 0
 
         if self.get_caller().weighted == Weighted.Price:
@@ -1146,12 +1196,25 @@ class BackTestOperations():
         if self.get_caller().weighted == Weighted.Price:
             if self.weight:
                 num = self.get_caller().mean_weight * deviation - self.weight
+            else:
+                # If opening the first position, then need to avoid the situation when selected security is cheap
+                # as if the maximum possible positions will be opened - then it will be difficult to balance
+                # the portfolio in the future. Need to limit the number of cheap securities.
+                num = num * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
         elif self.get_caller().weighted == Weighted.Equal:
             if self.weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
         elif self.get_caller().weighted == Weighted.Cap:
             ratio = self.get_row()['cap'] / self.get_caller().max_cap
             num = ratio * self.get_total_shares_num() * deviation - self.get_long_positions()
+
+        # Check if the number of positions is limited by grouping
+        if self.group is not None and self.get_caller().total_weighted_value:
+            ratio = (self.group_total_value - self.get_total_value()) / self.get_caller().total_weighted_value
+            delta = self.group_share * deviation - ratio
+            grouping_num = delta * self.get_caller().total_weighted_value / self.get_close()
+
+            num = min(num, grouping_num)
 
         return int(num)
 
@@ -2055,6 +2118,8 @@ class BackTest(metaclass=abc.ABCMeta):
                  weighted=Weighted.Unweighted,
                  open_deviation=1.5,
                  close_deviation=2,
+                 grouping_attr=None,
+                 grouping_shares=None,
                  offset=0,
                  timeout=10,
                  verbosity=False
@@ -2078,6 +2143,10 @@ class BackTest(metaclass=abc.ABCMeta):
                 open_deviation(float): balance deviation multiplier for opening a position. 1 means that no deviation
                                        is acceptable. 2 means that the 'ideal' weight may be violated up to 2 times.
                 close_deviation(float): balance deviation multiplier for closing a position.
+                grouping_attr(string): the title of an attribute of BackTestData class to group securities
+                grouping_share(dict):  the dictionary which indicates how securities should be grouped according to the
+                                       attribute. Contains the attribute value and the desired share of each attribute
+                                       in the portfolio.
                 offset(int): the offset for the calculation.
                 timeout(int): timeout in seconds to cancel the calculation if some thread can not finish in time.
                 verbosity(bool): indicates if to print the debug information during calculation.
@@ -2245,12 +2314,21 @@ class BackTest(metaclass=abc.ABCMeta):
         self._mean_weight = 0  # The mean weight value
         self._total_weighted_value = 0
         self._max_cap = 0
+        self._max_price = 0
 
         if open_deviation > close_deviation:
             raise BackTestError(f"Opening balance deviation should be equal or less than closing one. {open_deviation} > {close_deviation}")
 
         self._open_deviation = open_deviation
         self._close_deviation = close_deviation
+
+        # The values used for grouping securities
+        if grouping_attr is not None and grouping_shares is None or grouping_attr is None and grouping_shares is not None:
+            raise BackTestError(f"Both grouping attribute and shares should be specified or none of them. {grouping_attr} and {grouping_shares}")
+
+        self._grouping_attr = grouping_attr
+        self._grouping_shares = grouping_shares
+        self._grouping_values = None
 
     ###################
     # Public properties
@@ -2328,6 +2406,16 @@ class BackTest(metaclass=abc.ABCMeta):
         return self._max_cap
 
     @property
+    def max_price(self):
+        """
+            The maximum price of a security in the portfolio.
+
+            Returns:
+                float: the maximum price of a security in the portfolio
+        """
+        return self._max_price
+
+    @property
     def mean_weight(self):
         """
             The mean weight of the whole portfolio.
@@ -2357,11 +2445,45 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._close_deviation
 
+    @property
+    def grouping_attr(self):
+        """
+            The attribute used for grouping securities in the portfolio.
+
+            Returns:
+                str: the attribute title
+        """
+        return self._grouping_attr
+
+    @property
+    def grouping_values(self):
+        """
+            The calculated grouping total value per each unique attribute value.
+
+            Returns:
+                str: the grouping values
+        """
+        return self._grouping_values
+
     #############
     # Methods
     #############
 
-    # TODO HIGH Many values should be calculated not just buy/sell but at the beginning of each cycle.
+    def get_grouping_share(self, attr):
+        """
+            Get the share of a grouping attribute.
+
+            Args:
+                attr: group to get its share
+
+            Returns:
+                float: the desired share of the group of the group
+        """
+        try:
+            return self._grouping_shares[attr]
+        except KeyError as e:
+            raise BackTestError(f"The share of the attribute {attr} is not found: {e}")
+
     def calc_global_weight_values(self):
         """
             Calculate and set the global weight values for the current portfolio.
@@ -2370,25 +2492,29 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.weighted == Weighted.Unweighted:
             return
 
-        multiplier = 0
-        mean_weight = 0
-        total_weighted_value = 0
+        self._multiplier = 0
+        self._mean_weight = 0
+        self._total_weighted_value = 0
+
+        if self.grouping_attr is not None:
+            self._grouping_values = {key: None for key in list(self._grouping_shares.keys())}
+            self._grouping_values = dict.fromkeys(self._grouping_values, 0)
 
         for ex in self.all_exec():
             if ex.weighted and ex.has_positions:
-                multiplier += 1
+                self._multiplier += 1
 
                 ex.calc_weight()
-                mean_weight += ex.weight
+                self._mean_weight += ex.weight
 
-                total_weighted_value += ex.get_total_value()
+                total_value = ex.get_total_value()
+                self._total_weighted_value += total_value
 
-        if multiplier:
-            mean_weight = mean_weight / multiplier
+                if self.grouping_attr is not None:
+                    self._grouping_values[ex.group] += total_value
 
-        self._multiplier = multiplier
-        self._mean_weight = mean_weight
-        self._total_weighted_value = total_weighted_value
+        if self._multiplier:
+            self._mean_weight = self._mean_weight / self._multiplier
 
     def calc_global_cap_values(self):
         """
@@ -2406,6 +2532,23 @@ class BackTest(metaclass=abc.ABCMeta):
                 max_cap = max(max_cap, current_cap)
 
         self._max_cap = max_cap
+
+    def calc_global_price_values(self):
+        """
+            Calculate and set the global price values.
+        """
+        if self.weighted != Weighted.Price:
+            return
+
+        max_price = 0
+
+        for ex in self.all_exec():
+            if ex.weighted and ex.get_index():
+                current_price = ex.get_row()[Quotes.Close]
+
+                max_price = max(max_price, current_price)
+
+        self._max_price = max_price
 
     def adjust_weight_values(self, ex, mult_adj_num, ex_weight, ex_total_value):
         """
@@ -2425,7 +2568,12 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.multiplier:
             self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
 
-        self._total_weighted_value - ex_total_value + ex.get_total_value()
+        total_value = ex.get_total_value()
+
+        self._total_weighted_value = self._total_weighted_value - ex_total_value + total_value
+
+        if self.grouping_attr is not None:
+            self._grouping_values[ex.group] = self._grouping_values[ex.group] - ex_total_value + total_value
 
     def _get_biggest_data_idx(self):
         """
@@ -3229,6 +3377,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Calculate and set the global capitalization data (if needed)
         self.calc_global_cap_values()
+        self.calc_global_price_values()
         self.calc_global_weight_values()
 
         # Calculate days delta between the cycles and check if day counter increased

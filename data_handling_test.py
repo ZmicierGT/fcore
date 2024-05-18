@@ -66,10 +66,10 @@ def test_request_ts(source):
     min_req = source.get_min_request_ts()
     max_req = source.get_max_request_ts()
 
-    print("SECTION1b: check if quotes, dividends and splits number increases")
+    print("\nSECTION1b: check if quotes, dividends and splits number increases")
     print("_________________________________________________________________")
 
-    div_data = source.fetch_dividends()
+    div_data = source.fetch_dividends()  # Split data may be fetched as it is needed to reverse-adjust the dividends
     split_data = source.fetch_splits()
 
     before, after = source.add_dividends(div_data)
@@ -83,8 +83,8 @@ def test_request_ts(source):
 
     print(f"Splits before {before}, splits after {after}.")
 
-    if before >= after:
-        failure("Number of splits did not increase", source)
+    if before > after:
+        failure("Unexpected number of splits", source)
 
     after = source.get_symbol_quotes_num()
 
@@ -95,7 +95,7 @@ def test_request_ts(source):
 
     print(colored("Quotes, splits and divs num increased as expected", "green"))
 
-    print(f"SECTION2: Check initial request dates")
+    print(f"\nSECTION2: Check initial request dates")
     print("______________________________________")
 
     print(f"Initial min/max request dates: {min_req}={get_dt(min_req)} {max_req}={get_dt(max_req)}")
@@ -107,7 +107,7 @@ def test_request_ts(source):
 
     #######################################################
 
-    print("SECTION3: Checking the intervals of received data including correct time zone adjustment.")
+    print("\nSECTION3: Checking the intervals of received data including correct time zone adjustment.")
     print("Requested dates are: 2020-2-1 and 2020-3-1.")
     print("_________________________________________________________________________________________")
 
@@ -126,7 +126,7 @@ def test_request_ts(source):
 
     source.get()
 
-    print("SECTION4: Min request ts should decrease now")
+    print("\nSECTION4: Min request ts should decrease now")
     print("____________________________________________")
 
     new_min_req = source.get_min_request_ts()
@@ -143,7 +143,7 @@ def test_request_ts(source):
 
     source.get()
 
-    print("SECTION5: Max request should be bigger now")
+    print("\nSECTION5: Max request should be bigger now")
     print("__________________________________________")
 
     new_max_req = source.get_max_request_ts()
@@ -163,7 +163,7 @@ def test_request_ts(source):
 
     source.get()
 
-    print("SECTION6: Max request should be bigger now and min request should be smaller")
+    print("\nSECTION6: Max request should be bigger now and min request should be smaller")
     print("____________________________________________________________________________")
 
     new_min_req = source.get_min_request_ts()
@@ -176,7 +176,7 @@ def test_request_ts(source):
 
     #######################################################
 
-    print("SECTION7: both timestamps should change")
+    print("\nSECTION7: both timestamps should change")
     print("_______________________________________")
 
     source.first_date="2022-1-1"
@@ -207,7 +207,7 @@ def test_request_intervals(source, timespans):
             source(ReadOnlyData): the data source.
             timespans(dict): the timespans to test (except EOD).
     """
-    print("SECTION8: Testing max request timespans for intraday quotes")
+    print("\nSECTION8: Testing max request timespans for intraday quotes")
     print("___________________________________________________________")
 
     old_num = 0
@@ -248,7 +248,7 @@ def test_request_intervals(source, timespans):
         old_num = quotes_num
         max_minutes = max(max_minutes, key)
 
-    print("SECTION9: Testing max request timespans for EOD quotes")
+    print("\nSECTION9: Testing max request timespans for EOD quotes")
     print("______________________________________________________")
 
     source.timespan = Timespans.Day

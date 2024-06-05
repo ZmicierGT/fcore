@@ -470,6 +470,16 @@ class BackTestOperations():
 
         return share
 
+    @property
+    def is_limit(self):
+        """
+            Check if there is a limit order for a security.
+
+            Returns:
+                bool: indicates if there is a limit order for a security
+        """
+        return self._limit_num is None or self._limit_num != -1
+
     ################
     # Methods
     ################
@@ -1152,6 +1162,7 @@ class BackTestOperations():
                     ratio = self.get_caller().max_cap / self.get_row()['cap']
                     current_weight = ratio * self.get_total_value()
 
+        # TODO HIGH Think if we can also take into account grouping here
         self._weight = current_weight
 
     def calc_weight_values(self, had_positions, has_positions, ex_total_value):
@@ -1194,7 +1205,7 @@ class BackTestOperations():
         num = self.get_total_shares_num()
 
         if self.get_caller().weighted == Weighted.Price:
-            if self.weight:
+            if self.get_caller().get_long_positions_num():
                 num = self.get_caller().mean_weight * deviation - self.weight
             else:
                 # If opening the first position, then need to avoid the situation when selected security is cheap
@@ -1202,17 +1213,24 @@ class BackTestOperations():
                 # the portfolio in the future. Need to limit the number of cheap securities.
                 num = num * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
         elif self.get_caller().weighted == Weighted.Equal:
-            if self.weight:
+            if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
         elif self.get_caller().weighted == Weighted.Cap:
-            ratio = self.get_row()['cap'] / self.get_caller().max_cap
-            num = ratio * self.get_total_shares_num() * deviation - self.get_long_positions()
+            if self.get_caller().get_long_positions_num():
+                num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
+            else:
+                # Limit the number of positions for cheap companies
+                ratio = self.get_row()['cap'] / self.get_caller().max_cap
+                num = ratio * self.get_total_shares_num() * deviation - self.get_long_positions()
 
         # Check if the number of positions is limited by grouping
         if self.group is not None and self.get_caller().total_weighted_value:
-            ratio = (self.group_total_value - self.get_total_value()) / self.get_caller().total_weighted_value
+            # Take cash into account as accumulated cash may prevent to open bigger position sizes otherwise.
+            tv = self.get_caller().total_weighted_value + self.get_caller().get_cash()
+
+            ratio = (self.group_total_value - self.get_total_value()) / tv
             delta = self.group_share * deviation - ratio
-            grouping_num = delta * self.get_caller().total_weighted_value / self.get_close()
+            grouping_num = delta * tv / self.get_close()
 
             num = min(num, grouping_num)
 
@@ -1262,28 +1280,31 @@ class BackTestOperations():
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
+
+            Returns:
+                int: the number of positions opened
         """
         # Process a market order
         if limit is None:
-            had_positions = self.has_positions
-            ex_total_value = self.get_total_value()
-
-            if num is None and self.get_caller().weighted != Weighted.Unweighted and self.weighted:
-                num = self.get_buy_num()
+            if recalculate:
+                had_positions = self.has_positions
+                ex_total_value = self.get_total_value()
 
             if num is None:
-                self.close_all_short()
-                self.open_long_max()
-            else:
-                if self.get_short_positions():
-                    num_close = min(self.get_short_positions(), num)
-                    self.close_short(num_close)
-                    self.get_caller()._short_positions_num -= num_close
-                    num = num - num_close
+                if self.weighted and self.get_caller().weighted != Weighted.Unweighted:
+                    num = self.get_buy_num()
 
-                if num > 0:
-                    self.open_long(num, exact=exact)
-                    self.get_caller()._long_positions_num += num
+                    if self.get_short_positions():
+                        num_close = min(self.get_short_positions(), num)
+                        self.close_short(num_close)
+                        num = num - num_close
+
+                    if num > 0:
+                        self.open_long(num, exact=exact)
+                else:
+                    self.close_all_short()
+                    num = self.get_caller().get_total_shares_num()
+                    self.open_long_max()
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1320,6 +1341,8 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
+        return num
+
     def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=False, price=None):
         """
             Perform a sell trade.
@@ -1333,31 +1356,31 @@ class BackTestOperations():
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
-        """
-        if num is not None and num < 0:
-            raise BackTestError(f"The number of securities can't be less than 0. {num} is provided.")
 
+            Returns:
+                int: the number of positions opened
+        """
         # Process a market order
         if limit is None:
-            had_positions = self.has_positions
-            ex_total_value = self.get_total_value()
-
-            if num is None and self.get_caller().weighted != Weighted.Unweighted and self.weighted:
-                num = self.get_sell_num()
+            if recalculate:
+                had_positions = self.has_positions
+                ex_total_value = self.get_total_value()
 
             if num is None:
-                self.close_all_long()
-                self.open_short_max()
-            else:
-                if self.get_long_positions():
-                    num_close = min(self.get_long_positions(), num)
-                    self.close_long(num_close)
-                    self.get_caller()._long_positions_num -= num_close
-                    num = num - num_close
+                if self.weighted and self.get_caller().weighted != Weighted.Unweighted:
+                    num = self.get_sell_num()
 
-                if num > 0:
-                    self.open_short(num, exact=exact)
-                    self.get_caller()._short_positions_num += num
+                    if self.get_long_positions():
+                        num_close = min(self.get_long_positions(), num)
+                        self.close_long(num_close)
+                        num = num - num_close
+
+                    if num > 0:
+                        self.open_short(num, exact=exact)
+                else:
+                    self.close_all_long()
+                    num = self.get_caller().get_total_shares_num()
+                    self.open_short_max()
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1394,6 +1417,8 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
+        return num
+
     def cancel_limit_order(self):
         """
             Cancel a limit order.
@@ -1422,14 +1447,16 @@ class BackTestOperations():
         days_delta = delta.days
 
         # If limit order is valid more than for the current day then ignore the weekends
-        if self._limit_date.weekday() == 5 and self._limit_validity > 1:
+        if self._limit_date.weekday() == 4 and self._limit_validity > 1:
             days_delta -= 2
 
+        side = 'BUY' if self._limit_buy else 'SELL'
+        price = self.get_row(-1)[Quotes.Low] if self._limit_buy else self.get_row(-1)[Quotes.High]
+        limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell + self._limit_sell * self._limit_deviation
+
         if days_delta > self._limit_validity:
-            log = (f"Limit order expired for {self.data().get_title()} as in the {days_delta} days the desired price "
-                   f"{round(max(self._limit_buy, self._limit_sell), 2)} "
-                   f"with the maximum deviation of {self._limit_deviation} wasn't achieved. "
-                   f"the current close price is {self.get_row()[Quotes.Close]}.")
+            log = (f"{side} limit order expired for {self.data().get_title()} as in the {days_delta} days the desired price "
+                   f"{limit} (including deviation) wasn't achieved or weighening did now allo to open the position. The last price is {price}.")
 
             self.get_caller().log(log)
 
@@ -1437,29 +1464,26 @@ class BackTestOperations():
 
             return
 
-        if self._limit_buy is not None and self._limit_buy != 0:
-            current_low = self.get_row()[Quotes.Low]
+        num = 0
+        diff = 0
 
-            if current_low <= self._limit_buy + self._limit_buy * self._limit_deviation:
-                self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
+        if self._limit_buy:
+            current_low = price
 
-                diff = current_low - self._limit_buy
-                if diff > 0:
-                    self.get_caller().add_spread_expense(diff)
+            if current_low <= limit:
+                num = self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
+                diff = (current_low - self._limit_buy) * num
 
-                self.cancel_limit_order()
+        if self._limit_sell:
+            current_high = price
 
-        if self._limit_sell is not None and self._limit_sell != 0:
-            current_high = self.get_row()[Quotes.High]
+            if current_high >= limit:
+                num = self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate)
+                diff = (current_high - self._limit_sell) * num
 
-            if current_high >= self._limit_sell + self._limit_sell * self._limit_deviation:
-                self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate)
-
-                diff = current_high - self._limit_sell
-                if diff > 0:
-                    self.get_caller().add_spread_expense(diff)
-
-                self.cancel_limit_order()
+        if diff:
+            self.get_caller().add_spread_expense(diff)
+            self.cancel_limit_order()
 
     #####################
     # Check for delisting
@@ -1500,6 +1524,8 @@ class BackTestOperations():
                     self._long_positions_cash = 0
                 else:
                     self._short_positions = 0
+
+                self.cancel_limit_order()
 
     #######################################
     # Methods related to opening positions.
@@ -2538,6 +2564,12 @@ class BackTest(metaclass=abc.ABCMeta):
             Calculate and set the global price values.
         """
         if self.weighted != Weighted.Price:
+            return
+
+        if self.get_long_positions_num():
+            # No need to calculate anything if any position opened
+            self._max_price = 0
+
             return
 
         max_price = 0

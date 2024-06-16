@@ -1300,10 +1300,11 @@ class BackTestOperations():
                         num = num - num_close
 
                     if num > 0:
+                        # TODO HIGH Check where from excessive spread is obtained
                         self.open_long(num, exact=exact)
                 else:
                     self.close_all_short()
-                    num = self.get_caller().get_total_shares_num()
+                    num = self.get_total_shares_num()
                     self.open_long_max()
 
             if recalculate:
@@ -1565,6 +1566,7 @@ class BackTestOperations():
 
     # TODO LOW check if this max() is needed.
     # TODO LOW consider renaming to avoid the word 'shares' as it may be not share-related.
+    # TODO HIGH Rename it to get_max_position_size
     def get_total_shares_num(self):
         """
             Get total number of shares which we may buy.
@@ -3556,7 +3558,6 @@ class BackTest(metaclass=abc.ABCMeta):
                 True is the cycle should be skipped, False otherwise.
         """
 
-    # Calculate technical data
     @abc.abstractmethod
     def do_tech_calculation(self, ex):
         """

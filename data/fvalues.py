@@ -52,8 +52,11 @@ djia_feb_26_2024 = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'K
                     'INTC', 'JNJ', 'JPM', 'MCD', 'MRK', 'MSFT', 'NKE', 'PG', 'CRM', 'TRV', 'UNH', 'VZ', 'V', 'AMZN', 'WMT']
 
 # Note that each time sorting of the resulting list may be different
-djia_combined = sorted(list(set(djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + djia_jun_26_2018 + djia_apr_02_2019 + \
-                                djia_apr_06_2020 + djia_feb_26_2024)))
+djia_combined = sorted(list(set(djia_jun_08_2009 + djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + \
+                                djia_jun_26_2018 + djia_apr_02_2019 + djia_apr_06_2020 + djia_feb_26_2024)))
+
+djia_combined.remove('UTX')  # No historical quotes for these delisted symbols in the supported data sources
+djia_combined.remove('KRFT')
 
 djia_dict = {'2012-09-24': djia_sep_24_2012,
              '2013-09-23': djia_sep_23_2013,

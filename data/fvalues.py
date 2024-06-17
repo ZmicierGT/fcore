@@ -58,7 +58,8 @@ djia_combined = sorted(list(set(djia_jun_08_2009 + djia_sep_24_2012 + djia_sep_2
 djia_combined.remove('UTX')  # No historical quotes for these delisted symbols in the supported data sources
 djia_combined.remove('KRFT')
 
-djia_dict = {'2012-09-24': djia_sep_24_2012,
+djia_dict = {'2009-06-08': djia_jun_08_2009,
+             '2012-09-24': djia_sep_24_2012,
              '2013-09-23': djia_sep_23_2013,
              '2015-03-19': djia_mar_19_2015,
              '2018-06-26': djia_mar_19_2015,

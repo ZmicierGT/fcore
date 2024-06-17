@@ -380,7 +380,7 @@ class BackTestOperations():
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
-        self._limit_recalculate = False  # Indicates if weightening values should be recalculated
+        self._limit_recalculate = True  # Indicates if weightening values should be recalculated
 
         self._limit_num = -1  # Number of shares for a limit order. None means max
 
@@ -1267,7 +1267,8 @@ class BackTestOperations():
     # TODO LOW Implement using a higher resolution for order procesing.
     # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
     #      strategies. Think how to implement it in a safer way.
-    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=False, price=None):
+    # TODO HIGH Think what to do with exact argument
+    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=True, price=None):
         """
             Perform a buy trade.
 
@@ -1298,14 +1299,12 @@ class BackTestOperations():
                         num_close = min(self.get_short_positions(), num)
                         self.close_short(num_close)
                         num = num - num_close
-
-                    if num > 0:
-                        # TODO HIGH Check where from excessive spread is obtained
-                        self.open_long(num, exact=exact)
                 else:
                     self.close_all_short()
                     num = self.get_total_shares_num()
-                    self.open_long_max()
+
+            if num > 0:
+                self.open_long(num, price=price)
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1342,9 +1341,12 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
+            num = 0
+
         return num
 
-    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=False, price=None):
+    # TODO HIGH Check why positive num is returned if there is no trade
+    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=True, price=None):
         """
             Perform a sell trade.
 
@@ -1375,13 +1377,12 @@ class BackTestOperations():
                         num_close = min(self.get_long_positions(), num)
                         self.close_long(num_close)
                         num = num - num_close
-
-                    if num > 0:
-                        self.open_short(num, exact=exact)
                 else:
                     self.close_all_long()
                     num = self.get_caller().get_total_shares_num()
-                    self.open_short_max()
+
+            if num > 0:
+                self.open_short(num, price=price)
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1417,6 +1418,8 @@ class BackTestOperations():
                    f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
 
             self.get_caller().log(log)
+
+            num = 0
 
         return num
 
@@ -1465,14 +1468,16 @@ class BackTestOperations():
 
             return
 
-        num = 0
+        num = self.get_long_positions()  # TODO MID think what to do with short
         diff = 0
 
         if self._limit_buy:
             current_low = price
 
             if current_low <= limit:
-                num = self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
+                self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
+                num = self.get_long_positions() - num
+
                 diff = (current_low - self._limit_buy) * num
 
         if self._limit_sell:
@@ -1480,9 +1485,11 @@ class BackTestOperations():
 
             if current_high >= limit:
                 num = self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate)
+                num = num - self.get_long_positions()
+
                 diff = (current_high - self._limit_sell) * num
 
-        if diff:
+        if diff > 0:
             self.get_caller().add_spread_expense(diff)
             self.cancel_limit_order()
 
@@ -1668,14 +1675,14 @@ class BackTestOperations():
         if num < 0:
             raise BackTestError(f"Can't open negative number of short positions: {num}")
 
-        if num == 0:
-            return
-
         if num > self.get_total_shares_num_short():
             if exact:
                 raise BackTestError(f"Not enough margin to buy {num} shares. Available margin is for {self.get_total_shares_num_short()} shares only.")
             else:
                 num = min(num, self.get_total_shares_num_short())
+
+        if num == 0:
+            return
 
         # Needed for logging
         ex_cash = self.get_caller().get_cash()

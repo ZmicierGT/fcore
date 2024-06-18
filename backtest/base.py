@@ -382,7 +382,7 @@ class BackTestOperations():
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
         self._limit_recalculate = True  # Indicates if weightening values should be recalculated
 
-        self._limit_num = -1  # Number of shares for a limit order. None means max
+        self._limit_num = -1  # Number of securities for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
@@ -691,25 +691,25 @@ class BackTestOperations():
         """
         return self.get_close() * self.get_caller().get_commission_percent() / 100
 
-    # Fee for one share
-    def get_share_fee(self):
+    # Fee for one security
+    def get_security_fee(self):
         """
-            Get the one share fee for the trade (expect commission for the trade).
+            Get the one security fee for the trade (expect commission for the trade).
 
             Returns:
-                float: one share fee (excluding commission for the whole trade)
+                float: one security fee (excluding commission for the whole trade)
         """
-        return self.get_trade_percent_fee() + self.get_caller().get_commission_share()
+        return self.get_trade_percent_fee() + self.get_caller().get_commission_security()
 
-    # Total fee for a trade (1 share)
+    # Total fee for a trade (1 security)
     def get_total_fee(self):
         """
-            Get the total fee for 1 share trade.
+            Get the total fee for 1 security trade.
 
             Returns:
-                float: the total fee for 1 share trade.
+                float: the total fee for 1 security trade.
         """
-        return self.get_share_fee() + self.get_caller().get_commission()
+        return self.get_security_fee() + self.get_caller().get_commission()
 
     def get_max_positions(self):
         """
@@ -1095,11 +1095,11 @@ class BackTestOperations():
             Returns:
                 float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
         """
-        shares_num_cash, remaining_cash = self.get_shares_num_cash()
-        shares_margin = shares_num_cash * self.get_close() * self.data().get_margin_rec()
+        securities_num_cash, remaining_cash = self.get_max_trade_size_cash()
+        securities_margin = securities_num_cash * self.get_close() * self.data().get_margin_rec()
         cash_margin = remaining_cash * self.get_caller().get_margin_rec()
 
-        return shares_margin + cash_margin
+        return securities_margin + cash_margin
 
     def get_used_margin(self):
         """
@@ -1119,14 +1119,14 @@ class BackTestOperations():
 
             if deficit > 0:
                 # Close margin positions to meet margin requirement
-                shares_num = 0
+                securities_num = 0
 
                 # Copy the initial portfolio to restore if after the calculation
                 initial_portfolio = copy.deepcopy(self._portfolio)
 
                 # Estimate how many positions we need to close to meet the margin requirement
-                while deficit > 0 and shares_num < self.get_margin_positions():
-                    shares_num += 1
+                while deficit > 0 and securities_num < self.get_margin_positions():
+                    securities_num += 1
 
                     last_price = self._portfolio.pop()
 
@@ -1140,7 +1140,7 @@ class BackTestOperations():
                 self._portfolio = initial_portfolio
 
                 # Close the positions which exceed margin requirement
-                self.close(shares_num, margin_call=True)
+                self.close(securities_num, margin_call=True)
 
     ###################
     # Trades processing
@@ -1194,15 +1194,15 @@ class BackTestOperations():
 
     def get_trade_num(self, deviation):
         """
-            Get the shares num for a trade to keep the portfolio weighted. The value may be negative.
+            Get the securities num for a trade to keep the portfolio weighted. The value may be negative.
 
             Arguments:
                 deviation(float): the maximum deviation for securities number calculation.
 
             Returns:
-                int: the number of shares for a trade to keep the portfolio balanced.
+                int: the number of securities for a trade to keep the portfolio balanced.
         """
-        num = self.get_total_shares_num()
+        num = self.get_max_trade_size()
 
         if self.get_caller().weighted == Weighted.Price:
             if self.get_caller().get_long_positions_num():
@@ -1221,7 +1221,7 @@ class BackTestOperations():
             else:
                 # Limit the number of positions for cheap companies
                 ratio = self.get_row()['cap'] / self.get_caller().max_cap
-                num = ratio * self.get_total_shares_num() * deviation - self.get_long_positions()
+                num = ratio * self.get_max_trade_size() * deviation - self.get_long_positions()
 
         # Check if the number of positions is limited by grouping
         if self.group is not None and self.get_caller().total_weighted_value:
@@ -1272,7 +1272,7 @@ class BackTestOperations():
             Perform a buy trade.
 
             Args:
-                num(int): the number of shares. None if max.
+                num(int): the number of securities to buy. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
@@ -1294,7 +1294,7 @@ class BackTestOperations():
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = self.get_buy_num()
                 else:
-                    num = self.get_caller().get_total_shares_num() + self.get_short_positions()
+                    num = self.get_caller().get_max_trade_size() + self.get_short_positions()
             else:
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = min(num, self.get_buy_num())
@@ -1336,7 +1336,7 @@ class BackTestOperations():
             else:
                 order_num = 'maximum possible'
 
-            log = (f"BUY Limit order is placed for {self.data().get_title()} for the {order_num} number or shares "
+            log = (f"BUY Limit order is placed for {self.data().get_title()} for the {order_num} number or securities "
                    f"with the price {round(self._limit_buy, 2)} "
                    f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
 
@@ -1351,7 +1351,7 @@ class BackTestOperations():
             Perform a sell trade.
 
             Args:
-                num(int): the number of shares. None if max.
+                num(int): the number of securities to sell. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of days for a limit order to be valid until it is cancelled.
@@ -1373,7 +1373,7 @@ class BackTestOperations():
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = self.get_sell_num()
                 else:
-                    num = self.get_caller().get_total_shares_num_short() + self.get_long_positions()
+                    num = self.get_caller().get_max_trade_size_short() + self.get_long_positions()
             else:
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = min(num, self.get_sell_num())
@@ -1415,7 +1415,7 @@ class BackTestOperations():
             else:
                 order_num = 'maximum possible'
 
-            log = (f"SELL Limit order is placed for {self.data().get_title()} for {order_num} number of shares "
+            log = (f"SELL Limit order is placed for {self.data().get_title()} for {order_num} number of securities "
                    f"with the price {round(self._limit_sell, 2)} "
                    f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
 
@@ -1435,7 +1435,7 @@ class BackTestOperations():
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
         self._limit_recalculate = False  # If weightening values should be recalculated
 
-        self._limit_num = -1  # Number of shares for a limit order. None means max
+        self._limit_num = -1  # Number of securities for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
@@ -1520,7 +1520,7 @@ class BackTestOperations():
 
                     self.get_caller().log(f"At {self.get_datetime_str()} {self.data().get_title()} was consdered as delisted and "
                                         f"total positions of {self.get_long_positions()} of total worth {total_lost} "
-                                        f"({last_close} per share) were lost.")
+                                        f"({last_close} per security) were lost.")
 
                     self.get_caller().add_other_profit(-abs(total_lost))
                     self.get_caller()._total_proit -= total_lost
@@ -1537,56 +1537,54 @@ class BackTestOperations():
     # Methods related to opening positions.
     #######################################
 
-    def get_shares_num_cash(self):
+    def get_max_trade_size_cash(self):
         """
-            Get the maxumum number of shares which we can buy using the cash balance without going negative.
+            Get the maxumum number of securities which we can buy using the cash balance without going negative.
 
             Return:
                 int: the maximum of positions to open using cash only.
                 float: remaining cash.
         """
-        shares_num_estimate = int((self.get_caller().get_cash() - \
-                                   self.get_total_fee() - \
-                                   self.get_caller().get_total_used_margin()) / \
-                                   self.get_buy_price())
+        securities_num_estimate = int((self.get_caller().get_cash() - \
+                                       self.get_total_fee() - \
+                                       self.get_caller().get_total_used_margin()) / \
+                                       self.get_buy_price())
 
         cash_available = self.get_caller().get_cash() - \
                          self.get_caller().get_commission() - \
                          self.get_caller().get_total_used_margin() - \
-                         self.get_share_fee() * shares_num_estimate
+                         self.get_security_fee() * securities_num_estimate
 
-        shares_num = int((cash_available) / self.get_buy_price())
+        securities_num = int((cash_available) / self.get_buy_price())
         remaining_cash = cash_available / self.get_buy_price()
 
-        return (shares_num, remaining_cash)
+        return (securities_num, remaining_cash)
 
-    def get_shares_num_margin(self):
+    def get_max_trade_size_margin(self):
         """
-            Get number of shares which we can buy using margin.
+            Get number of securities which we can buy using margin.
 
             Returns:
-                int: the maxumum number of shares to buy using margin.
+                int: the maxumum number of securities to buy using margin.
         """
         return int(self.get_future_margin_buying_power() / self.get_buy_price())
 
     # TODO LOW check if this max() is needed.
-    # TODO LOW consider renaming to avoid the word 'shares' as it may be not share-related.
-    # TODO HIGH Rename it to get_max_position_size
-    def get_total_shares_num(self):
+    def get_max_trade_size(self):
         """
-            Get total number of shares which we may buy.
+            Get total number of securities which we may buy.
 
             Returns:
-                int: the total number of shares which we can buy using both cash and margin.
+                int: the total number of securities which we can buy using both cash and margin.
         """
-        return max(0, self.get_shares_num_cash()[0] + self.get_shares_num_margin())
+        return max(0, self.get_max_trade_size_cash()[0] + self.get_max_trade_size_margin())
 
     def open_long(self, num, price=None, exact=False):
         """
             Open the specified number of long position.
 
             Args:
-                num(int): the number of shares to buy.
+                num(int): the number of securities to buy.
                 price(float): force the trade to be executed using this price.
                 exact(bool): indicates if the exact number of requested positions should be opened.
 
@@ -1597,11 +1595,11 @@ class BackTestOperations():
         if num < 0:
             raise BackTestError(f"Can't open negative number of long positions: {num}")
 
-        if num > self.get_total_shares_num():
+        if num > self.get_max_trade_size():
             if exact:
-                raise BackTestError(f"Not enough cash/margin to open the position. {num} > {self.get_total_shares_num()}")
+                raise BackTestError(f"Not enough cash/margin to open the position. {num} > {self.get_max_trade_size()}")
             else:
-                num = min(num, self.get_total_shares_num())
+                num = min(num, self.get_max_trade_size())
 
         if num == 0:
             return
@@ -1610,9 +1608,9 @@ class BackTestOperations():
         ex_cash = self.get_caller().get_cash()
         ex_margin = self.get_caller().get_available_margin()
 
-        shares_num_cash = min(num, self.get_shares_num_cash()[0])
-        shares_num_margin = max(0, num - shares_num_cash)
-        total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
+        securities_num_cash = min(num, self.get_max_trade_size_cash()[0])
+        securities_num_margin = max(0, num - securities_num_cash)
+        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
 
         if price:
             total_spread_expense = 0
@@ -1620,13 +1618,13 @@ class BackTestOperations():
             total_spread_expense = self.get_spread_deviation() * num
             price = self.get_buy_price()
 
-        total_cash_price = price * shares_num_cash
+        total_cash_price = price * securities_num_cash
 
         self.get_caller().add_cash(-abs(total_commission + total_cash_price))
         self._long_positions += num
-        self._long_positions_cash += shares_num_cash
+        self._long_positions_cash += securities_num_cash
 
-        self._portfolio.extend(repeat(price, shares_num_margin))
+        self._portfolio.extend(repeat(price, securities_num_margin))
 
         # Add expenses for this trade
         self.get_caller().add_commission_expense(total_commission)
@@ -1648,12 +1646,12 @@ class BackTestOperations():
         self._last_total_value = self.get_total_value()
         self._portfolio_cash.extend(repeat(price, num))
 
-    def get_total_shares_num_short(self):
+    def get_max_trade_size_short(self):
         """
-            Get the total number of shares which we can short.
+            Get the total number of securities which we can short.
 
             Returns:
-                int: the total number of shares which we can short.
+                int: the total number of securities which we can short.
         """
         return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
 
@@ -1662,7 +1660,7 @@ class BackTestOperations():
             Open the short position.
 
             Args:
-                num(int): the number of shares to short.
+                num(int): the number of securities to short.
                 price(float): force the trade to be executed using this price.
                 exact(bool): indicates if the exact number of requested positions should be opened.
 
@@ -1673,11 +1671,11 @@ class BackTestOperations():
         if num < 0:
             raise BackTestError(f"Can't open negative number of short positions: {num}")
 
-        if num > self.get_total_shares_num_short():
+        if num > self.get_max_trade_size_short():
             if exact:
-                raise BackTestError(f"Not enough margin to short {num} shares. Available margin is for {self.get_total_shares_num_short()} shares only.")
+                raise BackTestError(f"Not enough margin to short {num} securities. Available margin is for {self.get_max_trade_size_short()} securities only.")
             else:
-                num = min(num, self.get_total_shares_num_short())
+                num = min(num, self.get_max_trade_size_short())
 
         if num == 0:
             return
@@ -1688,7 +1686,7 @@ class BackTestOperations():
         initial_commission = self.get_caller().get_commission_expense()
 
         # Assume that slightly negative cash balance is possible on a margin account
-        self.get_caller().add_cash(-abs(self.get_share_fee() * num + self.get_caller().get_commission()))
+        self.get_caller().add_cash(-abs(self.get_security_fee() * num + self.get_caller().get_commission()))
         self._short_positions += num
 
         if price is None:
@@ -1698,7 +1696,7 @@ class BackTestOperations():
         self._portfolio.extend(repeat(price, num))
 
         # Calculate expenses for this trade
-        self.get_caller().add_commission_expense(self.get_caller().get_commission() + self.get_share_fee() * num)
+        self.get_caller().add_commission_expense(self.get_caller().get_commission() + self.get_security_fee() * num)
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
@@ -1721,13 +1719,13 @@ class BackTestOperations():
         """
             Open maximum possible number of long positions.
         """
-        self.open_long(self.get_total_shares_num())
+        self.open_long(self.get_max_trade_size())
 
     def open_short_max(self):
         """
             Open maximum possible number of short positions.
         """
-        self.open_short(self.get_total_shares_num_short())
+        self.open_short(self.get_max_trade_size_short())
 
     #######################################
     # Methods related to closing positions.
@@ -1792,7 +1790,7 @@ class BackTestOperations():
         else:
             self._price_close_long = self.get_sell_price(adjusted=True)
 
-        total_commission = self.get_share_fee() * num + self.get_caller().get_commission()
+        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
 
         # TODO LOW Think if it is rational (trimming)
         # Trim cash portfolio (used for total profit calculations)
@@ -1868,9 +1866,9 @@ class BackTestOperations():
         for _ in range (num):
             delta += self._portfolio.pop() - price
             # Assume that slightly negative cash balance is possible on a margin account
-            self.get_caller().add_cash(-abs(self.get_share_fee()))
+            self.get_caller().add_cash(-abs(self.get_security_fee()))
 
-            self.get_caller().add_commission_expense(self.get_share_fee())
+            self.get_caller().add_commission_expense(self.get_security_fee())
             self.get_caller().add_spread_expense(spread)
 
         self.get_caller().add_commission_expense(self.get_caller().get_commission())
@@ -2133,14 +2131,13 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
-# TODO LOW Maximum share of portfolio per one instrument in multi-instrument strategies should be implemented.
 # TODO LOW Add margin expenses
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,
                  commission=0,
                  commission_percent=0,
-                 commission_share=0,
+                 commission_security=0,
                  initial_deposit=0,
                  periodic_deposit=0,
                  deposit_interval=0,
@@ -2164,7 +2161,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 data(list of BackTestData): the list of data classes for calculation.
                 commission(float): commission per trade.
                 commission_percent(float): commission in percent of the trade volume.
-                commission_share(float): commission per share.
+                commission_security(float): commission per security.
                 initial_deposit(float): initial deposit to test the strategy.
                 periodic_deposit(float): periodic deposit to the account.
                 deposit_interval(int): interval (in days) to add a periodic deposit to the account.
@@ -2205,10 +2202,10 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"commission_percent can't be less than 0% or more than 100%. Specified value is {commission_percent}")
         self._commission_percent = commission_percent
 
-        # Commission per share
-        if commission_share < 0:
-            raise BackTestError(f"commission_share can't be less than 0. Specified value is {commission_share}")
-        self._commission_share = commission_share
+        # Commission per security
+        if commission_security < 0:
+            raise BackTestError(f"commission_security can't be less than 0. Specified value is {commission_security}")
+        self._commission_security = commission_security
 
         # Initial deposit
         if initial_deposit < 0:
@@ -2343,6 +2340,9 @@ class BackTest(metaclass=abc.ABCMeta):
         self.__main_data_idx = self._get_biggest_data_idx()  # The index of the main dataset
 
         # The values used for a diversification
+        # TODO High. The miltiplier shoud be dynamic. For example, if the portfolio is price weighted and we have only
+        # one position opened, than we can't open another position is multiplier <2. However, if we have 200
+        # positions with multiplier = 2, then it may break a diversification as we can open 200 more positions.
         self._multiplier = 0  # The current multiplier for portfolio weightening
         self._mean_weight = 0  # The mean weight value
         self._total_weighted_value = 0
@@ -2938,14 +2938,14 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._commission_percent
 
-    def get_commission_share(self):
+    def get_commission_security(self):
         """
-            Get the commission per share.
+            Get the commission per security.
 
             Returns:
-                float: the commission per share used in the calculation.
+                float: the commission per security used in the calculation.
         """
-        return self._commission_share
+        return self._commission_security
 
     def add_cash(self, cash):
         """

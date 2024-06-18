@@ -223,6 +223,7 @@ class YF(stock.StockFetcher):
 
         return df_result
 
+    # TODO HIGH Divs are aplit adjusted. re-adjust them.
     def __fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.

@@ -1202,7 +1202,10 @@ class BackTestOperations():
             Returns:
                 int: the number of securities for a trade to keep the portfolio balanced.
         """
-        num = self.get_max_trade_size()
+        init_num = self.get_max_trade_size()
+
+        if init_num == 0:
+            return 0
 
         if self.get_caller().weighted == Weighted.Price:
             if self.get_caller().mean_weight:
@@ -1211,7 +1214,7 @@ class BackTestOperations():
                 # If opening the first position, then need to avoid the situation when selected security is cheap
                 # as if the maximum possible positions will be opened - then it will be difficult to balance
                 # the portfolio in the future. Need to limit the number of cheap securities.
-                num = num * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
+                num = init_num * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
         elif self.get_caller().weighted == Weighted.Equal:
             if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
@@ -1234,7 +1237,7 @@ class BackTestOperations():
 
             num = min(num, grouping_num)
 
-        return int(num)
+        return min(int(num), init_num)
 
     def get_buy_num(self):
         """
@@ -1294,6 +1297,8 @@ class BackTestOperations():
             Returns:
                 int: the number of positions opened
         """
+        total_num = 0
+
         # Process a market order
         if limit is None:
             if recalculate:
@@ -1312,10 +1317,13 @@ class BackTestOperations():
             if num > 0 and self.get_short_positions():
                 num_close = min(self.get_short_positions(), num)
                 self.close_short(num_close, price=price)
+
+                total_num += num_close
                 num = num - num_close
 
             if num > 0:
                 self.open_long(num, price=price, exact=exact)
+                total_num += num
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1352,9 +1360,7 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
-            num = 0
-
-        return num
+        return total_num
 
     def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=True, price=None):
         """
@@ -1373,6 +1379,8 @@ class BackTestOperations():
             Returns:
                 int: the number of positions opened
         """
+        total_num = 0
+
         # Process a market order
         if limit is None:
             if recalculate:
@@ -1391,10 +1399,13 @@ class BackTestOperations():
             if num > 0 and self.get_long_positions():
                 num_close = min(self.get_long_positions(), num)
                 self.close_long(num_close, price=price)
+
+                total_num += num_close
                 num = num - num_close
 
             if num > 0:
                 self.open_short(num, price=price, exact=exact)
+                total_num += num
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1431,9 +1442,7 @@ class BackTestOperations():
 
             self.get_caller().log(log)
 
-            num = 0
-
-        return num
+        return total_num
 
     def cancel_limit_order(self):
         """

@@ -1205,7 +1205,7 @@ class BackTestOperations():
         num = self.get_max_trade_size()
 
         if self.get_caller().weighted == Weighted.Price:
-            if self.get_caller().get_long_positions_num():
+            if self.get_caller().mean_weight:
                 num = self.get_caller().mean_weight * deviation - self.weight
             else:
                 # If opening the first position, then need to avoid the situation when selected security is cheap
@@ -1216,7 +1216,7 @@ class BackTestOperations():
             if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
         elif self.get_caller().weighted == Weighted.Cap:
-            if self.get_caller().get_long_positions_num():
+            if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
             else:
                 # Limit the number of positions for cheap companies
@@ -1243,7 +1243,12 @@ class BackTestOperations():
             Returns:
                 int: the number of securities to buy
         """
-        num = self.get_trade_num(self.get_caller().open_deviation)
+        deviation = self.get_caller().open_deviation
+
+        if self.get_max_positions() < 10:
+            deviation = max(2, deviation)  # Too low deviation in the beginning may block the portfolio
+
+        num = self.get_trade_num(deviation)
 
         if num < 0:
             num = 0
@@ -1257,7 +1262,12 @@ class BackTestOperations():
             Returns:
                 int: the number of securities to sell
         """
-        num = self.get_trade_num(self.get_caller().close_deviation)
+        deviation = self.get_caller().close_deviation
+
+        if self.get_max_positions() < 10:
+            deviation = max(3, deviation)  # Too low deviation in the beginning may block the portfolio
+
+        num = self.get_trade_num(deviation)
 
         if num > 0:
             num = 0
@@ -1380,7 +1390,7 @@ class BackTestOperations():
 
             if num > 0 and self.get_long_positions():
                 num_close = min(self.get_long_positions(), num)
-                self.close_long(num_close, price=price, exact=exact)
+                self.close_long(num_close, price=price)
                 num = num - num_close
 
             if num > 0:
@@ -1462,7 +1472,7 @@ class BackTestOperations():
 
         if days_delta > self._limit_validity:
             log = (f"{side} limit order expired for {self.data().get_title()} as in the {days_delta} days the desired price "
-                   f"{limit} (including deviation) wasn't achieved or weighening did now allo to open the position. The last price is {price}.")
+                   f"{limit} (including deviation) wasn't achieved or weighening did now allow to perform the trade. The last price is {price}.")
 
             self.get_caller().log(log)
 
@@ -2146,8 +2156,8 @@ class BackTest(metaclass=abc.ABCMeta):
                  margin_req=0,
                  margin_rec=0,
                  weighted=Weighted.Unweighted,
-                 open_deviation=1.5,
-                 close_deviation=2,
+                 open_deviation=2,
+                 close_deviation=3,
                  grouping_attr=None,
                  grouping_shares=None,
                  offset=0,
@@ -2329,9 +2339,6 @@ class BackTest(metaclass=abc.ABCMeta):
         # Separate thread for calculation
         self.__thread = None
 
-        self._long_positions_num = 0  # The total number of opened positions
-        self._short_positions_num = 0  # The total number of opened short positions
-
         self._compositions = None  # Index compositions in a moment of time
 
         self._all_symbols = None  # All symbols used in the back test
@@ -2340,9 +2347,6 @@ class BackTest(metaclass=abc.ABCMeta):
         self.__main_data_idx = self._get_biggest_data_idx()  # The index of the main dataset
 
         # The values used for a diversification
-        # TODO High. The miltiplier shoud be dynamic. For example, if the portfolio is price weighted and we have only
-        # one position opened, than we can't open another position is multiplier <2. However, if we have 200
-        # positions with multiplier = 2, then it may break a diversification as we can open 200 more positions.
         self._multiplier = 0  # The current multiplier for portfolio weightening
         self._mean_weight = 0  # The mean weight value
         self._total_weighted_value = 0
@@ -2464,7 +2468,7 @@ class BackTest(metaclass=abc.ABCMeta):
             The maximum portfolio balance deviation when opening a position. 1 means no deviation acceptable.
 
             Returns:
-                float: the open deviation multiplier.
+                float: the maximum possible opening position weight deviation
         """
         return self._open_deviation
 
@@ -2474,7 +2478,7 @@ class BackTest(metaclass=abc.ABCMeta):
             The maximum portfolio balance deviation when closing a position. 1 means no deviation acceptable.
 
             Returns:
-                float: the close deviation multiplier.
+                float: the maximum possible closing position weight deviation
         """
         return self._close_deviation
 
@@ -2663,7 +2667,12 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 int: the total number of opened long positions
         """
-        return self._long_positions_num
+        long_positions_num = 0
+
+        for ex in self.all_exec():
+            long_positions_num += ex.get_long_positions()
+
+        return long_positions_num
 
     def get_short_positions_num(self):
         """
@@ -2672,7 +2681,12 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 int: the total number of opened short positions
         """
-        return self._short_positions_num
+        short_positions_num = 0
+
+        for ex in self.all_exec():
+            short_positions_num += ex.get_short_positions()
+
+        return short_positions_num
 
     def get_initial_deposit(self):
         """

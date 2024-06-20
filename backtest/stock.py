@@ -76,7 +76,7 @@ class StockOperations(BackTestOperations):
         super().__init__(**kwargs)
 
         if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().get_rows().dtype.names:
-            raise BackTestError(f"No 'cap' column in dataset for {self.data().get_title()} but it is required by the weighting method.")
+            raise BackTestError(f"No 'cap' column in dataset for {self.title} but it is required by the weighting method.")
 
         # The future incoming yield
         self._future_yield = 0
@@ -112,8 +112,9 @@ class StockOperations(BackTestOperations):
         if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
             current_yield = -abs(self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions)
 
+        # TODO MID Check why it is commented
         # if current_yield:
-        #     self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data().get_title()} - {current_yield}")
+        #     self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.title} - {current_yield}")
 
         return current_yield
 
@@ -197,8 +198,8 @@ class StockOperations(BackTestOperations):
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data().get_title()} "
-                                  f"(total long / cash long / short) for {self.data().get_title()}: "
+            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.title} "
+                                  f"(total long / cash long / short) for {self.title}: "
                                   f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions} "
                                   f"Positions before split: {long_before} {long_cash_before} {short_before}")
 
@@ -220,7 +221,7 @@ class StockOperations(BackTestOperations):
             if current_yield < 0:
                 self.get_caller().add_other_expense(current_yield)
 
-            log = f"{txt} {current_yield} dividends for {self.data().get_title()}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+            log = f"{txt} {current_yield} dividends for {self.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
             self.get_caller().log(log)
 
         self.check_for_split()

@@ -346,7 +346,7 @@ class BackTestOperations():
 
         # Results of symbol's calculation
         self._sym_results = BTSymbol()
-        self._sym_results.Title = self.data().get_title()
+        self._sym_results.Title = self.title
 
         ####################################################################
         # Cycle specific data for calculations. Need to be reset each cycle.
@@ -381,6 +381,7 @@ class BackTestOperations():
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
         self._limit_recalculate = True  # Indicates if weightening values should be recalculated
+        self._limit_exact = None  # Indicates if weightening should be overridden
 
         self._limit_num = -1  # Number of securities for a limit order. None means max
 
@@ -479,6 +480,16 @@ class BackTestOperations():
                 bool: indicates if there is a limit order for a security
         """
         return self._limit_num is None or self._limit_num != -1
+
+    @property
+    def title(self):
+        """
+            Get the title of the security.
+
+            Returns:
+                str: the title of the security
+        """
+        return self.data().get_title()
 
     ################
     # Methods
@@ -731,7 +742,7 @@ class BackTestOperations():
                 BackTestError: long and short positions are opened the same time for the same symbol.
         """
         if self._long_positions > 0 and self._short_positions > 0:
-            raise BackTestError(f"Can not hold long and short positions for {self.data().get_title()} the same time: long - {self._long_positions}, short - {self._short_positions}")
+            raise BackTestError(f"Can not hold long and short positions for {self.title} the same time: long - {self._long_positions}, short - {self._short_positions}")
 
         return self._long_positions > 0
 
@@ -1218,6 +1229,8 @@ class BackTestOperations():
         elif self.get_caller().weighted == Weighted.Equal:
             if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
+            else:
+                num = init_num
         elif self.get_caller().weighted == Weighted.Cap:
             if self.get_caller().mean_weight:
                 num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
@@ -1334,7 +1347,7 @@ class BackTestOperations():
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
-                log = (f"Cancelling {direction} limit order for {self.data().get_title()} as the new order is being placed.")
+                log = (f"Cancelling {direction} limit order for {self.title} as the new order is being placed.")
                 self.get_caller().log(log)
 
             self.cancel_limit_order()
@@ -1346,17 +1359,18 @@ class BackTestOperations():
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
             self._limit_recalculate = recalculate
+            self._limit_exact = exact
 
             max_price = round(self._limit_buy + self._limit_buy * self._limit_deviation, 2)
 
             if self._limit_num is not None:
                 order_num = self._limit_num
             else:
-                order_num = 'maximum possible'
+                order_num = 'max'
 
-            log = (f"BUY Limit order is placed for {self.data().get_title()} for the {order_num} number or securities "
+            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.title} for the {order_num} number or securities "
                    f"with the price {round(self._limit_buy, 2)} "
-                   f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
+                   f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
             self.get_caller().log(log)
 
@@ -1416,7 +1430,7 @@ class BackTestOperations():
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
-                log = (f"Cancelling {direction} limit order for {self.data().get_title()} as the new order is being placed.")
+                log = (f"Cancelling {direction} limit order for {self.title} as the new order is being placed.")
                 self.get_caller().log(log)
 
             self.cancel_limit_order()
@@ -1428,17 +1442,18 @@ class BackTestOperations():
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
             self._limit_recalculate = recalculate
+            self._limit_exact = exact
 
             max_price = round(self._limit_sell - self._limit_sell * self._limit_deviation, 2)
 
             if self._limit_num is not None:
                 order_num = self._limit_num
             else:
-                order_num = 'maximum possible'
+                order_num = 'max'
 
-            log = (f"SELL Limit order is placed for {self.data().get_title()} for {order_num} number of securities "
+            log = (f"At {self.get_datetime_str()} SELL Limit order is placed for {self.title} for {order_num} number of securities "
                    f"with the price {round(self._limit_sell, 2)} "
-                   f"and maximum deviation of {self._limit_deviation} resulting in up to {max_price} total price (with deviation).")
+                   f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
             self.get_caller().log(log)
 
@@ -1452,7 +1467,8 @@ class BackTestOperations():
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
         self._limit_deviation = 0  # Acceptable price deviation for a limit order
-        self._limit_recalculate = False  # If weightening values should be recalculated
+        self._limit_recalculate = True  # If weightening values should be recalculated
+        self._limit_exact = None  # Indicates if weightening rules should be overriden
 
         self._limit_num = -1  # Number of securities for a limit order. None means max
 
@@ -1480,7 +1496,7 @@ class BackTestOperations():
         limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell + self._limit_sell * self._limit_deviation
 
         if days_delta > self._limit_validity:
-            log = (f"{side} limit order expired for {self.data().get_title()} as in the {days_delta} days the desired price "
+            log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.title} as in the {days_delta} days the desired price "
                    f"{limit} (including deviation) wasn't achieved or weighening did now allow to perform the trade. The last price is {price}.")
 
             self.get_caller().log(log)
@@ -1496,18 +1512,21 @@ class BackTestOperations():
             current_low = price
 
             if current_low <= limit:
-                num = self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate)
+                num = self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate, exact=self._limit_exact)
                 diff = (current_low - self._limit_buy) * num
 
         if self._limit_sell:
             current_high = price
 
             if current_high >= limit:
-                num = self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate)
+                num = self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate, exact=self._limit_exact)
                 diff = (current_high - self._limit_sell) * num
 
+        # TODO HIGH Check the spread again
         if diff > 0:
             self.get_caller().add_spread_expense(diff)
+
+        if num > 0:
             self.cancel_limit_order()
 
     #####################
@@ -1537,7 +1556,7 @@ class BackTestOperations():
                     # TODO LOW Think if margin long positions should be treaded differently
                     total_lost = last_close * self._long_positions
 
-                    self.get_caller().log(f"At {self.get_datetime_str()} {self.data().get_title()} was consdered as delisted and "
+                    self.get_caller().log(f"At {self.get_datetime_str()} {self.title} was consdered as delisted and "
                                         f"total positions of {self.get_long_positions()} of total worth {total_lost} "
                                         f"({last_close} per security) were lost.")
 
@@ -1655,7 +1674,7 @@ class BackTestOperations():
         self._price_open_long = self.get_buy_price(adjusted=True)  # Used only for charting
 
         # Log if requested
-        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data().get_title()} with price "
+        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
@@ -1724,7 +1743,7 @@ class BackTestOperations():
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
 
-        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.data().get_title()} with price "
+        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
@@ -1843,7 +1862,7 @@ class BackTestOperations():
         self._total_profit += self.get_caller().get_cash() - ex_cash
 
         # Log if requested
-        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data().get_title()} with price "
+        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
@@ -1910,7 +1929,7 @@ class BackTestOperations():
 
         self._total_profit += self.get_caller().get_cash() - ex_cash
 
-        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data().get_title()} with price "
+        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
@@ -3364,7 +3383,7 @@ class BackTest(metaclass=abc.ABCMeta):
         symbols = []
 
         for ex in self.all_exec():
-            symbols.append(ex.data().get_title())
+            symbols.append(ex.title)
 
         return symbols
 

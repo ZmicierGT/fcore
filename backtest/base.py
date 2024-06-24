@@ -388,6 +388,13 @@ class BackTestOperations():
         self._limit_date = None  # Limit order placement date
         self._limit_validity = 2  # Limit order validity in days
 
+        ################
+        # Weight-related
+        ################
+
+        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().get_rows().dtype.names:
+            raise BackTestError(f"No 'cap' column in dataset for {self.title} but it is required by the weighting method.")
+
         self._weight = 0  # The weight of the current position
 
     ###################

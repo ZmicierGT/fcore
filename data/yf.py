@@ -223,16 +223,18 @@ class YF(stock.StockFetcher):
 
         return df_result
 
-    # TODO HIGH Divs are aplit adjusted. re-adjust them.
     def __fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.
+
+            Note that YF dividend data may be incomplete
 
             Returns:
                 DataFrame: cash dividend data.
         """
         data = self.get_cached_data()
         divs = data.dividends
+        splits = self.__fetch_splits()
 
         df_result = pd.DataFrame()
         # Keep dividends at 00:00:00
@@ -246,6 +248,12 @@ class YF(stock.StockFetcher):
         df_result['decl_ts'] = 'NULL'
         df_result['record_ts'] = 'NULL'
         df_result['pay_ts'] = 'NULL'
+
+        # Reverse-adjust the dividends
+        for i in range(len(splits)):
+            ind = np.searchsorted(df_result['ex_ts'], [splits['ts'][i] ,], side='right')[0]
+
+            df_result.loc[df_result.index < ind, 'amount'] = df_result.loc[df_result.index < ind, 'amount'] * splits['split_ratio'][i]
 
         return df_result
 

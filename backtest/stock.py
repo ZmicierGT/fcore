@@ -15,14 +15,22 @@ class StockData(BackTestData):
         The class represents stock data for backtesting.
     """
     def __init__(self,
+                 div_tax=0,
                  **kwargs):
         """
             Initializes the stock data class.
+
+            Args:
+                div_tax(float): dividend tax
         """
         super().__init__(**kwargs)
 
         # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
         self._close = StockQuotes.AdjClose
+
+        if div_tax < 0 or div_tax >= 100:
+            raise BackTestError(f"Dividend tax can't be less than 0 or >= 100. {div_tax} is specified.")
+        self.div_tax = div_tax
 
     ############
     # Properties
@@ -75,11 +83,22 @@ class StockOperations(BackTestOperations):
         """
         super().__init__(**kwargs)
 
-        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().get_rows().dtype.names:
-            raise BackTestError(f"No 'cap' column in dataset for {self.title} but it is required by the weighting method.")
-
         # The future incoming yield
         self._future_yield = 0
+
+    ############
+    # Properties
+    ############
+
+    @property
+    def div_tax(self):
+        """
+            Get the dividend tax.
+
+            Returns:
+                float: the dividend tax
+        """
+        return self.data().div_tax
 
     #############################################################
     # General methods with calculations for a particular symbol
@@ -207,24 +226,29 @@ class StockOperations(BackTestOperations):
         """
             Apply the current yield to the portfolio.
         """
+        self.check_for_split()
+
         current_yield = self.get_current_yield()
 
         if current_yield != 0:
-            txt = 'Added'
+            if current_yield > 0:
+                txt = 'Added'
 
-            if current_yield < 0:
+                if self.div_tax:
+                    tax = current_yield * self.div_tax / 100
+                    self.get_caller().add_other_expense(tax)
+
+                    current_yield = current_yield - tax
+
+                self.get_caller().add_other_profit(current_yield)
+                self._total_profit += current_yield
+            else:
                 txt = 'Deducted'
 
-            self.get_caller().add_other_profit(current_yield)
-            self._total_profit += current_yield
-
-            if current_yield < 0:
                 self.get_caller().add_other_expense(current_yield)
 
             log = f"{txt} {current_yield} dividends for {self.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
             self.get_caller().log(log)
-
-        self.check_for_split()
 
     def get_total_value(self):
         """

@@ -3405,14 +3405,14 @@ class BackTest(metaclass=abc.ABCMeta):
         current_cmp = self._all_symbols
 
         if self._compositions is not None:
+            # Take the first composition as the default value
+            current_cmp = next(iter(self._compositions.values()))
+
             for key in self._compositions.keys():
                 key_dt = get_dt(key)
 
-                if current_dt > key_dt:
+                if current_dt >= key_dt:
                     current_cmp = self._compositions[key]
-                else:
-                    # Take the first composition if the date of the first rebalancing haven't happened yet
-                    current_cmp = next(iter(self._compositions.values()))
 
         return current_cmp
 

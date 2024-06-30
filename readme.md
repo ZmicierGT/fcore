@@ -1,5 +1,7 @@
 # Fcore Is an AI Framework for Financial Markets Analysis.
 
+# WARNING!!! Dependency pandas_ta does not work with numpy 2.0 If you use numpy 2.0, use this [workaround](https://github.com/twopirllc/pandas-ta/issues/799)!!!
+
 ### With the help of it, you can easily perform the following actions:
 
 - Obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and store it in an unified way.
@@ -195,8 +197,6 @@ The project is not promoted anywhere yet. However, if you found it and feel inte
 The repository uses two branches: 'main' and 'devel'. The 'main' branch is supposed to be stable (however, pre-commit validation still needs to be established). The 'devel' branch is used for 'intermediate' development commits and it is not intended to be stable or even working. See TODO's (followed by priority) in the code for what is going to be implemented/fixed in the future.
 
 All fetched quotes are cached in a database (sqlite by default). Data-related settings (like api-keys) are stored in [settings.py](settings.py) file.
-
-**Fcore** is adopted to [nogil-3.9.10](https://github.com/colesbury/nogil) python interpreter. Use it with **nogil** to benefit from parallel computing (not fully stable).
 
 Fcore is distributes on an 'AS IS' basis using a custom source available [License](license.md). The author is not responsible for any losses caused by using the project.
 

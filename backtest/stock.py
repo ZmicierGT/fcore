@@ -131,9 +131,8 @@ class StockOperations(BackTestOperations):
         if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
             current_yield = -abs(self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions)
 
-        # TODO MID Check why it is commented
-        # if current_yield:
-        #     self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.title} - {current_yield}")
+        if current_yield:
+            self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.title} is {current_yield}")
 
         return current_yield
 
@@ -232,7 +231,7 @@ class StockOperations(BackTestOperations):
 
         if current_yield != 0:
             if current_yield > 0:
-                txt = 'Added'
+                txt = 'added'
 
                 if self.div_tax:
                     tax = current_yield * self.div_tax / 100
@@ -243,11 +242,11 @@ class StockOperations(BackTestOperations):
                 self.get_caller().add_other_profit(current_yield)
                 self._total_profit += current_yield
             else:
-                txt = 'Deducted'
+                txt = 'deducted'
 
                 self.get_caller().add_other_expense(current_yield)
 
-            log = f"{txt} {current_yield} dividends for {self.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
             self.get_caller().log(log)
 
     def get_total_value(self):

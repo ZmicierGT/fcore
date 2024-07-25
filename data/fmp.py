@@ -250,7 +250,7 @@ class FmpStock(stock.StockFetcher):
                 list: capitalization data.
         """
         # Adjust dates for the exchange time zone for the request
-        first_date, last_date = self.get_request_dates(first_ts, last_ts)
+        first_date, last_date = self.get_request_dates(first_ts, last_ts, trim_last=True)
 
         earliest_date = last_date
 

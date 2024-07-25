@@ -1737,7 +1737,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         return response
 
-    def get_request_datetimes(self, first_ts, last_ts):
+    def get_request_datetimes(self, first_ts, last_ts, trim_last=False):
         """
             Get the datetimes adjusted to the time zone of symbol's exchange for the request.
 
@@ -1745,6 +1745,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 num(int): the number of days to limit the request.
                 first_ts(int): overridden first ts to fetch.
                 last_ts(int): overridden last ts to fetch.
+                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
 
             Returns:
                 tuple(datetime): the adjusted datetimes.
@@ -1753,6 +1754,14 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             first_dt = get_dt(first_ts)
         else:
             first_dt = self.first_date
+
+        if trim_last:
+            current_ts = int(datetime.now(tz.UTC).timestamp())
+
+            if last_ts is None:
+                last_ts = current_ts
+            else:
+                last_ts = min(last_ts, current_ts)
 
         if last_ts is not None:
             last_dt = get_dt(last_ts)
@@ -1767,7 +1776,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         return (first_datetime, last_datetime)
 
-    def get_request_dates(self, first_ts, last_ts):
+    def get_request_dates(self, first_ts, last_ts, trim_last=False):
         """
             Get the dates adjusted to the time zone of symbol's exchange for the request.
 
@@ -1775,11 +1784,12 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 num(int): the number of days to limit the request.
                 first_ts(int): overridden first ts to fetch.
                 last_ts(int): overridden last ts to fetch.
+                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
 
             Returns:
                 tuple(datetime.date): the adjusted dates.
         """
-        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts)
+        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts, trim_last=trim_last)
 
         first_date = first_dt.date()
         last_date = last_dt.date()

@@ -71,6 +71,19 @@ djia_dict = {'2009-06-08': djia_jun_08_2009,
 # The current DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted)
 djia = djia_feb_26_2024
 
+# Sector ETFs. The earliest date for the whole list is 30 Jun 2000.
+sector_etfs = ['XLE',  # Energy 28 Dec 1998
+               'IYZ',  # Communication services 2 Jun 2000
+               'XLY',  # Consumer Discretionary 24 Dec 1998
+               'XLP',  # Consumer Staples 24 Dec 1998
+               'IYR',  # Real Estate 30 Jun 2000
+               'XLF',  # Financial Services 24 Dec 1998
+               'XLV',  # Health Care 24 Dec 1998
+               'XLI',  # Industrials 24 Dec 1998
+               'XLK',  # Technology 24 Dec 1998
+               'XLU',  # Utilities 24 Dec 1998
+               'XLB']  # Materials 24 Dec 1998
+
 # Timezon abbreviations used in data sources but which may not present on all system (and packages like tzdata).
 Timezones = {
     'ACDT': 'Australia/Adelaide',
@@ -125,6 +138,7 @@ Timezones = {
 # Time zones of some popular exchanges
 Exchanges = {
     'AMEX':     'America/New_York',
+    'ETF':      'America/New_York',  # TODO LOW It may be a problem with other regions or other data sources than FMP
     'ASX':      'Australia/Sydney',
     'BSE':      'Asia/Kolkata',
     'EURONEXT': 'Europe/Paris',
@@ -267,7 +281,7 @@ class Algorithm(IntEnum):
 
 class Weighted(IntEnum):
     """Enum with the supported portfolio weighting methods."""
-    Unweighted = 0
+    Unweighted = 0  # TODO HIGH Should work correctly if grouping is specified
     Equal = 1
     Price = 2
     Cap = 3

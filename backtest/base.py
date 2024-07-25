@@ -1329,7 +1329,7 @@ class BackTestOperations():
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = self.get_buy_num()
                 else:
-                    num = self.get_caller().get_max_trade_size() + self.get_short_positions()
+                    num = self.get_max_trade_size() + self.get_short_positions()
             else:
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = min(num, self.get_buy_num())
@@ -2177,6 +2177,7 @@ class BTSymbol(BTBaseData):
 ########################
 
 # TODO LOW Add margin expenses
+# TODO HIGH Add max position size for lump sum testing
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,

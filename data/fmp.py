@@ -683,33 +683,32 @@ class FmpStock(stock.StockFetcher):
             decl_text = div['declarationDate']
             record_text = div['recordDate']
             pay_text = div['paymentDate']
+            ex_text = div['date']
 
-            date_text = div['date']
-
-            # Consider that the declaration date was a week before entry date if no data
+            # Declaration date
             if decl_text == '':
-                decl_date = get_dt(date_text, self.get_timezone()) - timedelta(days=7)
+                decl_ts = 'NULL'
             else:
                 decl_date = get_dt(decl_text, self.get_timezone())
+                decl_ts = calendar.timegm(decl_date.utctimetuple())
 
-            # Consider that the record date was a week after the entry date if no data
+            # Ex-date can't be None
+            ex_date = get_dt(ex_text, self.get_timezone())
+            ex_ts = calendar.timegm(ex_date.utctimetuple())
+
+            # Record date
             if record_text == '':
-                record_date = get_dt(date_text, self.get_timezone()) + timedelta(days=7)
+                record_ts = 'NULL'
             else:
                 record_date = get_dt(record_text, self.get_timezone())
+                record_ts = calendar.timegm(record_date.utctimetuple())
 
-            # Consider that the payment date was a week after the entry date if no data
+            # Payment date
             if pay_text == '':
-                pay_date = get_dt(date_text, self.get_timezone()) + timedelta(days=30)
+                pay_ts = 'NULL'
             else:
                 pay_date = get_dt(pay_text, self.get_timezone())
-
-            ex_date = record_date - timedelta(days=1)  # Record date is one day after the ex date
-
-            decl_ts = calendar.timegm(decl_date.utctimetuple())
-            ex_ts = calendar.timegm(ex_date.utctimetuple())
-            record_ts = calendar.timegm(record_date.utctimetuple())
-            pay_ts = calendar.timegm(pay_date.utctimetuple())
+                pay_ts = calendar.timegm(pay_date.utctimetuple())
 
             div_dict = {
                 'amount': div['dividend'],

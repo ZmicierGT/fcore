@@ -71,18 +71,76 @@ djia_dict = {'2009-06-08': djia_jun_08_2009,
 # The current DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted)
 djia = djia_feb_26_2024
 
-# Sector ETFs. The earliest date for the whole list is 30 Jun 2000.
-sector_etfs = ['XLE',  # Energy 28 Dec 1998
-               'IYZ',  # Communication services 2 Jun 2000
-               'XLY',  # Consumer Discretionary 24 Dec 1998
-               'XLP',  # Consumer Staples 24 Dec 1998
-               'IYR',  # Real Estate 30 Jun 2000
-               'XLF',  # Financial Services 24 Dec 1998
-               'XLV',  # Health Care 24 Dec 1998
-               'XLI',  # Industrials 24 Dec 1998
-               'XLK',  # Technology 24 Dec 1998
-               'XLU',  # Utilities 24 Dec 1998
-               'XLB']  # Materials 24 Dec 1998
+sector_titles = ['Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical', 'Industrials', \
+                 'Communication Services', 'Consumer Defensive', 'Energy', 'Basic Materials', 'Real Estate', 'Utilities']
+
+###############################
+# Below are sectoral ETFs lists
+###############################
+
+# Oldest possible sectoral ETFs list. The earliest date for the whole list is 30 Jun 2000.
+# As it contains ETFs from different providers, the approach of management of funds may differ.
+sector_etfs_oldest = ['XLK',  # Technology 24 Dec 1998
+                      'XLF',  # Financial Services 24 Dec 1998
+                      'XLV',  # Health Care 24 Dec 1998
+                      'XLY',  # Consumer Discretionary 24 Dec 1998
+                      'XLI',  # Industrials 24 Dec 1998
+                      'IYZ',  # Communication services 2 Jun 2000
+                      'XLP',  # Consumer Staples 24 Dec 1998
+                      'XLE',  # Energy 28 Dec 1998
+                      'XLB',  # Materials 24 Dec 1998
+                      'IYR',  # Real Estate 30 Jun 2000
+                      'XLU']  # Utilities 24 Dec 1998
+
+# SPDR Sector ETFs. The earliest date for the whole list is 22 Jun 2018.
+sector_etfs_spdr = ['XLK',  # Technology 24 Dec 1998
+                    'XLF',  # Financial Services 24 Dec 1998
+                    'XLV',  # Health Care 24 Dec 1998
+                    'XLY',  # Consumer Discretionary 24 Dec 1998
+                    'XLI',  # Industrials 24 Dec 1998
+                    'XLC',  # Communication Services 22 Jun 2018
+                    'XLP',  # Consumer Staples 24 Dec 1998
+                    'XLE',  # Energy 28 Dec 1998
+                    'XLB',  # Materials 24 Dec 1998
+                    'XLRE', # Real Estate 9 Dec 2015
+                    'XLU']  # Utilities 24 Dec 1998
+
+# Vanguard Sector ETFs. The earliest date for the whole list is 1 Oct 2004.
+sector_etfs_vg = ['VGT',  # Technology 30 Jan 2004
+                  'VFH',  # Financial Services 30 Jan 2004
+                  'VHT',  # Health Care 30 Jan 2004
+                  'VCR',  # Consumer Discretionary 30 Jan 2004
+                  'VIS',  # Industrials 30 Sep 2004
+                  'VOX',  # Communication Services 30 Sep 2004
+                  'VDC',  # Consumer Staples 30 Jan 2004
+                  'VDE',  # Energy 1 Oct 2004
+                  'VAW',  # Materials 30 Jan 2004
+                  'VNQ',  # Read Estate 1 Oct 2004
+                  'VPU']  # Utilities 30 Jan 2004
+
+sectors_1_oct_2004 = ['XLK', 'XLF', 'XLV', 'XLY', 'XLI', 'VOX', 'XLP', 'XLE', 'XLB', 'VNQ', 'XLU']
+
+# Sectors compositions for long-term backtests
+sectors_dict = {'2000-06-30': sector_etfs_oldest,
+                '2004-10-01': sectors_1_oct_2004,
+                '2018-06-22': sector_etfs_spdr}
+
+# TODO MID Create an enum for sectors
+sectors_combined = {'XLK': sector_titles[0],
+                    'XLF': sector_titles[1],
+                    'XLV': sector_titles[2],
+                    'XLY': sector_titles[3],
+                    'XLI': sector_titles[4],
+                    'IYZ': sector_titles[5],
+                    'VOX': sector_titles[5],
+                    'XLC': sector_titles[5],
+                    'XLP': sector_titles[6],
+                    'XLE': sector_titles[7],
+                    'XLB': sector_titles[8],
+                    'IYR': sector_titles[9],
+                    'VNQ': sector_titles[9],
+                    'XLRE': sector_titles[9],
+                    'XLU': sector_titles[10]}
 
 # Timezon abbreviations used in data sources but which may not present on all system (and packages like tzdata).
 Timezones = {
@@ -138,7 +196,7 @@ Timezones = {
 # Time zones of some popular exchanges
 Exchanges = {
     'AMEX':     'America/New_York',
-    'ETF':      'America/New_York',  # TODO LOW It may be a problem with other regions or other data sources than FMP
+    'ETF':      'America/New_York',  # TODO MID It may be a problem with other regions or other data sources than FMP
     'ASX':      'Australia/Sydney',
     'BSE':      'Asia/Kolkata',
     'EURONEXT': 'Europe/Paris',
@@ -156,9 +214,6 @@ Exchanges = {
     'TSX':      'America/Toronto',
     'XETRA':    'Europe/Frankfurt'
 }
-
-sector_titles = ['Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical', 'Industrials', \
-           'Communication Services', 'Consumer Defensive', 'Energy', 'Basic Materials', 'Real Estate', 'Utilities']
 
 # TODO LOW remove plurals here
 # Enum class for standard data query rows order

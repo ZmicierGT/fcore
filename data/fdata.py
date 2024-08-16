@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 20
+DB_VERSION = 21
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -923,6 +923,7 @@ class ReadOnlyData():
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {last_date_ts}
+                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                             ORDER BY time_stamp
                             {num_query};"""
 

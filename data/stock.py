@@ -128,7 +128,7 @@ class ROStockData(ReadOnlyData):
                                 record_date INTEGER,
                                 payment_date INTEGER,
                                 amount REAL NOT NULL,
-                                UNIQUE(symbol_id, ex_date)
+                                UNIQUE(symbol_id, ex_date, source_id)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
@@ -172,7 +172,7 @@ class ROStockData(ReadOnlyData):
                                     symbol_id INTEGER NOT NULL,
                                     split_date INTEGER NOT NULL,
                                     split_ratio REAL,
-                                    UNIQUE(symbol_id, split_date)
+                                    UNIQUE(symbol_id, split_date, source_id)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
                                         REFERENCES symbols(symbol_id)
@@ -306,7 +306,6 @@ class ROStockData(ReadOnlyData):
                                                 source_id INTEGER NOT NULL,
                                                 stock_sector_id INTEGER,
                                                 modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                                                UNIQUE(symbol_id, stock_info_id)
                                                     CONSTRAINT fk_source
                                                         FOREIGN KEY (source_id)
                                                         REFERENCES sources(source_id)
@@ -488,7 +487,7 @@ class ROStockData(ReadOnlyData):
         # Adjust the price for dividends
         if divs is not None:
             # Need to establish if we have a payment date in the database. If we have no,
-            # then add one month to the execution date.
+            # then add one week to the ex-date.
             payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
             ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
@@ -497,7 +496,7 @@ class ROStockData(ReadOnlyData):
 
                 # Wipe the values in payment_date column
                 divs[Dividends.PaymentDate] = np.nan
-                divs[Dividends.PaymentDate] = divs[Dividends.ExDate] + 2592000  # Add 30 days to ex_date to estimate a payment date
+                divs[Dividends.PaymentDate] = divs[Dividends.ExDate] + 604800  # Add 7 days to ex_date to estimate a payment date
 
             for i in range(len(divs)):
                 idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]

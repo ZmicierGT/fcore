@@ -438,7 +438,7 @@ class ROStockData(ReadOnlyData):
         return splits
 
     # TODO MID Think if ignore last date is needed here
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -449,6 +449,7 @@ class ROStockData(ReadOnlyData):
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
                 ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
+                ignore_souce(bool): indicates if quotes should be obtained only from a particular source
 
             Returns:
                 list: list with quotes data.
@@ -468,7 +469,12 @@ class ROStockData(ReadOnlyData):
         columns.append('0.0 AS divs_pay')
         columns.append('1.0 AS splits')
 
-        quotes = super().get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+        quotes = super().get_quotes(num=num,
+                                    columns=columns,
+                                    joins=joins,
+                                    queries=queries,
+                                    ignore_last_date=ignore_last_date,
+                                    ignore_source=ignore_source)
 
         if quotes is None:
             return

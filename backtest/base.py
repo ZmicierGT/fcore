@@ -1180,7 +1180,7 @@ class BackTestOperations():
                     ratio = self.get_caller().max_cap / self.get_row()['cap']
                     current_weight = ratio * self.get_total_value()
 
-        # TODO HIGH Think if we can also take into account grouping here
+        # TODO HIGH Weights should be withing a group
         self._weight = current_weight
 
     def calc_weight_values(self, had_positions, has_positions, ex_total_value):

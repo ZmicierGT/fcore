@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 21
+DB_VERSION = 22
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -623,6 +623,7 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for quote_intervals table: {e}") from e
 
+        # TODO High need to think of a better way how to combine data from various sources
         # Check if we need to create table 'quotes'
         try:
             check_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
@@ -657,7 +658,7 @@ class ReadOnlyData():
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
-                            UNIQUE(symbol_id, time_stamp, time_span_id)
+                            UNIQUE(symbol_id, time_stamp, time_span_id, source_id)
                             );"""
 
             try:
@@ -812,7 +813,7 @@ class ReadOnlyData():
 
         return rows
 
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
+    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -823,6 +824,7 @@ class ReadOnlyData():
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
                 ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
+                ignore_souce(bool): indicates if quotes should be obtained only from a particular source
 
             Returns:
                 list: list with quotes data.
@@ -882,6 +884,11 @@ class ReadOnlyData():
         if ignore_last_date:
             last_date_ts = def_last_date
 
+        source_query = ''
+
+        if ignore_source is False:
+            source_query = f"AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')"
+
         # select_quotes = f"""SELECT time_stamp,
         #                         datetime(time_stamp, 'unixepoch') AS date_time,
         #                         opened,
@@ -923,7 +930,7 @@ class ReadOnlyData():
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {last_date_ts}
-                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                            {source_query}
                             ORDER BY time_stamp
                             {num_query};"""
 

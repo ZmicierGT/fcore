@@ -502,7 +502,7 @@ class BackTestOperations():
         if self.group:
             return self.get_caller().get_group_max_cap(self.group)
         else:
-            self.get_caller().max_cap
+            return self.get_caller().max_cap
 
     @property
     def group_capacity(self):

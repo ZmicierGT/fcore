@@ -456,9 +456,9 @@ class BackTestOperations():
             Returns:
                 float: the grouping share for the current security.
         """
-        share = None
+        share = 1
 
-        if self.group is not None:
+        if self.group:
             share = self.get_caller().get_grouping_share(self.group)
 
         return share
@@ -477,6 +477,66 @@ class BackTestOperations():
             share = self.get_caller().grouping_values[self.group]
 
         return share
+
+    @property
+    def group_mean(self):
+        """
+            Get the mean weight value for the current group.
+
+            Returns:
+                float: the mean value for the current group
+        """
+        if self.group:
+            return self.get_caller().get_group_mean(self.group)
+        else:
+            return self.get_caller().mean_weight
+
+    @property
+    def group_max_cap(self):
+        """
+            Get the max cap value for the current group.
+
+            Returns:
+                float: the max cap value for the current group
+        """
+        if self.group:
+            return self.get_caller().get_group_max_cap(self.group)
+        else:
+            self.get_caller().max_cap
+
+    @property
+    def group_capacity(self):
+        """
+            Get the current group capacity (with deviation optionally).
+            The bigger the value - the more capacity the group has.
+
+            Returns:
+                float: the current group capacity
+        """
+        if self.group is None:
+            return 1
+        else:
+            return self.get_caller().get_group_capacity(self.group)
+
+    @property
+    def is_min_capacity_group(self):
+        """
+            Indicates if the group has a minimum capacity value of all groups.
+
+            Returns:
+                bool: if the current group has a minimum capacity
+        """
+        return self.group_capacity == self.get_caller().min_group_capacity
+
+    @property
+    def is_max_capacity_group(self):
+        """
+            Indicates if the group has a maximum capacity value of all groups.
+
+            Returns:
+                bool: if the current group has a maximum capacity
+        """
+        return self.group_capacity == self.get_caller().max_group_capacity
 
     @property
     def is_limit(self):
@@ -1220,44 +1280,38 @@ class BackTestOperations():
             Returns:
                 int: the number of securities for a trade to keep the portfolio balanced.
         """
-        init_num = self.get_max_trade_size()
-
-        if init_num == 0:
-            return 0
+        num = 0
 
         if self.get_caller().weighted == Weighted.Price:
-            if self.get_caller().mean_weight:
-                num = self.get_caller().mean_weight * deviation - self.weight
+            if self.group_mean:
+                num = self.group_mean * deviation - self.weight
             else:
                 # If opening the first position, then need to avoid the situation when selected security is cheap
                 # as if the maximum possible positions will be opened - then it will be difficult to balance
                 # the portfolio in the future. Need to limit the number of cheap securities.
-                num = init_num * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
+                num = self.get_max_trade_size() * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
         elif self.get_caller().weighted == Weighted.Equal:
-            if self.get_caller().mean_weight:
-                num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
+            if self.group_mean:
+                num = (self.group_mean * deviation - self.weight) / self.get_close()
             else:
-                num = init_num
+                num = self.get_max_trade_size()
         elif self.get_caller().weighted == Weighted.Cap:
-            if self.get_caller().mean_weight:
-                num = (self.get_caller().mean_weight * deviation - self.weight) / self.get_close()
+            if self.group_mean:
+                num = (self.group_mean * deviation - self.weight) / self.get_close()
             else:
                 # Limit the number of positions for cheap companies
-                ratio = self.get_row()['cap'] / self.get_caller().max_cap
+                ratio = self.get_row()['cap'] / self.group_max_cap
                 num = ratio * self.get_max_trade_size() * deviation - self.get_long_positions()
 
         # Check if the number of positions is limited by grouping
         if self.group is not None and self.get_caller().total_weighted_value:
             # Take cash into account as accumulated cash may prevent to open bigger position sizes otherwise.
             tv = self.get_caller().total_weighted_value + self.get_caller().get_cash()
-
-            ratio = (self.group_total_value - self.get_total_value()) / tv
-            delta = self.group_share * deviation - ratio
-            grouping_num = delta * tv / self.get_close()
+            grouping_num = self.group_capacity * deviation * tv / self.get_close()
 
             num = min(num, grouping_num)
 
-        return min(int(num), init_num)
+        return num
 
     def get_buy_num(self):
         """
@@ -1268,6 +1322,7 @@ class BackTestOperations():
         """
         deviation = self.get_caller().open_deviation
 
+        # TODO Mid Think how to handle it better
         if self.get_max_positions() < 10:
             deviation = max(2, deviation)  # Too low deviation in the beginning may block the portfolio
 
@@ -1276,7 +1331,7 @@ class BackTestOperations():
         if num < 0:
             num = 0
 
-        return num
+        return int(num)
 
     def get_sell_num(self):
         """
@@ -1295,7 +1350,7 @@ class BackTestOperations():
         if num > 0:
             num = 0
 
-        return abs(num)
+        return abs(int(num))
 
     # TODO LOW Implement using a higher resolution for order procesing.
     # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
@@ -1500,7 +1555,7 @@ class BackTestOperations():
 
         side = 'BUY' if self._limit_buy else 'SELL'
         price = self.get_row(-1)[Quotes.Low] if self._limit_buy else self.get_row(-1)[Quotes.High]
-        limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell + self._limit_sell * self._limit_deviation
+        limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell - self._limit_sell * self._limit_deviation
 
         if days_delta > self._limit_validity:
             log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.title} as in the {days_delta} days the desired price "
@@ -1829,7 +1884,7 @@ class BackTestOperations():
         if num > self._long_positions_cash:
             margin_positions = num - self._long_positions_cash
 
-        # Used only in charging
+        # Used only in charting
         if margin_call:
             self._price_margin_req_long = self.get_sell_price(adjusted=True)
         else:
@@ -2400,8 +2455,12 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"Both grouping attribute and shares should be specified or none of them. {grouping_attr} and {grouping_shares}")
 
         self._grouping_attr = grouping_attr
-        self._grouping_shares = grouping_shares
-        self._grouping_values = None
+        self._grouping_shares = grouping_shares  # Pre-defined shares for groups
+        self._grouping_values = None  # Total value per group
+        self._grouping_mult = None  # Number of securities in each group
+        self._grouping_means = None  # Mean weights per group
+        self._grouping_max_cap = None  # Max capitalization in the group
+        self._grouping_capacity = None  # Capacity of the groups
 
     ###################
     # Public properties
@@ -2531,12 +2590,38 @@ class BackTest(metaclass=abc.ABCMeta):
     @property
     def grouping_values(self):
         """
-            The calculated grouping total value per each unique attribute value.
+            The calculated values per group.
 
             Returns:
                 str: the grouping values
         """
         return self._grouping_values
+
+    @property
+    def min_group_capacity(self):
+        """
+            Get the minimum capacity of all groups.
+
+            Returns:
+                float: the minimum capacity of all groups
+        """
+        if self._grouping_attr:
+            return min(self._grouping_capacity.values())
+        else:
+            return 1
+
+    @property
+    def max_group_capacity(self):
+        """
+            Get the maximum capacity of all groups.
+
+            Returns:
+                float: the maximum capacity of all groups
+        """
+        if self._grouping_attr:
+            return max(self._grouping_capacity.values())
+        else:
+            return 1
 
     #############
     # Methods
@@ -2557,6 +2642,44 @@ class BackTest(metaclass=abc.ABCMeta):
         except KeyError as e:
             raise BackTestError(f"The share of the attribute {attr} is not found: {e}")
 
+    def get_group_mean(self, group):
+        """
+            Get the mean weight value of the group.
+
+            Returns:
+                float: mean weight value of the group
+        """
+        if self._grouping_attr:
+            return self._grouping_means[group]
+        else:
+            return self._mean_weight
+
+    def get_group_max_cap(self, group):
+        """
+            Get the max cap of the group.
+
+            Returns:
+                float: max cap of the group
+        """
+        if self._grouping_attr:
+            return self._grouping_max_cap[group]
+        else:
+            return self._max_cap
+
+    def get_group_capacity(self, group):
+        """
+            Get the capacity of the group.
+            Highest positive capacity indicates that the group in underpresented in the portfolio. Negative capacity
+            indicates that the group weight exceeds pre-defined weight for that group.
+
+            Returns:
+                float: capacity of the group
+        """
+        if self._grouping_attr:
+            return self._grouping_capacity[group]
+        else:
+            return 1
+
     def calc_global_weight_values(self):
         """
             Calculate and set the global weight values for the current portfolio.
@@ -2573,6 +2696,15 @@ class BackTest(metaclass=abc.ABCMeta):
             self._grouping_values = {key: None for key in list(self._grouping_shares.keys())}
             self._grouping_values = dict.fromkeys(self._grouping_values, 0)
 
+            self._grouping_means = {key: None for key in list(self._grouping_shares.keys())}
+            self._grouping_means = dict.fromkeys(self._grouping_means, 0)
+
+            self._grouping_mult = {key: None for key in list(self._grouping_shares.keys())}
+            self._grouping_mult = dict.fromkeys(self._grouping_mult, 0)
+
+            self._grouping_capacity = {key: None for key in list(self._grouping_shares.keys())}
+            self._grouping_capacity = dict.fromkeys(self._grouping_capacity, 0)
+
         for ex in self.all_exec():
             if ex.weighted and ex.has_positions:
                 self._multiplier += 1
@@ -2585,9 +2717,22 @@ class BackTest(metaclass=abc.ABCMeta):
 
                 if self.grouping_attr is not None:
                     self._grouping_values[ex.group] += total_value
+                    self._grouping_mult[ex.group] += 1
 
         if self._multiplier:
             self._mean_weight = self._mean_weight / self._multiplier
+
+        if self._grouping_attr:
+            # Take cash into account
+            tv = self.total_weighted_value + self.get_cash()
+
+            for key, value in self._grouping_values.items():
+                self._grouping_capacity[key] = self._grouping_shares[key] - self._grouping_values[key] / tv
+
+            if self._grouping_mult:
+                for key, value in self._grouping_mult.items():
+                    if value:
+                        self._grouping_means[key] = self._grouping_values[key] / value
 
     def calc_global_cap_values(self):
         """
@@ -2596,6 +2741,10 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.weighted != Weighted.Cap:
             return
 
+        if self._grouping_attr is not None:
+            self._grouping_max_cap = {key: None for key in list(self._grouping_shares.keys())}
+            self._grouping_max_cap = dict.fromkeys(self._grouping_max_cap, 0)
+
         max_cap = 0
 
         for ex in self.all_exec():
@@ -2603,6 +2752,9 @@ class BackTest(metaclass=abc.ABCMeta):
                 current_cap = ex.get_row()['cap']
 
                 max_cap = max(max_cap, current_cap)
+
+                if self._grouping_attr is not None:
+                    self._grouping_max_cap[ex.group] = max(self._grouping_max_cap[ex.group], current_cap)
 
         self._max_cap = max_cap
 
@@ -2629,6 +2781,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         self._max_price = max_price
 
+    # TODO Adjust everything not just TV and group values
     def adjust_weight_values(self, ex, mult_adj_num, ex_weight, ex_total_value):
         """
             Calculate and set the mean weight of a portfolio.

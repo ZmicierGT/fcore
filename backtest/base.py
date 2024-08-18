@@ -1240,7 +1240,6 @@ class BackTestOperations():
                     ratio = self.get_caller().max_cap / self.get_row()['cap']
                     current_weight = ratio * self.get_total_value()
 
-        # TODO HIGH Weights should be withing a group
         self._weight = current_weight
 
     def calc_weight_values(self, had_positions, has_positions, ex_total_value):
@@ -1296,12 +1295,18 @@ class BackTestOperations():
             else:
                 num = self.get_max_trade_size()
         elif self.get_caller().weighted == Weighted.Cap:
-            if self.group_mean:
-                num = (self.group_mean * deviation - self.weight) / self.get_close()
+            if self.weight:
+                ratio = (self.group_mean * deviation - self.weight) / self.get_total_value()
             else:
-                # Limit the number of positions for cheap companies
-                ratio = self.get_row()['cap'] / self.group_max_cap
-                num = ratio * self.get_max_trade_size() * deviation - self.get_long_positions()
+                # Limit the number of positions for lower cap companies
+                ratio = self.get_row()['cap'] / self.group_max_cap * deviation
+
+            if ratio:
+                trade_size = self.get_max_trade_size()  # May buy more
+            else:
+                trade_size = self.get_long_positions()  # May sell some
+
+            num = ratio * trade_size
 
         # Check if the number of positions is limited by grouping
         if self.group is not None and self.get_caller().total_weighted_value:

@@ -1,7 +1,4 @@
-"""Demo of the grouping simulation.
-
-In this demo portfolio is split in three groups: US stocks (50% share), international stocks (25%) and bonds (25%).
-Each group consists of several ETFs and their shares are equal weighted inside the group.
+"""Demo of market cap weight portfolio simulation.
 
 The author is Zmicier Gotowka
 
@@ -15,27 +12,23 @@ from backtest.stock import StockData
 from backtest.reporting import Report
 
 from data.fdata import FdataError
-from data.yf import YF
-from data.fvalues import Weighted
+from data.fmp import FmpStock, FmpSubquery
+from data.fvalues import Weighted, sector_titles
+
+import settings
 
 import plotly.graph_objects as go
 import sys
 
-first_date = "2014-08-14"  # The first date to fetch quotes
-last_date = "2024-08-14"  # The last date to fetch quotes
+# Note that you can specify the date up to 30 Jun 2000 even prior to the date of EQL inception.
+first_date = "2011-10-01"  # The first date to fetch quotes
+last_date = "2022-10-01"  # The last date to fetch quotes
 
-etf = 'DIA'  # ETF which follows the index (used for comparison)
+etf = 'SPY'  # ETF which follows the index for comparison. Use another one if comparing performance before 2009-07-10
 
-weighted = Weighted.Equal
+weighted = Weighted.Cap
 mult_buy = 1.1  # Opening a position deviation multiplier. 2 means that the weight of a new position may be x2 than average
 mult_sell = 1.2  # Closing position multiplier. Opened position may exceed the mean weight up to this value
-
-symbols = {'SPY': 'US',
-           'VTV': 'US',
-           'VXUS': 'International',
-           'VWO': 'International',
-           'AGG': 'Bond',
-           'HYG': 'Bond'}
 
 deposit = 1000  # Monthly deposit
 
@@ -43,22 +36,26 @@ min_width = 2500  # Minimum width for charting
 height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
+    if settings.FMP.api_key is None:
+        sys.exit("This test requires FMP api key. Get the free key at financialmodelingprep.com and put it in settings.py")
+
     # Array for the fetched data for all symbols
     allrows = []
 
-    warning = "WARNING! Using yfinance data for the demonstration.\n" +\
-              "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
-              "datasource only for demonstation purposes!\n"
-    print(warning)
-
     print("Fetchig the required quotes for testing. Press CTRL-C and restart if it stucks.")
 
-    for symbol_idx, group in symbols.items():
+    for symbol_idx in ['AAPL', 'IBM', 'BRK-B', 'JPM']:
         try:
             print(f"Checking if quotes for {symbol_idx} is already fetched...")
 
-            yfi = YF(symbol=symbol_idx, first_date=first_date, last_date=last_date)
-            rows = yfi.get()
+            fmpi = FmpStock(symbol=symbol_idx, first_date=first_date, last_date=last_date)
+            fmpi.get()
+            info = fmpi.get_info()
+            fmpi.get_cap()
+
+            fmpi.db_connect()
+            rows = fmpi.get_quotes(queries=[FmpSubquery('fmp_capitalization', 'cap')])
+            fmpi.db_close()
         except FdataError as e:
             sys.exit(e)
 
@@ -66,14 +63,13 @@ if __name__ == "__main__":
 
         data = StockData(rows=rows,
                          title=symbol_idx,
-                         spread=0.1)
-
-        data.fund_group = group
+                         spread=0.1,
+                         info=info)
 
         allrows.append(data)
 
     try:
-        rows_etf = YF(symbol=etf, first_date=first_date, last_date=last_date).get()
+        rows_etf = FmpStock(symbol=etf, first_date=first_date, last_date=last_date).get()
     except FdataError as e:
         sys.exit(e)
 
@@ -83,26 +79,19 @@ if __name__ == "__main__":
                          title=etf,
                          spread=0.1)
 
-    # Create a dictionary with group weights
-    group_weights = {'US': 0.5,
-                     'International': 0.25,
-                     'Bond': 0.25}
-
     # Test the index assembling
     idx_sim = IndexSim(data=allrows,
                        commission=2.5,
                        periodic_deposit=deposit,
                        deposit_interval=30,
-                       inflation=2.5,  # Periodic deposit is adjusted by the inflation
+                       inflation=2.5,  # Periodic deposit is adjusted to the inflation
                        initial_deposit=deposit,
                        weighted=weighted,
                        open_deviation=mult_buy,
                        close_deviation=mult_sell,
-                       grouping_attr='fund_group',
-                       grouping_shares=group_weights,
                        timeout=2000,
                        verbosity=True
-                    )
+                      )
 
     # Buy and hold strategy test of the ETF (for comparison)
     bh = BuyAndHold(data=[etf_data],
@@ -141,10 +130,11 @@ if __name__ == "__main__":
         total_profit += ex.get_total_profit()
 
     zero_positions = 0
+    not_in_composition = []
 
     # Display information
-    print("Symbol   Shares Num   Value         Share of Portfilio   Profit $   Group")
-    print("------------------------------------------------------------------------------------------")
+    print("Symbol   Shares Num   Value         Share of Portfilio   Market Cap   Profit $   Sector")
+    print("-------------------------------------------------------------------------------------------------------")
     for ex in idx_sim.all_exec():
         shares_num = ex.get_long_positions()
  
@@ -154,32 +144,42 @@ if __name__ == "__main__":
             portfolio_share = round(value / total_value * 100, 2)
         else:
             portfolio_share = 0
-        group = ex.data().fund_group
+        cap = round(ex.data().get_rows()[-1]['cap'] / 1000000000, 2)
+        sector = ex.data().sector
         profit = round(ex.get_total_profit(), 2)
 
-        stat = f"{title:<9}{shares_num:<13}{value:<14}{portfolio_share:<21}{profit:<11}{group}"
-        print(stat)
+        stat = f"{title:<9}{shares_num:<13}{value:<14}{portfolio_share:<21}{cap:<13}{profit:<11}{sector}"
 
-        if shares_num == 0:
-            zero_positions += 1
+        if ex.title in idx_sim.composition:
+            print(stat)
+
+            if shares_num == 0:
+                zero_positions += 1
+        else:
+            not_in_composition.append(stat)
+
+    print("\nShares which are not in the current composition:\n")
+
+    for share in not_in_composition:
+        print(share)
 
     print(f"\nTotal stocks in the current composition with 0 positions: {zero_positions}\n")
 
-    # Display information regarding groups (title, value, % of value)
+    # Display information regarding sectors (title, value, % of value)
 
-    groups = {}
+    sectors = {}
 
-    for title in ['US', 'International', 'Bond']:
-        groups[title] = 0
+    for title in sector_titles:
+        sectors[title] = 0
 
     for ex in idx_sim.all_exec():
-        if ex.data().fund_group:
-            groups[ex.data().fund_group] += ex.get_total_value()
+        if ex.data().sector:
+            sectors[ex.data().sector] += ex.get_total_value()
 
-    print("Group                   Value            Share")
+    print("Sector                  Value            Share")
     print("----------------------------------------------")
 
-    for key, value in groups.items():
+    for key, value in sectors.items():
         if value is None:
             continue
 

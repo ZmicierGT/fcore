@@ -34,7 +34,7 @@ height = 250  # Height of each subchart in reporting
 
 if __name__ == "__main__":
     if settings.FMP.api_key is None:
-        sys.exit("This test requires FMP api key. Get the free key at financialmodelingprep.com")
+        sys.exit("This test requires FMP api key. Get the free key at financialmodelingprep.com and put it in settings.py")
 
     # Array for the fetched data for all symbols
     allrows = []

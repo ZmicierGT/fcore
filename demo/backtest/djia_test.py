@@ -213,7 +213,6 @@ if __name__ == "__main__":
     # Create a report
     #################
 
-    # TODO LOW Think of how to get rid of the main chart as it may be useless in multi symbol strategies
     report = Report(data=results_cls, width=max(len(rows), min_width), margin=False)
 
     # Add charts for used symbols

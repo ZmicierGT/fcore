@@ -118,6 +118,19 @@ sector_etfs_vg = ['VGT',  # Technology 30 Jan 2004
                   'VNQ',  # Read Estate 1 Oct 2004
                   'VPU']  # Utilities 30 Jan 2004
 
+# Global sectors ETFs (US traded). The earliest date is 16 May 2008
+sector_etfs_global = ['IXN',  # Technology 5 Apr 2002
+                      'IXG',  # Financial Services 5 Apr 2002
+                      'IXJ',  # Health Care 5 Apr 2002
+                      'RXI',  # Consumer Discretionary 22 Sep 2006
+                      'EXI',  # Industrials 21 Sep 2006
+                      'IXP',  # Communication Services 1 Dec 2001
+                      'KXI',  # Consumer Staples 22 Sep 2006
+                      'IXC',  # Energy 5 Apr 2002
+                      'MXI',  # Materials 22 Sep 2006
+                      'RWO',  # Read Estate 16 May 2008
+                      'JXI']  # Utilities 22 Sep 2006
+
 sectors_1_oct_2004 = ['XLK', 'XLF', 'XLV', 'XLY', 'XLI', 'VOX', 'XLP', 'XLE', 'XLB', 'VNQ', 'XLU']
 
 # Sectors compositions for long-term backtests

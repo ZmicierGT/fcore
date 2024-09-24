@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import stock
-from data.fvalues import SecType, Timespans, Exchanges
+from data.fvalues import SecType, Timespans, Exchanges, def_first_date
 from data.fdata import FdataError
 
 from data.futils import get_dt, get_labelled_ndarray
@@ -20,6 +20,8 @@ from dateutil import tz
 import calendar
 
 import json
+
+import pandas as pd
 
 # TODO HIGH If any fetching was interrupted (like due to API key limit) the exception (not warning) should be triggered
 # as it may lead to incomplete data which won't be re-fetched (as intervals are set already).
@@ -520,7 +522,7 @@ class FmpStock(stock.StockFetcher):
                 Parsed data.
         """
         # Get the data
-        response = self.query_api(url)
+        response = self.query_api(url, timeout=timeout)
 
         # Get json
         try:
@@ -592,12 +594,14 @@ class FmpStock(stock.StockFetcher):
         self.get_splits()  # Split data is necessary for reverse-adjustment. Can't proceed without split data (it any).
         splits = self.get_db_splits()
 
-        while True:
-            first_date = first_datetime.date()
-            last_date = last_datetime.date()
+        first_date = first_datetime.date()
+        last_date = last_datetime.date()
+        earliest_date = None  # The earliest date in the obtained data
 
+        while True:
             if self.is_intraday():
-                url = f"https://financialmodelingprep.com/api/v3/historical-chart/{self.get_timespan_str()}/{self.symbol}?from={first_date}&to={last_date}&apikey={self.api_key}"
+                request_first_date = get_dt(def_first_date).date()  # Use the earliest possible date in intraday request
+                url = f"https://financialmodelingprep.com/api/v3/historical-chart/{self.get_timespan_str()}/{self.symbol}?from={request_first_date}&to={last_date}&apikey={self.api_key}"
             else:
                 url = f"https://financialmodelingprep.com/api/v3/historical-price-full/{self.symbol}?from={first_date}&to={last_date}&apikey={self.api_key}"
 
@@ -609,20 +613,30 @@ class FmpStock(stock.StockFetcher):
 
             quotes_data += json_results
 
-            # If we are still getting data, need to check the earliest date to distinguish if we have to
-            # continue fetching.
-            try:
-                first_element = json_results[-1]
-            except KeyError as e:
-                raise FdataError(f"Incorrect data obtained using URL {url} (is API key limit reached)?\n{e}")
-
-            earliest_datetime = get_dt(first_element['date'])
-
-            if earliest_datetime <= first_datetime or earliest_datetime == last_datetime:
+            # Currently all EOD results are obtained in one API request but intraday results may be split
+            if self.is_intraday() is False:
                 break
+            else:
+                # TODO LOW Rewrite it to get dates from EOD quotes (must be fetched previously) or other more rational way
 
-            # Need to continue fetching
-            last_datetime = earliest_datetime
+                # If we are still getting data, need to check the earliest date to distinguish if we have to
+                # continue fetching.
+                try:
+                    new_earliest_date = get_dt(json_results[-1]['date']).date()
+                except KeyError as e:
+                    raise FdataError(f"Incorrect data obtained using URL {url} (is API key limit reached)?\n{e}")
+
+                if earliest_date is not None and new_earliest_date == earliest_date:
+                    raise FdataError(f"Earliest date did not update in the obtained data. The date is {earliest_date}")
+
+                earliest_date = new_earliest_date
+
+                # No need to fetch intraday quotes any more
+                if earliest_date <= first_date:
+                    break
+
+                # Need to substract one day from the last date
+                last_date = earliest_date - timedelta(days=1)
 
         # Process the fetched data
 
@@ -630,6 +644,10 @@ class FmpStock(stock.StockFetcher):
 
         for quote in quotes_data:
             dt = get_dt(quote['date'], self.get_timezone())
+
+            # No need to add quotes to DB which are outside of the requested interval
+            if dt.date() < first_date:
+                break
 
             if self.is_intraday():
                 volume = quote['volume']

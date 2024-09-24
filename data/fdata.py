@@ -1737,7 +1737,12 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         # Perform the query
         try:
-            response = requests.get(url, timeout=timeout)
+            self.log(f"Fetching URL: {url}")
+
+            session = requests.Session()
+            headers = {'Cache-Control': 'no-cache'}  # Disable cache for the request
+            response = session.get(url, headers=headers, timeout=timeout)
+            session.close()
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
             raise FdataError(f"Can't fetch quotes: {e}") from e
         finally:

@@ -94,7 +94,8 @@ class YF(stock.StockFetcher):
         data = yfin.download(self.symbol,
                              interval=self.get_timespan_str(),
                              start=first_date,
-                             end=last_date)
+                             end=last_date,
+                             auto_adjust=False)
 
         length = len(data)
 
@@ -116,13 +117,14 @@ class YF(stock.StockFetcher):
             splits = self.__fetch_splits()
 
             for i in range(len(splits)):
-                ind = np.searchsorted(data['ts'], [splits['ts'][i] ,], side='right')[0]
+                ind = np.searchsorted(data['ts'], [splits['ts'][i] ,], side='right')[0] - 1
+                split_ratio = splits['split_ratio'][i]
 
-                data.loc[data.index < ind, 'Open'] = data.loc[data.index < ind, 'Open'] * splits['split_ratio'][i]
-                data.loc[data.index < ind, 'High'] = data.loc[data.index < ind, 'High'] * splits['split_ratio'][i]
-                data.loc[data.index < ind, 'Low'] = data.loc[data.index < ind, 'Low'] * splits['split_ratio'][i]
-                data.loc[data.index < ind, 'Close'] = data.loc[data.index < ind, 'Close'] * splits['split_ratio'][i]
-                data.loc[data.index < ind, 'Volume'] = round(data.loc[data.index < ind, 'Volume'] / splits['split_ratio'][i])
+                data.loc[: ind, 'Open'] = data.loc[:ind, 'Open'][self.symbol] * split_ratio
+                data.loc[: ind, 'High'] = data.loc[:ind, 'High'][self.symbol] * split_ratio
+                data.loc[: ind, 'Low'] = data.loc[:ind, 'Low'][self.symbol] * split_ratio
+                data.loc[: ind, 'Close'] = data.loc[:ind, 'Close'][self.symbol] * split_ratio
+                data.loc[: ind, 'Volume'] = round(data.loc[:ind, 'Volume'][self.symbol] / split_ratio)
         else:
             data['ts'] = pick_ts(data['Datetime'])
 
@@ -131,13 +133,13 @@ class YF(stock.StockFetcher):
 
         for ind in range(length):
             quote_dict = {
-                'volume': data['Volume'][ind],
-                'open': data['Open'][ind],
-                'close': data['Close'][ind],
-                'high': data['High'][ind],
-                'low': data['Low'][ind],
+                'volume': data.iloc[[ind]]['Volume'].values[0][0],
+                'open': data.iloc[[ind]]['Open'].values[0][0],
+                'close': data.iloc[[ind]]['Close'].values[0][0],
+                'high': data.iloc[[ind]]['High'].values[0][0],
+                'low': data.iloc[[ind]]['Low'].values[0][0],
                 'transactions': 'NULL',
-                'ts': data['ts'][ind]
+                'ts': data.iloc[[ind]]['ts'].values[0]
             }
 
             quotes_data.append(quote_dict)
@@ -158,7 +160,7 @@ class YF(stock.StockFetcher):
             Returns:
                 list: real time data.
         """
-        data = yfin.download(tickers=self.symbol, period='1d', interval='1m')
+        data = yfin.download(tickers=self.symbol, period='1d', interval='1m', auto_adjust=False)
         row = data.iloc[-1]
 
         dt = data.index[-1].to_pydatetime().replace(tzinfo=None)
@@ -284,7 +286,7 @@ class YF(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
 
-        info['fc_time_zone'] = info['timeZoneFullName']
+        info['fc_time_zone'] = info['exchangeTimezoneName']
         info['fc_sec_type'] = SecType.Unknown
 
         sec_type = info['quoteType']

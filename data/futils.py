@@ -210,8 +210,10 @@ def get_labelled_ndarray(rows):
 
     for key, value in dict(rows[0]).items():
         # Set Transactions dtype to object as not every data source have it.
-        if isinstance(value, str) or key == 'transactions':  # TODO MID Maybe float for transactions?
+        if isinstance(value, str) or key == 'transactions':
             key_type = 'object'
+        elif key == 'declaration_date' or key == 'record_date' or key == 'payment_date':
+            key_type = 'object'  # These keys may be None
         else:
             key_type = np.array([value]).dtype
 

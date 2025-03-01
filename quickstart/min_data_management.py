@@ -9,7 +9,7 @@ print(colored("This demo is outdated and needs to be rewritten.", "red"))
 # Edit settings.py to add your API keys for data sources. Free API keys are sufficient for this example.
 from data import av, fh, yf, polygon  # API wrappers for popular data sources (please note that they are unofficial)
 from data.fvalues import Timespans
-from data.stock import report_year  # Condition to request annual report.
+from data.stock import report_year  # Condition to request annual report
 
 from datetime import datetime, timedelta
 

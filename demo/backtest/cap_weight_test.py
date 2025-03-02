@@ -11,8 +11,8 @@ from backtest.base import BackTestError
 from backtest.stock import StockData
 from backtest.reporting import Report
 
-from data.fdata import FdataError
-from data.fmp import FmpStock, FmpSubquery
+from data.fdata import FdataError, Subquery
+from data.fmp import FmpStock
 from data.fvalues import Weighted, sector_titles
 
 import settings
@@ -54,7 +54,7 @@ if __name__ == "__main__":
             fmpi.get_cap()
 
             fmpi.db_connect()
-            rows = fmpi.get_quotes(queries=[FmpSubquery('fmp_capitalization', 'cap')])
+            rows = fmpi.get_quotes(queries=[Subquery('fmp_capitalization', 'cap')])
             fmpi.db_close()
         except FdataError as e:
             sys.exit(e)

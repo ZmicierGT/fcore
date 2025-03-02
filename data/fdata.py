@@ -25,14 +25,61 @@ from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
 
-# TODO HIGH Re-implement sharing data between various sources
-
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
 DB_VERSION = 22
 
 # TODO LOW Consider checking of sqlite version as well
+
+class Subquery():
+    """
+        Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
+    """
+    def __init__(self, table, column, condition='', title=None, fill=True):
+        """
+            Initializes the instance of Subquery class.
+
+            Args:
+                table(str): table for subquery.
+                column(str): column to obtain.
+                condition(str): additional SQL condition for the subquery.
+                title(str): optional title for the output column (the same as column name by default)
+                fill(bool): Indicates if all rows should have the value. False if only a row with the most
+                            suitable data (according to time stamp) should have it.
+        """
+        self.table = table
+        self.column = column
+        self.condition = condition
+        self.fill = fill
+
+        # Use the default column name as the title if the title is not specified
+        if title is None:
+            self.title = column
+        else:
+            self.title = title
+
+    def generate(self):
+        """
+            Generates the subquery based on the provided data.
+
+            Returns:
+                str: SQL expression for the subquery
+        """
+        ts_query = ''
+
+        if self.fill is False:
+            ts_query = """ AND report_tbl.time_stamp >
+                           (SELECT time_stamp FROM quotes qqq WHERE qqq.quote_id > quotes.quote_id ORDER BY qqq.quote_id ASC LIMIT 1)"""
+
+        subquery = f"""(SELECT {self.column}
+                            FROM {self.table} report_tbl
+                            WHERE report_tbl.time_stamp <= quotes.time_stamp{ts_query}
+                            AND symbol_id = quotes.symbol_id
+                            {self.condition}
+                            ORDER BY report_tbl.time_stamp DESC LIMIT 1) AS {self.title}\n"""
+
+        return subquery
 
 class FdataError(Exception):
     """

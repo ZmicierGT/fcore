@@ -25,6 +25,8 @@ from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
 
+# TODO HIGH Re-implement sharing data between various sources
+
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
@@ -956,7 +958,10 @@ class ReadOnlyData():
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
 
         quotes_num = "SELECT COUNT(*) FROM quotes;"
 
@@ -969,6 +974,9 @@ class ReadOnlyData():
 
         if result is None:
             result = 0
+
+        if initially_connected is False:
+            self.db_close()
 
         return result
 

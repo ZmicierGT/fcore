@@ -162,9 +162,12 @@ class YF(stock.StockFetcher):
         """
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m', auto_adjust=False)
         row = data.iloc[-1]
+        row = row.droplevel(1)
 
         dt = data.index[-1].to_pydatetime().replace(tzinfo=None)
         ts = int(datetime.timestamp(dt))
+
+        volume = row['Volume'].astype(int)
 
         result = {'time_stamp': ts,
                   'date_time': dt.replace(microsecond=0).isoformat(' '),
@@ -172,13 +175,13 @@ class YF(stock.StockFetcher):
                   'high': row['High'],
                   'low': row['Low'],
                   'closed': row['Close'],
-                  'volume': int(row['Volume']),
+                  'volume': volume,
                   'transactions': None,
                   'adj_open': row['Open'],
                   'adj_high': row['High'],
                   'adj_low': row['Low'],
                   'adj_close': row['Close'],
-                  'adj_volume': int(row['Volume']),
+                  'adj_volume': volume,
                   'divs_ex': 0.0,
                   'divs_pay': 0.0,
                   'splits': 1.0

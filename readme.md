@@ -29,11 +29,11 @@ Fcore supports simultaneous usage of varios data sources. For example, you may o
 # Fetch quotes if needed. Otherwise just take them from a database.
 yf.YF(symbol='IBM', first_date="2017-1-1", last_date="2018-1-1").get()  # Use one source for quotes
 
-avi = av.AVStock(symbol='IBM')  # Use another source for fundamentals
-avi.get_cash_flow()
+fmpi = fmpi.FmpStock(symbol='IBM')  # Use another source for fundamentals
+fmpi.get_cash_flow()
 
 # Get combined data (quotes + fundamentals) in one query
-quotes = avi.get_quotes(queries=[av.AvSubquery('av_cash_flow', 'operating_cashflow', condition=report_year, title='annual_cashflow')])
+quotes = fmpi.get_quotes(queries=[fmp.FmpSubquery('fmp_cash_flow', 'netIncome', condition=report_year, title='annual_cashflow')])
 ```
 
 Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']*

@@ -1360,7 +1360,7 @@ class FmpStock(stock.StockFetcher):
                                     totalLiabilitiesAndTotalEquity,
                                     totalInvestments,
                                     totalDebt,
-                                    netDeb)
+                                    netDebt)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
@@ -1410,7 +1410,7 @@ class FmpStock(stock.StockFetcher):
                                             {report['totalLiabilitiesAndTotalEquity']},
                                             {report['totalInvestments']},
                                             {report['totalDebt']},
-                                            {report['netDeb']});"""
+                                            {report['netDebt']});"""
 
             try:
                 self.cur.execute(insert_report)

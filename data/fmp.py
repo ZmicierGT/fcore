@@ -16,15 +16,13 @@ import numpy as np
 import pandas as pd
 import math
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil import tz
 import calendar
 
 import json
 
 import pandas as pd
-
-# TODO HIGH Check why cap and surprises is fetched each time
 
 # TODO HIGH If any fetching was interrupted (like due to API key limit) the exception (not warning) should be triggered
 # as it may lead to incomplete data which won't be re-fetched (as intervals are set already).
@@ -628,7 +626,7 @@ class FmpStock(stock.StockFetcher):
 
         mod_ts = self.get_last_modified('fmp_capitalization')
 
-        current = min(datetime.now(self.get_timezone()).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+        current = min(datetime.now().replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
         # Fetch data if no data present or day difference between current/requested data more than 1 day
         if mod_ts is None:
@@ -757,7 +755,7 @@ class FmpStock(stock.StockFetcher):
 
         mod_ts = self.get_last_modified('fmp_surprises')
 
-        current = min(datetime.now(self.get_timezone()).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+        current = min(datetime.now(timezone.utc).replace(tzinfo=None), self.last_date.replace(tzinfo=None))
 
         # TODO LOW Ideally here implementation based on earnings calendar is needed
         # Fetch data if no data present or day difference between current/requested data more than 90 days
@@ -884,7 +882,9 @@ class FmpStock(stock.StockFetcher):
             historical = not self.is_intraday()
             json_results = self.query_and_parse(url, historical=historical)
 
-            if json_results is not None and (len(json_results) == 0 or json_results == ['Error Message']):
+            if json_results is not None and (len(json_results) == 0 or json_results == ['Error Message'] or 'Error Message' in json_results):
+                self.log(f"Unexpected data obtained. May be due the lack of API key or API key limit: {json_results}")
+
                 break
 
             quotes_data += json_results

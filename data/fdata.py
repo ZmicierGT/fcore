@@ -672,7 +672,7 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't create indexes for quote_intervals table: {e}") from e
 
-        # TODO High need to think of a better way how to combine data from various sources
+        # TODO Mid need to think of a better way how to combine data from various sources
         # Check if we need to create table 'quotes'
         try:
             check_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"

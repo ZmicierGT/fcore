@@ -98,11 +98,11 @@ if __name__ == "__main__":
         prob.set_data_to_learn(batch2)
         prob.learn()
 
-        print(f"Total time for learning: {(perf_counter() - before) * 1000}ms")
+        print(f"Total time for learning: {round((perf_counter() - before) * 1000, 2)}ms")
 
         before = perf_counter()
         prob.calculate()
-        print(f"Total time for estimaiton: {(perf_counter() - before) * 1000}ms")
+        print(f"Total time for estimaiton: {round((perf_counter() - before) * 1000, 2)}ms")
 
         accuracy_buy_learn, _, _ = prob.get_learn_accuracy()
         f1_buy_learn, _, _ = prob.get_learn_f1()

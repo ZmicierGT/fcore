@@ -4,7 +4,7 @@
 
 ### With the help of it, you can easily perform the following actions:
 
-- Obtain data from various sources (AlphaVantage, Polygon, Yahoo Finance, Finnhub) and store it in an unified way.
+- Obtain data from various sources (Yahoo Finance, FMP, Polygon) and store it in an unified way.
 - Use an API to ease the development of AI-strategies for financial markets analysis.
 - Utilize the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach.
 - Use the own backtesting engine which takes into account a lot of issues related to an actual trade/investment and supports strategies involving multiple securities.
@@ -164,8 +164,6 @@ Use the following tools to manage quotes and obtain data.
 
 - *Yahoo Finance* wrapper - [data/yf.py](data/yf.py))
 - *Polygon.IO* API wrapper - [data/polygon.py](data/polygon.py))
-- API wrapper for *Alpha Vantage* stock data - [data/av.py](data/av.py)
-- API wrapper for *Finnhub* real time data - [data/fh.py](data/fh.py)
 - API wrapper for *Financial Modeling Prep* data - [data/fmp.py](data/fmp.py)
 
 ### Examples of custom data processing tools which are relied on AI
@@ -196,7 +194,7 @@ Note that the tools and backtesting demos create an image with the result of a c
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).
 
-Despite beging feature complete, currently Fcore is still in the active development stage as there is still work on low priority issues and performance improvement.
+Despite beging feature complete, currently Fcore is still in the development stage as there is still work on lower priority issues and performance improvement.
 
 The project is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The 'general idea' of Fcore will remain the same but APIs still may change.
 
@@ -208,4 +206,4 @@ Fcore is distributes on an 'AS IS' basis using a custom source available [Licens
 
 Please note that Fcore is a tool which helps you to easily implement and test your own financial strategies but it does not provide any 'out of the box' solutions. Consider all the provided demos as programming examples which help you to implement your own strategies.
 
-In case of any questions, please feel free to contact me by email - zmiciergt at icloud dot com
+In case of any questions, please feel free to contact me by email - tutor-radar.9o@icloud.com

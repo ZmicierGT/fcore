@@ -7,7 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from screener.classification_scr import ClsScr
 from screener.base import ScrResult
 
-from data.fvalues import Timespans, djia
+from data.fvalues import Timespans
 
 from data.yf import YF
 
@@ -30,7 +30,6 @@ cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_rati
 algorithm = Algorithm.KNC  # The default algorithm to use
 period_long = 50  # Long period for MA calculation
 period_short = 25  # Short period for MA calculation
-symbol = 'SPY'  # Symbol to make estimations
 
 first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
 last_date = "2022-11-1"  # The last date to fetch quotes
@@ -46,7 +45,7 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn in djia:
+    for symbol_learn in ['BTC-USD', 'LTC-USD']:
         try:
             rows = YF(symbol=symbol_learn, last_date=last_date).get()
         except FdataError as e:
@@ -123,7 +122,7 @@ if __name__ == "__main__":
         print("--------------------------------------------------------------")
 
         for i in range(2):
-            print(f"Symbol: {results[i][ScrResult.Title]}")
+            print(f"Symbol:           {results[i][ScrResult.Title]}")
             print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
             print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
             print(f"Buy weight:       {results[i][ScrResult.Values][0]}")

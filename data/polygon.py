@@ -11,6 +11,8 @@ from dateutil.relativedelta import relativedelta
 
 import json
 
+from termcolor import colored
+
 from data import stock
 from data.fdata import FdataError
 
@@ -20,6 +22,8 @@ from data.futils import get_dt
 
 import settings
 
+# TODO High Check if this data source works correctly, then add data handling test for it and fundamental data support.
+
 class Polygon(stock.StockFetcher):
     """
         Polygon.IO wrapper class.
@@ -28,6 +32,7 @@ class Polygon(stock.StockFetcher):
         """
             Initialize Polygon.IO wrapper class.
         """
+        print(colored("Warning! This data source needs to be maintained!", "yellow"))
         super().__init__(**kwargs)
 
         # Default values

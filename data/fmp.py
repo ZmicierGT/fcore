@@ -24,9 +24,6 @@ import json
 
 import pandas as pd
 
-# TODO HIGH If any fetching was interrupted (like due to API key limit) the exception (not warning) should be triggered
-# as it may lead to incomplete data which won't be re-fetched (as intervals are set already).
-
 class FmpStock(stock.StockFetcher):
     """
         FMP API wrapper class.

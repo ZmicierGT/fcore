@@ -46,6 +46,8 @@ class FMP():
         Starter = 1
         Premium = 2
         Ultimate = 3
+        Build = 4
+        Enterprise = 5
 
     plan = Plan.Basic
     api_key = None

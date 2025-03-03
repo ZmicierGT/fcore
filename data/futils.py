@@ -4,8 +4,6 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fvalues import Quotes
-
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from dateutil import tz
@@ -213,6 +211,7 @@ def get_labelled_ndarray(rows):
         if isinstance(value, str) or key == 'transactions':
             key_type = 'object'
         elif key == 'declaration_date' or key == 'record_date' or key == 'payment_date':
+            # TODO MID It is better if it is handled on the caller's side (not here)
             key_type = 'object'  # These keys may be None
         else:
             key_type = np.array([value]).dtype

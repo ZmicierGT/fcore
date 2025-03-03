@@ -15,6 +15,8 @@ from termcolor import colored
 
 import sys
 
+# TODO High This test should be able to use custom intervals for testing. Currently it is pre-defined.
+
 def failure(text, source):
     """
         Print error message, disconnect db and exit.

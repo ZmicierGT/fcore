@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import stock
-from data.fvalues import SecType, Timespans, Exchanges, def_first_date
+from data.fvalues import SecType, Timespans, def_first_date
 from data.fdata import FdataError
 
 from data.futils import get_dt, get_labelled_ndarray
@@ -24,6 +24,28 @@ import json
 
 import pandas as pd
 
+# Time zones of some popular exchanges for FMP data source
+Exchanges = {
+    'AMEX':     'America/New_York',
+    'ETF':      'America/New_York',  # TODO MID It may be a problem with other regions
+    'ASX':      'Australia/Sydney',
+    'BSE':      'Asia/Kolkata',
+    'EURONEXT': 'Europe/Paris',
+    'HKSE':     'Asia/Hong_Kong',
+    'JPX':      'Asia/Tokyo',
+    'LSE':      'Europe/London',
+    'NASDAQ':   'America/New_York',
+    'NSE':      'Asia/Kolkata',
+    'NYSE':     'America/New_York',
+    'OTC':      'America/New_York',
+    'PNK':      'America/New_York',
+    'SSE':      'Asia/Shanghai',
+    'SHH':      'Asia/Shanghai',
+    'SHZ':      'Asia/Shanghai',
+    'TSX':      'America/Toronto',
+    'XETRA':    'Europe/Frankfurt'
+}
+
 class FmpStock(stock.StockFetcher):
     """
         FMP API wrapper class.
@@ -38,12 +60,17 @@ class FmpStock(stock.StockFetcher):
 
         if settings.FMP.plan == settings.FMP.Plan.Basic:
             self.max_queries = 250
-        if settings.AV.plan == settings.FMP.Plan.Starter:
+        if settings.FMP.plan == settings.FMP.Plan.Starter:
             self.max_queries = 300
-        if settings.AV.plan == settings.FMP.Plan.Premium:
+        if settings.FMP.plan == settings.FMP.Plan.Premium:
             self.max_queries = 750
-        if settings.AV.plan == settings.FMP.Plan.Ultimate:
+        if settings.FMP.plan == settings.FMP.Plan.Ultimate:
             self.max_queries = 3000
+        if settings.FMP.plan == settings.FMP.Plan.Build:
+            self.max_queries = 300
+        if settings.FMP.plan == settings.FMP.Plan.Enterprise:
+            # No limits yet or they may be individual
+            pass
 
         self._sec_info_supported = True
         self._stock_info_supported = True

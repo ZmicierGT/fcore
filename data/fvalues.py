@@ -76,8 +76,34 @@ djia_dict = {'2009-06-08': djia_jun_08_2009,
 # The current DJIA composition (EDOW for equal weighted ETF for comparison, DIA for Price weighted)
 djia = djia_nov_08_2024
 
-sector_titles = ['Technology', 'Financial Services', 'Healthcare', 'Consumer Cyclical', 'Industrials', \
-                 'Communication Services', 'Consumer Defensive', 'Energy', 'Basic Materials', 'Real Estate', 'Utilities']
+class Sector(StrEnum):
+    """
+        Enum class for the database query result.
+    """
+    Unknown = 'Unknown'
+    Technology = 'Technology'
+    FinancialServices = 'Financial Services'
+    Healthcare = 'Healthcare'
+    ConsumerCyclical = 'Consumer Cyclical'
+    Industrials = 'Industrials'
+    CommunicationServices = 'Communication Services'
+    ConsumerDefensive = 'Consumer Defensive'
+    Energy = 'Energy'
+    BasicMaterials = 'Basic Materials'
+    RealEstate = 'Real Estate'
+    Utilities = 'Utilities'
+
+sector_titles = [Sector.Technology.value,
+                 Sector.FinancialServices.value,
+                 Sector.Healthcare.value,
+                 Sector.ConsumerCyclical.value,
+                 Sector.Industrials.value,
+                 Sector.CommunicationServices.value,
+                 Sector.ConsumerDefensive.value,
+                 Sector.Energy.value,
+                 Sector.BasicMaterials.value,
+                 Sector.RealEstate.value,
+                 Sector.Utilities.value]
 
 ########################################
 # SW20 (Swiss Market Index) related data
@@ -440,28 +466,6 @@ Timezones = {
     'WIB':  'Asia/Jakarta',
     'WIT':  'Asia/Jayapura',
     'WITA': 'Asia/Makassar'
-}
-
-# Time zones of some popular exchanges
-Exchanges = {
-    'AMEX':     'America/New_York',
-    'ETF':      'America/New_York',  # TODO MID It may be a problem with other regions or other data sources than FMP
-    'ASX':      'Australia/Sydney',
-    'BSE':      'Asia/Kolkata',
-    'EURONEXT': 'Europe/Paris',
-    'HKSE':     'Asia/Hong_Kong',
-    'JPX':      'Asia/Tokyo',
-    'LSE':      'Europe/London',
-    'NASDAQ':   'America/New_York',
-    'NSE':      'Asia/Kolkata',
-    'NYSE':     'America/New_York',
-    'OTC':      'America/New_York',
-    'PNK':      'America/New_York',
-    'SSE':      'Asia/Shanghai',
-    'SHH':      'Asia/Shanghai',
-    'SHZ':      'Asia/Shanghai',
-    'TSX':      'America/Toronto',
-    'XETRA':    'Europe/Frankfurt'
 }
 
 # TODO LOW remove plurals here

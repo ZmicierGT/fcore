@@ -91,7 +91,7 @@ class MAClassifier(Classifier):
         # Fill nan values (if any) with mean values
         if df[self._data_to_est].isnull().values.any():
             for key in self._data_to_est:
-                df[key].fillna(value=df[key].mean(), inplace=True)
+                df[key] = df[key].fillna(df[key].mean())
 
         return df
 

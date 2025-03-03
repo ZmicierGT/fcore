@@ -16,13 +16,21 @@ from termcolor import colored
 from data import stock
 from data.fdata import FdataError
 
-from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, Sector
 
 from data.futils import get_dt
 
 import settings
 
 # TODO High Check if this data source works correctly, then add data handling test for it and fundamental data support.
+
+# TODO Mid Check if other exchanges/time zones are used in this data source
+# Time zones of some popular exchanges for FMP data source
+Exchanges = {
+    'XNYS':     'America/New_York',
+    'XNAS':     'America/New_York',
+    'ARCX':     'America/New_York'
+}
 
 class Polygon(stock.StockFetcher):
     """
@@ -72,7 +80,8 @@ class Polygon(stock.StockFetcher):
             new_last_date = new_last_date.replace(hour=23, minute=59, second=59)
             self.last_date = new_last_date
 
-        print(f"Warning! The datasource {type(self).__name__} is not maintained any more. Consider using YF or FMP datasources.")
+        self._sec_info_supported = True
+        self._stock_info_supported = True
 
     def get_timespan_str(self):
         """
@@ -240,15 +249,27 @@ class Polygon(stock.StockFetcher):
         divs_data = []
 
         for div in json_results:
-            decl_date = get_dt(div['declaration_date'], pytz.UTC)
-            ex_date = get_dt(div['ex_dividend_date'], pytz.UTC)
-            record_date = get_dt(div['record_date'], pytz.UTC)
-            pay_date = get_dt(div['pay_date'], pytz.UTC)
+            # Note that for some stocks (like DE) some data entries may be missed. Not just having no data but
+            # completely missing in json.
 
-            decl_ts = int(datetime.timestamp(decl_date))
+            decl_ts = 'NULL'
+            record_ts = 'NULL'
+            pay_ts = 'NULL'
+
+            if 'declaration_date' in div:
+                decl_date = get_dt(div['declaration_date'], pytz.UTC)
+                decl_ts = int(datetime.timestamp(decl_date))
+
+            ex_date = get_dt(div['ex_dividend_date'], pytz.UTC)
             ex_ts = int(datetime.timestamp(ex_date))
-            record_ts = int(datetime.timestamp(record_date))
-            pay_ts = int(datetime.timestamp(pay_date))
+
+            if 'record_date' in div:
+                record_date = get_dt(div['record_date'], pytz.UTC)
+                record_ts = int(datetime.timestamp(record_date))
+
+            if 'pay_date' in div:
+                pay_date = get_dt(div['pay_date'], pytz.UTC)
+                pay_ts = int(datetime.timestamp(pay_date))
 
             div_dict = {
                 'amount': div['cash_amount'],
@@ -290,6 +311,29 @@ class Polygon(stock.StockFetcher):
 
         return splits_data
 
+    def fetch_info(self):
+        """
+            Fetch stock related info.
+
+            Returns
+                dict: stock info.
+        """
+        profile_url = f"https://api.polygon.io/v3/reference/tickers/{self.symbol}?apiKey={self.api_key}"
+
+        # Get company profile
+        results = self.query_and_parse(profile_url)
+
+        try:
+            tz_str = Exchanges[results['primary_exchange']]
+        except (KeyError, IndexError) as e:
+            raise FdataError(f"Can't fetch info (API key limit is possible): {e}, url is {profile_url}")
+
+        results['fc_time_zone'] = tz_str
+        results['fc_sec_type'] = SecType.Stock.value
+        results['sector'] = Sector.Unknown.value  # TODO MID Convert the provided SIC code to a sector
+
+        return results
+
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")
 
@@ -298,9 +342,6 @@ class Polygon(stock.StockFetcher):
 
     def fetch_cash_flow(self):
         raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
-
-    def fetch_info(self):
-        raise FdataError(f"Stock info data is not supported (yet) for the source {type(self).__name__}")
 
     def get_recent_data(self, to_cache=False):
         raise FdataError(f"Real time data is not supported (yet) for the source {type(self).__name__}")

@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date, Sector
 
 from data.futils import get_labelled_ndarray, get_dt
 
@@ -276,12 +276,15 @@ class ROStockData(ReadOnlyData):
         if sectors_length != 12:
             # Insert data into stock sectors
 
-            # TODO MID Replace if with the values from sectors list
-            insert_sectors = """INSERT INTO stock_sectors ('title') VALUES
-                                    ('Unknown'), ('Technology'), ('Financial Services'),
-                                    ('Healthcare'), ('Consumer Cyclical'), ('Industrials'),
-                                    ('Communication Services'), ('Consumer Defensive'), ('Energy'),
-                                    ('Basic Materials'), ('Real Estate'), ('Utilities');"""
+            # Prepare the query with all supported report periods
+            sectors = ""
+
+            for sector in Sector:
+                sectors += f"('{sector.value}'),"
+
+            sectors = sectors[:len(sectors) - 2]
+
+            insert_sectors = f"INSERT INTO stock_sectors ('title') VALUES {sectors});"
 
             try:
                 self.cur.execute(insert_sectors)

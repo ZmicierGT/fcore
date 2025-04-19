@@ -922,7 +922,8 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 sector = info['sector']
             except KeyError as e:
-                raise FdataError(f"Key is not found. Likely broken data is obtained (due to data source issues): {e}")
+                sector = Sector.Unknown
+                self.log(f"Sector data not found. Likely incomplete data is obtained (due to data source issues): {e}")
 
             insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
                                         source_id,

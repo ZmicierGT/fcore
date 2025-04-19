@@ -393,6 +393,20 @@ sector_etfs_global = ['IXN',  # Technology 5 Apr 2002
                       'RWO',  # Read Estate 16 May 2008
                       'JXI']  # Utilities 22 Sep 2006
 
+# TODO LOW SPDR's funds have bigger ER (.3 vs .25) but slighter better history. May consider additional list for them.
+# Global sectors ETFs (UCITS). The earliest date is 22 Nov 2010
+sector_etfs_ucits = ['XDWT.L',  # Technology 22 Nov 2010
+                     'XDWF.L',  # Financial Services 22 Nov 2010
+                     'XDWF.L',  # Health Care 22 Nov 2010
+                     'XDWC.L',  # Consumer Discretionary 22 Nov 2010
+                     'XDWI.L',  # Industrials 22 Nov 2010
+                     'XWTS.L',  # Communication Services 22 Nov 2010
+                     'XDWS.L',  # Consumer Staples 22 Nov 2010
+                     'WNRG.l',  # Energy 1/2009
+                     'XDWM.L',  # Materials 22 Nov 2010
+                     'IDWP.L',  # Read Estate 1/2008
+                     'XDWU.L']  # Utilities 22 Nov 2010
+
 sectors_1_oct_2004 = ['XLK', 'XLF', 'XLV', 'XLY', 'XLI', 'VOX', 'XLP', 'XLE', 'XLB', 'VNQ', 'XLU']
 
 # Sectors compositions for long-term backtests

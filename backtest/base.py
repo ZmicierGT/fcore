@@ -15,6 +15,7 @@ import time
 import numpy as np
 from threading import Thread, Event
 import copy
+import math
 
 # Enum class for backtesting results data order.
 class BTDataEnum(IntEnum):
@@ -93,7 +94,8 @@ class BackTestData():
                  timespan=None,
                  source=None,
                  weighted=True,
-                 info=None
+                 info=None,
+                 lot=1,
                 ):
         """Initializes BackTestData class.
 
@@ -112,6 +114,7 @@ class BackTestData():
                 source(string): data source.
                 weighed(bool): indicates if the symbol is supposed to be weighted in a portfolio (market cap, equally etc.)
                 info(dict): security profile information.
+                lot(int): minimum lot size for a trade.
 
             Raises:
                 BackTestError: inaproppriate values were provided.                 
@@ -175,6 +178,11 @@ class BackTestData():
 
         self._weighted = weighted
 
+        if lot < 1 or lot % 1 != 0:
+            raise BackTestError(f"Lot can't be less than 1 or a float number: {lot}")
+
+        self._lot = lot
+
     #####################
     # Properties
     #####################
@@ -188,6 +196,16 @@ class BackTestData():
                 int: the column for close value calculations.
         """
         return self._close
+
+    @property
+    def lot(self):
+        """
+            Get the minimum number of shares in a lot.
+
+            Returns:
+                float: the minimum number of shares in a lot.
+        """
+        return self._lot
 
     #####################
     # Thread safe methods
@@ -1642,37 +1660,60 @@ class BackTestOperations():
     # Methods related to opening positions.
     #######################################
 
-    def get_max_trade_size_cash(self):
+    def get_max_trade_size_cash(self, ignore_lot=False):
         """
             Get the maxumum number of securities which we can buy using the cash balance without going negative.
+
+            Args:
+                ignore_lot(bool): indicates if lot size should be ignored if more than 1.
 
             Return:
                 int: the maximum of positions to open using cash only.
                 float: remaining cash.
         """
-        securities_num_estimate = int((self.get_caller().get_cash() - \
+        lot = self.data().lot
+
+        # Note that it will be needed only when fractional shares are implemented
+        if ignore_lot and lot >= 1:
+            lot = 1
+
+        securities_num_estimate = self.get_caller().get_cash() - \
                                        self.get_total_fee() - \
-                                       self.get_caller().get_total_used_margin()) / \
-                                       self.get_buy_price())
+                                       self.get_caller().get_total_used_margin() / \
+                                       (self.get_buy_price())
+
+        securities_num_estimate *= math.floor(securities_num_estimate / lot) * lot
 
         cash_available = self.get_caller().get_cash() - \
                          self.get_caller().get_commission() - \
                          self.get_caller().get_total_used_margin() - \
                          self.get_security_fee() * securities_num_estimate
 
-        securities_num = int((cash_available) / self.get_buy_price())
-        remaining_cash = cash_available / self.get_buy_price()
+        securities_num = cash_available / self.get_buy_price()
+        securities_num = round(math.floor(securities_num / lot) * lot, 6)
+
+        remaining_cash = cash_available - securities_num * self.get_buy_price()
 
         return (securities_num, remaining_cash)
 
-    def get_max_trade_size_margin(self):
+    def get_max_trade_size_margin(self, ignore_lot=False):
         """
             Get number of securities which we can buy using margin.
+
+            Args:
+                ignore_lot(bool): indicates if lot size should be ignored if more than 1.
 
             Returns:
                 int: the maxumum number of securities to buy using margin.
         """
-        return int(self.get_future_margin_buying_power() / self.get_buy_price())
+        lot = self.data().lot
+
+        if ignore_lot and lot >= 1:
+            lot = 1
+
+        securities_num = self.get_future_margin_buying_power() / self.get_buy_price()
+
+        return round(math.floor(securities_num / lot) * lot, 6)
 
     # TODO LOW check if this max() is needed.
     def get_max_trade_size(self):
@@ -1682,7 +1723,9 @@ class BackTestOperations():
             Returns:
                 int: the total number of securities which we can buy using both cash and margin.
         """
-        return max(0, self.get_max_trade_size_cash()[0] + self.get_max_trade_size_margin())
+        max_num = max(0, self.get_max_trade_size_cash(True)[0] + self.get_max_trade_size_margin(True))
+
+        return round(math.floor(max_num // self.data().lot) * self.data().lot, 6)  # round to avoid precision issues in the future (fractional shares)
 
     def open_long(self, num, price=None, exact=False):
         """

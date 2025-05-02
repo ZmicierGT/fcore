@@ -76,12 +76,12 @@ class MA(BackTest):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        df = pd.DataFrame(ex.data().rows)
+        df = pd.DataFrame(ex.data.rows)
 
         if self.__is_simple:
-            ma = ta.sma(df[ex.data().close], length = self._period)
+            ma = ta.sma(df[ex.data.close], length = self._period)
         else:
-            ma = ta.ema(df[ex.data().close], length = self._period)
+            ma = ta.ema(df[ex.data.close], length = self._period)
 
         # Append data to the calculations dataset
         ex.add_col(name='ma', data=ma, dtype=float)

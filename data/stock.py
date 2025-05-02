@@ -38,6 +38,9 @@ class ROStockData(ReadOnlyData):
 
         self._stock_info_supported = False  # Indicates if stock info is supported
 
+        self._annual_report_supported = False
+        self._quarter_report_supported = False
+
     def check_database(self):
         """
             Database create/integrity check method for stock data related tables.
@@ -718,7 +721,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         return result
 
-    def get_fiscal_date_ending(self, table, period):
+    def get_fiscal_date(self, table, period):
         """
             Get fiscal date ending timestamp.
 
@@ -729,7 +732,7 @@ class RWStockData(ROStockData, ReadWriteData):
             Return:
                 int: fiscal date ending timestamp.
         """
-        return self._get_requested_ts(column='fiscal_date_ending', table=table, period=period)
+        return self._get_requested_ts(column='fiscalDate', table=table, period=period)
 
     def need_to_update(self, modified_ts, table=None):
         """
@@ -759,21 +762,25 @@ class RWStockData(ROStockData, ReadWriteData):
         if (current - modified).days < 1:
             return False
 
-        # Check fundamental data if needed
+        # Check fundamental data update if needed
         if table is not None:
-            # Need to check reports if the difference between the current date and the last annual fiscal date ending
-            # is more than a year.
-            if relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Year))).years > 0:
-                return True
+            if self._annual_report_supported:
+                # Need to check reports if the difference between the current date and the last annual fiscal date ending
+                # is more than a year.
+                if relativedelta(current, get_dt(self.get_fiscal_date(table, ReportPeriod.Year))).years > 0:
+                    return True
 
-            # Need to recheck reports if the difference between any report is more than 3 months
-            # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
-            months_delta = relativedelta(current, get_dt(self.get_fiscal_date_ending(table, ReportPeriod.All))).months
+            if self._quarter_report_supported:
+                # Need to recheck reports if the difference between any report is more than 3 months
+                # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
+                months_delta = relativedelta(current, get_dt(self.get_fiscal_date(table, ReportPeriod.All))).months
 
-            if get_dt(self.get_fiscal_date_ending(table, ReportPeriod.Quarter)).month != 9:
-                return months_delta >= 3
-            else:
-                return months_delta >= 6
+                if get_dt(self.get_fiscal_date(table, ReportPeriod.Quarter)).month != 9:
+                    return months_delta >= 3
+                else:
+                    return months_delta >= 6
+
+            return False
 
         # Better to re-fetch the data in unexpected situation
         self.log(f"Warning! Can't determine if data should be updated for {self.symbol}. Updating by default.")

@@ -77,8 +77,8 @@ class RSI(BackTest):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        df = pd.DataFrame(ex.data().rows)
-        rsi = ta.rsi(df[ex.data().close], length=self._period)
+        df = pd.DataFrame(ex.data.rows)
+        rsi = ta.rsi(df[ex.data.close], length=self._period)
 
         # Append data to the calculations dataset
         ex.add_col(name='rsi', data=rsi, dtype=float)

@@ -137,18 +137,18 @@ if __name__ == "__main__":
     for ex in idx_sim.all_exec():
         shares_num = ex.get_long_positions()
  
-        title = ex.title
+        title = ex.data.title
         value = round(ex.get_total_value(), 2)
         if total_value:
             portfolio_share = round(value / total_value * 100, 2)
         else:
             portfolio_share = 0
-        sector = ex.data().sector
+        sector = ex.data.sector
         profit = round(ex.get_total_profit(), 2)
 
         stat = f"{title:<9}{shares_num:<13}{value:<14}{portfolio_share:<21}{profit:<11}{sector}"
 
-        if ex.title in idx_sim.composition:
+        if ex.data.title in idx_sim.composition:
             print(stat)
 
             if shares_num == 0:
@@ -171,8 +171,8 @@ if __name__ == "__main__":
         sectors[title] = 0
 
     for ex in idx_sim.all_exec():
-        if ex.data().sector:
-            sectors[ex.data().sector] += ex.get_total_value()
+        if ex.data.sector:
+            sectors[ex.data.sector] += ex.get_total_value()
 
     print("Sector                  Value            Share")
     print("----------------------------------------------")

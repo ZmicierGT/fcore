@@ -98,7 +98,7 @@ class StockOperations(BackTestOperations):
             Returns:
                 float: the dividend tax
         """
-        return self.data().div_tax
+        return self.data.div_tax
 
     #############################################################
     # General methods with calculations for a particular symbol
@@ -119,20 +119,20 @@ class StockOperations(BackTestOperations):
         current_yield = 0
 
         # Check if we have opened long positions at ex_date
-        if self.data().rows[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
-            self._future_yield = self._long_positions * self.data().rows[idx][StockQuotes.ExDividends]
+        if self.data.rows[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
+            self._future_yield = self._long_positions * self.data.rows[idx][StockQuotes.ExDividends]
 
         # Calculate dividends to pay for long positions which were opened at ex_date
-        if self.data().rows[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
+        if self.data.rows[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
             current_yield = self._future_yield
             self._future_yield = 0
 
         # Calculate dividends for short positions to get payed to a borrower
-        if self.data().rows[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
-            current_yield = -abs(self.data().rows[idx][StockQuotes.ExDividends] * self._short_positions)
+        if self.data.rows[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
+            current_yield = -abs(self.data.rows[idx][StockQuotes.ExDividends] * self._short_positions)
 
         if current_yield:
-            self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.title} is {current_yield}")
+            self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {current_yield}")
 
         return current_yield
 
@@ -148,8 +148,8 @@ class StockOperations(BackTestOperations):
         if self.get_long_positions() == 0 and self._short_positions == 0:
             return
 
-        ratio = self.data().rows[idx][StockQuotes.Splits]
-        old_close = self.data().rows[idx - 1][StockQuotes.Close]
+        ratio = self.data.rows[idx][StockQuotes.Splits]
+        old_close = self.data.rows[idx - 1][StockQuotes.Close]
 
         if ratio != 1 and idx != 0:
             long_before = self.get_long_positions()
@@ -181,7 +181,7 @@ class StockOperations(BackTestOperations):
 
                     # Close all the margin positions (commission and spread free)
                     for _ in range(margin_positions):
-                        delta += old_close - self._portfolio.pop()
+                        delta += old_close - self._portfolio_margin.pop()
 
                     self.get_caller().add_cash(delta)
 
@@ -189,8 +189,8 @@ class StockOperations(BackTestOperations):
                     # the previous margin buying power limit
                     new_margin_positions = round(buying_power / self.get_buy_price())
 
-                    self._portfolio = []
-                    self._portfolio.extend(repeat(self.get_buy_price(), new_margin_positions))
+                    self._portfolio_margin = []
+                    self._portfolio_margin.extend(repeat(self.get_buy_price(), new_margin_positions))
 
                     self._long_positions = self._long_positions_cash + new_margin_positions
                 else:
@@ -204,20 +204,20 @@ class StockOperations(BackTestOperations):
 
                     # Close (commission and spread fee) all short positions
                     for _ in range(self._short_positions):
-                        delta += self._portfolio.pop() - old_close
+                        delta += self._portfolio_margin.pop() - old_close
 
                     self.get_caller().add_cash(delta)
 
                     # Open (spread and commission free) new short positions withing the previously available margin
                     new_short_positions = round(buying_power / self.get_buy_price())
 
-                    self._portfolio = []
-                    self._portfolio.extend(repeat(self.get_sell_price(), new_short_positions))
+                    self._portfolio_margin = []
+                    self._portfolio_margin.extend(repeat(self.get_sell_price(), new_short_positions))
 
                     self._short_positions = new_short_positions
 
-            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.title} "
-                                  f"(total long / cash long / short) for {self.title}: "
+            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
+                                  f"(total long / cash long / short) for {self.data.title}: "
                                   f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions} "
                                   f"Positions before split: {long_before} {long_cash_before} {short_before}")
 
@@ -246,7 +246,7 @@ class StockOperations(BackTestOperations):
 
                 self.get_caller().add_other_expense(current_yield)
 
-            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
+            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
             self.get_caller().log(log)
 
     def get_total_value(self):

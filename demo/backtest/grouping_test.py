@@ -148,13 +148,13 @@ if __name__ == "__main__":
     for ex in idx_sim.all_exec():
         shares_num = ex.get_long_positions()
  
-        title = ex.title
+        title = ex.data.title
         value = round(ex.get_total_value(), 2)
         if total_value:
             portfolio_share = round(value / total_value * 100, 2)
         else:
             portfolio_share = 0
-        group = ex.data().fund_group
+        group = ex.data.fund_group
         profit = round(ex.get_total_profit(), 2)
 
         stat = f"{title:<9}{shares_num:<13}{value:<14}{portfolio_share:<21}{profit:<11}{group}"
@@ -173,8 +173,8 @@ if __name__ == "__main__":
         groups[title] = 0
 
     for ex in idx_sim.all_exec():
-        if ex.data().fund_group:
-            groups[ex.data().fund_group] += ex.get_total_value()
+        if ex.data.fund_group:
+            groups[ex.data.fund_group] += ex.get_total_value()
 
     print("Group                   Value            Share")
     print("----------------------------------------------")

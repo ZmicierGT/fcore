@@ -81,6 +81,9 @@ class FmpStock(stock.StockFetcher):
         self._balance_sheet_tbl = 'fmp_balance_sheet'
         self._cash_flow_tbl = 'fmp_cash_flow'
 
+        self._annual_report_supported = True
+        self._quarter_report_supported = settings.FMP.plan != settings.FMP.Plan.Basic
+
     def check_database(self):
         """
             Database create/integrity check method for stock data related tables.

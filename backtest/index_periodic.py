@@ -97,22 +97,22 @@ class IndexSim(BackTest):
                     continue  # Skip securities without data in the cycle or unweighted securities (if eventually we have any)
 
                 if ex.get_short_positions() > 0:
-                    raise BackTestError(f"This strategy does not involve shorting but {ex.get_short_positions()} positions were detected for {ex.title}")
+                    raise BackTestError(f"This strategy does not involve shorting but {ex.get_short_positions()} positions were detected for {ex.data.title}")
 
                 # Check if we need to close the position because the security was excluded from the index
-                if ex.title not in self.composition and ex.get_long_positions() and ex.is_limit is False:
+                if ex.data.title not in self.composition and ex.get_long_positions() and ex.is_limit is False:
                     ex.sell(num=ex.get_long_positions(), limit=ex.get_row()[StockQuotes.Close], limit_deviation=0.01, recalculate=True, exact=True)
 
                     continue
 
                 # Check if we need to close the position if a security brakes a diversification
-                if ex.title in self.composition and ex.weight > max_weight and ex.is_limit is False \
+                if ex.data.title in self.composition and ex.weight > max_weight and ex.is_limit is False \
                     and ex.is_min_capacity_group and self.mean_weight:
                     max_weight = ex.weight
                     target_sell = ex
 
                 # Choose the security with minimum weight to open a position
-                if ex.title in self.composition and ex.weight < min_weight and ex.is_limit is False \
+                if ex.data.title in self.composition and ex.weight < min_weight and ex.is_limit is False \
                     and ex.is_max_capacity_group and ex.get_max_trade_size_cash():
                     min_weight = ex.weight
                     target_buy = ex

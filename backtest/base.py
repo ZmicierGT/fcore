@@ -369,8 +369,7 @@ class BackTestOperations():
         # Backtesting class instance
         self.__caller = caller
 
-        # TODO LOW rename the first one to indicate that in involves margin
-        self._portfolio = []  # Portfolio with margin long/short positions for the symbol
+        self._portfolio_margin = []  # Portfolio with margin long/short positions for the symbol
         self._portfolio_cash = []  # Portfolio with cash long positions only
 
         # Quote to calculate signal change
@@ -379,14 +378,14 @@ class BackTestOperations():
         self._signal_index = None
 
         # Results of symbol's calculation
-        self._sym_results = BTSymbol()
-        self._sym_results.Title = self.title
+        self._sym_results = BTSymbol()  # TODO High Think of a better data structure here
+        self._sym_results.Title = self.data.title
 
         ####################################################################
         # Cycle specific data for calculations. Need to be reset each cycle.
         ####################################################################
 
-        # Trade prices in the current cycle
+        # Trade prices in the current cycle (for reporting)
         self._price_open_long = None
         self._price_close_long = None
 
@@ -401,8 +400,8 @@ class BackTestOperations():
         ##############################
 
         # Need to create a labelled numpy array of the same length as the main dataset with time stamp colomn
-        self._calc = np.zeros([len(self.data().rows), ], dtype=[('ts', '<i8')])
-        self._calc['ts'] = self.data().rows[Quotes.TimeStamp]
+        self._calc = np.zeros([len(self.data.rows), ], dtype=[('ts', '<i8')])
+        self._calc['ts'] = self.data.rows[Quotes.TimeStamp]
 
         self._last_total_value = 0  # Total value at the moment of opening the last position
         self._total_profit = 0  # Total profit of all operations with this security
@@ -426,8 +425,8 @@ class BackTestOperations():
         # Weight-related
         ################
 
-        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().rows.dtype.names:
-            raise BackTestError(f"No 'cap' column in dataset for {self.title} but it is required by the weighting method.")
+        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data.rows.dtype.names:
+            raise BackTestError(f"No 'cap' column in dataset for {self.data.title} but it is required by the weighting method.")
 
         self._weight = 0  # The weight of the current position
 
@@ -443,7 +442,7 @@ class BackTestOperations():
             Returns:
                 bool: indicates if the current security is weighted.
         """
-        return self.data()._weighted
+        return self.data._weighted
 
     @property
     def weight(self):
@@ -477,8 +476,8 @@ class BackTestOperations():
         value = None
         attr_title = self.get_caller().grouping_attr
 
-        if attr_title is not None and hasattr(self.data(), attr_title):
-            value = self.data().__getattribute__(attr_title)
+        if attr_title is not None and hasattr(self.data, attr_title):
+            value = self.data.__getattribute__(attr_title)
 
         return value
 
@@ -582,21 +581,7 @@ class BackTestOperations():
         """
         return self._limit_num is None or self._limit_num != -1
 
-    # TODO HIGH remove it
     @property
-    def title(self):
-        """
-            Get the title of the security.
-
-            Returns:
-                str: the title of the security
-        """
-        return self.data().title
-
-    ################
-    # Methods
-    ################
-
     def data(self):
         """
             Gets the used data class instance.
@@ -605,6 +590,10 @@ class BackTestOperations():
                 BackTestData: The corresponding data class.
         """
         return self.__data
+
+    ################
+    # Methods
+    ################
 
     def add_col(self, name, data=None, dtype=object):
         """
@@ -688,7 +677,7 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
-            return self.data().rows[local_index]
+            return self.data.rows[local_index]
 
     def get_index(self, ts=None):
         """
@@ -705,7 +694,7 @@ class BackTestOperations():
             index = self.get_caller_index()
             ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data().rows[Quotes.TimeStamp] == ts)[0]
+        idx = np.where(self.data.rows[Quotes.TimeStamp] == ts)[0]
 
         if len(idx):
             return idx[0]
@@ -730,7 +719,7 @@ class BackTestOperations():
         else:
             local_index += offset
 
-            return self.data().rows[local_index]
+            return self.data.rows[local_index]
 
     def get_avail_index(self, ts=None):
         """
@@ -747,7 +736,7 @@ class BackTestOperations():
             index = self.get_caller_index()
             ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data().rows[Quotes.TimeStamp] <= ts)[-1]
+        idx = np.where(self.data.rows[Quotes.TimeStamp] <= ts)[-1]
 
         if len(idx):
             return idx[-1]
@@ -768,10 +757,10 @@ class BackTestOperations():
         if self.is_long():
             for price_cash in self._portfolio_cash:
                 profit += self.get_sell_price() - price_cash
-            for price_margin in self._portfolio:
+            for price_margin in self._portfolio_margin:
                 profit += self.get_sell_price() - price_margin
         else:
-            for price_short in self._portfolio:
+            for price_short in self._portfolio_margin:
                 profit += price_short - self.get_buy_price()
 
         return profit
@@ -792,7 +781,7 @@ class BackTestOperations():
             Returns:
                 bool: indicate if the calculation is finished
         """
-        return self.get_caller_index() + 1 == len(self.data().rows)
+        return self.get_caller_index() + 1 == len(self.data.rows)
 
     # Fee calculated based on commission in percent of the trade
     def get_trade_percent_fee(self):
@@ -844,7 +833,7 @@ class BackTestOperations():
                 BackTestError: long and short positions are opened the same time for the same symbol.
         """
         if self._long_positions > 0 and self._short_positions > 0:
-            raise BackTestError(f"Can not hold long and short positions for {self.title} the same time: long - {self._long_positions}, short - {self._short_positions}")
+            raise BackTestError(f"Can not hold long and short positions for {self.data.title} the same time: long - {self._long_positions}, short - {self._short_positions}")
 
         return self._long_positions > 0
 
@@ -888,7 +877,7 @@ class BackTestOperations():
         if index == None:
             index = self.get_index()
 
-        return self.data().rows[index][Quotes.DateTime]
+        return self.data.rows[index][Quotes.DateTime]
 
     def get_datetime(self, index=None):
         """
@@ -928,7 +917,7 @@ class BackTestOperations():
             Returns:
                 float: the open price at the current index of the calculation.
         """
-        return self.data().rows[self.get_index()][Quotes.Open]
+        return self.data.rows[self.get_index()][Quotes.Open]
 
     def get_close(self, adjusted=False):
         """
@@ -942,7 +931,7 @@ class BackTestOperations():
         """
         # TODO LOW Think if this adjusted is suitable here
         if adjusted:
-            return self.get_avail_row()[self.data().close]
+            return self.get_avail_row()[self.data.close]
         else:
             return self.get_avail_row()[Quotes.Close]
 
@@ -953,7 +942,7 @@ class BackTestOperations():
             Returns:
                 float: the highest price at the current index of the calculation.
         """
-        return self.data().rows[self.get_index()][Quotes.High]
+        return self.data.rows[self.get_index()][Quotes.High]
 
     def get_low(self):
         """
@@ -962,7 +951,7 @@ class BackTestOperations():
             Returns:
                 float: the lowest price at the current index of the calculation.
         """
-        return self.data().rows[self.get_index()][Quotes.Low]
+        return self.data.rows[self.get_index()][Quotes.Low]
 
     def apply_margin_interest(self):
         """
@@ -982,7 +971,7 @@ class BackTestOperations():
             Returns:
                 float: current daily margin expenses for the symbol.
         """
-        return self.get_margin_positions() * self.get_close() * self.data().margin_interest / 100 / trading_days_per_year
+        return self.get_margin_positions() * self.get_close() * self.data.margin_interest / 100 / trading_days_per_year
 
     def get_spread_deviation(self):
         """
@@ -991,7 +980,7 @@ class BackTestOperations():
             Returns:
                 float: the spread deviation for the corresponding symbol.
         """
-        return self.get_close() * self.data().spread / 100 / 2
+        return self.get_close() * self.data.spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
     def get_buy_price(self, adjusted=False):
@@ -1091,11 +1080,10 @@ class BackTestOperations():
             total_value += self.get_sell_price() * self._long_positions_cash
 
             for j in range(self.get_margin_positions()):
-                total_value += self.get_sell_price() - self._portfolio[j]
-
+                total_value += self.get_sell_price() - self._portfolio_margin[j]
         else:
             for j in range(self._short_positions):
-                total_value += self._portfolio[j] - self.get_buy_price()
+                total_value += self._portfolio_margin[j] - self.get_buy_price()
 
         return total_value
 
@@ -1160,7 +1148,7 @@ class BackTestOperations():
             if self._signal_index == None:
                 self._signal_index = index
 
-        if index - self._signal_index >= self.data().trend_change_period:
+        if index - self._signal_index >= self.data.trend_change_period:
             self._signal_quote = None
 
             return True
@@ -1168,7 +1156,7 @@ class BackTestOperations():
         max_quote = max(quote, self._signal_quote)
         min_quote = min(quote, self._signal_quote)
 
-        if max_quote / min_quote >= 1 + (self.data().trend_change_percent / 100):
+        if max_quote / min_quote >= 1 + (self.data.trend_change_percent / 100):
             self._signal_quote = None
 
             return True
@@ -1190,7 +1178,7 @@ class BackTestOperations():
             Returns:
                 float: the buying power based on the long positions opened of the corresponding symbol.
         """
-        return self._long_positions_cash * self.get_close() * self.data().margin_provided_rec
+        return self._long_positions_cash * self.get_close() * self.data.margin_provided_rec
 
     def get_margin_limit(self):
         """
@@ -1199,7 +1187,7 @@ class BackTestOperations():
             Returns:
                 float: the holding power based on the long positions opened of the corresponding symbol.
         """
-        return self._long_positions_cash * self.get_close() * self.data().margin_provided_req
+        return self._long_positions_cash * self.get_close() * self.data.margin_provided_req
 
     def get_future_margin_buying_power(self):
         """
@@ -1209,7 +1197,7 @@ class BackTestOperations():
                 float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
         """
         securities_num_cash, remaining_cash = self.get_max_trade_size_cash()
-        securities_margin = securities_num_cash * self.get_close() * self.data().margin_provided_rec
+        securities_margin = securities_num_cash * self.get_close() * self.data.margin_provided_rec
         cash_margin = remaining_cash * self.get_caller().get_margin_rec()
 
         return securities_margin + cash_margin
@@ -1235,13 +1223,13 @@ class BackTestOperations():
                 securities_num = 0
 
                 # Copy the initial portfolio to restore if after the calculation
-                initial_portfolio = copy.deepcopy(self._portfolio)
+                initial_portfolio = copy.deepcopy(self._portfolio_margin)
 
                 # Estimate how many positions we need to close to meet the margin requirement
                 while deficit > 0 and securities_num < self.get_margin_positions():
                     securities_num += 1
 
-                    last_price = self._portfolio.pop()
+                    last_price = self._portfolio_margin.pop()
 
                     deficit = -abs(self.get_caller().get_total_margin_limit())
 
@@ -1250,7 +1238,7 @@ class BackTestOperations():
                     else:
                         deficit -= last_price - self.get_buy_price()
 
-                self._portfolio = initial_portfolio
+                self._portfolio_margin = initial_portfolio
 
                 # Close the positions which exceed margin requirement
                 self.close(securities_num, margin_call=True)
@@ -1449,7 +1437,7 @@ class BackTestOperations():
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
-                log = (f"Cancelling {direction} limit order for {self.title} as the new order is being placed.")
+                log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
                 self.get_caller().log(log)
 
             self.cancel_limit_order()
@@ -1470,7 +1458,7 @@ class BackTestOperations():
             else:
                 order_num = 'max'
 
-            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.title} for the {order_num} number or securities "
+            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.data.title} for the {order_num} number or securities "
                    f"with the price {round(self._limit_buy, 2)} "
                    f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
@@ -1532,7 +1520,7 @@ class BackTestOperations():
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
-                log = (f"Cancelling {direction} limit order for {self.title} as the new order is being placed.")
+                log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
                 self.get_caller().log(log)
 
             self.cancel_limit_order()
@@ -1553,7 +1541,7 @@ class BackTestOperations():
             else:
                 order_num = 'max'
 
-            log = (f"At {self.get_datetime_str()} SELL Limit order is placed for {self.title} for {order_num} number of securities "
+            log = (f"At {self.get_datetime_str()} SELL Limit order is placed for {self.data.title} for {order_num} number of securities "
                    f"with the price {round(self._limit_sell, 2)} "
                    f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
@@ -1598,7 +1586,7 @@ class BackTestOperations():
         limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell - self._limit_sell * self._limit_deviation
 
         if days_delta > self._limit_validity:
-            log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.title} as in the {days_delta} days the desired price "
+            log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
                    f"{limit} (including deviation) wasn't achieved or weighening did now allow to perform the trade. The last price is {price}.")
 
             self.get_caller().log(log)
@@ -1643,7 +1631,7 @@ class BackTestOperations():
         # Get the current trading timestamp of the base data
         base_ts = self.get_caller().exec().get_row()[Quotes.TimeStamp]
         # Get the last trading timestamp of the current symbol
-        current_ts = self.data().rows[Quotes.TimeStamp][-1]
+        current_ts = self.data.rows[Quotes.TimeStamp][-1]
 
         if current_ts < base_ts:
             base_dt = get_dt(base_ts)
@@ -1654,11 +1642,11 @@ class BackTestOperations():
             if delta.days > 7:
                 # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
                 if self.get_long_positions():
-                    last_close = self.data().rows[Quotes.Close][-1]
+                    last_close = self.data.rows[Quotes.Close][-1]
                     # TODO LOW Think if margin long positions should be treaded differently
                     total_lost = last_close * self._long_positions
 
-                    self.get_caller().log(f"At {self.get_datetime_str()} {self.title} was consdered as delisted and "
+                    self.get_caller().log(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
                                         f"total positions of {self.get_long_positions()} of total worth {total_lost} "
                                         f"({last_close} per security) were lost.")
 
@@ -1688,7 +1676,7 @@ class BackTestOperations():
                 int: the maximum of positions to open using cash only.
                 float: remaining cash.
         """
-        lot = self.data().lot
+        lot = self.data.lot
 
         # Note that it will be needed only when fractional shares are implemented
         if ignore_lot and lot >= 1:
@@ -1723,7 +1711,7 @@ class BackTestOperations():
             Returns:
                 int: the maxumum number of securities to buy using margin.
         """
-        lot = self.data().lot
+        lot = self.data.lot
 
         if ignore_lot and lot >= 1:
             lot = 1
@@ -1742,7 +1730,7 @@ class BackTestOperations():
         """
         max_num = max(0, self.get_max_trade_size_cash(True)[0] + self.get_max_trade_size_margin(True))
 
-        return round(math.floor(max_num // self.data().lot) * self.data().lot, 6)  # round to avoid precision issues in the future (fractional shares)
+        return round(math.floor(max_num // self.data.lot) * self.data.lot, 6)  # round to avoid precision issues in the future (fractional shares)
 
     def open_long(self, num, price=None, exact=False):
         """
@@ -1789,7 +1777,7 @@ class BackTestOperations():
         self._long_positions += num
         self._long_positions_cash += securities_num_cash
 
-        self._portfolio.extend(repeat(price, securities_num_margin))
+        self._portfolio_margin.extend(repeat(price, securities_num_margin))
 
         # Add expenses for this trade
         self.get_caller().add_commission_expense(total_commission)
@@ -1801,7 +1789,7 @@ class BackTestOperations():
         self._price_open_long = self.get_buy_price(adjusted=True)  # Used only for charting
 
         # Log if requested
-        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.title} with price "
+        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
@@ -1858,7 +1846,7 @@ class BackTestOperations():
             self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
             price = self.get_sell_price()
 
-        self._portfolio.extend(repeat(price, num))
+        self._portfolio_margin.extend(repeat(price, num))
 
         # Calculate expenses for this trade
         self.get_caller().add_commission_expense(self.get_caller().get_commission() + self.get_security_fee() * num)
@@ -1870,7 +1858,7 @@ class BackTestOperations():
         # Log if requested
         total_commission = self.get_caller().get_commission_expense() - initial_commission
 
-        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.title} with price "
+        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
@@ -1976,7 +1964,7 @@ class BackTestOperations():
         delta = 0
 
         for _ in range(margin_positions):
-            delta += price - self._portfolio.pop()
+            delta += price - self._portfolio_margin.pop()
 
         self._long_positions -= num
         self._long_positions_cash -= cash_positions
@@ -1989,7 +1977,7 @@ class BackTestOperations():
         self._total_profit += self.get_caller().get_cash() - ex_cash
 
         # Log if requested
-        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.title} with price "
+        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
@@ -2029,7 +2017,7 @@ class BackTestOperations():
         delta = 0
 
         for _ in range (num):
-            delta += self._portfolio.pop() - price
+            delta += self._portfolio_margin.pop() - price
             # Assume that slightly negative cash balance is possible on a margin account
             self.get_caller().add_cash(-abs(self.get_security_fee()))
 
@@ -2056,7 +2044,7 @@ class BackTestOperations():
 
         self._total_profit += self.get_caller().get_cash() - ex_cash
 
-        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.title} with price "
+        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
@@ -3609,7 +3597,7 @@ class BackTest(metaclass=abc.ABCMeta):
         symbols = []
 
         for ex in self.all_exec():
-            symbols.append(ex.title)
+            symbols.append(ex.data.title)
 
         return symbols
 

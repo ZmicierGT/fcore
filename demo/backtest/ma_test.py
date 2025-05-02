@@ -42,10 +42,10 @@ if __name__ == "__main__":
 
     quotes = StockData(rows=rows,
                           title=symbol,
-                          margin_rec=0.4,
-                          margin_req=0.7,
+                          margin_provided_rec=0.4,
+                          margin_provided_req=0.7,
                           spread=0.1,
-                          margin_fee=1,
+                          margin_interest=1,
                           trend_change_period=1,
                           trend_change_percent=2
                          )

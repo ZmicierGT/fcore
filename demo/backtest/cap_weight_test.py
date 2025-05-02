@@ -144,7 +144,7 @@ if __name__ == "__main__":
             portfolio_share = round(value / total_value * 100, 2)
         else:
             portfolio_share = 0
-        cap = round(ex.data().get_rows()[-1]['cap'] / 1000000000, 2)
+        cap = round(ex.data().rows[-1]['cap'] / 1000000000, 2)
         sector = ex.data().sector
         profit = round(ex.get_total_profit(), 2)
 

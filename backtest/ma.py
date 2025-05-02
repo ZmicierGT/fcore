@@ -76,7 +76,7 @@ class MA(BackTest):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        df = pd.DataFrame(ex.data().get_rows())
+        df = pd.DataFrame(ex.data().rows)
 
         if self.__is_simple:
             ma = ta.sma(df[ex.data().close], length = self._period)
@@ -93,7 +93,7 @@ class MA(BackTest):
             Raises:
                 BackTestError: not enough data for calculation.
         """
-        rows = self.get_main_data().get_rows()
+        rows = self.get_main_data().rows
         length = len(rows)
 
         if length < self._period:

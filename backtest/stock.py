@@ -119,17 +119,17 @@ class StockOperations(BackTestOperations):
         current_yield = 0
 
         # Check if we have opened long positions at ex_date
-        if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
-            self._future_yield = self._long_positions * self.data().get_rows()[idx][StockQuotes.ExDividends]
+        if self.data().rows[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
+            self._future_yield = self._long_positions * self.data().rows[idx][StockQuotes.ExDividends]
 
         # Calculate dividends to pay for long positions which were opened at ex_date
-        if self.data().get_rows()[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
+        if self.data().rows[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
             current_yield = self._future_yield
             self._future_yield = 0
 
         # Calculate dividends for short positions to get payed to a borrower
-        if self.data().get_rows()[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
-            current_yield = -abs(self.data().get_rows()[idx][StockQuotes.ExDividends] * self._short_positions)
+        if self.data().rows[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
+            current_yield = -abs(self.data().rows[idx][StockQuotes.ExDividends] * self._short_positions)
 
         if current_yield:
             self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.title} is {current_yield}")
@@ -148,8 +148,8 @@ class StockOperations(BackTestOperations):
         if self.get_long_positions() == 0 and self._short_positions == 0:
             return
 
-        ratio = self.data().get_rows()[idx][StockQuotes.Splits]
-        old_close = self.data().get_rows()[idx - 1][StockQuotes.Close]
+        ratio = self.data().rows[idx][StockQuotes.Splits]
+        old_close = self.data().rows[idx - 1][StockQuotes.Close]
 
         if ratio != 1 and idx != 0:
             long_before = self.get_long_positions()

@@ -73,7 +73,7 @@ class IndexSim(BackTest):
         # Iterate through all rows and calculate the required values
         ############################################################
 
-        for row in self.get_main_data().get_rows():
+        for row in self.get_main_data().rows:
 
             ####################################################################################################
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)

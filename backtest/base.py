@@ -25,12 +25,12 @@ class BTDataEnum(IntEnum):
     Deposits = 2
     Cash = 3
     Borrowed = 4
-    # Other profit may be dividends in case of stock or coupon on case of bonds.
+    # The example of other profit is stock dividends.
     OtherProfit = 5
     CommissionExpense = 6
     SpreadExpense = 7
     DebtExpense = 8
-    # Other profit may be dividend fees in a case of a short position.
+    # Other expenses may be dividend fees in a case of a short position.
     OtherExpense = 9
     TotalExpenses = 10
     TotalTrades = 11
@@ -68,7 +68,7 @@ class BackTestEvent(Event):
             Get the remaining time before timeout happens.
 
             Returns:
-                float:remaining time in seconds.
+                float: the remaining time in seconds.
         """
         return self.__timeout - time.perf_counter()
 
@@ -85,10 +85,10 @@ class BackTestData():
     def __init__(self,
                  rows,
                  title='',
-                 margin_req=0,
-                 margin_rec=0,
+                 margin_provided_req=0,
+                 margin_provided_rec=0,
                  spread=0,
-                 margin_fee=0,
+                 margin_interest=0,
                  trend_change_period=0,
                  trend_change_percent=0,
                  timespan=None,
@@ -102,9 +102,16 @@ class BackTestData():
             Args:
                 rows(list): data for the particular symbol obtained from the database using fdata module.
                 title(str): title of the symbol used in the class.
-                margin_req(float): required margin ratio for the symbol. Default is 0.
-                margin_rec(float): recommended margin ratio for the symbol. Default is 0.
-                margin_fee(float): annual margin fee for the symbol (in percent). Default is 0.
+                margin_provided_req(float): Indicates how much margin does holding this sequrity provides. If you hold
+                                            a position of this security worth $1000 and the ratio is 0.7, then it
+                                            provides $700 margin buying power. If the required margin is more than $700,
+                                            some exceeding margin positions will be closed.
+                margin_provided_rec(float): Indicates the recommended amount of how much margin does holding this sequrity
+                                            provides. If you hold a position of this security worth $1000 and the ratio
+                                            is 0.5, then you can open new positions using the provided margin for up to $500.
+                                            If the recommended margin is more than $500, no margin call is invoked till the
+                                            required ratio is reached but no more positions will be opened.
+                margin_interest(float): annual margin interest for the symbol (in percent). Default is 0.
                 spread(float): pre-defined spread for the symbol.
                 trend_change_period(int): indicates the period in timespans when the trend for this symbol is considered as changed.
                     Default is 0.
@@ -127,29 +134,29 @@ class BackTestData():
         self._rows = rows
 
         # Required margin ratio. For example, if the required ration ratio is 0.7 and current financial instrument price is $1000,
-        # then at maximum $7000 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
-        if margin_req < 0:
-            raise BackTestError(f"margin_req can't be less than 0. Specified value is {margin_req}")
-        self._margin_req = margin_req
+        # then at maximum $700 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
+        if margin_provided_req < 0:
+            raise BackTestError(f"margin_provided_req can't be less than 0. Specified value is {margin_provided_req}")
+        self._margin_provided_req = margin_provided_req
 
         # Recommended margin ratio. Backtesting engine won't try to exceed it. Exceeding this limit
         # is still acceptable but is considered at potentially dangerous and may lead to a margin call.
-        if margin_rec < 0:
-            raise BackTestError(f"margin_rec can't be less than 0. Specified value is {margin_rec}")
-        self._margin_rec = margin_rec
+        if margin_provided_rec < 0:
+            raise BackTestError(f"margin_provided_rec can't be less than 0. Specified value is {margin_provided_rec}")
+        self._margin_provided_rec = margin_provided_rec
 
         # Recommended margin ratio should be less than required
-        if margin_rec > margin_req:
-            raise BackTestError(f"margin_rec should be less than margin_req, however {margin_rec} is not < {margin_req}")
+        if margin_provided_rec > margin_provided_req:
+            raise BackTestError(f"margin_rec should be less than margin_provided_req, however {margin_provided_rec} is not < {margin_provided_req}")
 
-        # Spread (in percent)
+        # Spread (in percent). For more precise calculation, prefer to perform trades as limit orders.
         if spread < 0 or spread > 100:
             raise BackTestError(f"Spread can't be less than 0% or more than 100%. Specified value is {spread}")
         self._spread = spread
 
-        if margin_fee < 0 or margin_fee > 100:
-            raise BackTestError(f"margin_fee can't be less than 0% or more than 100%. Specified value is {margin_fee}")
-        self._margin_fee = margin_fee
+        if margin_interest < 0 or margin_interest > 100:
+            raise BackTestError(f"margin_interest can't be less than 0% or more than 100%. Specified value is {margin_interest}")
+        self._margin_interest = margin_interest
 
         # Indicates how many periods need to pass that we consider that the signal has changed
         if trend_change_period < 0:
@@ -161,7 +168,7 @@ class BackTestData():
             raise BackTestError(f"trend_change_percent can't be less than 0%. Specified value is {trend_change_percent}")
         self._trend_change_percent = trend_change_percent
 
-        # the default close price column to make calculations (Quote.Close for the base security type).
+        # The price column which we consider as a close price for reporting.
         self._close = Quotes.Close
 
         # Title of the financial instrument
@@ -179,7 +186,7 @@ class BackTestData():
         self._weighted = weighted
 
         if lot < 1 or lot % 1 != 0:
-            raise BackTestError(f"Lot can't be less than 1 or a float number: {lot}")
+            raise BackTestError(f"Lot can't be less than 1 or a decimal number: {lot}")
 
         self._lot = lot
 
@@ -190,7 +197,7 @@ class BackTestData():
     @property
     def close(self):
         """
-            Get the column for close value calculations.
+            Get the column for close value reporting.
 
             Returns:
                 int: the column for close value calculations.
@@ -207,11 +214,8 @@ class BackTestData():
         """
         return self._lot
 
-    #####################
-    # Thread safe methods
-    #####################
-
-    def get_rows(self):
+    @property
+    def rows(self):
         """
             Get data used in calculations.
 
@@ -220,7 +224,8 @@ class BackTestData():
         """
         return self._rows
 
-    def get_title(self):
+    @property
+    def title(self):
         """
             Get symbol title.
 
@@ -229,46 +234,51 @@ class BackTestData():
         """
         return self._title
 
-    def get_margin_req(self):
+    @property
+    def margin_provided_req(self):
         """
-            Get the required margin ratio for the symbol. If the ratio is 0.7 and you have 10 financial instrument in the portfolio and the price
-            of the financial instrument is $100, then this position will give you a $700 of margin buying power. Exceeding buying power
+            Get the required margin ratio for the symbol. If the ratio is 0.7 and you have 10 securities in the portfolio and the price
+            of the security is $100, then this position will give you a $700 of margin buying power. Exceeding buying power
             will trigger a margin call.
 
             Returns:
                 float: Maximum possible margin ratio for this symbol.
         """
-        return self._margin_req
+        return self._margin_provided_req
 
-    def get_margin_rec(self):
+    @property
+    def margin_provided_rec(self):
         """
-            Get the recommended margin ratio for the symbol. If the ratio is 0.7 and you have 10 same financial instruments
-            in the portfolio and the price of the financial instrument is $100, then this position will give you a $700 of margin buying power.
+            Get the recommended margin ratio for the symbol. If the ratio is 0.5 and you have 10 securities
+            in the portfolio and the price of the security is $100, then this position will give you a $500 of margin buying power.
             Exceeding buying power (unless it hits the required ratio) will not trigger a margin call but backtesting engine
             won't open new positions in such case. Default is 0.
 
             Returns:
                 float: Recommended margin ratio for this symbol.
         """
-        return self._margin_rec
+        return self._margin_provided_rec
 
-    def get_spread(self):
+    @property
+    def spread(self):
         """
             Returns:
                 float: Spread for the symbol.
         """
         return self._spread
 
-    def get_margin_fee(self):
+    @property
+    def margin_interest(self):
         """
             Get annual margin fee for the symbol (in percent). Calculated daily based on the value of opened margin positions.
 
             Returns:
                 float: Aannual margin fee (in percent) for the symbol.
         """
-        return self._margin_fee
+        return self._margin_interest
 
-    def get_trend_change_period(self):
+    @property
+    def trend_change_period(self):
         """
             Get the period which indicates the trend change. The period is a number of timespan cycles (days, minutes and so on) used in the calculation.
             For example, if it is 1 and we use EOD data, then backtesting engine will consider that the trend has changed only after 1 additional day
@@ -279,7 +289,8 @@ class BackTestData():
         """
         return self._trend_change_period
 
-    def get_trend_change_percent(self):
+    @property
+    def trend_change_percent(self):
         """
             Get the value in % which indicates the trend change of the symbol. For example, if trend_change_percent is 3 and the quote changed
             by 4% in one cycle of calculation (day, minute and so on - depending on a used timestamp), then the trend is considered as
@@ -290,7 +301,8 @@ class BackTestData():
         """
         return self._trend_change_percent
 
-    def get_first_year(self):
+    @property
+    def first_year(self):
         """
             Get first year in the dataset for the calculation.
 
@@ -303,6 +315,10 @@ class BackTestData():
         dt = get_dt(self._rows[0][Quotes.TimeStamp])
 
         return dt.year
+
+    #####################
+    # Thread safe methods
+    #####################
 
     def create_exec(self, caller):
         """
@@ -385,8 +401,8 @@ class BackTestOperations():
         ##############################
 
         # Need to create a labelled numpy array of the same length as the main dataset with time stamp colomn
-        self._calc = np.zeros([len(self.data().get_rows()), ], dtype=[('ts', '<i8')])
-        self._calc['ts'] = self.data().get_rows()[Quotes.TimeStamp]
+        self._calc = np.zeros([len(self.data().rows), ], dtype=[('ts', '<i8')])
+        self._calc['ts'] = self.data().rows[Quotes.TimeStamp]
 
         self._last_total_value = 0  # Total value at the moment of opening the last position
         self._total_profit = 0  # Total profit of all operations with this security
@@ -410,7 +426,7 @@ class BackTestOperations():
         # Weight-related
         ################
 
-        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().get_rows().dtype.names:
+        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data().rows.dtype.names:
             raise BackTestError(f"No 'cap' column in dataset for {self.title} but it is required by the weighting method.")
 
         self._weight = 0  # The weight of the current position
@@ -566,6 +582,7 @@ class BackTestOperations():
         """
         return self._limit_num is None or self._limit_num != -1
 
+    # TODO HIGH remove it
     @property
     def title(self):
         """
@@ -574,7 +591,7 @@ class BackTestOperations():
             Returns:
                 str: the title of the security
         """
-        return self.data().get_title()
+        return self.data().title
 
     ################
     # Methods
@@ -671,7 +688,7 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
-            return self.data().get_rows()[local_index]
+            return self.data().rows[local_index]
 
     def get_index(self, ts=None):
         """
@@ -686,9 +703,9 @@ class BackTestOperations():
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
             index = self.get_caller_index()
-            ts = self.get_caller().get_main_data().get_rows()[index][Quotes.TimeStamp]
+            ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data().get_rows()[Quotes.TimeStamp] == ts)[0]
+        idx = np.where(self.data().rows[Quotes.TimeStamp] == ts)[0]
 
         if len(idx):
             return idx[0]
@@ -713,7 +730,7 @@ class BackTestOperations():
         else:
             local_index += offset
 
-            return self.data().get_rows()[local_index]
+            return self.data().rows[local_index]
 
     def get_avail_index(self, ts=None):
         """
@@ -728,9 +745,9 @@ class BackTestOperations():
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
             index = self.get_caller_index()
-            ts = self.get_caller().get_main_data().get_rows()[index][Quotes.TimeStamp]
+            ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data().get_rows()[Quotes.TimeStamp] <= ts)[-1]
+        idx = np.where(self.data().rows[Quotes.TimeStamp] <= ts)[-1]
 
         if len(idx):
             return idx[-1]
@@ -775,7 +792,7 @@ class BackTestOperations():
             Returns:
                 bool: indicate if the calculation is finished
         """
-        return self.get_caller_index() + 1 == len(self.data().get_rows())
+        return self.get_caller_index() + 1 == len(self.data().rows)
 
     # Fee calculated based on commission in percent of the trade
     def get_trade_percent_fee(self):
@@ -871,7 +888,7 @@ class BackTestOperations():
         if index == None:
             index = self.get_index()
 
-        return self.data().get_rows()[index][Quotes.DateTime]
+        return self.data().rows[index][Quotes.DateTime]
 
     def get_datetime(self, index=None):
         """
@@ -911,7 +928,7 @@ class BackTestOperations():
             Returns:
                 float: the open price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_index()][Quotes.Open]
+        return self.data().rows[self.get_index()][Quotes.Open]
 
     def get_close(self, adjusted=False):
         """
@@ -936,7 +953,7 @@ class BackTestOperations():
             Returns:
                 float: the highest price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_index()][Quotes.High]
+        return self.data().rows[self.get_index()][Quotes.High]
 
     def get_low(self):
         """
@@ -945,9 +962,9 @@ class BackTestOperations():
             Returns:
                 float: the lowest price at the current index of the calculation.
         """
-        return self.data().get_rows()[self.get_index()][Quotes.Low]
+        return self.data().rows[self.get_index()][Quotes.Low]
 
-    def apply_margin_fee(self):
+    def apply_margin_interest(self):
         """
             Apply margin fees for the current day of the calculation for the particular symbol.
         """
@@ -965,7 +982,7 @@ class BackTestOperations():
             Returns:
                 float: current daily margin expenses for the symbol.
         """
-        return self.get_margin_positions() * self.get_close() * self.data().get_margin_fee() / 100 / trading_days_per_year
+        return self.get_margin_positions() * self.get_close() * self.data().margin_interest / 100 / trading_days_per_year
 
     def get_spread_deviation(self):
         """
@@ -974,7 +991,7 @@ class BackTestOperations():
             Returns:
                 float: the spread deviation for the corresponding symbol.
         """
-        return self.get_close() * self.data().get_spread() / 100 / 2
+        return self.get_close() * self.data().spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
     def get_buy_price(self, adjusted=False):
@@ -1143,7 +1160,7 @@ class BackTestOperations():
             if self._signal_index == None:
                 self._signal_index = index
 
-        if index - self._signal_index >= self.data().get_trend_change_period():
+        if index - self._signal_index >= self.data().trend_change_period:
             self._signal_quote = None
 
             return True
@@ -1151,7 +1168,7 @@ class BackTestOperations():
         max_quote = max(quote, self._signal_quote)
         min_quote = min(quote, self._signal_quote)
 
-        if max_quote / min_quote >= 1 + (self.data().get_trend_change_percent() / 100):
+        if max_quote / min_quote >= 1 + (self.data().trend_change_percent / 100):
             self._signal_quote = None
 
             return True
@@ -1173,7 +1190,7 @@ class BackTestOperations():
             Returns:
                 float: the buying power based on the long positions opened of the corresponding symbol.
         """
-        return self._long_positions_cash * self.get_close() * self.data().get_margin_rec()
+        return self._long_positions_cash * self.get_close() * self.data().margin_provided_rec
 
     def get_margin_limit(self):
         """
@@ -1182,7 +1199,7 @@ class BackTestOperations():
             Returns:
                 float: the holding power based on the long positions opened of the corresponding symbol.
         """
-        return self._long_positions_cash * self.get_close() * self.data().get_margin_req()
+        return self._long_positions_cash * self.get_close() * self.data().margin_provided_req
 
     def get_future_margin_buying_power(self):
         """
@@ -1192,7 +1209,7 @@ class BackTestOperations():
                 float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
         """
         securities_num_cash, remaining_cash = self.get_max_trade_size_cash()
-        securities_margin = securities_num_cash * self.get_close() * self.data().get_margin_rec()
+        securities_margin = securities_num_cash * self.get_close() * self.data().margin_provided_rec
         cash_margin = remaining_cash * self.get_caller().get_margin_rec()
 
         return securities_margin + cash_margin
@@ -1626,7 +1643,7 @@ class BackTestOperations():
         # Get the current trading timestamp of the base data
         base_ts = self.get_caller().exec().get_row()[Quotes.TimeStamp]
         # Get the last trading timestamp of the current symbol
-        current_ts = self.data().get_rows()[Quotes.TimeStamp][-1]
+        current_ts = self.data().rows[Quotes.TimeStamp][-1]
 
         if current_ts < base_ts:
             base_dt = get_dt(base_ts)
@@ -1637,7 +1654,7 @@ class BackTestOperations():
             if delta.days > 7:
                 # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
                 if self.get_long_positions():
-                    last_close = self.data().get_rows()[Quotes.Close][-1]
+                    last_close = self.data().rows[Quotes.Close][-1]
                     # TODO LOW Think if margin long positions should be treaded differently
                     total_lost = last_close * self._long_positions
 
@@ -2380,7 +2397,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._inflation = inflation
 
         # Required loan to cash ratio. For example, if loan to cash ratio is 0.7 and current cash is $1000,
-        # then at maximum $7000 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
+        # then at maximum $700 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
         if margin_req < 0:
             raise BackTestError(f"margin_req can't be less than 0. Specified value is {margin_req}")
         self._margin_req = margin_req
@@ -2869,13 +2886,13 @@ class BackTest(metaclass=abc.ABCMeta):
         for i in range(len(self.get_data())):
             data = self.get_data()[i]
 
-            current_len = len(data.get_rows())
+            current_len = len(data.rows)
 
             if current_len > num:
                 num = current_len
                 target_idx = i
 
-        self.log(f"Using dataset {self.get_data()[target_idx].get_title()} with the index {target_idx} as the main dataset.")
+        self.log(f"Using dataset {self.get_data()[target_idx].title} with the index {target_idx} as the main dataset.")
 
         return target_idx
 
@@ -3080,7 +3097,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: index not found.
         """
-        if index >= len(self.get_main_data().get_rows()):
+        if index >= len(self.get_main_data().rows):
             raise BackTestError(f"Provided data does not have index {index}")
 
         self.__index = index
@@ -3104,7 +3121,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 int: index of the row.
         """
-        idx = np.where(self.get_main_data().get_rows()[Quotes.TimeStamp] == row[Quotes.TimeStamp])
+        idx = np.where(self.get_main_data().rows[Quotes.TimeStamp] == row[Quotes.TimeStamp])
 
         return idx[0][0]
 
@@ -3531,7 +3548,7 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError("Setup has been already performed.")
 
         # Get the initial year
-        self._year = self.get_main_data().get_first_year()
+        self._year = self.get_main_data().first_year
 
         for data in self.__data:
             self.__exec.append(data.create_exec(self))
@@ -3643,7 +3660,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if isinstance(index, np.ndarray) or isinstance(index, np.void):
             index = self.get_row_index(index)
 
-        if index >= len(self.get_main_data().get_rows()):
+        if index >= len(self.get_main_data().rows):
             raise BackTestError(f"Provided data does not have index {index}")
 
         # do_cycle() was already called for this cycle.
@@ -3683,7 +3700,7 @@ class BackTest(metaclass=abc.ABCMeta):
             if ex.get_index() is not None:
                 ex.check_delisting()  # Check is a security was delisted
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
-                ex.apply_margin_fee()  # Calculate and apply margin expenses per day
+                ex.apply_margin_interest()  # Calculate and apply margin expenses per day
                 ex.check_margin_requirements()  # Check if margin requirements are met
                 ex.process_limit_order()  # Execute limit order (if any)
 
@@ -3718,7 +3735,7 @@ class BackTest(metaclass=abc.ABCMeta):
         dt = self.exec().get_row()[Quotes.DateTime]
         # TODO MID The existing data structures for reporting should be altered (replaced by pandas or np.array)
         #tv = round(self._results.TotalValue[-1], 2)
-        length = len(self.get_main_data().get_rows())
+        length = len(self.get_main_data().rows)
 
         #self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
         self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt}")

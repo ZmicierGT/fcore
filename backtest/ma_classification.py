@@ -68,7 +68,7 @@ class MAClassification(MA):
                                         model_sell=self._model_sell,
                                         is_simple=self.is_simple())
 
-        self._ma_cls.set_data(self.get_main_data().get_rows())
+        self._ma_cls.set_data(self.get_main_data().rows)
 
         try:
             self._ma_cls.calculate()

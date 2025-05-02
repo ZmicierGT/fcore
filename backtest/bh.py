@@ -25,7 +25,7 @@ class BuyAndHold(BackTest):
         """
             Main strategy calculation method.
         """
-        rows = self.get_main_data().get_rows()
+        rows = self.get_main_data().rows
 
         ######################################
         # Perform the global calculation setup

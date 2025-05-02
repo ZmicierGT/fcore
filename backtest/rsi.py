@@ -77,7 +77,7 @@ class RSI(BackTest):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        df = pd.DataFrame(ex.data().get_rows())
+        df = pd.DataFrame(ex.data().rows)
         rsi = ta.rsi(df[ex.data().close], length=self._period)
 
         # Append data to the calculations dataset
@@ -99,7 +99,7 @@ class RSI(BackTest):
         # Consider any length-related operations to be performed only after setup (including other demos)
         self.setup()
 
-        length = len(self.get_main_data().get_rows())
+        length = len(self.get_main_data().rows)
 
         # TODO MID This check may be put to setup
         if length < self._period:
@@ -109,7 +109,7 @@ class RSI(BackTest):
         # Iterate through all rows and calculate the required values
         ############################################################
 
-        for row in self.get_main_data().get_rows():
+        for row in self.get_main_data().rows:
 
             ####################################################################################################
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)

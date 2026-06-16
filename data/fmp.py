@@ -24,6 +24,8 @@ import json
 
 import pandas as pd
 
+from termcolor import colored
+
 # Time zones of some popular exchanges for FMP data source
 Exchanges = {
     'AMEX':     'America/New_York',
@@ -57,6 +59,9 @@ class FmpStock(stock.StockFetcher):
         # Default values
         self.source_title = "FMP"
         self.api_key = settings.FMP.api_key
+
+        if self.api_key is None:
+            print(colored("Warning! No API-KEY is specified in settings.py!\n", "yellow"))
 
         if settings.FMP.plan == settings.FMP.Plan.Basic:
             self.max_queries = 250

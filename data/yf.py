@@ -132,20 +132,32 @@ class YF(stock.StockFetcher):
         quotes_data = []
 
         for ind in range(length):
+            open_val = data.iloc[[ind]]['Open'].values[0][0]
+            high_val = data.iloc[[ind]]['High'].values[0][0]
+            low_val = data.iloc[[ind]]['Low'].values[0][0]
+            close_val = data.iloc[[ind]]['Close'].values[0][0]
+            volume_val = data.iloc[[ind]]['Volume'].values[0][0]
+
+            # Skip rows with NaN values (can happen when requesting future dates or out-of-scope data)
+            if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val) or pd.isna(volume_val):
+                self.log(f"Skipping row {ind} due to NaN values (likely out-of-scope date)")
+                continue
+
             quote_dict = {
-                'volume': data.iloc[[ind]]['Volume'].values[0][0],
-                'open': data.iloc[[ind]]['Open'].values[0][0],
-                'close': data.iloc[[ind]]['Close'].values[0][0],
-                'high': data.iloc[[ind]]['High'].values[0][0],
-                'low': data.iloc[[ind]]['Low'].values[0][0],
+                'volume': volume_val,
+                'open': open_val,
+                'close': close_val,
+                'high': high_val,
+                'low': low_val,
                 'transactions': 'NULL',
                 'ts': data.iloc[[ind]]['ts'].values[0]
             }
 
             quotes_data.append(quote_dict)
 
-        if len(quotes_data) != length:
-            raise FdataError(f"Obtained and parsed data length does not match: {length} != {len(quotes_data)}.")
+        if len(quotes_data) == 0:
+            self.log(f"No valid quotes obtained for {self.symbol}")
+            return None
 
         return quotes_data
 

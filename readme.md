@@ -1,6 +1,6 @@
 # Fcore Is a Framework for Financial Markets Analysis.
 
-### With the help of it, you can easily perform the following actions:
+## With the help of it, you can easily perform the following actions:
 
 - Obtain financial data and store it in an unified way.
 - Use an API to ease the development of AI-strategies for financial markets analysis.
@@ -9,15 +9,15 @@
 - Perform a real-time screening of the market using the screening API.
 - Generate reports.
 
-### Here is a simplified diagram of how Fcore is designed:
+## Here is a simplified diagram of how Fcore is designed:
 
 ![Diagram](fc.png "Diagram")
 
-# Quick Start
+## Quick Start
 
 Here are some basic examples of how to use Fcore. Please note that all the provided examples are a kind of 'Hello World's' and are not intended to be a real market strategies.
 
-**The latest version of yfinance library is required to run these examples. Always update yfinace to the latest version using 'pip install yfinance --upgrade'**
+**The latest version of yfinance library is required to run these examples. Always update yfinance to the latest version using 'pip install yfinance --upgrade'**
 
 ## Data Management
 
@@ -28,13 +28,13 @@ Fcore obtains data and stores it in a database - no need to re-fetch it again.
 yf.YF(symbol='IBM', first_date="2024-1-1", last_date="2025-1-1").get()
 ```
 
-Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']*
+Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: `quotes['annual_cashflow']`
 
 Invoke **python -m quickstart.min_data_management** to run the full example.
 
 ## Tools
 
-Fcore has a Tools API to ease a data processing routine work. A tools may just perform some basic calculations (like technical indicators). However, it may also be used for automating complex machine learning tasks including incremental learning and traing a model based on datasets which do not fit in a memory.
+Fcore has a Tools API to ease a data processing routine work. A tools may just perform some basic calculations (like technical indicators). However, it may also be used for automating complex machine learning tasks including incremental learning and training a model based on datasets which do not fit in a memory.
 
 AI API is divided into two parts: The Classification API which allows to classify nearly every market event and The Regression API. As a basic example of using the Classification API you may classify if it is a good time to open a long/short position.
 
@@ -78,7 +78,7 @@ prob = Probability(period_long=period_long,
                                       # For example, if true_ratio is 0.03 and cycle_num is 5,
                                       # then the signal will be considered as true if there was a 3% change in
                                       # quote in the following 5 cycles after getting the signal.
-                   cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
+                   cycle_num=2,  # Number of cycles to reach true_ratio to consider the signal as true.
                    algorithm=Algorithm.KNC)
 
 prob.learn()
@@ -101,14 +101,14 @@ Using Classification API you can easily classify nearly every event which happen
 rows_learn = YF(symbol='SPY', first_date="2000-1-1", last_date="2021-1-1").get()
 rows_test = YF(symbol='SPY', first_date="2021-1-2", last_date="2023-4-1").get()
 
-# Create and train the model
+# Train the model
 classifier = MAClassifier(period=period,  # SMA Period
                           data_to_learn=[rows_learn],  # Raw quote data to train the model
                           true_ratio=0.004,  # Ratio when signal is considered as true in cycle_num.
                                              # For example, if true_ratio is 0.03 and cycle_num is 5,
                                              # then the signal will be considered as true if there was a 3% change in
                                              # quote in the following 5 cycles after getting the signal.
-                          cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
+                          cycle_num=2,  # Number of cycles to reach true_ratio to consider the signal as true.
                           algorithm=Algorithm.LDA)  # Classification algorithm to use.
 
 classifier.learn()
@@ -130,15 +130,15 @@ params = {
     'deposit_interval': 30,
     'inflation': 2.5,
     'period': period,
-    'margin_rec': 0.9,
+    'margin_rec': 0.9,  # Use some margin to test shorting
     'margin_req': 1
 }
 
 # Perform backtest using AI classification of signals with the help of the model trained above
 classification = MAClassification(**params, classifier=classifier)
 
-classification.calculate()  # It starts the calculation in a separate thread which allows you to make a parralel computations
-                            # if you use a Pyhon interpreter without GIL.
+classification.calculate()  # It starts the calculation in a separate thread which allows you to make a parallel computations
+                            # if you use a Python interpreter without GIL.
 ```
 
 Invoke **python -m quickstart.min_ma_classification** to run the example.
@@ -146,9 +146,9 @@ Invoke **python -m quickstart.min_ma_classification** to run the example.
 It is the report generated by the script above:
 ![Backtesting Report](ma_classification.png "Backtesting Report")
 
-Here we see that classification helped to better distinguish signals of the strategy and decreased the loses.
+Here we see that classification helped to better distinguish signals of the strategy and decreased the losses.
 
-# Other Examples
+## Other Examples
 
 The examples above are only a little part of what Fcore is capable. The following examples illustrates the wider usage of the framework.
 
@@ -157,14 +157,14 @@ Use the following tool to manage quotes and obtain data.
 - *Yahoo Finance* wrapper - [data/yf.py](data/yf.py)
 
 ### Examples of custom data processing tools which are relied on AI
-- [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )
-- [tools/ma_classifier.py](tools/ma_classifier.py) AI tool where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration, [source of the demo](demo/tools/ma_classifier_demo.py))
-- [tools/growth_probability.py](tools/growth_probability.py) AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
+- [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py))
+- [tools/ma_classifier.py](tools/ma_classifier.py) - AI tool where MA/price crossover signals are determined by AI if they are true/false. (**python -m demo.tools.ma_classifier_demo** for demonstration, [source of the demo](demo/tools/ma_classifier_demo.py))
+- [tools/growth_probability.py](tools/growth_probability.py) - AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
 
 ### Screening demos
-- [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstation, [source of the demo](demo/screening/rsi_scr_demo.py))
-- [screener/regression_scr.py](screener/rsi_scr.py) - Regression AI screener (**python -m demo.screening.regression_scr_demo** for a demonstation, [source of the demo](demo/screening/regression_scr_demo.py))
-- [screener/classification_scr.py](screener/classification_scr.py) - Classification AI screener (**python -m demo.screening.classification_scr_demo** for a demonstation, [source of the demo](demo/screening/classification_scr_demo.py))
+- [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstration, [source of the demo](demo/screening/rsi_scr_demo.py))
+- [screener/regression_scr.py](screener/regression_scr.py) - Regression AI screener (**python -m demo.screening.regression_scr_demo** for a demonstration, [source of the demo](demo/screening/regression_scr_demo.py))
+- [screener/classification_scr.py](screener/classification_scr.py) - Classification AI screener (**python -m demo.screening.classification_scr_demo** for a demonstration, [source of the demo](demo/screening/classification_scr_demo.py))
 
 ### Examples of backtesting strategies with portfolio management
 - [eql_test.py](demo/backtest/eql_test.py) - Equal sector weight portfolio demo (similar to EQL ETF). Note that here you may 'reconstruct' the ETF even prior its inception date. (**python -m demo.backtest.eql_test**)
@@ -174,16 +174,16 @@ Use the following tool to manage quotes and obtain data.
 ### Other examples of backtesting strategies
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))
 - [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**, [source of the demo](demo/backtest/ma_test.py))
-- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. (**python -m demo.backtest.rsi_test**) [Source of the demo](demo/backtest/rsi_test.py)).
-- [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
+- [backtest/rsi.py](backtest/rsi.py) - RSI strategy multi-security demo. (**python -m demo.backtest.rsi_test**, [source of the demo](demo/backtest/rsi_test.py))
+- [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossover strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder and open the image in the default image viewer.
 
-# Additional Details
+## Additional Details
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).
 
-Despite beging feature complete, currently Fcore is still in the development stage as there is still work on lower priority issues and performance improvement.
+Despite being feature complete, currently Fcore is still in the development stage as there is still work on lower priority issues and performance improvement.
 
 The project is not promoted anywhere yet. However, if you found it and feel interested, sure you are welcome to observe the development process or contribute to the project. The 'general idea' of Fcore will remain the same but APIs still may change.
 
@@ -191,7 +191,7 @@ The repository uses two branches: 'main' and 'devel'. The 'main' branch is suppo
 
 All fetched quotes are cached in a database (sqlite by default). Data-related settings (like api-keys) are stored in [settings.py](settings.py) file.
 
-Fcore is distributes on an 'AS IS' basis using a custom source available [License](license.md). The author is not responsible for any losses caused by using the project.
+Fcore is distributed on an 'AS IS' basis under a custom source-available [license](license.md). The author is not responsible for any losses caused by using the project.
 
 Please note that Fcore is a tool which helps you to easily implement and test your own financial strategies but it does not provide any 'out of the box' solutions. Consider all the provided demos as programming examples which help you to implement your own strategies.
 

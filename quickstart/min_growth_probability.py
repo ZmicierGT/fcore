@@ -79,7 +79,7 @@ prob = Probability(period_long=period_long,
                                       # For example, if true_ratio is 0.03 and cycle_num is 5,
                                       # then the signal will be considered as true if there was a 3% change in
                                       # quote in the following 5 cycles after getting the signal.
-                   cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
+                   cycle_num=2,  # Number of cycles to reach true_ratio to consider the signal as true.
                    algorithm=Algorithm.KNC)
 
 prob.learn()

@@ -32,7 +32,7 @@ classifier = MAClassifier(period=period,  # SMA Period
                                              # For example, if true_ratio is 0.03 and cycle_num is 5,
                                              # then the signal will be considered as true if there was a 3% change in
                                              # quote in the following 5 cycles after getting the signal.
-                          cycle_num=2,  # Nuber of cycles to reach true_ratio to consider the signal as true.
+                          cycle_num=2,  # Number of cycles to reach true_ratio to consider the signal as true.
                           algorithm=Algorithm.LDA)  # Classification algorithm to use.
 
 classifier.learn()
@@ -56,15 +56,15 @@ params = {
     'deposit_interval': 30,
     'inflation': 2.5,
     'period': period,
-    'margin_rec': 0.9,  # Use some margin (required and recommended) to test shorting.
+    'margin_rec': 0.9,  # Use some margin to test shorting
     'margin_req': 1
 }
 
 # Perform backtest using AI classification of signals
 classification = MAClassification(**params, classifier=classifier)
 
-classification.calculate()  # It starts the calculation in a separate thread which allows you to make a parralel computations
-                            # if you use a Pyhon interpreter without GIL.
+classification.calculate()  # It starts the calculation in a separate thread which allows you to make a parallel computations
+                            # if you use a Python interpreter without GIL.
 
 # Regular strategy (without classifying signals) for comparison
 ma = MA(**params)

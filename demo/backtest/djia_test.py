@@ -52,17 +52,18 @@ if __name__ == "__main__":
             yfi = YF(symbol=symbol_idx, first_date=first_date, last_date=last_date)
             rows = yfi.get()
             info = yfi.get_info()
+
+            print(f"The total number of quotes used for {symbol_idx} is {len(rows)}.\n")
+
+            data = StockData(rows=rows,
+                             title=symbol_idx,
+                             spread=0.1,
+                             info=info)
+
+            allrows.append(data)
         except FdataError as e:
-            sys.exit(e)
-
-        print(f"The total number of quotes used for {symbol_idx} is {len(rows)}.\n")
-
-        data = StockData(rows=rows,
-                         title=symbol_idx,
-                         spread=0.1,
-                         info=info)
-
-        allrows.append(data)
+            print(f"Skipping {symbol_idx}: {e}\n")
+            continue
 
     try:
         rows_etf = YF(symbol=etf, first_date=first_date, last_date=last_date).get()

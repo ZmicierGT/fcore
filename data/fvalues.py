@@ -14,8 +14,7 @@ def_last_date = 9999999999  # Latest supported timestamp
 
 trading_days_per_year = 252
 
-# NOTE: KRFT Historical quotes (delisted) are not provided by any supported data source yet.
-# TODO MID Delisted UTX is problematic as well as quotes and surprises may be obtained from FMP but not info or cap.
+# NOTE: KRFT and UTX Historical quotes (delisted) are not provided by any supported data source yet.
 djia_jun_08_2009 = ['MMM', 'DD', 'MCD', 'AA', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'T', 'HPQ', 'PFE', 'BAC', 'HD', 'PG',\
                     'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'KRFT', 'DIS']
 
@@ -114,13 +113,13 @@ sector_titles = [Sector.Technology.value,
 # XSMC.SW - CHF Acc (7/2013)
 # EWL - USD Dist (Likely MSCI Switzerland based, 3/1996)
 
-# The following tickers are missed from yfinance / FMP data:
+# The following tickers are missed from yfinance:
 # Credit Suisse Group - CSGN.SW / CS
 # Syngenta - SYNN.SW / SYT (ADR ticker is taken by other company)
-# Actelion - ATLN.SW / ALIOY (No ADR data on FMP)
+# Actelion - ATLN.SW / ALIOY
 # Transocean - RIGN.SW / RIG (ADR present on yfinance)
-# Synthes - SYST.SW / SYSTY (No ADR data on FMP)
-# Nobel Biocare - NOBN.SW / NBHYY (No ADR data on FMP)
+# Synthes - SYST.SW / SYSTY
+# Nobel Biocare - NOBN.SW / NBHYY
 
 # Credit Suisse Group (CSGN.SW) was replaced by Kuehne + Nagel International AG (KNIN.SW)
 sw20_06_jun_23 = ['NESN.SW', 'ROG.SW', 'NOVN.SW', 'CFR.SW', 'ZURN.SW', 'UBSG.SW', 'ABBN.SW', 'LONN.SW', 'SIKA.SW', \
@@ -299,17 +298,7 @@ sw20_adr_combined = sorted(list(set(sw20_adr_05_jul_07 + sw20_adr_21_sep_09 + sw
                                     sw20_adr_18_jun_12 + sw20_adr_14_jan_16 + sw20_adr_24_apr_17 + sw20_adr_27_mar_19 + \
                                     sw20_adr_03_sep_20 + sw20_adr_05_sep_21 + sw20_adr_24_sep_22 + sw20_adr_06_jun_23)))
 
-sw20_adr_combined_fmp = sw20_adr_combined
-
-# No data on FMP
-sw20_adr_combined_fmp.remove('ALIOY')
-sw20_adr_combined_fmp.remove('SYSTY')
-sw20_adr_combined_fmp.remove('NBHYY')
-
-# Ticker is taken by another company
-sw20_adr_combined_fmp.remove('SYT')
-
-sw20_adr_combined_yf = sw20_adr_combined_fmp
+sw20_adr_combined_yf = sw20_adr_combined
 
 # No data on yahoo finance
 sw20_adr_combined_yf.remove('CS')
@@ -540,6 +529,7 @@ class StockSplits(StrEnum):
 
 # TODO LOW Think that in DB only Minute, Day and in the future Tick quotes are stored.
 # Other timespans are calculated manually based on the minute or EOD data.
+# NOTE Intraday quotes present in the interface but actually only EOD is used by the supported data source (YF)
 class Timespans(StrEnum):
     """
         Enum class for timespans.
@@ -549,14 +539,13 @@ class Timespans(StrEnum):
     Tick = "Tick"
     Minute = "Minute"
     TwoMinutes = "2_Minutes"  # YF only
-    FiveMinutes = "5_Minutes"  # All except Polygon
+    FiveMinutes = "5_Minutes"
     TenMinutes = "10_Minutes"  # Currently not used by any supported data source. Kept for future.
-    FifteenMinutes = "15_Minutes"  # All except Polygon
+    FifteenMinutes = "15_Minutes"
     TwentyMinutes = "20_Minutes"  # Currently not used by any supported data source. Kept for future.
-    ThirtyMinutes = "30_Minutes"  # All except Polygon
+    ThirtyMinutes = "30_Minutes"
     Hour = "Hour"  # All
     NinetyMinutes = "90_Minutes"  # YF only
-    FourHour = "4_Hours"  # FMP only
     Day = "Day"
 
 class SecType(StrEnum):

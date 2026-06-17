@@ -341,7 +341,7 @@ class ROStockData(ReadOnlyData):
                 raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
 
             # Create trigger to last modified time on stock_info
-            create_fmp_cap_trigger = """CREATE TRIGGER update_stock_info
+            create_cap_trigger = """CREATE TRIGGER update_stock_info
                                                 BEFORE UPDATE
                                                     ON stock_info
                                         BEGIN
@@ -351,7 +351,7 @@ class ROStockData(ReadOnlyData):
                                         END;"""
 
             try:
-                self.cur.execute(create_fmp_cap_trigger)
+                self.cur.execute(create_cap_trigger)
             except self.Error as e:
                 raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 

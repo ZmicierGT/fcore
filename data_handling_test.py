@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data import yf, fmp
+from data import yf
 from data.fvalues import Timespans, SecType, Currency, StockQuotes, def_last_date
 from data.futils import get_dt
 
@@ -92,7 +92,7 @@ def test_request_ts(source):
 
     print(f"Quotes before {quotes_num} quotes after {after}")
 
-    if before >= after:
+    if quotes_num >= after:
         failure("Number of quotes did not increase", source)
 
     print(colored("Quotes, splits and divs num increased as expected", "green"))
@@ -304,29 +304,4 @@ if __name__ == "__main__":
 
     print(colored("ALL TESTS PASSED for YF data source!", "green"))
 
-    #################################################################
-
-    print(colored("\nTesting FMP data source:\n", "yellow"))
-
-    fmpi = fmp.FmpStock(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True)
-    fmpi.db_name = ":memory:"
-    fmpi.db_connect()
-
-    test_request_ts(fmpi)
-
-    timespans_fmp = {
-        1: Timespans.Minute,
-        5: Timespans.FiveMinutes,
-        15: Timespans.FifteenMinutes,
-        30: Timespans.ThirtyMinutes,
-        60: Timespans.Hour,
-        240: Timespans.FourHour
-    }
-
-    test_request_intervals(fmpi, timespans_fmp)
-
-    fmpi.db_close()
-
-    print(colored("ALL TESTS PASSED for FMP data source!", "green"))
-
-    print(colored("ALL TESTS PASSED for all data sources!", "green"))
+    print(colored("ALL TESTS PASSED!", "green"))

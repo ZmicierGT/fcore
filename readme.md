@@ -1,10 +1,8 @@
 # Fcore Is a Framework for Financial Markets Analysis.
 
-# WARNING!!! Dependency pandas_ta does not work with numpy 2.0 If you use numpy 2.0, use this [workaround](https://github.com/twopirllc/pandas-ta/issues/799)!!!
-
 ### With the help of it, you can easily perform the following actions:
 
-- Obtain data from various sources (Yahoo Finance, FMP, Polygon) and store it in an unified way.
+- Obtain financial data and store it in an unified way.
 - Use an API to ease the development of AI-strategies for financial markets analysis.
 - Utilize the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach.
 - Use the own backtesting engine which takes into account a lot of issues related to an actual trade/investment and supports strategies involving multiple securities.
@@ -23,17 +21,11 @@ Here are some basic examples of how to use Fcore. Please note that all the provi
 
 ## Data Management
 
-Fcore supports simultaneous usage of varios data sources. For example, you may obtain quotes using one data source and use another for fundamental data. The data will be cached in a database and also requests to sources which involve maximum number of queries per minute will be automatically delayed to avoid data source errors. Make sure to add your API keys to the [settings.py](settings.py) file at first.
+Fcore obtains data and stores it in a database - no need to re-fetch it again.
 
 ```python
 # Fetch quotes if needed. Otherwise just take them from a database.
-yf.YF(symbol='IBM', first_date="2024-1-1", last_date="2025-1-1").get()  # Use one source for quotes
-
-fmpi = fmpi.FmpStock(symbol='IBM')  # Use another source for fundamentals
-fmpi.get_cash_flow()
-
-# Get combined data (quotes + fundamentals) in one query
-quotes = fmpi.get_quotes(ignore_source=True, queries=[Subquery('fmp_cash_flow', 'netIncome', condition=report_year, title='annual_cashflow')])
+yf.YF(symbol='IBM', first_date="2024-1-1", last_date="2025-1-1").get()
 ```
 
 Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: *quotes['annual_cashflow']*
@@ -160,11 +152,9 @@ Here we see that classification helped to better distinguish signals of the stra
 
 The examples above are only a little part of what Fcore is capable. The following examples illustrates the wider usage of the framework.
 
-Use the following tools to manage quotes and obtain data.
+Use the following tool to manage quotes and obtain data.
 
-- *Yahoo Finance* wrapper - [data/yf.py](data/yf.py))
-- *Polygon.IO* API wrapper - [data/polygon.py](data/polygon.py))
-- API wrapper for *Financial Modeling Prep* data - [data/fmp.py](data/fmp.py)
+- *Yahoo Finance* wrapper - [data/yf.py](data/yf.py)
 
 ### Examples of custom data processing tools which are relied on AI
 - [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py) )
@@ -177,7 +167,6 @@ Use the following tools to manage quotes and obtain data.
 - [screener/classification_scr.py](screener/classification_scr.py) - Classification AI screener (**python -m demo.screening.classification_scr_demo** for a demonstation, [source of the demo](demo/screening/classification_scr_demo.py))
 
 ### Examples of backtesting strategies with portfolio management
-- [cap_weight_test.py](demo/backtest/cap_weight_test.py) - Market cap weighted portfolio demo. (**python -m demo.backtest.cap_weight_test**)
 - [eql_test.py](demo/backtest/eql_test.py) - Equal sector weight portfolio demo (similar to EQL ETF). Note that here you may 'reconstruct' the ETF even prior its inception date. (**python -m demo.backtest.eql_test**)
 - [djia_test.py](demo/backtest/djia_test.py) - Demo to assemble from stocks the price-weighted portfolio which corresponds the DJIA index. (**python -m demo.backtest.djia_test**)
 - [grouping_test.py](demo/backtest/grouping_test.py) - Demo to test grouping in a portfolio. Grouping allows you to create a group for a particular asset type (international or domestic stock, particular sectors, bonds etc.). Each group has a pre-defined size which impacts position sizing. (**python -m demo.backtest.grouping_test**)
@@ -185,7 +174,7 @@ Use the following tools to manage quotes and obtain data.
 ### Other examples of backtesting strategies
 - [backtest/bh.py](backtest/bh.py) - Simple backtesting strategy with periodic investments adjusted to inflation (**python -m demo.backtest.bh_test**, [source of the demo](demo/backtest/bh_test.py))
 - [backtest/ma.py](backtest/ma.py) - MA crossover strategy implementation (**python -m demo.backtest.ma_test**, [source of the demo](demo/backtest/ma_test.py))
-- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. See **python -m demo.backtest.rsi_test** for an EOD test and **python demo.backtest.rsi_intraday_test** for an intraday demonstation. [Source of the EOD demo](demo/backtest/rsi_test.py), [source of the intraday demo](demo/backtest/rsi_intraday_test.py).
+- [backtest/rsi.py](backtest/rsi.py) - RSI stragegy multi-security demo. (**python -m demo.backtest.rsi_test**) [Source of the demo](demo/backtest/rsi_test.py)).
 - [backtest/ma_classification.py](backtest/ma_classification.py) - MA/price crossower strategy where true/false signals are determined by AI. (**python -m demo.backtest.ma_classification_test**, [source of the demo](demo/backtest/ma_classification_test.py))
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder and open the image in the default image viewer.

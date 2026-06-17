@@ -4,6 +4,12 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+import warnings
+
+# Suppress third-party library deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pandas_ta")
+warnings.filterwarnings("ignore", category=Warning, module="pandas_ta")
+
 # TODO LOW Remove gaps between docstrings and imports
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from tools.ma_classifier import MAClassifier

@@ -91,17 +91,19 @@ class YF(stock.StockFetcher):
         if (last_date - first_date).days == 0:
             first_date = first_date - timedelta(days=1)
 
-        data = yfin.download(self.symbol,
-                             interval=self.get_timespan_str(),
-                             start=first_date,
-                             end=last_date,
-                             auto_adjust=False)
+        try:
+            data = yfin.download(self.symbol,
+                                 interval=self.get_timespan_str(),
+                                 start=first_date,
+                                 end=last_date,
+                                 auto_adjust=False)
+        except Exception as e:
+            raise FdataError(f"Can't fetch quotes for {self.symbol} from YF: {e}") from e
 
         length = len(data)
 
         if length == 0:
-            self.log(f"Can not fetch quotes for {self.symbol}. No quotes fetched.")
-            return
+            raise FdataError(f"Can not fetch quotes for {self.symbol}. No quotes fetched. The security may be delisted or the symbol is incorrect.")
 
         pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self.get_timezone()).utctimetuple()))
 
@@ -111,7 +113,8 @@ class YF(stock.StockFetcher):
             # TODO LOW For simplicity just set time to 23:59:59 without time zone adjustments.
             # For some markets (non-US) timestamps (which are supposed to be UTC-adjusted) may be incorrect.
             data['ts'] = data['Date'].dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
-            data['ts'] = data['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
+            # Convert datetime to timestamp: pandas datetime64[us] stores microseconds, so divide by 10^6 to get seconds
+            data['ts'] = (data['ts'].astype(np.int64) // 10**6).astype(int)
 
             # Reverse-adjust the quotes
             splits = self.__fetch_splits()
@@ -156,8 +159,7 @@ class YF(stock.StockFetcher):
             quotes_data.append(quote_dict)
 
         if len(quotes_data) == 0:
-            self.log(f"No valid quotes obtained for {self.symbol}")
-            return None
+            raise FdataError(f"No valid quotes obtained for {self.symbol}. The security may be delisted or the symbol is incorrect.")
 
         return quotes_data
 
@@ -232,9 +234,15 @@ class YF(stock.StockFetcher):
         splits = data.splits
 
         df_result = pd.DataFrame()
+
+        # Handle empty splits (no splits data available)
+        if len(splits) == 0:
+            return df_result
+
         # Keep splits at 00:00:00
         df_result['ts'] = splits.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
-        df_result['ts'] = df_result['ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
+        # Convert datetime to timestamp: pandas datetime64[ns] stores nanoseconds, so divide by 10^9 to get seconds
+        df_result['ts'] = (df_result['ts'].astype(np.int64) // 10**9).astype(int)
 
         df_result['split_ratio'] = splits.reset_index()['Stock Splits']
 
@@ -254,9 +262,15 @@ class YF(stock.StockFetcher):
         splits = self.__fetch_splits()
 
         df_result = pd.DataFrame()
+
+        # Handle empty dividends (no dividends data available)
+        if len(divs) == 0:
+            return df_result
+
         # Keep dividends at 00:00:00
         df_result['ex_ts'] = divs.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
-        df_result['ex_ts'] = df_result['ex_ts'].astype(int).div(10**9).astype(int)  # One more astype to get rid of .0
+        # Convert datetime to timestamp: pandas datetime64[ns] stores nanoseconds, so divide by 10^9 to get seconds
+        df_result['ex_ts'] = (df_result['ex_ts'].astype(np.int64) // 10**9).astype(int)
 
         df_result['amount'] = divs.reset_index()['Dividends']
 
@@ -301,10 +315,10 @@ class YF(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
 
-        info['fc_time_zone'] = info['exchangeTimezoneName']
+        info['fc_time_zone'] = info.get('exchangeTimezoneName', 'UTC')
         info['fc_sec_type'] = SecType.Unknown
 
-        sec_type = info['quoteType']
+        sec_type = info.get('quoteType', 'EQUITY')
 
         if sec_type == 'EQUITY':
             info['fc_sec_type'] = SecType.Stock

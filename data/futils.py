@@ -38,9 +38,9 @@ def get_dt(value, timezone=tz.UTC):
     if isinstance(value, int) or isinstance(value, np.int64):
         try:
             if value < 0:
-                dt = datetime(1970, 1, 1) + timedelta(seconds=value)
+                dt = datetime(1970, 1, 1, tzinfo=tz.UTC) + timedelta(seconds=value)
             else:
-                dt = datetime.utcfromtimestamp(value)
+                dt = datetime.fromtimestamp(value, tz=tz.UTC)
         except (OverflowError, OSError) as e:
             raise ValueError(f"Too big/small timestamp value: {e}") from e
     # String
@@ -275,7 +275,7 @@ def trim_time(data, start=None, end=None):
         For example, if start='13:30' and end='21:00' then all quotes which are outside of this window will be deleted
         from the dataset.
     """
-    pick_time = np.vectorize(lambda x: datetime.utcfromtimestamp(x).time())
+    pick_time = np.vectorize(lambda x: datetime.fromtimestamp(x, tz=tz.UTC).time())
 
     if start is not None:
         start_time = datetime.strptime(start, '%H:%M').replace(tzinfo=tz.UTC).time()

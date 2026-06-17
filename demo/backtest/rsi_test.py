@@ -4,6 +4,12 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+import warnings
+
+# Suppress third-party library deprecation warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pandas_ta")
+warnings.filterwarnings("ignore", category=Warning, module="pandas_ta")
+
 from backtest.rsi import RSI
 from backtest.bh import BuyAndHold
 from backtest.base import BackTestError

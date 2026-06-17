@@ -780,7 +780,7 @@ class ReadOnlyData():
                 raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
             # Create trigger to last modified time on sec_info
-            create_fmp_cap_trigger = """CREATE TRIGGER update_sec_info
+            create_cap_trigger = """CREATE TRIGGER update_sec_info
                                                 BEFORE UPDATE
                                                     ON sec_info
                                         BEGIN
@@ -790,7 +790,7 @@ class ReadOnlyData():
                                         END;"""
 
             try:
-                self.cur.execute(create_fmp_cap_trigger)
+                self.cur.execute(create_cap_trigger)
             except self.Error as e:
                 raise FdataError(f"Can't create trigger for sec_info: {e}") from e
 
@@ -1396,8 +1396,6 @@ class ReadOnlyData():
                 now += timedelta(minutes=60)
             elif timespan == Timespans.NinetyMinutes:
                 now += timedelta(minutes=90)
-            elif timespan == Timespans.FourHour:
-                now += timedelta(minutes=240)
 
         ts = calendar.timegm(now.utctimetuple())
 
@@ -1724,32 +1722,35 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
         # We need to check if the earliest and latest dates in database exceed the requested date for specified
         # source and time span. If not, no need to fetch.
-        if current_num == 0 or self.first_date_ts < self.get_min_request_ts() or last_ts_adj > self.get_max_request_ts():
+        min_request_ts = self.get_min_request_ts()
+        max_request_ts = self.get_max_request_ts()
+
+        if current_num == 0 or min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
             intervals = []
 
             # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
             # if they already present in DB.
-            if total_num:
+            if total_num and min_request_ts is not None and max_request_ts is not None:
                 # New interval exceeds the old one on both sides
-                if self.first_date_ts < self.get_min_request_ts() and last_ts_adj > self.get_max_request_ts():
-                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
-                    intervals.append([self.get_max_request_ts(), last_ts_adj])
+                if self.first_date_ts < min_request_ts and last_ts_adj > max_request_ts:
+                    intervals.append([self.first_date_ts, min_request_ts])
+                    intervals.append([max_request_ts, last_ts_adj])
 
                 # New interval is completely before the old interval
-                elif self.first_date_ts < self.get_min_request_ts() and last_ts_adj < self.get_min_request_ts():
-                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
+                elif self.first_date_ts < min_request_ts and last_ts_adj < min_request_ts:
+                    intervals.append([self.first_date_ts, min_request_ts])
 
                 # New interval is completely after the old interval
-                elif self.first_date_ts > self.get_max_request_ts() and last_ts_adj > self.get_max_request_ts():
-                    intervals.append([self.get_max_request_ts(), last_ts_adj])
+                elif self.first_date_ts > max_request_ts and last_ts_adj > max_request_ts:
+                    intervals.append([max_request_ts, last_ts_adj])
 
                 # New interval is before the old inverval but has an overlap with the old one
-                elif self.first_date_ts < self.get_min_request_ts() and last_ts_adj > self.get_min_request_ts():
-                    intervals.append([self.first_date_ts, self.get_min_request_ts()])
+                elif self.first_date_ts < min_request_ts and last_ts_adj > min_request_ts:
+                    intervals.append([self.first_date_ts, min_request_ts])
 
                 # New interval is after the old interval but has an overlap with the old one
-                elif self.first_date_ts < self.get_max_request_ts() and last_ts_adj > self.get_max_request_ts():
-                    intervals.append([self.get_max_request_ts(), last_ts_adj])
+                elif self.first_date_ts < max_request_ts and last_ts_adj > max_request_ts:
+                    intervals.append([max_request_ts, last_ts_adj])
             else:
                 intervals.append([self.first_date_ts, last_ts_adj])
 

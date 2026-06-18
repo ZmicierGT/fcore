@@ -40,6 +40,8 @@ class YF(stock.StockFetcher):
         self._sec_info_supported = True
         self._stock_info_supported = True
 
+        self._earnings_history_tbl = 'yf_earnings_history'
+
     def get_timespan_str(self):
         """
             Get the timespan for queries.
@@ -328,6 +330,222 @@ class YF(stock.StockFetcher):
             info['fc_sec_type'] = SecType.ETF
 
         return info
+
+    def check_database(self):
+        """
+            Database create/integrity check method for YF-specific tables.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        super().check_database()
+
+        # Check if we need to create table 'yf_earnings_history'
+        try:
+            check_earnings_history = "SELECT name FROM sqlite_master WHERE type='table' AND name='yf_earnings_history';"
+
+            self.cur.execute(check_earnings_history)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{check_earnings_history}") from e
+
+        if len(rows) == 0:
+            create_earnings_history = f"""CREATE TABLE yf_earnings_history(
+                                    yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    source_id INTEGER NOT NULL,
+                                    symbol_id INTEGER NOT NULL,
+                                    time_stamp INTEGER NOT NULL,
+                                    epsActual REAL,
+                                    epsEstimate REAL,
+                                    epsDifference REAL,
+                                    surprisePercent REAL,
+                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                    UNIQUE(symbol_id, time_stamp, source_id)
+                                    CONSTRAINT fk_symbols,
+                                        FOREIGN KEY (symbol_id)
+                                        REFERENCES symbols(symbol_id)
+                                        ON DELETE CASCADE
+                                    CONSTRAINT fk_sources,
+                                        FOREIGN KEY (source_id)
+                                        REFERENCES sources(source_id)
+                                        ON DELETE CASCADE
+                                );"""
+
+            try:
+                self.cur.execute(create_earnings_history)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{create_earnings_history}") from e
+
+            # Create index for symbol_id
+            create_eh_idx = "CREATE INDEX idx_yf_earnings_history ON yf_earnings_history(symbol_id, time_stamp);"
+
+            try:
+                self.cur.execute(create_eh_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
+
+            # Create trigger to update last modified time
+            create_eh_trigger = """CREATE TRIGGER update_yf_earnings_history
+                                        BEFORE UPDATE
+                                            ON yf_earnings_history
+                                    BEGIN
+                                        UPDATE yf_earnings_history
+                                        SET modified = strftime('%s', 'now')
+                                        WHERE yf_eh_id = old.yf_eh_id;
+                                    END;"""
+
+            try:
+                self.cur.execute(create_eh_trigger)
+            except self.Error as e:
+                raise FdataError(f"Can't create trigger for yf_earnings_history: {e}") from e
+
+    def get_earnings_history_num(self):
+        """Get the number of earnings history entries.
+
+            Returns:
+                int: the number of earnings history entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num(self._earnings_history_tbl)
+
+    def fetch_earnings_history(self):
+        """
+            Fetch the earnings history data.
+
+            Returns:
+                list: earnings history data.
+
+            Raises:
+                FdataError: network error or no data obtained.
+        """
+        ticker = yfin.Ticker(self.symbol)
+
+        try:
+            eh = ticker.earnings_history
+        except Exception as e:
+            raise FdataError(f"Can't fetch earnings history for {self.symbol} from YF: {e}") from e
+
+        if eh is None or eh.empty:
+            self.log(f"No earnings history data obtained for {self.symbol}")
+            return []
+
+        eh = eh.reset_index()
+
+        eh_data = []
+
+        for _, row in eh.iterrows():
+            quarter = row['quarter']
+
+            dt = quarter.tz_localize('UTC') if quarter.tz is None else quarter.tz_convert('UTC')
+            ts = int(calendar.timegm(dt.utctimetuple()))
+
+            eps_actual = row.get('epsActual')
+            eps_estimate = row.get('epsEstimate')
+            eps_difference = row.get('epsDifference')
+            surprise_percent = row.get('surprisePercent')
+
+            def val_or_null(v):
+                return 'NULL' if pd.isna(v) else v
+
+            eh_dict = {
+                'time_stamp': ts,
+                'epsActual': val_or_null(eps_actual),
+                'epsEstimate': val_or_null(eps_estimate),
+                'epsDifference': val_or_null(eps_difference),
+                'surprisePercent': val_or_null(surprise_percent),
+            }
+
+            eh_data.append(eh_dict)
+
+        return eh_data
+
+    def add_earnings_history(self, results):
+        """
+            Add earnings history data to the database.
+
+            Args:
+                results(list): the earnings history data.
+
+            Returns:
+                (int, int): total number of earnings history entries before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
+
+        num_before = self.get_earnings_history_num()
+
+        for result in results:
+            insert_eh = f"""INSERT OR {self._update} INTO yf_earnings_history (symbol_id,
+                                        source_id,
+                                        time_stamp,
+                                        epsActual,
+                                        epsEstimate,
+                                        epsDifference,
+                                        surprisePercent)
+                                    VALUES (
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            {result['time_stamp']},
+                                            {result['epsActual']},
+                                            {result['epsEstimate']},
+                                            {result['epsDifference']},
+                                            {result['surprisePercent']});"""
+
+            try:
+                self.cur.execute(insert_eh)
+            except self.Error as e:
+                raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
+
+        self.commit()
+
+        return (num_before, self.get_earnings_history_num())
+
+    def get_earnings_history(self):
+        """
+            Fetch (if needed) the earnings history data.
+        """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        quote_num = self.get_total_symbol_quotes_num()
+
+        if quote_num == 0:
+            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
+
+        num = self.get_earnings_history_num()
+
+        mod_ts = self.get_last_modified(self._earnings_history_tbl)
+
+        current = min(datetime.now().replace(tzinfo=None), self.last_date.replace(tzinfo=None))
+
+        # Fetch data if no data present or day difference between current/requested data more than 90 days
+        if mod_ts is None:
+            self.add_earnings_history(self.fetch_earnings_history())
+        else:
+            last_ts = self.get_last_timestamp(self._earnings_history_tbl)
+
+            days_delta = (current - get_dt(last_ts)).days
+            days_delta_mod = (current - get_dt(mod_ts)).days
+
+            if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
+                self.add_earnings_history(self.fetch_earnings_history())
+
+        new_num = self.get_earnings_history_num()
+
+        if initially_connected is False:
+            self.db_close()
+
+        return (new_num - num)
 
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

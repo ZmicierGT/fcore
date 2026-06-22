@@ -205,8 +205,6 @@ if __name__ == "__main__":
     else:
         cash_share = 0
 
-    # TODO HIGH Check why cash can be slightly negative
-
     print(f"\nStock allocation: ${round(stock_alloc, 2)}")
     print(f"Stock share: {round(stock_share, 2)} %")
 

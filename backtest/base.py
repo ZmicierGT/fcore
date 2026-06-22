@@ -1454,12 +1454,13 @@ class BackTestOperations():
     # Methods related to opening positions.
     #######################################
 
-    def get_max_trade_size_cash(self, ignore_lot=False):
+    def get_max_trade_size_cash(self, ignore_lot=False, price=None):
         """
             Get the maxumum number of securities which we can buy using the cash balance without going negative.
 
             Args:
                 ignore_lot(bool): indicates if lot size should be ignored if more than 1.
+                price(float): the execution price for the trade. If None, get_buy_price() is used.
 
             Return:
                 int: the maximum of positions to open using cash only.
@@ -1467,36 +1468,40 @@ class BackTestOperations():
         """
         lot = self.data.lot
 
-        # Note that it will be needed only when fractional shares are implemented
         if ignore_lot and lot >= 1:
             lot = 1
 
+        buy_price = price if price is not None else self.get_buy_price()
+
         securities_num_estimate = (self.get_caller().get_cash() - \
                                    self.get_total_fee()) / \
-                                   (self.get_buy_price())
+                                   buy_price
 
-        securities_num_estimate *= math.floor(securities_num_estimate / lot) * lot
+        securities_num_estimate = math.floor(securities_num_estimate / lot) * lot
 
         cash_available = self.get_caller().get_cash() - \
                          self.get_caller().get_commission() - \
                          self.get_security_fee() * securities_num_estimate
 
-        securities_num = cash_available / self.get_buy_price()
+        securities_num = cash_available / buy_price
         securities_num = round(math.floor(securities_num / lot) * lot, 6)
 
-        remaining_cash = cash_available - securities_num * self.get_buy_price()
+        remaining_cash = cash_available - securities_num * buy_price
 
         return (securities_num, remaining_cash)
 
     # TODO LOW check if this max() is needed.
-    def get_max_trade_size(self):
+    def get_max_trade_size(self, price=None):
         """
             Get total number of securities which we may buy.
+
+            Args:
+                price(float): the execution price for the trade. If None, get_buy_price() is used.
 
             Returns:
                 int: the total number of securities which we can buy using cash.
         """
-        max_num = max(0, self.get_max_trade_size_cash(True)[0])
+        max_num = max(0, self.get_max_trade_size_cash(True, price=price)[0])
 
         return round(math.floor(max_num // self.data.lot) * self.data.lot, 6)  # round to avoid precision issues in the future (fractional shares)
 
@@ -1516,11 +1521,13 @@ class BackTestOperations():
         if num < 0:
             raise BackTestError(f"Can't open negative number of long positions: {num}")
 
-        if num > self.get_max_trade_size():
+        max_size_price = price if price is not None else self.get_buy_price()
+
+        if num > self.get_max_trade_size(price=max_size_price):
             if exact:
-                raise BackTestError(f"Not enough cash to open the position. {num} > {self.get_max_trade_size()}")
+                raise BackTestError(f"Not enough cash to open the position. {num} > {self.get_max_trade_size(price=max_size_price)}")
             else:
-                num = min(num, self.get_max_trade_size())
+                num = min(num, self.get_max_trade_size(price=max_size_price))
 
         if num == 0:
             return

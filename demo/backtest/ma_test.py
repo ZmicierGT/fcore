@@ -48,10 +48,7 @@ if __name__ == "__main__":
 
     quotes = StockData(rows=rows,
                           title=symbol,
-                          margin_provided_rec=0.4,
-                          margin_provided_req=0.7,
                           spread=0.1,
-                          margin_interest=1,
                           trend_change_period=1,
                           trend_change_percent=2
                          )
@@ -64,8 +61,6 @@ if __name__ == "__main__":
         deposit_interval=30,
         inflation=2.5,
         period=period,
-        margin_rec=0.9,
-        margin_req=1,
         verbosity=False,
     )
 
@@ -98,10 +93,15 @@ if __name__ == "__main__":
     # Create a report
     #################
 
-    report = Report(data=results, width=max(length, min_width), margin=True)
+    # Show the statistics in a text form (along with the image)
+    title = f"MA/Quote Cross Backtesting Example for {symbol}"
+    stats = results.get_statistics(title=title)
+    print(stats)
+
+    report = Report(data=results, width=max(length, min_width))
 
     # Add a chart with quotes
-    fig_quotes = report.add_quotes_chart(title=f"MA/Quote Cross Backtesting Example for {symbol}")
+    fig_quotes = report.add_quotes_chart(title=title)
 
     # Append MA values to the quotes chart
     fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     report.add_expenses_chart(height=height)
 
     # Add annotations with strategy results
-    report.add_annotations()
+    report.add_annotations(title=title)
 
     # Show image
     new_file = report.show_image()

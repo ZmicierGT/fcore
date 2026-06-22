@@ -23,7 +23,6 @@ class RSI(BackTest):
                  period=14,
                  support=30,
                  resistance=70,
-                 to_short=False,
                  **kwargs):
         """
             Initializes RSI backtesting strategy implementation.
@@ -32,7 +31,6 @@ class RSI(BackTest):
                 period(int): period for RSI calculation.
                 support(int): RSI support value.
                 resistance(int): RSI resistance value.
-                to_short(bool): Indicates if a short position should be opened when we get a signal to sell.
 
             Raises:
                 BackTestError: incorrect arguments values.
@@ -55,9 +53,6 @@ class RSI(BackTest):
 
         if support >= resistance:
             raise BackTestError(f"Support can't be more or equal than resistance: {support} >= {resistance}")
-
-        # Indicates if we should open short positions when price goes below resistance
-        self.__to_short = to_short
 
     def skip_criteria(self, index):
         """
@@ -125,8 +120,6 @@ class RSI(BackTest):
             min_ex = None
             max_ex = None
 
-            open_short = False
-
             for ex in self.all_exec():
                 if ex.get_index():
                     ex_val = ex.get_val()['rsi']
@@ -147,21 +140,13 @@ class RSI(BackTest):
 
                 max_ex.close_all_long()
 
-                if self.__to_short:
-                    open_short = True
-
             if (
                 min_ex.get_val(offset=-1)['rsi'] is not None and min_ex.get_val()['rsi'] is not None and
                 min_ex.get_val(offset=-1)['rsi'] < self.__support and
                 min_ex.get_val()['rsi'] > self.__support
                ):
 
-                min_ex.close_all_short()
                 min_ex.open_long_max()
-
-            # Long position is a priority so open short afterwards
-            if open_short:
-                max_ex.open_short_max()
 
             ##############################
             # Teardown the cycle

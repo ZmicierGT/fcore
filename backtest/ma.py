@@ -128,15 +128,13 @@ class MA(BackTest):
                         self.exec().close_all()
 
             ########################
-            # Open positions
+            # Open/close positions
             ########################
 
-            # Depending on trend, open a long / short position(s) if we have enough cash / margin
-            if self.is_uptrend() == True and self.exec().get_short_positions() == 0:
+            if self.is_uptrend() == True:
                 self.exec().open_long_max()
- 
-            if self.is_uptrend() == False and self.exec().get_max_positions() == 0 and self.exec().get_long_positions() == 0:
-                self.exec().open_short_max()
+            elif self.is_uptrend() == False and self.exec().get_long_positions() > 0:
+                self.exec().close_all()
 
             ##############################
             # Teardown the cycle

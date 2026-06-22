@@ -205,6 +205,8 @@ if __name__ == "__main__":
     else:
         cash_share = 0
 
+    # TODO HIGH Check why cash can be slightly negative
+
     print(f"\nStock allocation: ${round(stock_alloc, 2)}")
     print(f"Stock share: {round(stock_share, 2)} %")
 
@@ -215,8 +217,14 @@ if __name__ == "__main__":
     # Create a report
     #################
 
+    # Show the statistics in a text form (along with the image)
+    title_cls = 'B&H Performance:'
+    title_sim = 'Index Simulation Performance:'
+    print(results_cls.get_statistics(title=title_cls))
+    print(results.get_statistics(title=title_sim))
+
     # TODO LOW Think of how to get rid of the main chart as it may be useless in multi symbol strategies
-    report = Report(data=results_cls, width=max(len(rows), min_width), margin=False)
+    report = Report(data=results_cls, width=max(len(rows), min_width))
 
     # Add charts for used symbols
     report.add_quotes_chart(title=f"B&H Testing for {etf}", height=450)
@@ -236,8 +244,8 @@ if __name__ == "__main__":
     fig_exp.add_trace(go.Scatter(x=results.DateTime, y=results.SpreadExpense, mode='lines', name=f"Simulation Spread"))
 
     # Add annotations with strategy results
-    report.add_annotations(data=results_cls, title='B&H Performance:')
-    report.add_annotations(data=results, title='Index Simulation Performance:')
+    report.add_annotations(data=results_cls, title=title_cls)
+    report.add_annotations(data=results, title=title_sim)
 
     # Show image
     new_file = report.show_image()

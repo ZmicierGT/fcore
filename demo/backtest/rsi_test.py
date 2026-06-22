@@ -126,11 +126,16 @@ if __name__ == "__main__":
     # Create a report
     #################
 
+    # Show the statistics in a text form (along with the image)
+    title = f"RSI Multi Example Testing for {symbol1} and {symbol2}"
+    stats = results.get_statistics(title=title)
+    print(stats)
+
     # TODO LOW Consider adding B&H text statistics at the bottom
-    report = Report(data=results, width=max(length, min_width), margin=True)
+    report = Report(data=results, width=max(length, min_width))
 
     # Add charts for used symbols
-    report.add_quotes_chart(title=f"RSI Multi Example Testing for {symbol1} and {symbol2}", height=250)
+    report.add_quotes_chart(title=title, height=250)
     report.add_quotes_chart(index=1, height=height)
 
     # Add a custom chart with RSI values
@@ -156,7 +161,7 @@ if __name__ == "__main__":
     report.add_expenses_chart(height=height)
 
     # Add annotations with strategy results
-    report.add_annotations()
+    report.add_annotations(title=title)
 
     # Show image
     new_file = report.show_image()

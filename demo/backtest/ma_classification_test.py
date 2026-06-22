@@ -6,6 +6,8 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import warnings
 
+# TODO HIGH Check why the numbers with or without classification (and even of different intervals) are similar
+
 # Suppress third-party library deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pandas_ta")
 warnings.filterwarnings("ignore", category=Warning, module="pandas_ta")
@@ -110,8 +112,6 @@ if __name__ == "__main__":
                                           deposit_interval=30,
                                           inflation=2.5,
                                           period=period,
-                                          margin_rec=0.9,
-                                          margin_req=1,
                                           classifier=classifier
                                         )
 
@@ -141,9 +141,7 @@ if __name__ == "__main__":
             periodic_deposit=500,
             deposit_interval=30,
             inflation=2.5,
-            period=period,
-            margin_rec=0.9,
-            margin_req=1
+            period=period
             )
 
     try:
@@ -156,7 +154,16 @@ if __name__ == "__main__":
     # Create a report
     #################
 
-    report = Report(data=results_cls, width=max(length_test, min_width), margin=True)
+    # Show the statistics in a text form (along with the image)
+    title_cls = "MA Classifier performance:"
+    title_cmp = "Regular MA/Price Crossover performance:"
+    stats = results_cls.get_statistics(title=title_cls)
+    print(stats)
+
+    stats = results_cmp.get_statistics(title=title_cmp)
+    print(stats)
+
+    report = Report(data=results_cls, width=max(length_test, min_width))
 
     # Add a chart with quotes
     fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
@@ -180,8 +187,8 @@ if __name__ == "__main__":
     report.add_expenses_chart(height=height)
 
     # Add annotations with strategy results
-    report.add_annotations(title="MA Classifier performance:")
-    report.add_annotations(data=results_cmp, title="Regular MA/Price Crossover performance:")
+    report.add_annotations(title=title_cls)
+    report.add_annotations(data=results_cmp, title=title_cmp)
 
     # Show image
     new_file = report.show_image()

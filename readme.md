@@ -36,7 +36,7 @@ Invoke **python -m quickstart.min_data_management** to run the full example.
 
 Fcore has a Tools API to ease a data processing routine work. A tools may just perform some basic calculations (like technical indicators). However, it may also be used for automating complex machine learning tasks including incremental learning and training a model based on datasets which do not fit in a memory.
 
-AI API is divided into two parts: The Classification API which allows to classify nearly every market event and The Regression API. As a basic example of using the Classification API you may classify if it is a good time to open a long/short position.
+AI API is divided into two parts: The Classification API which allows to classify nearly every market event and The Regression API. As a basic example of using the Classification API you may classify if it is a good time to open/close a position.
 
 You need to inherit a *Classification* class and override at least two methods: *prepare* for data structures preparation and *get_buy_condition / get_sell_condition* for establishing signals. For example, here we are trying to estimate if the security will grow in the nearest N trading cycles (depending on a time span) based on the current fast and slow moving averages and volatility.
 
@@ -129,9 +129,7 @@ params = {
     'periodic_deposit': 500,
     'deposit_interval': 30,
     'inflation': 2.5,
-    'period': period,
-    'margin_rec': 0.9,  # Use some margin to test shorting
-    'margin_req': 1
+    'period': period
 }
 
 # Perform backtest using AI classification of signals with the help of the model trained above

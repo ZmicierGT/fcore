@@ -7,7 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 from backtest.base import BackTestData, BackTestOperations, BackTestError
 from data.fvalues import StockQuotes, Weighted, sector_titles
 
-from itertools import repeat
 from math import inf
 
 class StockData(BackTestData):
@@ -127,10 +126,6 @@ class StockOperations(BackTestOperations):
             current_yield = self._future_yield
             self._future_yield = 0
 
-        # Calculate dividends for short positions to get payed to a borrower
-        if self.data.rows[idx][StockQuotes.ExDividends] != 0 and self._short_positions > 0:
-            current_yield = -abs(self.data.rows[idx][StockQuotes.ExDividends] * self._short_positions)
-
         if current_yield:
             self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {current_yield}")
 
@@ -145,7 +140,7 @@ class StockOperations(BackTestOperations):
         if idx is None:
             return
 
-        if self.get_long_positions() == 0 and self._short_positions == 0:
+        if self.get_long_positions() == 0:
             return
 
         ratio = self.data.rows[idx][StockQuotes.Splits]
@@ -153,73 +148,20 @@ class StockOperations(BackTestOperations):
 
         if ratio != 1 and idx != 0:
             long_before = self.get_long_positions()
-            long_cash_before = self._long_positions_cash
-            short_before = self._short_positions
 
             if self.is_long():
-                margin_positions = self._long_positions - self._long_positions_cash
-                self._long_positions_cash *= ratio
-
                 # TODO LOW Think if excessive cash should be treated as profit or loss (depending on the price of opening the position)
-                excess = self._long_positions_cash - round(self._long_positions_cash)
+                excess = self._long_positions * ratio - round(self._long_positions * ratio)
 
                 # Add excess cash to the cash balance (in case of any decimal parts of share number)
                 if excess != 0:
-                    self._long_positions_cash = round(self._long_positions_cash)
                     self.get_caller().add_cash(excess * self.get_close())
 
-                self._long_positions_cash = int(self._long_positions_cash)  # Get rid of possible .0
-
-                # In the case of margin positions, calculate total margin used and readjust all the margin portfolio.
-                # The adjustment is implemented as a comission and spread free closure of all margin positions with
-                # immediate spread and comission free reopening of new positions withing the previous margin
-                # buying power.
-                if margin_positions != 0:
-                    buying_power = margin_positions * old_close
-
-                    delta = 0
-
-                    # Close all the margin positions (commission and spread free)
-                    for _ in range(margin_positions):
-                        delta += old_close - self._portfolio_margin.pop()
-
-                    self.get_caller().add_cash(delta)
-
-                    # Open (spread and commission free) new long margin positions withing
-                    # the previous margin buying power limit
-                    new_margin_positions = round(buying_power / self.get_buy_price())
-
-                    self._portfolio_margin = []
-                    self._portfolio_margin.extend(repeat(self.get_buy_price(), new_margin_positions))
-
-                    self._long_positions = self._long_positions_cash + new_margin_positions
-                else:
-                    self._long_positions = self._long_positions_cash
-            else:
-                # Handling short positions
-                if self._short_positions != 0:
-                    buying_power = self._short_positions * old_close
-
-                    delta = 0
-
-                    # Close (commission and spread fee) all short positions
-                    for _ in range(self._short_positions):
-                        delta += self._portfolio_margin.pop() - old_close
-
-                    self.get_caller().add_cash(delta)
-
-                    # Open (spread and commission free) new short positions withing the previously available margin
-                    new_short_positions = round(buying_power / self.get_buy_price())
-
-                    self._portfolio_margin = []
-                    self._portfolio_margin.extend(repeat(self.get_sell_price(), new_short_positions))
-
-                    self._short_positions = new_short_positions
+                self._long_positions = int(round(self._long_positions * ratio))
 
             self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
-                                  f"(total long / cash long / short) for {self.data.title}: "
-                                  f"{self.get_long_positions()} / {self._long_positions_cash} / {self._short_positions} "
-                                  f"Positions before split: {long_before} {long_cash_before} {short_before}")
+                                  f"for {self.data.title}: {self.get_long_positions()} "
+                                  f"Positions before split: {long_before}")
 
     def apply_other_balance_changes(self):
         """

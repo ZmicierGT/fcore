@@ -31,18 +31,14 @@ class ReportsError(Exception):
 
 class Report():
     """The reporting class."""
-    def __init__(self, data, width, margin=False, color="LightSteelBlue"):
+    def __init__(self, data, width, color="LightSteelBlue"):
         """Initializes the instance of reporting class.
         
             Args:
-                margin(bool): indicates if margin related data should be used.
                 data(BTData): the main data to use. Used if no other dataset is provided in further functions.
                 width(int): the width of the chart.
                 color(str): the color of chart's background.
         """
-
-        # Generate margin-related data
-        self._margin = margin
 
         # The width of the chart
         if width <= 0:
@@ -177,31 +173,6 @@ class Report():
                                  marker=dict(size=12, symbol="arrow-down", color='red', line_color="midnightblue", line_width=2),
                                  name='Close Long'))
 
-        if self._margin is True:
-            fig.add_trace(go.Scatter(x=data.DateTime,
-                                     y=symbol.PriceOpenShort,
-                                     mode='markers',
-                                     marker=dict(size=12, symbol="arrow-right", color='purple', line_color="midnightblue", line_width=2),
-                                     name='Open Short'))
-
-            fig.add_trace(go.Scatter(x=data.DateTime,
-                                     y=symbol.PriceCloseShort,
-                                     mode='markers',
-                                     marker=dict(size=12, symbol="arrow-left", color='yellow', line_color="midnightblue", line_width=2),
-                                     name='Close Short'))
-
-            fig.add_trace(go.Scatter(x=data.DateTime,
-                                     y=symbol.PriceMarginReqLong,
-                                     mode='markers',
-                                     marker=dict(size=12, symbol="hourglass", line_color="midnightblue", line_width=2),
-                                     name='Margin Req Close Long'))
-
-            fig.add_trace(go.Scatter(x=data.DateTime,
-                                     y=symbol.PriceMarginReqShort,
-                                     mode='markers',
-                                     marker=dict(size=12, symbol="bowtie", line_color="midnightblue", line_width=2),
-                                     name='Margin Req Close Short'))
-
         self.update_layout(fig=fig, title=title, height=height)
 
         # Workaround to handle plotly whitespace issue when adding markers
@@ -233,10 +204,6 @@ class Report():
             fig.add_trace(go.Scatter(x=data.DateTime, y=data.TotalExpenses, mode='lines', name="Expenses"))
             fig.add_trace(go.Scatter(x=data.DateTime, y=data.CommissionExpense, mode='lines', name="Commission"))
             fig.add_trace(go.Scatter(x=data.DateTime, y=data.SpreadExpense, mode='lines', name="Spread"))
-
-            if self._margin is True:
-                fig.add_trace(go.Scatter(x=data.DateTime, y=data.DebtExpense, mode='lines', name="Margin Expenses"))
-                fig.add_trace(go.Scatter(x=data.DateTime, y=data.OtherExpense, mode='lines', name="Yield Expenses"))
 
         self.update_layout(fig=fig, title=title, height=height)
         self._charts.append(fig)
@@ -316,14 +283,13 @@ class Report():
 
         return fig
 
-    def add_annotations(self, data=None, title=None, margin=None):
+    def add_annotations(self, data=None, title=None):
         """
             Add annotation with strategy results to the chart.
 
             Args:
                 data(BtData): data to calculate the results.
                 title(str): the title of the strategy.
-                margin(bool): indicates if the strategy involves margin.
 
             Returns:
                 str: The annotation in string form.
@@ -331,29 +297,22 @@ class Report():
         if data is None:
             data = self._data
 
-        if margin is None:
-            margin = self._margin
+        stats = data.get_statistics()
 
         # Create image for the annotations.
         result = Image.new('RGB', (self._width, self._annotation_height), color=self._color)
 
-        # Prepare the annotations
-        invested = data.Deposits[-1]
-        final_value = data.TotalValue[-1]
-        profit = final_value / invested * 100 - 100
-
-        performance = f"Invested:     {round(invested, 2)}\n"\
-                      f"Total value:  {round(final_value, 2)}\n"\
-                      f"Profit:       {round(profit, 2)}%\n"\
-                      f"Other profit: {round(data.OtherProfit[-1], 2)}\n"\
-                      f"Total trades: {data.TotalTrades[-1]}"\
+        performance = f"Invested:     {round(stats.invested, 2)}\n"\
+                      f"Total value:  {round(stats.total_value, 2)}\n"\
+                      f"Profit:       {round(stats.profit, 2)}%\n"\
+                      f"Other profit: {round(stats.other_profit, 2)}\n"\
+                      f"Total trades: {stats.total_trades}"\
 
 
-        expenses = f"Total expenses:     {round(data.TotalExpenses[-1], 2)}\n"\
-                   f"Commission expense: {round(data.CommissionExpense[-1], 2)}\n"\
-                   f"Spread expense:     {round(data.SpreadExpense[-1], 2)}\n"\
-                   f"Debt expense:       {round(data.DebtExpense[-1], 2)}\n"\
-                   f"Other expense:      {round(data.OtherExpense[-1], 2)}"\
+        expenses = f"Total expenses:     {round(stats.total_expenses, 2)}\n"\
+                   f"Commission expense: {round(stats.commission_expense, 2)}\n"\
+                   f"Spread expense:     {round(stats.spread_expense, 2)}\n"\
+                   f"Other expense:      {round(stats.other_expense, 2)}"\
 
         # Put annotations to the image
         draw = ImageDraw.Draw(result)

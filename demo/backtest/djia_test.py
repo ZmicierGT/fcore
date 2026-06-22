@@ -214,7 +214,13 @@ if __name__ == "__main__":
     # Create a report
     #################
 
-    report = Report(data=results_cls, width=max(len(rows), min_width), margin=False)
+    # Show the statistics in a text form (along with the image)
+    title_cls = 'B&H Performance:'
+    title_sim = 'Index Simulation Performance:'
+    print(results_cls.get_statistics(title=title_cls))
+    print(results.get_statistics(title=title_sim))
+
+    report = Report(data=results_cls, width=max(len(rows), min_width))
 
     # Add charts for used symbols
     report.add_quotes_chart(title=f"B&H Testing for {etf}", height=450)
@@ -234,8 +240,8 @@ if __name__ == "__main__":
     fig_exp.add_trace(go.Scatter(x=results.DateTime, y=results.SpreadExpense, mode='lines', name=f"Simulation Spread"))
 
     # Add annotations with strategy results
-    report.add_annotations(data=results_cls, title='B&H Performance:')
-    report.add_annotations(data=results, title='Index Simulation Performance:')
+    report.add_annotations(data=results_cls, title=title_cls)
+    report.add_annotations(data=results, title=title_sim)
 
     # Show image
     new_file = report.show_image()

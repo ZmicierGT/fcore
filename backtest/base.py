@@ -8,13 +8,13 @@ from data.fvalues import Quotes, trading_days_per_year, Weighted
 from data.futils import thread_available, logger, add_column, get_dt
 
 import abc
+from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
 from itertools import repeat
 import time
 import numpy as np
 from threading import Thread, Event
-import copy
 import math
 
 # Enum class for backtesting results data order.
@@ -24,16 +24,12 @@ class BTDataEnum(IntEnum):
     TotalValue = 1
     Deposits = 2
     Cash = 3
-    Borrowed = 4
-    # The example of other profit is stock dividends.
-    OtherProfit = 5
-    CommissionExpense = 6
-    SpreadExpense = 7
-    DebtExpense = 8
-    # Other expenses may be dividend fees in a case of a short position.
-    OtherExpense = 9
-    TotalExpenses = 10
-    TotalTrades = 11
+    OtherProfit = 4
+    CommissionExpense = 5
+    SpreadExpense = 6
+    OtherExpense = 7
+    TotalExpenses = 8
+    TotalTrades = 9
 
 # Enum class for backtesting data regarding a particular symbol
 class BTSymbolEnum(IntEnum):
@@ -44,14 +40,56 @@ class BTSymbolEnum(IntEnum):
     Low = 3
     PriceOpenLong = 4
     PriceCloseLong = 5
-    PriceOpenShort = 6
-    PriceCloseShort = 7
-    PriceMarginReqLong = 8
-    PriceMarginReqShort = 9
-    LongPositions = 10
-    ShortPositions = 11
-    MarginPositions = 12
-    TradesNo = 13
+    LongPositions = 6
+    TradesNo = 7
+
+# Dataclass representing the statistics of a backtest calculation
+@dataclass
+class Statistics():
+    """The dataclass with the statistics of a backtest calculation.
+
+        Provides structured access to the individual metrics (via fields) and a formatted text form (via str()).
+        The metrics mirror the annotations displayed on a report image by Report.add_annotations().
+    """
+    title: str = ""
+    invested: float = 0
+    total_value: float = 0
+    profit: float = 0  # in percent
+    other_profit: float = 0
+    total_trades: float = 0
+    total_expenses: float = 0
+    commission_expense: float = 0
+    spread_expense: float = 0
+    other_expense: float = 0
+
+    def __str__(self):
+        """Get the statistics as a formatted multi-line text.
+
+            The metrics are arranged in two columns mirroring the layout
+            rendered on a report image by Report.add_annotations(): the
+            performance metric on the left and the corresponding expense
+            metric on the right of each row.
+
+            Returns:
+                str: the formatted statistics.
+        """
+        rows = [
+            (f"Invested:     {round(self.invested, 2)}",
+             f"Total expenses:     {round(self.total_expenses, 2)}"),
+            (f"Total value:  {round(self.total_value, 2)}",
+             f"Commission expense: {round(self.commission_expense, 2)}"),
+            (f"Profit:       {round(self.profit, 2)}%",
+             f"Spread expense:     {round(self.spread_expense, 2)}"),
+            (f"Other profit: {round(self.other_profit, 2)}",
+             f"Other expense:      {round(self.other_expense, 2)}"),
+            (f"Total trades: {self.total_trades}", ""),
+        ]
+
+        col_width = 30
+        lines = [f"{perf.ljust(col_width)}{exp}" if exp else perf for perf, exp in rows]
+
+        title = f"{self.title}\n" if self.title else ""
+        return f"{title}" + "\n".join(lines) + "\n"
 
 class BackTestEvent(Event):
     """
@@ -85,10 +123,7 @@ class BackTestData():
     def __init__(self,
                  rows,
                  title='',
-                 margin_provided_req=0,
-                 margin_provided_rec=0,
                  spread=0,
-                 margin_interest=0,
                  trend_change_period=0,
                  trend_change_percent=0,
                  timespan=None,
@@ -102,16 +137,6 @@ class BackTestData():
             Args:
                 rows(list): data for the particular symbol obtained from the database using fdata module.
                 title(str): title of the symbol used in the class.
-                margin_provided_req(float): Indicates how much margin does holding this sequrity provides. If you hold
-                                            a position of this security worth $1000 and the ratio is 0.7, then it
-                                            provides $700 margin buying power. If the required margin is more than $700,
-                                            some exceeding margin positions will be closed.
-                margin_provided_rec(float): Indicates the recommended amount of how much margin does holding this sequrity
-                                            provides. If you hold a position of this security worth $1000 and the ratio
-                                            is 0.5, then you can open new positions using the provided margin for up to $500.
-                                            If the recommended margin is more than $500, no margin call is invoked till the
-                                            required ratio is reached but no more positions will be opened.
-                margin_interest(float): annual margin interest for the symbol (in percent). Default is 0.
                 spread(float): pre-defined spread for the symbol.
                 trend_change_period(int): indicates the period in timespans when the trend for this symbol is considered as changed.
                     Default is 0.
@@ -124,7 +149,7 @@ class BackTestData():
                 lot(int): minimum lot size for a trade.
 
             Raises:
-                BackTestError: inaproppriate values were provided.                 
+                BackTestError: inaproppriate values were provided.
         """
 
         if len(rows) == 0:
@@ -133,30 +158,10 @@ class BackTestData():
         # Data for the calculation
         self._rows = rows
 
-        # Required margin ratio. For example, if the required ration ratio is 0.7 and current financial instrument price is $1000,
-        # then at maximum $700 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
-        if margin_provided_req < 0:
-            raise BackTestError(f"margin_provided_req can't be less than 0. Specified value is {margin_provided_req}")
-        self._margin_provided_req = margin_provided_req
-
-        # Recommended margin ratio. Backtesting engine won't try to exceed it. Exceeding this limit
-        # is still acceptable but is considered at potentially dangerous and may lead to a margin call.
-        if margin_provided_rec < 0:
-            raise BackTestError(f"margin_provided_rec can't be less than 0. Specified value is {margin_provided_rec}")
-        self._margin_provided_rec = margin_provided_rec
-
-        # Recommended margin ratio should be less than required
-        if margin_provided_rec > margin_provided_req:
-            raise BackTestError(f"margin_rec should be less than margin_provided_req, however {margin_provided_rec} is not < {margin_provided_req}")
-
         # Spread (in percent). For more precise calculation, prefer to perform trades as limit orders.
         if spread < 0 or spread > 100:
             raise BackTestError(f"Spread can't be less than 0% or more than 100%. Specified value is {spread}")
         self._spread = spread
-
-        if margin_interest < 0 or margin_interest > 100:
-            raise BackTestError(f"margin_interest can't be less than 0% or more than 100%. Specified value is {margin_interest}")
-        self._margin_interest = margin_interest
 
         # Indicates how many periods need to pass that we consider that the signal has changed
         if trend_change_period < 0:
@@ -235,47 +240,12 @@ class BackTestData():
         return self._title
 
     @property
-    def margin_provided_req(self):
-        """
-            Get the required margin ratio for the symbol. If the ratio is 0.7 and you have 10 securities in the portfolio and the price
-            of the security is $100, then this position will give you a $700 of margin buying power. Exceeding buying power
-            will trigger a margin call.
-
-            Returns:
-                float: Maximum possible margin ratio for this symbol.
-        """
-        return self._margin_provided_req
-
-    @property
-    def margin_provided_rec(self):
-        """
-            Get the recommended margin ratio for the symbol. If the ratio is 0.5 and you have 10 securities
-            in the portfolio and the price of the security is $100, then this position will give you a $500 of margin buying power.
-            Exceeding buying power (unless it hits the required ratio) will not trigger a margin call but backtesting engine
-            won't open new positions in such case. Default is 0.
-
-            Returns:
-                float: Recommended margin ratio for this symbol.
-        """
-        return self._margin_provided_rec
-
-    @property
     def spread(self):
         """
             Returns:
                 float: Spread for the symbol.
         """
         return self._spread
-
-    @property
-    def margin_interest(self):
-        """
-            Get annual margin fee for the symbol (in percent). Calculated daily based on the value of opened margin positions.
-
-            Returns:
-                float: Aannual margin fee (in percent) for the symbol.
-        """
-        return self._margin_interest
 
     @property
     def trend_change_period(self):
@@ -360,8 +330,6 @@ class BackTestOperations():
 
         # Opened positions
         self._long_positions = 0
-        self._long_positions_cash = 0
-        self._short_positions = 0
 
         # Number of trades per symbol
         self._trades_no = 0
@@ -369,8 +337,7 @@ class BackTestOperations():
         # Backtesting class instance
         self.__caller = caller
 
-        self._portfolio_margin = []  # Portfolio with margin long/short positions for the symbol
-        self._portfolio_cash = []  # Portfolio with cash long positions only
+        self._portfolio_cash = []  # Portfolio with long positions for the symbol
 
         # Quote to calculate signal change
         self._signal_quote = None
@@ -388,12 +355,6 @@ class BackTestOperations():
         # Trade prices in the current cycle (for reporting)
         self._price_open_long = None
         self._price_close_long = None
-
-        self._price_open_short = None
-        self._price_close_short = None
-
-        self._price_margin_req_long = None
-        self._price_margin_req_short = None
 
         ##############################
         # Data specific initialization
@@ -463,7 +424,7 @@ class BackTestOperations():
             Returns:
                 bool: indicates if the current security has any positions opened.
         """
-        return self.get_long_positions() or self.get_short_positions()
+        return self.get_long_positions() > 0
 
     @property
     def group(self):
@@ -757,11 +718,6 @@ class BackTestOperations():
         if self.is_long():
             for price_cash in self._portfolio_cash:
                 profit += self.get_sell_price() - price_cash
-            for price_margin in self._portfolio_margin:
-                profit += self.get_sell_price() - price_margin
-        else:
-            for price_short in self._portfolio_margin:
-                profit += price_short - self.get_buy_price()
 
         return profit
 
@@ -815,12 +771,12 @@ class BackTestOperations():
 
     def get_max_positions(self):
         """
-            Get the maximum number of opened positions for the symbol (no matter long or short).
+            Get the maximum number of opened positions for the symbol.
 
             Returns:
                 int: the number of currently opened positions.
         """
-        return max(self._long_positions, self._short_positions)
+        return self._long_positions
 
     def is_long(self):
         """
@@ -828,23 +784,8 @@ class BackTestOperations():
 
             Returns:
                 bool: True if there are at least one long position opened, false otherwise.
-
-            Raises:
-                BackTestError: long and short positions are opened the same time for the same symbol.
         """
-        if self._long_positions > 0 and self._short_positions > 0:
-            raise BackTestError(f"Can not hold long and short positions for {self.data.title} the same time: long - {self._long_positions}, short - {self._short_positions}")
-
         return self._long_positions > 0
-
-    def get_long_positions_cash(self):
-        """
-            Get the number of non-margin long positions.
-
-            Returns
-                int: the number of non-margin long positions.
-        """
-        return self._long_positions_cash
 
     def get_last_total_value(self):
         """
@@ -854,18 +795,6 @@ class BackTestOperations():
                 float: the total value at the moment of opening the last position.
         """
         return self._last_total_value
-
-    def get_margin_positions(self):
-        """
-            Get the number of margin positions.
-
-            Returns:
-                int: the number of currently opened margin positions for the corresponding symbol.
-        """
-        if self.is_long():
-            return self._long_positions - self._long_positions_cash
-        else:
-            return self._short_positions
 
     def get_datetime_str(self, index=None):
         """
@@ -953,26 +882,6 @@ class BackTestOperations():
         """
         return self.data.rows[self.get_index()][Quotes.Low]
 
-    def apply_margin_interest(self):
-        """
-            Apply margin fees for the current day of the calculation for the particular symbol.
-        """
-        if self.get_margin_positions() and self.get_caller().did_day_changed():
-            margin_fee = self.get_daily_margin_expenses()
-
-            self.get_caller().add_debt_expense(margin_fee)
-            # Assume that slightly negative cash balance is possible on a margin account
-            self.get_caller().add_cash (-abs(margin_fee))
-
-    def get_daily_margin_expenses(self):
-        """
-            Get daily margin expenses for the corresponding symbol.
-
-            Returns:
-                float: current daily margin expenses for the symbol.
-        """
-        return self.get_margin_positions() * self.get_close() * self.data.margin_interest / 100 / trading_days_per_year
-
     def get_spread_deviation(self):
         """
             Get the current spread deviation. Buy price is the current quote plus the deviation, sell otherwise.
@@ -1016,27 +925,12 @@ class BackTestOperations():
         """
         return self._long_positions
 
-    def get_short_positions(self):
-        """
-            Get the number of short positions.
-
-            Returns:
-                int: the number of currently opened short positions for the symbol.
-        """
-        return self._short_positions
-
     def reset_trade_prices(self):
         """
             Reset trade prices used in the current cycle.
         """
         self._price_open_long = None
         self._price_close_long = None
-
-        self._price_open_short = None
-        self._price_close_short = None
-
-        self._price_margin_req_long = None
-        self._price_margin_req_short = None
 
     def get_caller(self):
         """
@@ -1077,13 +971,7 @@ class BackTestOperations():
         total_value = 0
 
         if self.is_long():
-            total_value += self.get_sell_price() * self._long_positions_cash
-
-            for j in range(self.get_margin_positions()):
-                total_value += self.get_sell_price() - self._portfolio_margin[j]
-        else:
-            for j in range(self._short_positions):
-                total_value += self._portfolio_margin[j] - self.get_buy_price()
+            total_value += self.get_sell_price() * self._long_positions
 
         return total_value
 
@@ -1103,17 +991,11 @@ class BackTestOperations():
                     self.get_low(),
                     self._price_open_long,
                     self._price_close_long,
-                    self._price_open_short,
-                    self._price_close_short,
-                    self._price_margin_req_long,
-                    self._price_margin_req_short,
                     self._long_positions,
-                    self._short_positions,
-                    self.get_margin_positions(),
                     self._trades_no]
             else:
                 # TODO LOW Get rid of the hardcoded value
-                result = [None] * 14
+                result = [None] * 8
 
         self._sym_results.append(result)
 
@@ -1167,82 +1049,6 @@ class BackTestOperations():
 
         return False
 
-    #########################################
-    # Methods related to margin calculations.
-    #########################################
-
-    def get_margin_buying_power(self):
-        """
-            Get margin buying power based on opened long positions of the corresponding symbol.
-
-            Returns:
-                float: the buying power based on the long positions opened of the corresponding symbol.
-        """
-        return self._long_positions_cash * self.get_close() * self.data.margin_provided_rec
-
-    def get_margin_limit(self):
-        """
-            Get margin holding power based on opened long positions of the corresponding symbol.
-
-            Returns:
-                float: the holding power based on the long positions opened of the corresponding symbol.
-        """
-        return self._long_positions_cash * self.get_close() * self.data.margin_provided_req
-
-    def get_future_margin_buying_power(self):
-        """
-            Gets buying power if we open the maximum possible number of positions using cash.
-
-            Returns:
-                float: the possible buying power if we open the maximum number of positions of the corresponding symbol.
-        """
-        securities_num_cash, remaining_cash = self.get_max_trade_size_cash()
-        securities_margin = securities_num_cash * self.get_close() * self.data.margin_provided_rec
-        cash_margin = remaining_cash * self.get_caller().get_margin_rec()
-
-        return securities_margin + cash_margin
-
-    def get_used_margin(self):
-        """
-            Get how much margin buying power are used by the current positions.
-
-            Returns:
-                float: the current used margin by the corresponding symbol.
-        """
-        return self.get_close() * self.get_margin_positions()
-
-    def check_margin_requirements(self):
-        """
-            Check margin requirements related to this position only. Close the positions exceeding margin limit.
-        """
-        if self.get_margin_positions() > 0:
-            deficit = -abs(self.get_caller().get_total_margin_limit())
-
-            if deficit > 0:
-                # Close margin positions to meet margin requirement
-                securities_num = 0
-
-                # Copy the initial portfolio to restore if after the calculation
-                initial_portfolio = copy.deepcopy(self._portfolio_margin)
-
-                # Estimate how many positions we need to close to meet the margin requirement
-                while deficit > 0 and securities_num < self.get_margin_positions():
-                    securities_num += 1
-
-                    last_price = self._portfolio_margin.pop()
-
-                    deficit = -abs(self.get_caller().get_total_margin_limit())
-
-                    if self.is_long():
-                        deficit -= self.get_sell_price() - last_price
-                    else:
-                        deficit -= last_price - self.get_buy_price()
-
-                self._portfolio_margin = initial_portfolio
-
-                # Close the positions which exceed margin requirement
-                self.close(securities_num, margin_call=True)
-
     ###################
     # Trades processing
     ###################
@@ -1251,7 +1057,6 @@ class BackTestOperations():
         """
             Calculate and set the weight value only for the current security.
         """
-        # TODO MID Think what to do with short positions.
         current_weight = 0
 
         if self.get_caller().weighted == Weighted.Price:
@@ -1412,17 +1217,10 @@ class BackTestOperations():
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = self.get_buy_num()
                 else:
-                    num = self.get_max_trade_size() + self.get_short_positions()
+                    num = self.get_max_trade_size()
             else:
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = min(num, self.get_buy_num())
-
-            if num > 0 and self.get_short_positions():
-                num_close = min(self.get_short_positions(), num)
-                self.close_short(num_close, price=price)
-
-                total_num += num_close
-                num = num - num_close
 
             if num > 0:
                 self.open_long(num, price=price, exact=exact)
@@ -1495,7 +1293,7 @@ class BackTestOperations():
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = self.get_sell_num()
                 else:
-                    num = self.get_caller().get_max_trade_size_short() + self.get_long_positions()
+                    num = self.get_long_positions()
             else:
                 if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
                     num = min(num, self.get_sell_num())
@@ -1505,11 +1303,6 @@ class BackTestOperations():
                 self.close_long(num_close, price=price)
 
                 total_num += num_close
-                num = num - num_close
-
-            if num > 0:
-                self.open_short(num, price=price, exact=exact)
-                total_num += num
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1643,7 +1436,6 @@ class BackTestOperations():
                 # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
                 if self.get_long_positions():
                     last_close = self.data.rows[Quotes.Close][-1]
-                    # TODO LOW Think if margin long positions should be treaded differently
                     total_lost = last_close * self._long_positions
 
                     self.get_caller().log(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
@@ -1655,9 +1447,6 @@ class BackTestOperations():
                     self.get_caller().add_other_expense(total_lost)
 
                     self._long_positions = 0
-                    self._long_positions_cash = 0
-                else:
-                    self._short_positions = 0
 
                 self.cancel_limit_order()
 
@@ -1682,16 +1471,14 @@ class BackTestOperations():
         if ignore_lot and lot >= 1:
             lot = 1
 
-        securities_num_estimate = self.get_caller().get_cash() - \
-                                       self.get_total_fee() - \
-                                       self.get_caller().get_total_used_margin() / \
-                                       (self.get_buy_price())
+        securities_num_estimate = (self.get_caller().get_cash() - \
+                                   self.get_total_fee()) / \
+                                   (self.get_buy_price())
 
         securities_num_estimate *= math.floor(securities_num_estimate / lot) * lot
 
         cash_available = self.get_caller().get_cash() - \
                          self.get_caller().get_commission() - \
-                         self.get_caller().get_total_used_margin() - \
                          self.get_security_fee() * securities_num_estimate
 
         securities_num = cash_available / self.get_buy_price()
@@ -1701,34 +1488,15 @@ class BackTestOperations():
 
         return (securities_num, remaining_cash)
 
-    def get_max_trade_size_margin(self, ignore_lot=False):
-        """
-            Get number of securities which we can buy using margin.
-
-            Args:
-                ignore_lot(bool): indicates if lot size should be ignored if more than 1.
-
-            Returns:
-                int: the maxumum number of securities to buy using margin.
-        """
-        lot = self.data.lot
-
-        if ignore_lot and lot >= 1:
-            lot = 1
-
-        securities_num = self.get_future_margin_buying_power() / self.get_buy_price()
-
-        return round(math.floor(securities_num / lot) * lot, 6)
-
     # TODO LOW check if this max() is needed.
     def get_max_trade_size(self):
         """
             Get total number of securities which we may buy.
 
             Returns:
-                int: the total number of securities which we can buy using both cash and margin.
+                int: the total number of securities which we can buy using cash.
         """
-        max_num = max(0, self.get_max_trade_size_cash(True)[0] + self.get_max_trade_size_margin(True))
+        max_num = max(0, self.get_max_trade_size_cash(True)[0])
 
         return round(math.floor(max_num // self.data.lot) * self.data.lot, 6)  # round to avoid precision issues in the future (fractional shares)
 
@@ -1742,7 +1510,7 @@ class BackTestOperations():
                 exact(bool): indicates if the exact number of requested positions should be opened.
 
             Raises:
-                BackTestError: not enough cash/margin to open the position.
+                BackTestError: not enough cash to open the position.
                 BackTestError: Can't open the negative number of positions.
         """
         if num < 0:
@@ -1750,7 +1518,7 @@ class BackTestOperations():
 
         if num > self.get_max_trade_size():
             if exact:
-                raise BackTestError(f"Not enough cash/margin to open the position. {num} > {self.get_max_trade_size()}")
+                raise BackTestError(f"Not enough cash to open the position. {num} > {self.get_max_trade_size()}")
             else:
                 num = min(num, self.get_max_trade_size())
 
@@ -1759,10 +1527,7 @@ class BackTestOperations():
 
         # Needed for logging
         ex_cash = self.get_caller().get_cash()
-        ex_margin = self.get_caller().get_available_margin()
 
-        securities_num_cash = min(num, self.get_max_trade_size_cash()[0])
-        securities_num_margin = max(0, num - securities_num_cash)
         total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
 
         if price:
@@ -1771,13 +1536,10 @@ class BackTestOperations():
             total_spread_expense = self.get_spread_deviation() * num
             price = self.get_buy_price()
 
-        total_cash_price = price * securities_num_cash
+        total_cash_price = price * num
 
         self.get_caller().add_cash(-abs(total_commission + total_cash_price))
         self._long_positions += num
-        self._long_positions_cash += securities_num_cash
-
-        self._portfolio_margin.extend(repeat(price, securities_num_margin))
 
         # Add expenses for this trade
         self.get_caller().add_commission_expense(total_commission)
@@ -1791,81 +1553,13 @@ class BackTestOperations():
         # Log if requested
         log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
-               f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
+               f"cash was {round(ex_cash, 2)} and currently "
+               f"it is {round(self.get_caller().get_cash(), 2)}")
 
         self.get_caller().log(log)
 
         self._last_total_value = self.get_total_value()
         self._portfolio_cash.extend(repeat(price, num))
-
-    def get_max_trade_size_short(self):
-        """
-            Get the total number of securities which we can short.
-
-            Returns:
-                int: the total number of securities which we can short.
-        """
-        return max(0, int(self.get_caller().get_available_margin(self.get_total_fee()) / self.get_sell_price()))
-
-    def open_short(self, num, price=None, exact=False):
-        """
-            Open the short position.
-
-            Args:
-                num(int): the number of securities to short.
-                price(float): force the trade to be executed using this price.
-                exact(bool): indicates if the exact number of requested positions should be opened.
-
-            Raises:
-                BackTestError: not enough cash/margin to open the position.
-                BackTestError: Can't open the negative number of positions.
-        """
-        if num < 0:
-            raise BackTestError(f"Can't open negative number of short positions: {num}")
-
-        if num > self.get_max_trade_size_short():
-            if exact:
-                raise BackTestError(f"Not enough margin to short {num} securities. Available margin is for {self.get_max_trade_size_short()} securities only.")
-            else:
-                num = min(num, self.get_max_trade_size_short())
-
-        if num == 0:
-            return
-
-        # Needed for logging
-        ex_cash = self.get_caller().get_cash()
-        ex_margin = self.get_caller().get_available_margin()
-        initial_commission = self.get_caller().get_commission_expense()
-
-        # Assume that slightly negative cash balance is possible on a margin account
-        self.get_caller().add_cash(-abs(self.get_security_fee() * num + self.get_caller().get_commission()))
-        self._short_positions += num
-
-        if price is None:
-            self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
-            price = self.get_sell_price()
-
-        self._portfolio_margin.extend(repeat(price, num))
-
-        # Calculate expenses for this trade
-        self.get_caller().add_commission_expense(self.get_caller().get_commission() + self.get_security_fee() * num)
-
-        self._trades_no += 1
-        self.get_caller().add_total_trades(1)
-        self._price_open_short = self.get_sell_price(adjusted=True)  # Used only in charting
-
-        # Log if requested
-        total_commission = self.get_caller().get_commission_expense() - initial_commission
-
-        log = (f"At {self.get_datetime_str()} OPENED {num} SHORT positions of {self.data.title} with price "
-               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
-               f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}")
-
-        self.get_caller().log(log)
-
-        self._last_total_value = self.get_total_value()
 
     # Open maxumum possible positions
     def open_long_max(self):
@@ -1874,23 +1568,16 @@ class BackTestOperations():
         """
         self.open_long(self.get_max_trade_size())
 
-    def open_short_max(self):
-        """
-            Open maximum possible number of short positions.
-        """
-        self.open_short(self.get_max_trade_size_short())
-
     #######################################
     # Methods related to closing positions.
     #######################################
 
-    def close(self, num, margin_call=False):
+    def close(self, num):
         """
-            Close the number of positions. No matter long or short.
+            Close the number of positions.
 
             Args:
                 num(int): the number of positions to close.
-                margin_call(bool): indicates if the trade is initiated by margin requirement.
 
             Raises:
                 BackTestError: trying to close a negative number of positions.
@@ -1901,20 +1588,16 @@ class BackTestOperations():
         if num == 0:
             return
 
-        if self.is_long():
-            self.close_long(num, margin_call)
-        else:
-            self.close_short(num, margin_call)
+        self.close_long(num)
 
         self._last_total_value = self.get_total_value()
 
-    def close_long(self, num, margin_call=False, price=None):
+    def close_long(self, num, price=None):
         """
             Close the number of long positions.
 
             Args:
                 num(int): the number of positions to close.
-                margin_call(bool): indicates if the trade is initiated by margin requirement.
                 price(float): force the trade to be executed using this price.
 
             Raises:
@@ -1928,48 +1611,27 @@ class BackTestOperations():
 
         # Needed for logging
         ex_cash = self.get_caller().get_cash()
-        ex_margin = self.get_caller().get_available_margin()
-
-        cash_positions = min(num, self._long_positions_cash)
-        margin_positions = 0
-
-        # Check if we have at least one margin position to close
-        if num > self._long_positions_cash:
-            margin_positions = num - self._long_positions_cash
 
         # Used only in charting
-        if margin_call:
-            self._price_margin_req_long = self.get_sell_price(adjusted=True)
-        else:
-            self._price_close_long = self.get_sell_price(adjusted=True)
+        self._price_close_long = self.get_sell_price(adjusted=True)
 
         total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
 
         # TODO LOW Think if it is rational (trimming)
         # Trim cash portfolio (used for total profit calculations)
-        self._portfolio_cash = self._portfolio_cash[:cash_positions]
+        self._portfolio_cash = self._portfolio_cash[:num]
 
         if price is None:
             price = self.get_sell_price()
             self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
 
         # Close cash long positions
-        self.get_caller().add_cash(price * cash_positions)
+        self.get_caller().add_cash(price * num)
         self.get_caller().add_cash(-abs(total_commission))
         
         self.get_caller().add_commission_expense(total_commission)
 
-        # TODO MID Likely need to close margin positions at first
-        # Close margin long positions
-        delta = 0
-
-        for _ in range(margin_positions):
-            delta += price - self._portfolio_margin.pop()
-
         self._long_positions -= num
-        self._long_positions_cash -= cash_positions
-
-        self.get_caller().add_cash(delta)
 
         self._trades_no += 1
         self.get_caller().add_total_trades(1)
@@ -1979,76 +1641,8 @@ class BackTestOperations():
         # Log if requested
         log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
                f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
-               f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
-               f"Margin call is {margin_call}")
-
-        self.get_caller().log(log)
-
-    def close_short(self, num, margin_call=False, price=None):
-        """
-            Close the number of short positions.
-
-            Args:
-                num(int): the number of positions to close.
-                margin_call(bool): indicates if the trade is initiated by margin requirement.
-                price(float): force the trade to be executed using this price.
-
-            Raises:
-                BackTestError: too many positions to close.
-        """
-        if num > self._short_positions:
-            raise BackTestError(f"Number of short positions to close is bigger than the number of actual positions: {num} > {self._short_positions}")
-
-        if self._short_positions == 0:
-            return
-
-        # Needed for logging
-        ex_cash = self.get_caller().get_cash()
-        ex_margin = self.get_caller().get_available_margin()
-        initial_commission = self.get_caller().get_commission_expense()
-
-        if price:
-            spread = 0
-        else:
-            price = self.get_buy_price()
-            spread = self.get_spread_deviation()
-
-        delta = 0
-
-        for _ in range (num):
-            delta += self._portfolio_margin.pop() - price
-            # Assume that slightly negative cash balance is possible on a margin account
-            self.get_caller().add_cash(-abs(self.get_security_fee()))
-
-            self.get_caller().add_commission_expense(self.get_security_fee())
-            self.get_caller().add_spread_expense(spread)
-
-        self.get_caller().add_commission_expense(self.get_caller().get_commission())
-
-        self._short_positions -= num
-
-        self.get_caller().add_cash(delta)
-
-        self._trades_no += 1
-        self.get_caller().add_total_trades(1)
-
-        # Used only in charting
-        if margin_call:
-            self._price_margin_req_short = self.get_buy_price(adjusted=True)
-        else:
-            self._price_close_short = self.get_buy_price(adjusted=True)
-
-        # Log if requested
-        total_commission = self.get_caller().get_commission_expense() - initial_commission
-
-        self._total_profit += self.get_caller().get_cash() - ex_cash
-
-        log = (f"At {self.get_datetime_str()} CLOSED {num} SHORT positions of {self.data.title} with price "
-               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
-               f"cash / margin were {round(ex_cash, 2)} / {round(ex_margin, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)} / {round(self.get_caller().get_available_margin())}. "
-               f"Margin call is {margin_call}")
+               f"cash was {round(ex_cash, 2)} and currently "
+               f"it is {round(self.get_caller().get_cash(), 2)}.")
 
         self.get_caller().log(log)
 
@@ -2058,17 +1652,11 @@ class BackTestOperations():
         """
         self.close_long(self._long_positions)
 
-    def close_all_short(self):
-        """
-            Close all short positions.
-        """
-        self.close_short(self._short_positions)
-
     def close_all(self):
         """
             Close all positions.
         """
-        self.close(self.get_max_positions())
+        self.close_long(self._long_positions)
 
 #####################################################
 # Classes for data structures of backtesting results.
@@ -2151,10 +1739,6 @@ class BTData(BTBaseData):
         return self.Data[:, BTDataEnum.Cash].astype('float')
 
     @property
-    def Borrowed(self):
-        return self.Data[:, BTDataEnum.Borrowed].astype('float')
-
-    @property
     def OtherProfit(self):
         return self.Data[:, BTDataEnum.OtherProfit].astype('float')
 
@@ -2165,10 +1749,6 @@ class BTData(BTBaseData):
     @property
     def SpreadExpense(self):
         return self.Data[:, BTDataEnum.SpreadExpense].astype('float')
-
-    @property
-    def DebtExpense(self):
-        return self.Data[:, BTDataEnum.DebtExpense].astype('float')
 
     @property
     def OtherExpense(self):
@@ -2197,6 +1777,38 @@ class BTData(BTBaseData):
             raise ValueError("Iterable with two items is required to set the value.") from e
         else:
             self.Data[idx][BTDataEnum.TotalTrades] = value
+
+    def get_statistics(self, title="Strategy performance:"):
+        """Get the statistics of the calculation in both structured and text form.
+
+            The returned object exposes the metrics as fields (e.g. `stats.invested`)
+            and supports `str(stats)` to get a formatted multi-line text representation
+            of the same data that is rendered into a report image by
+            `Report.add_annotations()`.
+
+            Args:
+                title(str): the title used as a heading when the text form is generated.
+
+            Returns:
+                Statistics: dataclass with the calculation statistics.
+        """
+        invested = self.Deposits[-1]
+        total_value = self.TotalValue[-1]
+
+        profit = total_value / invested * 100 - 100 if invested else 0
+
+        return Statistics(
+            title=title,
+            invested=invested,
+            total_value=total_value,
+            profit=profit,
+            other_profit=self.OtherProfit[-1],
+            total_trades=self.TotalTrades[-1],
+            total_expenses=self.TotalExpenses[-1],
+            commission_expense=self.CommissionExpense[-1],
+            spread_expense=self.SpreadExpense[-1],
+            other_expense=self.OtherExpense[-1]
+        )
 
 class BTSymbol(BTBaseData):
     """
@@ -2233,32 +1845,8 @@ class BTSymbol(BTBaseData):
         return self.Data[:, BTSymbolEnum.PriceCloseLong].astype('float')
 
     @property
-    def PriceOpenShort(self):
-        return self.Data[:, BTSymbolEnum.PriceOpenShort].astype('float')
-
-    @property
-    def PriceCloseShort(self):
-        return self.Data[:, BTSymbolEnum.PriceCloseShort].astype('float')
-
-    @property
-    def PriceMarginReqLong(self):
-        return self.Data[:, BTSymbolEnum.PriceMarginReqLong].astype('float')
-
-    @property
-    def PriceMarginReqShort(self):
-        return self.Data[:, BTSymbolEnum.PriceMarginReqShort].astype('float')
-
-    @property
     def LongPositions(self):
         return self.Data[:, BTSymbolEnum.LongPositions].astype('int')
-
-    @property
-    def ShortPositions(self):
-        return self.Data[:, BTSymbolEnum.ShortPositions].astype('int')
-
-    @property
-    def MarginPositions(self):
-        return self.Data[:, BTSymbolEnum.MarginPositions].astype('int')
 
     @property
     def TradesNo(self):
@@ -2284,7 +1872,6 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
-# TODO LOW Add margin expenses
 # TODO HIGH Add max position size for lump sum testing
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
@@ -2297,8 +1884,6 @@ class BackTest(metaclass=abc.ABCMeta):
                  deposit_interval=0,
                  cash_interest=0,
                  inflation=0,
-                 margin_req=0,
-                 margin_rec=0,
                  weighted=Weighted.Unweighted,
                  open_deviation=2,
                  close_deviation=3,
@@ -2321,8 +1906,6 @@ class BackTest(metaclass=abc.ABCMeta):
                 deposit_interval(int): interval (in days) to add a periodic deposit to the account.
                 cash_interest(int): interest on cash balance.
                 inflation(float): annual inflation used in the calculation.
-                margin_req(float): determines the buying power of the cash balance for a margin account.
-                margin_rec(float): determines the recommended buying power of the cash balance for a margin account.
                 weighted(Weighted): portfolio weighting method.
                 open_deviation(float): balance deviation multiplier for opening a position. 1 means that no deviation
                                        is acceptable. 2 means that the 'ideal' weight may be violated up to 2 times.
@@ -2384,22 +1967,6 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"inflation can't be less than 0% or more than 100%. Specified value is {inflation}")
         self._inflation = inflation
 
-        # Required loan to cash ratio. For example, if loan to cash ratio is 0.7 and current cash is $1000,
-        # then at maximum $700 may be lended by a broker. In case if maximum margin limit is hit, margin call is possible.
-        if margin_req < 0:
-            raise BackTestError(f"margin_req can't be less than 0. Specified value is {margin_req}")
-        self._margin_req = margin_req
-
-        # Recommended loan to cash ratio. Backtesting engine won't try to exceed it. Exceeding this limit
-        # is still acceptable but is considered at potentially dangerous and may lead to a margin call.
-        if margin_rec < 0:
-            raise BackTestError(f"margin_rec can't be less than 0. Specified value is {margin_rec}")
-        self._margin_rec = margin_rec
-
-        # Recommended loan to cash should be less than required
-        if margin_rec > margin_req:
-            raise BackTestError(f"load_to_asset_rec should be less than margin_req, however {margin_rec} is not < {margin_req}")
-
         # Portfolio weighting method
         self._weighted = weighted
 
@@ -2437,8 +2004,6 @@ class BackTest(metaclass=abc.ABCMeta):
         self._commission_expense = 0
         # Expenses caused by spread
         self._spread_expense = 0
-        # Costs of lending money from a broker
-        self._debt_expense = 0
         # Expenses caused paying dividends of lended securities
         self._other_expense = 0
 
@@ -2904,7 +2469,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
     def get_long_positions_num(self):
         """
-            Return the total number of opened long positions (including margin).
+            Return the total number of opened long positions.
 
             Returns:
                 int: the total number of opened long positions
@@ -2915,20 +2480,6 @@ class BackTest(metaclass=abc.ABCMeta):
             long_positions_num += ex.get_long_positions()
 
         return long_positions_num
-
-    def get_short_positions_num(self):
-        """
-            Return the total number of opened short positions.
-
-            Returns:
-                int: the total number of opened short positions
-        """
-        short_positions_num = 0
-
-        for ex in self.all_exec():
-            short_positions_num += ex.get_short_positions()
-
-        return short_positions_num
 
     def get_initial_deposit(self):
         """
@@ -3220,22 +2771,11 @@ class BackTest(metaclass=abc.ABCMeta):
                 float: other profit to add to the statistics.
         """
         self._other_profit += other_profit
-        # TODO LOW Need to check here if balance may go negative on a non-margin account.
         self.add_cash(other_profit)
-
-    def add_debt_expense(self, debt_expense):
-        """
-            Add debt(margin) expense to the statistics.
-
-            Args:
-                float: debt(margin) expense to add to the statistics.
-        """
-        self._debt_expense += debt_expense
 
     def add_other_expense(self, other_expense):
         """
-            Add other expenses to the statistics. It may be dividend expense of short positions or delisting expenses
-            in the case of stocks.
+            Add other expenses to the statistics. For example, delisting expenses in the case of stocks.
 
             Args:
                 other_expenses(float): other expenses
@@ -3269,28 +2809,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._spread_expense += expense
 
-    def get_margin_req(self):
-        """
-            Get the required margin ratio for the cash balance. For example, if the cash balance is 1000 and required margin ratio
-            is 0.9, then the buying power will be 9000. In the case of this value is exceeded (also if opened long positions do not
-            provide enough margin as well), margin call will happen and positions will be partially closed.
-
-            Returns:
-                float: cash to margin required ratio.
-        """
-        return self._margin_req
-
-    def get_margin_rec(self):
-        """
-            Get the recommended margin ratio for the cash balance. For example, if the cash balance is 1000 and recommended margin ratio
-            is 0.7, then the backtesting engine will open margin positions not exceeding 7000. In the case of this value is exceeded
-            (also if opened long positions do not provide enough margin as well), margin call will NOT happen until the required ratio is met.
-
-            Returns:
-                float: cash to margin recommended ratio.
-        """
-        return self._margin_rec
-
     def get_cash(self):
         """
             Get the cash balance.
@@ -3308,114 +2826,6 @@ class BackTest(metaclass=abc.ABCMeta):
                 int: the current number of simulated trades.
         """
         return self._total_trades
-
-    def get_margin_based_on_cash(self, fees=0):
-        """
-            Get margin buying power based on the cash balance.
-
-            Arguments:
-                fees(float): fees of the trade.
-
-            Returns:
-                float: the current margin buying power based on the cash balance.
-        """
-        return (self.get_cash() - fees) * self.get_margin_rec()
-
-    def get_margin_limit_based_on_cash(self):
-        """
-            Get margin holding power (no margin call happens) baseo on cash.
-
-            Returns:
-                float: margin holding power based on cash.
-        """
-        return self.get_cash() * self.get_margin_req()
-
-    def get_total_used_margin(self):
-        """
-            Get the total used margin.
-
-            Returns:
-                float: the total used margin.
-        """
-        used_margin = 0
-
-        for ex in self.__exec:
-            if ex.get_avail_index() is not None:
-                used_margin += ex.get_used_margin()
-
-        return used_margin
-
-    def get_total_margin_by_instruments(self):
-        """
-            Get the total margin buying power based on the portfolio.
-
-            Returns:
-                float: the total margin buying power.
-        """
-        total_margin = 0
-
-        for ex in self.__exec:
-            if ex.get_avail_index() is not None:
-                total_margin += ex.get_margin_buying_power()
-
-        return total_margin
-
-    def get_total_margin_limit_by_instruments(self):
-        """
-            Get the total margin holding power (no margin call happens) based on the portfolio.
-
-            Returns:
-                float: the total margin holding power based on portfolio.
-        """
-        total_margin = 0
-
-        for ex in self.__exec:
-            if ex.get_avail_index() is not None:
-                total_margin += ex.get_margin_limit()
-
-        return total_margin
-
-    def get_available_margin(self, fees=0):
-        """
-            Get the total available margin.
-
-            Args:
-                fees(float): the fees to substract from the amount of margin.
-
-            Returns:
-                float: the total available margin.
-        """
-        return self.get_margin_based_on_cash(fees) + self.get_total_margin_by_instruments() - self.get_total_used_margin()
-
-    def get_total_margin_limit(self):
-        """
-            Get the total margin limit (till margin call not happens).
-
-            Returns:
-                float: the total margin limit (holding power).
-        """
-        return self.get_margin_limit_based_on_cash() + self.get_total_margin_limit_by_instruments() - self.get_total_used_margin()
-
-    # TODO LOW Need to think if it is rational (and how it is used).
-    def get_total_buying_power(self, fees=0):
-        """
-            Get the total buying power.
-
-            Args:
-                fees(float): fees for a trade.
-
-            Returns:
-                float: the total buying power.
-        """
-        return self.get_cash() + self.get_available_margin(fees)
-
-    def get_total_holding_power(self):
-        """
-            Get the total holding power (when no margin call happens).
-
-            Returns:
-                float: the total holding power.
-        """
 
     def get_total_deposits(self):
         """
@@ -3454,19 +2864,9 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._spread_expense
 
-    def get_debt_expense(self):
-        """
-            Get the current debt expense (margin fees).
-
-            Returns:
-                float: the current debt expense.
-        """
-        return self._debt_expense
-
     def get_other_expense(self):
         """
-            Get the current other expense. For example, in the case of stock, other expense is the expense which was payed
-            instead of dividends to a lender while holding a short position.
+            Get the current other expense. For example, delisting expenses in the case of stocks.
 
             Returns:
                 float: the current other expense.
@@ -3480,7 +2880,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 float: the current total expenses.
         """
-        return self.get_commission_expense() + self.get_spread_expense() + self.get_other_expense() + self.get_debt_expense()
+        return self.get_commission_expense() + self.get_spread_expense() + self.get_other_expense()
 
     def get_total_value(self):
         """
@@ -3511,11 +2911,9 @@ class BackTest(metaclass=abc.ABCMeta):
             self.get_total_value(),
             self.get_total_deposits(),
             self.get_cash(),
-            self.get_total_used_margin(),
             self.get_other_profit(),
             self.get_commission_expense(),
             self.get_spread_expense(),
-            self.get_debt_expense(),
             self.get_other_expense(),
             self.get_total_expenses(),
             self.get_total_trades()
@@ -3688,8 +3086,6 @@ class BackTest(metaclass=abc.ABCMeta):
             if ex.get_index() is not None:
                 ex.check_delisting()  # Check is a security was delisted
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
-                ex.apply_margin_interest()  # Calculate and apply margin expenses per day
-                ex.check_margin_requirements()  # Check if margin requirements are met
                 ex.process_limit_order()  # Execute limit order (if any)
 
         return True

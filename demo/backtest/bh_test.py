@@ -59,6 +59,12 @@ if __name__ == "__main__":
     # Create a report
     #################
 
+    title = "B&H Strategy performance/expenses:"
+
+    # Show the statistics in a text form (along with the image)
+    stats = results.get_statistics(title=title)
+    print(stats)
+
     report = Report(data=results, width=max(length, min_width))
 
     # Add a chart with quotes
@@ -71,7 +77,7 @@ if __name__ == "__main__":
     report.add_expenses_chart(height=height)
 
     # Add annotations with strategy results
-    report.add_annotations(title="B&H Strategy performance/expenses:")
+    report.add_annotations(title=title)
 
     # Show image
     new_file = report.show_image()

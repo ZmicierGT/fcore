@@ -55,9 +55,7 @@ params = {
     'periodic_deposit': 500,
     'deposit_interval': 30,
     'inflation': 2.5,
-    'period': period,
-    'margin_rec': 0.9,  # Use some margin to test shorting
-    'margin_req': 1
+    'period': period
 }
 
 # Perform backtest using AI classification of signals
@@ -75,7 +73,7 @@ results_cls = classification.get_results()  # Wait till calculation finishes and
 results_cmp = ma.get_results()
 
 # Generate a report with performance comparison
-report = Report(data=results_cls, width=max(len(rows_test), min_width), margin=True)
+report = Report(data=results_cls, width=max(len(rows_test), min_width))
 
 fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))

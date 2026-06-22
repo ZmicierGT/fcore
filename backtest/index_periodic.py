@@ -96,9 +96,6 @@ class IndexSim(BackTest):
                 if ex.get_index() is None or ex.weighted is False:
                     continue  # Skip securities without data in the cycle or unweighted securities (if eventually we have any)
 
-                if ex.get_short_positions() > 0:
-                    raise BackTestError(f"This strategy does not involve shorting but {ex.get_short_positions()} positions were detected for {ex.data.title}")
-
                 # Check if we need to close the position because the security was excluded from the index
                 if ex.data.title not in self.composition and ex.get_long_positions() and ex.is_limit is False:
                     ex.sell(num=ex.get_long_positions(), limit=ex.get_row()[StockQuotes.Close], limit_deviation=0.01, recalculate=True, exact=True)

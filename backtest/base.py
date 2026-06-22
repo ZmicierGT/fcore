@@ -3174,6 +3174,17 @@ class BackTest(metaclass=abc.ABCMeta):
         # In the default case there is no signal verification.
         return False
 
+    def signal_open_long(self):
+        """
+            Determines if opening a long position is permitted in the current cycle.
+
+            Returns:
+                bool: True if opening a long position is permitted, False otherwise.
+        """
+
+        # In the default case, opening is always allowed.
+        return True
+
     def any_signal(self):
         """
             Indicates if buy/sell signal was considered as true.

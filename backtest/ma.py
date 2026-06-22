@@ -128,13 +128,11 @@ class MA(BackTest):
                         self.exec().close_all()
 
             ########################
-            # Open/close positions
+            # Open positions
             ########################
 
-            if self.is_uptrend() == True:
+            if self.is_uptrend() == True and self.signal_open_long():
                 self.exec().open_long_max()
-            elif self.is_uptrend() == False and self.exec().get_long_positions() > 0:
-                self.exec().close_all()
 
             ##############################
             # Teardown the cycle

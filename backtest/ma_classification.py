@@ -122,3 +122,12 @@ class MAClassification(MA):
             return True
 
         return False
+
+    def signal_open_long(self):
+        """
+            Gate opening long positions on the AI buy-signal verification.
+
+            Returns:
+                bool: True if opening a long position is permitted, False otherwise.
+        """
+        return self.signal_buy()

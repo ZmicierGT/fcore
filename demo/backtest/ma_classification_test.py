@@ -6,8 +6,6 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import warnings
 
-# TODO HIGH Check why the numbers with or without classification (and even of different intervals) are similar
-
 # Suppress third-party library deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="pandas_ta")
 warnings.filterwarnings("ignore", category=Warning, module="pandas_ta")

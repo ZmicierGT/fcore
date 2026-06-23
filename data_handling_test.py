@@ -6,12 +6,18 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 from data import yf
 from data.fvalues import Timespans, SecType, Currency, StockQuotes, def_last_date
+from data.fdata import Subquery
 from data.futils import get_dt
 
 from datetime import datetime, timedelta
 from dateutil import tz
 
 from termcolor import colored
+
+import yfinance as yfin
+import calendar
+
+import numpy as np
 
 import sys
 
@@ -279,6 +285,57 @@ def test_request_intervals(source, timespans):
 
     print(colored("The max request timestamp for EOD quotes is expected", "green"))
 
+def test_subqueries(i, source_eh):
+    i.get()
+    i.get_earnings_history()
+
+    rows = i.get_quotes(queries=[Subquery('yf_earnings_history', 'epsActual', title='eps_actual'),
+                                 Subquery('yf_earnings_history', 'epsEstimate', title='eps_estimate'),
+                                 Subquery('yf_earnings_history', 'surprisePercent', title='surprise_pct')])
+
+    # The last 3 columns of the resulting array are the earnings history subqueries.
+    cols = ['eps_actual', 'eps_estimate', 'surprise_pct']
+
+    # Check if rows where no data is expected (before the first ts of earnings history) are indeed None
+    first_ts = int(source_eh['ts'].min())
+    idx = np.where(rows['time_stamp'] < first_ts)[0]
+    sub = rows[idx]
+
+    #print(sub)
+
+    if all(np.all(sub[f] == None) for f in cols):
+        print(colored('Rows with None values are as expected.', 'green'))
+    else:
+        failure("Unexpected non-None values found in the subquery data.", i)
+
+    # Iterate through earnings ranges and check if values are expected
+
+    l = list(source_eh['ts'])
+
+    for i in range(len(l)):
+        start_ts = l[i]
+
+        if i == len(l) - 1:
+            end_ts = sys.maxsize
+        else:
+            end_ts = l[i+1]
+
+        idx = np.where((rows['time_stamp'] >= start_ts) & (rows['time_stamp'] < end_ts))[0]
+        sub = rows[idx]
+
+        epsActual = source_eh.at[i, 'epsActual']
+        epsEstimate = source_eh.at[i, 'epsEstimate']
+        surprisePercent = source_eh.at[i, 'surprisePercent']
+
+        if np.all(sub['eps_actual'] != epsActual):
+            failure('Unexpected epsActual', i)
+        if np.all(sub['eps_estimate'] != epsEstimate):
+            failure('Unexpected epsEstimate', i)
+        if np.all(sub['surprise_pct'] != surprisePercent):
+            failure('Unexpected surprisePercent', i)
+
+    print(colored('All subquery data is as expected.', 'green'))
+
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
@@ -302,6 +359,32 @@ if __name__ == "__main__":
 
     yfi.db_close()
 
-    print(colored("ALL TESTS PASSED for YF data source!", "green"))
+    print(colored("ALL INTERVAL TESTS PASSED for YF data source!", "green"))
+
+    print(colored("\nTesting subqueries support:\n", "yellow"))
+
+    yfi = yf.YF(symbol='IBM', verbosity=True)
+    yfi.db_name = ":memory:"
+    yfi.db_connect()
+
+    # At first, obtain the raw earnings history data directly.
+    ticker = yfin.Ticker('IBM')
+    source_eh = ticker.earnings_history
+
+    # Reset index so 'quarter' becomes a column. Calculate the quarter timestamp (UTC midnight) the
+    # same way it is stored in the database by fetch_earnings_history() (see data/yf.py).
+    source_eh = source_eh.reset_index()
+    source_eh['ts'] = source_eh['quarter'].apply(
+        lambda q: int(calendar.timegm(
+            (q.tz_localize('UTC') if q.tz is None else q.tz_convert('UTC')).utctimetuple()
+        ))
+    )
+    source_eh = source_eh.sort_values('ts').reset_index(drop=True)
+
+    #print(source_eh)
+
+    test_subqueries(yfi, source_eh)
+
+    yfi.db_close()
 
     print(colored("ALL TESTS PASSED!", "green"))

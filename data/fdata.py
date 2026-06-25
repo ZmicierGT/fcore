@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 22
+DB_VERSION = 23
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -142,7 +142,6 @@ class ReadOnlyData():
 
         self._verbosity = verbosity
 
-        self._sec_info_supported = False  # Indicates if security info is supported
         self._time_zone = None  # Cached time zone to avoid too many db queries
         self._sec_type = None  # Cached security type to avoid too many db queries
         self._currency = None  # Cached security type to avoid too many db queries
@@ -1240,9 +1239,6 @@ class ReadOnlyData():
         """
             Fetch (if needed) and return security info data.
         """
-        if self._sec_info_supported is False:
-            return {}
-
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
@@ -1271,6 +1267,10 @@ class ReadOnlyData():
 
         row = rows[0]
 
+        # TODO MID Think if exception here is rational or better to return the corresponding dict (with NotExist sec_type)
+        if row['sec_type'] == SecType.NotExist.value:
+            raise FdataError(f"Ticker {self.symbol} is likely delisted or incorrect as it is marked as not-existent.")
+
         return {'time_zone': row['time_zone'], 'sec_type': row['sec_type'], 'currency': row['curr']}
 
     def get_timezone(self):
@@ -1280,9 +1280,6 @@ class ReadOnlyData():
             Returns:
                 tz: time zone.
         """
-        if self._sec_info_supported is False:
-            self._time_zone = tz.gettz('America/New_York')  # Return ET by default. Supposed to be overridden.
-
         if self._time_zone is None:
             info = self.get_info()
 
@@ -1306,9 +1303,6 @@ class ReadOnlyData():
             Returns:
                 (SecType): security typy.
         """
-        if self._sec_info_supported is False:
-            self._sec_type = SecType.Unknown  # Return Unknown by default.
-
         if self._sec_type is None:
             info = self.get_info()
 
@@ -1329,9 +1323,6 @@ class ReadOnlyData():
             Returns:
                 (Currency): security typy.
         """
-        if self._sec_info_supported is False:
-            self._currency = Currency.Unknown  # Return Unknown by default.
-
         if self._currency is None:
             info = self.get_info()
 
@@ -1573,8 +1564,8 @@ class ReadWriteData(ReadOnlyData):
 
         num_after = self.get_quotes_num()
 
-        self.update_quote_intervals()
-
+        # Intervals are updated by get() after all sub-intervals succeed to avoid
+        # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
     def update_quote_intervals(self):
@@ -1611,28 +1602,6 @@ class ReadWriteData(ReadOnlyData):
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'quote_intervals': {e}\n{update_fetched}") from e
 
-    def remove_quotes(self):
-        """
-            Remove quotes from the database.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        self.check_if_connected()
-
-        remove_quotes = f"""DELETE FROM quotes WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-                            AND time_stamp >= {self.first_date_ts} AND time_stamp <= {self.last_date_ts};"""
-
-        try:
-            self.cur.execute(remove_quotes)
-            self.conn.commit()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{remove_quotes}") from e
-
-        # Check if symbol is removed completely
-        if self.get_total_symbol_quotes_num() == 0:
-            self.remove_symbol()
-
     def add_info(self, info):
         """
             Add security info to the database.
@@ -1643,40 +1612,39 @@ class ReadWriteData(ReadOnlyData):
             Raises:
                 FdataError: sql error happened.
         """
-        if self._sec_info_supported:
-            self.check_if_connected()
+        self.check_if_connected()
 
-            # Insert new symbols to 'symbols' table (if the symbol does not exist)
-            if self.get_total_symbol_quotes_num() == 0:
-                self.add_symbol()
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if self.get_total_symbol_quotes_num() == 0:
+            self.add_symbol()
 
-            try:
-                time_zone = info['fc_time_zone']
-                sec_type = info['fc_sec_type']
-            except KeyError as e:
-                raise FdataError(f"Key is not found. Likely broken data is obtained (due to data soruce issues): {e}")
+        try:
+            time_zone = info['fc_time_zone']
+            sec_type = info['fc_sec_type']
+        except KeyError as e:
+            raise FdataError(f"Key is not found. Likely broken data is obtained (due to data soruce issues): {e}")
 
-            currency = Currency.Unknown  # Currencies are not supported yet
+        currency = info.get('fc_currency', Currency.Unknown)
 
-            insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
-                                        source_id,
-                                        time_zone,
-                                        sec_type_id,
-                                        currency_id)
-                                    VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
-                                            ('{time_zone}'),
-                                            (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),
-                                            (SELECT currency_id FROM currency WHERE title = '{currency}')
-                                        );"""
+        insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
+                                    source_id,
+                                    time_zone,
+                                    sec_type_id,
+                                    currency_id)
+                                VALUES (
+                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                        (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                        ('{time_zone}'),
+                                        (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),
+                                        (SELECT currency_id FROM currency WHERE title = '{currency}')
+                                    );"""
 
-            try:
-                self.cur.execute(insert_info)
-            except self.Error as e:
-                raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
+        try:
+            self.cur.execute(insert_info)
+        except self.Error as e:
+            raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
 
-            self.commit()
+        self.commit()
 
 ##########################
 # Base data fetching class
@@ -1715,6 +1683,11 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         if self.is_connected() is False:
             self.db_connect()
 
+        # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
+        # sec_info once and raises FdataError here if the symbol is NotExist, so we never
+        # waste a quote fetch or falsely mark intervals for a non-existent ticker.
+        self.get_info()
+
         current_num = self.get_symbol_quotes_num()
         total_num = self.get_symbol_quotes_num(dt=False)
 
@@ -1731,25 +1704,13 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
             # if they already present in DB.
             if total_num and min_request_ts is not None and max_request_ts is not None:
-                # New interval exceeds the old one on both sides
-                if self.first_date_ts < min_request_ts and last_ts_adj > max_request_ts:
-                    intervals.append([self.first_date_ts, min_request_ts])
-                    intervals.append([max_request_ts, last_ts_adj])
-
-                # New interval is completely before the old interval
-                elif self.first_date_ts < min_request_ts and last_ts_adj < min_request_ts:
+                # Fetch the requested range excluding the part already covered by recorded
+                # intervals. Two independent checks: a request can extend on
+                # one side, both sides, or touch the recorded boundary exactly.
+                if self.first_date_ts < min_request_ts:
                     intervals.append([self.first_date_ts, min_request_ts])
 
-                # New interval is completely after the old interval
-                elif self.first_date_ts > max_request_ts and last_ts_adj > max_request_ts:
-                    intervals.append([max_request_ts, last_ts_adj])
-
-                # New interval is before the old inverval but has an overlap with the old one
-                elif self.first_date_ts < min_request_ts and last_ts_adj > min_request_ts:
-                    intervals.append([self.first_date_ts, min_request_ts])
-
-                # New interval is after the old interval but has an overlap with the old one
-                elif self.first_date_ts < max_request_ts and last_ts_adj > max_request_ts:
+                if last_ts_adj > max_request_ts:
                     intervals.append([max_request_ts, last_ts_adj])
             else:
                 intervals.append([self.first_date_ts, last_ts_adj])
@@ -1759,10 +1720,20 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
 
                 self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
+            # Mark the fetched range. Runs even when a sub-interval returned zero quotes
+            # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
+            # known-empty ranges. A fetch failure (e.g. connection error) raises before
+            # reaching here, so intervals are not updated and the range is retried next time.
+            self.update_quote_intervals()
+
         rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
 
         if initially_connected is False:
             self.db_close()
+
+        # TODO MID Think if we should return None here without raising an exception
+        if rows is None:
+            raise FdataError(f"No quotes for ticker {self.symbol}")
 
         return rows
 
@@ -1901,9 +1872,22 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 str: timespan string.
         """
 
-    @abc.abstractmethod
     def fetch_info(self):
-        """Abstract method to fetch security info"""
+        """
+            Fetch security info. Default for sources without a dedicated info API.
+
+            Returns Unknown security type, Unknown currency, and America/New_York timezone.
+            Concrete sources are expected to override this to at least perform a security
+            existence check (returning SecType.NotExist for delisted/non-existent tickers).
+
+            Returns:
+                dict: info with fc_sec_type, fc_currency, fc_time_zone keys.
+        """
+        return {
+            'fc_sec_type': SecType.Unknown,
+            'fc_currency': Currency.Unknown,
+            'fc_time_zone': 'America/New_York',
+        }
 
     # TODO MID Think if it be implemented here or made abstract
     def query_and_parse(self, url, timeout=30):

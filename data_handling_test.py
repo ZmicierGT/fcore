@@ -6,7 +6,7 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 from data import yf
 from data.fvalues import Timespans, SecType, Currency, StockQuotes, def_last_date
-from data.fdata import Subquery
+from data.fdata import Subquery, FdataError
 from data.futils import get_dt
 
 from datetime import datetime, timedelta
@@ -130,7 +130,7 @@ def test_request_ts(source):
     #######################################################
 
     source.first_date = "2018-1-1"
-    source.laast_date = "2019-1-1"
+    source.last_date = "2019-1-1"
 
     source.get()
 
@@ -336,6 +336,124 @@ def test_subqueries(i, source_eh):
 
     print(colored('All subquery data is as expected.', 'green'))
 
+def test_get_delisted():
+    """
+        Test get() for a delisted/non-existent symbol (WBA). Both first and second
+        invocations must raise FdataError without fetching quotes or marking
+        intervals. The first invocation persists sec_info as NotExist; the second
+        raises early from the cached sec_info (no API refetch of info).
+    """
+    print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
+
+    yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True)
+    yfi.db_name = ":memory:"
+    yfi.db_connect()
+
+    # First invocation: empty DB. fetch_info() runs, detects NotExist, persists
+    # sec_info; get_info() raises (fdata.py:1271) before any quote fetch.
+    print("First invocation (empty DB): expecting FdataError ...")
+    raised_first = False
+    try:
+        yfi.get()
+    except FdataError as e:
+        print(f"  Got expected FdataError: {e}")
+        raised_first = True
+
+    if not raised_first:
+        failure("First get() should have raised FdataError for a delisted symbol", yfi)
+
+    if yfi.get_symbol_quotes_num(dt=False) != 0:
+        failure("No quotes should be fetched for a delisted symbol", yfi)
+
+    if yfi.get_min_request_ts() is not None or yfi.get_max_request_ts() is not None:
+        failure("No quote_intervals should be marked for a delisted symbol", yfi)
+
+    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+
+    # Confirm the security is indeed marked as NotExist in sec_info. get_info()
+    # raises FdataError when sec_type == NotExist (fdata.py:1271).
+    print("\nDirect get_info() check: expecting FdataError (sec_info persisted as NotExist) ...")
+    raised_info = False
+    try:
+        yfi.get_info()
+    except FdataError as e:
+        print(f"  Got expected FdataError: {e}")
+        raised_info = True
+
+    if not raised_info:
+        failure("get_info() should raise FdataError for a symbol marked NotExist", yfi)
+
+    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+
+    # Second invocation: sec_info persisted as NotExist. get_info() raises at
+    # fdata.py:1271 BEFORE fetch_info() runs (no API refetch).
+    print("\nSecond invocation (sec_info persisted as NotExist): expecting FdataError ...")
+    raised_second = False
+    try:
+        yfi.get()
+    except FdataError as e:
+        print(f"  Got expected FdataError: {e}")
+        raised_second = True
+
+    if not raised_second:
+        failure("Second get() should also raise FdataError", yfi)
+
+    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+
+    yfi.db_close()
+
+def test_get_existing():
+    """
+        Test get() for an existing symbol (IBM). First invocation fetches info +
+        quotes and marks intervals. Second invocation reuses cached info (no
+        refetch) and skips quote fetch (intervals cover the range), returning
+        cached rows without error.
+    """
+    print(colored("\nTesting get() for an existing symbol (IBM):\n", "yellow"))
+
+    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True)
+    yfi.db_name = ":memory:"
+    yfi.db_connect()
+
+    # First invocation: empty DB.
+    print("First invocation (empty DB): expecting fetch + rows ...")
+    rows_first = yfi.get()
+
+    if rows_first is None or len(rows_first) == 0:
+        failure("First get() should return fetched rows for IBM", yfi)
+
+    quotes_num_first = yfi.get_symbol_quotes_num(dt=False)
+    if quotes_num_first == 0:
+        failure("Quotes count should increase after first get()", yfi)
+
+    min_req_first = yfi.get_min_request_ts()
+    max_req_first = yfi.get_max_request_ts()
+
+    if min_req_first is None or max_req_first is None:
+        failure("Intervals should be marked after first get()", yfi)
+
+    print(colored(f"First invocation: fetched {len(rows_first)} rows, intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}", "green"))
+
+    # Second invocation: same range, covered. No refetch expected.
+    print("\nSecond invocation (same range, covered): expecting cached rows, no error ...")
+    rows_second = yfi.get()
+
+    if rows_second is None or len(rows_second) == 0:
+        failure("Second get() should return cached rows for IBM", yfi)
+
+    quotes_num_second = yfi.get_symbol_quotes_num(dt=False)
+
+    # INSERT OR IGNORE guarantees no duplicate rows: count must be unchanged.
+    if quotes_num_second != quotes_num_first:
+        failure(f"Quotes count should not change on second get(): {quotes_num_first} -> {quotes_num_second}", yfi)
+
+    if yfi.get_min_request_ts() != min_req_first or yfi.get_max_request_ts() != max_req_first:
+        failure("Intervals should not change on second get() (covered range)", yfi)
+
+    print(colored("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged", "green"))
+
+    yfi.db_close()
+
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
@@ -386,5 +504,9 @@ if __name__ == "__main__":
     test_subqueries(yfi, source_eh)
 
     yfi.db_close()
+
+    # get() behavior for delisted vs. existing symbols (fresh in-memory DBs)
+    test_get_delisted()
+    test_get_existing()
 
     print(colored("ALL TESTS PASSED!", "green"))

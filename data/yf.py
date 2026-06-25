@@ -37,7 +37,6 @@ class YF(stock.StockFetcher):
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self.symbol  # Symbol of cached data
 
-        self._sec_info_supported = True
         self._stock_info_supported = True
 
         self._earnings_history_tbl = 'yf_earnings_history'
@@ -317,17 +316,25 @@ class YF(stock.StockFetcher):
         except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch info. Likely yfinance needs updating. Invoke pip install yfinance --upgrade: {e}") from e
 
-        info['fc_time_zone'] = info.get('exchangeTimezoneName', 'UTC')
-        info['fc_sec_type'] = SecType.Unknown
+        # Keys of a valid security is expected to have in its info dict. The data source returns a
+        # degenerate placeholder (e.g. {'trailingPegRatio': None}) for delisted/non-existent
+        # tickers — missing all of these. If any expected key is absent, treat the security
+        # as non-existent (attempted once; not retried on subsequent calls).
+        expected_keys = ('quoteType', 'symbol', 'exchangeTimezoneName')
+        if any(key not in info for key in expected_keys):
+            info['fc_sec_type'] = SecType.NotExist
+            info['fc_time_zone'] = 'UTC'
+        else:
+            info['fc_time_zone'] = info['exchangeTimezoneName']
 
-        sec_type = info.get('quoteType', 'EQUITY')
+            info['fc_sec_type'] = SecType.Unknown
 
-        if sec_type == 'EQUITY':
-            info['fc_sec_type'] = SecType.Stock
-        elif sec_type == 'CRYPTOCURRENCY':
-            info['fc_sec_type'] = SecType.Crypto
-        elif sec_type == 'ETF':
-            info['fc_sec_type'] = SecType.ETF
+            sec_type = info['quoteType']
+
+            if sec_type == 'EQUITY':
+                info['fc_sec_type'] = SecType.Stock
+            elif sec_type == 'ETF':
+                info['fc_sec_type'] = SecType.ETF
 
         return info
 

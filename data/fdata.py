@@ -1688,7 +1688,6 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         # waste a quote fetch or falsely mark intervals for a non-existent ticker.
         self.get_info()
 
-        current_num = self.get_symbol_quotes_num()
         total_num = self.get_symbol_quotes_num(dt=False)
 
         last_ts_adj = min(self.last_date_ts, self.current_ts())
@@ -1698,7 +1697,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
         min_request_ts = self.get_min_request_ts()
         max_request_ts = self.get_max_request_ts()
 
-        if current_num == 0 or min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
+        if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
             intervals = []
 
             # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes

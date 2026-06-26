@@ -454,6 +454,41 @@ def test_get_existing():
 
     yfi.db_close()
 
+def test_get_empty_range_valid_symbol():
+    """
+        Test get() for a valid symbol (INFQ) requested in a range before the
+        first available quote (2026-02-17). The range is genuinely empty but
+        the symbol is valid (not delisted). Intervals must be recorded so the
+        known-empty range is permanently skipped on subsequent calls.
+    """
+    print(colored("\nTesting get() for a valid symbol with empty range (INFQ):\n", "yellow"))
+
+    yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True)
+    yfi.db_name = ":memory:"
+    yfi.db_connect()
+
+    # First invocation: empty DB, valid symbol, range before first quote.
+    # Accept either raise (current YF empty-download contract) or None return —
+    # the decisive assertion is on intervals, not the return type.
+    print("First invocation (empty range): expecting intervals recorded ...")
+    try:
+        yfi.get()
+    except FdataError as e:
+        print(f"  Got FdataError: {e}")
+
+    if yfi.get_symbol_quotes_num(dt=False) != 0:
+        failure("No quotes should be fetched for an empty range", yfi)
+
+    min_req = yfi.get_min_request_ts()
+    max_req = yfi.get_max_request_ts()
+
+    if min_req is None or max_req is None:
+        failure("Intervals should be recorded for an empty valid-symbol range", yfi)
+
+    print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
+
+    yfi.db_close()
+
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
@@ -508,5 +543,6 @@ if __name__ == "__main__":
     # get() behavior for delisted vs. existing symbols (fresh in-memory DBs)
     test_get_delisted()
     test_get_existing()
+    test_get_empty_range_valid_symbol()
 
     print(colored("ALL TESTS PASSED!", "green"))

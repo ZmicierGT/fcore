@@ -104,7 +104,7 @@ class YF(stock.StockFetcher):
         length = len(data)
 
         if length == 0:
-            raise FdataError(f"Can not fetch quotes for {self.symbol}. No quotes fetched. The security may be delisted or the symbol is incorrect.")
+            return []
 
         pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self.get_timezone()).utctimetuple()))
 

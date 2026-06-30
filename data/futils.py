@@ -4,6 +4,8 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+from data.fvalues import Quotes
+
 from datetime import datetime, timedelta
 from dateutil.parser import parse
 from dateutil import tz
@@ -254,21 +256,6 @@ def add_column(rows, name, dtype=object, default=0.0):
 
     return rows
 
-def delete_row(self, data, row_num):
-    """
-        Deletes a row from data.
-
-        Args:
-            data(ndarray): dataset to delete a row
-            row_num(int): row number
-    """
-    try:
-        self._rows = np.delete(data, row_num, 0)
-    except IndexError as e:
-        raise KeyError(f"Can not delete row {row_num} as it does not exist") from e
-
-    return data
-
 def trim_time(data, start=None, end=None):
     """
         Trim the time which is out of the time windows.
@@ -317,11 +304,14 @@ def thread_available(timeout=0, gap=0.05):
     if multiprocessing.cpu_count() == 1:
         return False
 
+    if threading.active_count() < multiprocessing.cpu_count():
+        return True
+
     while threading.active_count() >= multiprocessing.cpu_count() and timeout > 0:
         time.sleep(gap)
         timeout -= gap
 
     if timeout > 0:
-        return False
+        return True
 
-    return True
+    return False

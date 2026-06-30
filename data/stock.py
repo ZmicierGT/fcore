@@ -35,6 +35,7 @@ class ROStockData(ReadOnlyData):
         self._income_statement_tbl = None
         self._balance_sheet_tbl = None
         self._cash_flow_tbl = None
+        self._earnings_history_tbl = None
 
         self._stock_info_supported = False  # Indicates if stock info is supported
 
@@ -215,6 +216,7 @@ class ROStockData(ReadOnlyData):
                                                 source_id INTEGER NOT NULL,
                                                 div_max_ts INTEGER,
                                                 split_max_ts INTEGER,
+                                                earnings_history_max_ts INTEGER,
                                                     CONSTRAINT fk_source
                                                         FOREIGN KEY (source_id)
                                                         REFERENCES sources(source_id)
@@ -276,7 +278,7 @@ class ROStockData(ReadOnlyData):
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{all_sectors}") from e
 
-        if sectors_length != 12:
+        if sectors_length != len(Sector):
             # Insert data into stock sectors
 
             # Prepare the query with all supported report periods
@@ -428,8 +430,6 @@ class ROStockData(ReadOnlyData):
         try:
             self.cur.execute(get_splits)
             splits = self.cur.fetchall()
-        except IndexError:
-            self.log(f"No split data for {self.symbol}")
         except self.Error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
 
@@ -437,6 +437,7 @@ class ROStockData(ReadOnlyData):
             splits = get_labelled_ndarray(splits)
         else:
             splits = None
+            self.log(f"No split data for {self.symbol}")
 
         if initially_connected is False:
             self.db_close()
@@ -813,6 +814,17 @@ class RWStockData(ROStockData, ReadWriteData):
         """
         return self._get_data_num('stock_splits')
 
+    def get_earnings_history_num(self):
+        """Get the number of earnings history entries for the symbol.
+
+            Returns:
+                int: the number of earnings history entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num(self._earnings_history_tbl)
+
     def add_dividends(self, divs):
         """
             Add cash dividend entries to the database.
@@ -899,7 +911,7 @@ class RWStockData(ROStockData, ReadWriteData):
             try:
                 self.cur.execute(insert_splits)
             except self.Error as e:
-                raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_splits}") from e
+                raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self.commit()
 
@@ -1018,7 +1030,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
             try:
                 self.cur.execute(info_query)
                 row = self.cur.fetchone()[0]
-            except self.Error as e:
+            except (self.Error, TypeError) as e:
                 raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
 
             stock_info = {'sector': row}
@@ -1142,6 +1154,23 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                                         add_method=self.add_splits,
                                         fetch_method=self.fetch_splits)
 
+    def get_earnings_history(self):
+        """
+            Fetch all the available earnings history data if needed.
+
+            Returns:
+                array: the fetched entries.
+                int: the number of fetched entries.
+        """
+        if self.get_total_symbol_quotes_num() == 0:
+            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
+
+        return self._fetch_data_if_none(column='earnings_history_max_ts',
+                                        interval_table='stock_intervals',
+                                        num_method=self.get_earnings_history_num,
+                                        add_method=self.add_earnings_history,
+                                        fetch_method=self.fetch_earnings_history)
+
     @abc.abstractmethod
     def fetch_income_statement(self):
         """Abstract method to fetch income statement"""
@@ -1163,6 +1192,10 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         """Abstract method to fetch splits"""
 
     @abc.abstractmethod
+    def fetch_earnings_history(self):
+        """Abstract method to fetch earnings history"""
+
+    @abc.abstractmethod
     def add_income_statement(self, reports):
         """Add income statement report."""
 
@@ -1173,3 +1206,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def add_cash_flow(self, reports):
         """Add cash flow report."""
+
+    @abc.abstractmethod
+    def add_earnings_history(self, results):
+        """Add earnings history data."""

@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 23
+DB_VERSION = 24
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -277,7 +277,7 @@ class ReadOnlyData():
         """
             Set the last date's h/m/s/ to EOD (23:59:59)
         """
-        self._last_date = self.set_eod_time(self._last_date.replace)
+        self._last_date = self.set_eod_time(self._last_date)
 
     ##############################################
     # End of datetime handling methods/properties.
@@ -1371,7 +1371,7 @@ class ReadOnlyData():
                 now = self.set_eod_time(now)
             elif timespan == Timespans.Minute:
                 now += timedelta(minutes=1)
-            if timespan == Timespans.TwoMinutes:
+            elif timespan == Timespans.TwoMinutes:
                 now += timedelta(minutes=2)
             elif timespan == Timespans.FiveMinutes:
                 now += timedelta(minutes=5)
@@ -1845,7 +1845,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
                 to_cache(bool): indicates if real time data should be cached in a database.
 
             Returns:
-                list: real time data.
+                ndarray: real time data.
         """
 
     @abc.abstractmethod
@@ -1888,7 +1888,7 @@ class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
             'fc_time_zone': 'America/New_York',
         }
 
-    # TODO MID Think if it be implemented here or made abstract
+    # TODO LOW Kept for possible usage with data sources which have API request limits per time interval
     def query_and_parse(self, url, timeout=30):
         """
             Query the data source and parse the response. Used to handle data source API call limit.

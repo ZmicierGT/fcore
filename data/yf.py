@@ -110,6 +110,19 @@ class YF(stock.StockFetcher):
 
         data = data.reset_index()
 
+        # Flatten MultiIndex columns (yfinance 0.2.64+ returns (Price, Ticker) tuples)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+
+        # Interpolate missing volume values linearly from nearest valid volumes,
+        # but only on rows where OHLC data is present (genuine trading days).
+        # Rows with NaN OHLC represent out-of-scope/future dates — they are skipped
+        # later in the quote-building loop and must NOT be interpolated across.
+        _ohlci_valid = data[['Open', 'High', 'Low', 'Close']].notna().all(axis=1)
+        data.loc[_ohlci_valid, 'Volume'] = data.loc[_ohlci_valid, 'Volume'].interpolate(
+            method='linear', limit_direction='both'
+        )
+
         if self.is_intraday() is False:
             # TODO LOW For simplicity just set time to 23:59:59 without time zone adjustments.
             # For some markets (non-US) timestamps (which are supposed to be UTC-adjusted) may be incorrect.
@@ -124,11 +137,11 @@ class YF(stock.StockFetcher):
                 ind = np.searchsorted(data['ts'], [splits['ts'][i] ,], side='right')[0] - 1
                 split_ratio = splits['split_ratio'][i]
 
-                data.loc[: ind, 'Open'] = data.loc[:ind, 'Open'][self.symbol] * split_ratio
-                data.loc[: ind, 'High'] = data.loc[:ind, 'High'][self.symbol] * split_ratio
-                data.loc[: ind, 'Low'] = data.loc[:ind, 'Low'][self.symbol] * split_ratio
-                data.loc[: ind, 'Close'] = data.loc[:ind, 'Close'][self.symbol] * split_ratio
-                data.loc[: ind, 'Volume'] = round(data.loc[:ind, 'Volume'][self.symbol] / split_ratio)
+                data.loc[:ind, 'Open'] = data['Open'].iloc[:ind+1] * split_ratio
+                data.loc[:ind, 'High'] = data['High'].iloc[:ind+1] * split_ratio
+                data.loc[:ind, 'Low'] = data['Low'].iloc[:ind+1] * split_ratio
+                data.loc[:ind, 'Close'] = data['Close'].iloc[:ind+1] * split_ratio
+                data.loc[:ind, 'Volume'] = (data['Volume'].iloc[:ind+1] / split_ratio).round().astype('Int64')
         else:
             data['ts'] = pick_ts(data['Datetime'])
 
@@ -136,16 +149,21 @@ class YF(stock.StockFetcher):
         quotes_data = []
 
         for ind in range(length):
-            open_val = data.iloc[[ind]]['Open'].values[0][0]
-            high_val = data.iloc[[ind]]['High'].values[0][0]
-            low_val = data.iloc[[ind]]['Low'].values[0][0]
-            close_val = data.iloc[[ind]]['Close'].values[0][0]
-            volume_val = data.iloc[[ind]]['Volume'].values[0][0]
+            open_val = data.iloc[[ind]]['Open'].values[0]
+            high_val = data.iloc[[ind]]['High'].values[0]
+            low_val = data.iloc[[ind]]['Low'].values[0]
+            close_val = data.iloc[[ind]]['Close'].values[0]
+            volume_val = data.iloc[[ind]]['Volume'].values[0]
 
-            # Skip rows with NaN values (can happen when requesting future dates or out-of-scope data)
-            if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val) or pd.isna(volume_val):
-                self.log(f"Skipping row {ind} due to NaN values (likely out-of-scope date)")
+            # Skip rows where OHLC is NaN (out-of-scope/future dates with no trading data).
+            # Volume NaNs on valid trading days were interpolated above.
+            if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val):
+                self.log(f"Skipping row {ind} (out-of-scope date, no OHLC data)")
                 continue
+
+            # Fallback: if volume is still NaN (e.g., entire Volume column was NaN), use 0.
+            if pd.isna(volume_val):
+                volume_val = 0
 
             quote_dict = {
                 'volume': volume_val,
@@ -173,7 +191,7 @@ class YF(stock.StockFetcher):
                 to_cache(bool): indicates if real time data should be cached in a database.
 
             Returns:
-                list: real time data.
+                ndarray: real time data.
         """
         data = yfin.download(tickers=self.symbol, period='1d', interval='1m', auto_adjust=False)
         row = data.iloc[-1]
@@ -406,17 +424,6 @@ class YF(stock.StockFetcher):
             except self.Error as e:
                 raise FdataError(f"Can't create trigger for yf_earnings_history: {e}") from e
 
-    def get_earnings_history_num(self):
-        """Get the number of earnings history entries.
-
-            Returns:
-                int: the number of earnings history entries.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        return self._get_data_num(self._earnings_history_tbl)
-
     def fetch_earnings_history(self):
         """
             Fetch the earnings history data.
@@ -513,46 +520,9 @@ class YF(stock.StockFetcher):
 
         self.commit()
 
+        self._update_intervals('earnings_history_max_ts', 'stock_intervals')
+
         return (num_before, self.get_earnings_history_num())
-
-    def get_earnings_history(self):
-        """
-            Fetch (if needed) the earnings history data.
-        """
-        initially_connected = self.is_connected()
-
-        if self.is_connected() is False:
-            self.db_connect()
-
-        quote_num = self.get_total_symbol_quotes_num()
-
-        if quote_num == 0:
-            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
-
-        num = self.get_earnings_history_num()
-
-        mod_ts = self.get_last_modified(self._earnings_history_tbl)
-
-        current = min(datetime.now().replace(tzinfo=None), self.last_date.replace(tzinfo=None))
-
-        # Fetch data if no data present or day difference between current/requested data more than 90 days
-        if mod_ts is None:
-            self.add_earnings_history(self.fetch_earnings_history())
-        else:
-            last_ts = self.get_last_timestamp(self._earnings_history_tbl)
-
-            days_delta = (current - get_dt(last_ts)).days
-            days_delta_mod = (current - get_dt(mod_ts)).days
-
-            if self.last_date_ts > mod_ts and days_delta >= 90 and days_delta_mod:
-                self.add_earnings_history(self.fetch_earnings_history())
-
-        new_num = self.get_earnings_history_num()
-
-        if initially_connected is False:
-            self.db_close()
-
-        return (new_num - num)
 
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

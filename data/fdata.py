@@ -1054,59 +1054,6 @@ class ReadOnlyData():
 
         return result
 
-    def get_max_value(self, table, column):
-        """
-            Get the maximum value from a table.
-
-            Args:
-                table(str): table to take the value
-                column(str): columnt to take the value
-
-            Returns:
-                The maximum value from the column
-        """
-        self.check_if_connected()
-
-        get_mod_ts = f"""SELECT {column} FROM {table}
-                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
-                            ORDER BY modified DESC LIMIT 1;"""
-
-        try:
-            self.cur.execute(get_mod_ts)
-        except self.Error as e:
-            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_mod_ts}") from e
-
-        result = self.cur.fetchone()
-
-        if result is None:
-            return result
-
-        return result[0]
-
-    def get_last_modified(self, table):
-        """
-            Get the last modification timestamp from a table.
-
-            Args:
-                table(str): table name
-
-            Returns:
-                int: last modification timestamp.
-        """
-        return self.get_max_value(table, 'modified')
-
-    def get_last_timestamp(self, table):
-        """
-            Get the last timestamp from a table.
-
-            Args:
-                table(str): table name
-
-            Returns:
-                int: last timestamp.
-        """
-        return self.get_max_value(table, 'time_stamp')
-
     def get_total_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.
@@ -1244,10 +1191,8 @@ class ReadOnlyData():
         if self.is_connected() is False:
             self.db_connect()
 
-        mod_ts = self.get_last_modified('sec_info')
-
         # Fetch data if no data present
-        if mod_ts is None:
+        if self._get_data_num('sec_info') == 0:
             self.add_info(self.fetch_info())
 
         # Just time zone is used from info for now

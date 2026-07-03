@@ -1003,10 +1003,8 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         sec_type = base_info['sec_type']
 
         if self._stock_info_supported and sec_type == SecType.Stock:
-            mod_ts = self.get_last_modified('stock_info')
-
             # Fetch data if no data present
-            if mod_ts is None:
+            if self._get_data_num('stock_info') == 0:
                 self.add_info(self.fetch_info())
 
             # Just sector title is used from info for now

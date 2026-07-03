@@ -384,7 +384,6 @@ class YF(stock.StockFetcher):
                                     epsEstimate REAL,
                                     epsDifference REAL,
                                     surprisePercent REAL,
-                                    modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                     UNIQUE(symbol_id, time_stamp, source_id)
                                     CONSTRAINT fk_symbols,
                                         FOREIGN KEY (symbol_id)
@@ -409,20 +408,44 @@ class YF(stock.StockFetcher):
             except self.Error as e:
                 raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
 
-            # Create trigger to update last modified time
-            create_eh_trigger = """CREATE TRIGGER update_yf_earnings_history
-                                        BEFORE UPDATE
-                                            ON yf_earnings_history
-                                    BEGIN
-                                        UPDATE yf_earnings_history
-                                        SET modified = strftime('%s', 'now')
-                                        WHERE yf_eh_id = old.yf_eh_id;
-                                    END;"""
+        # Check if we need to create table 'yf_intervals'
+        try:
+            check_yf_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='yf_intervals';"
+
+            self.cur.execute(check_yf_intervals)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'yf_intervals': {e}\n{check_yf_intervals}") from e
+
+        if len(rows) == 0:
+            create_yf_intervals = """CREATE TABLE yf_intervals (
+                                                interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                symbol_id INTEGER NOT NULL,
+                                                source_id INTEGER NOT NULL,
+                                                eh_max_ts INTEGER,
+                                                    CONSTRAINT fk_source
+                                                        FOREIGN KEY (source_id)
+                                                        REFERENCES sources(source_id)
+                                                        ON DELETE CASCADE
+                                                    CONSTRAINT fk_symbols
+                                                        FOREIGN KEY (symbol_id)
+                                                        REFERENCES symbols(symbol_id)
+                                                        ON DELETE CASCADE
+                                                UNIQUE(symbol_id, source_id)
+                                            );"""
 
             try:
-                self.cur.execute(create_eh_trigger)
+                self.cur.execute(create_yf_intervals)
             except self.Error as e:
-                raise FdataError(f"Can't create trigger for yf_earnings_history: {e}") from e
+                raise FdataError(f"Can't create table yf_intervals: {e}") from e
+
+            # Create indexes for yf_intervals
+            create_yf_intervals_idx = "CREATE INDEX idx_yf_intervals ON yf_intervals(symbol_id, source_id);"
+
+            try:
+                self.cur.execute(create_yf_intervals_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create indexes for yf_intervals table: {e}") from e
 
     def fetch_earnings_history(self):
         """
@@ -520,9 +543,36 @@ class YF(stock.StockFetcher):
 
         self.commit()
 
-        self._update_intervals('earnings_history_max_ts', 'stock_intervals')
+        self._update_intervals('eh_max_ts', 'yf_intervals')
 
         return (num_before, self.get_earnings_history_num())
+
+    def get_earnings_history_num(self):
+        """Get the number of earnings history entries for the symbol.
+
+            Returns:
+                int: the number of earnings history entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        return self._get_data_num(self._earnings_history_tbl)
+
+    def get_earnings_history(self):
+        """
+            Fetch all the available earnings history data if needed.
+
+            Returns:
+                int: the number of fetched entries.
+        """
+        if self.get_total_symbol_quotes_num() == 0:
+            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
+
+        return self._fetch_data_if_none(column='eh_max_ts',
+                                        interval_table='yf_intervals',
+                                        num_method=self.get_earnings_history_num,
+                                        add_method=self.add_earnings_history,
+                                        fetch_method=self.fetch_earnings_history)
 
     def fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

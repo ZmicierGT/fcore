@@ -287,15 +287,12 @@ def test_request_intervals(source, timespans):
 
 def test_earnings_history_intervals(i):
     """
-        Test interval tracking for earnings history data via stock_intervals.
+        Test interval tracking for earnings history data via yf_intervals.
 
-        Verifies three things:
-        - EH1: earnings_history_max_ts is None before the first fetch.
+        Verifies two things:
+        - EH1: eh_max_ts is None before the first fetch.
         - EH2: the first get_earnings_history() fetches data (>0 entries) and
-          records earnings_history_max_ts in stock_intervals.
-        - EH3: the second get_earnings_history() call does not refetch (returns 0)
-          because the same-day staleness rule in need_to_update() returns False
-          ((current - modified).days < 1).
+          records eh_max_ts in yf_intervals.
 
         Args:
             i(YF): the data source instance (already db-connected, no quotes yet).
@@ -303,20 +300,20 @@ def test_earnings_history_intervals(i):
     # Precondition for get_earnings_history(): quotes must be present in the DB.
     i.get()
 
-    print("\nSECTION EH1: earnings_history_max_ts is None before the first fetch")
-    print("_____________________________________________________________________")
+    print("\nSECTION EH1: eh_max_ts is None before the first fetch")
+    print("__________________________________________________________")
 
-    ts_before = i._get_requested_ts('earnings_history_max_ts', 'stock_intervals')
+    ts_before = i._get_requested_ts('eh_max_ts', 'yf_intervals')
 
     if ts_before is not None:
-        failure(f"earnings_history_max_ts should be None before the first fetch, got {ts_before}", i)
+        failure(f"eh_max_ts should be None before the first fetch, got {ts_before}", i)
 
-    print(colored("earnings_history_max_ts is None as expected.", 'green'))
+    print(colored("eh_max_ts is None as expected.", 'green'))
 
     #######################################################
 
     print("\nSECTION EH2: First get_earnings_history() fetches data and records the interval")
-    print("________________________________________________________________________________")
+    print("____________________________________________________________________________________")
 
     num_before = i.get_earnings_history_num()
 
@@ -325,31 +322,12 @@ def test_earnings_history_intervals(i):
     if fetched <= 0:
         failure(f"First get_earnings_history() should fetch >0 entries, got {fetched}", i)
 
-    ts_after = i._get_requested_ts('earnings_history_max_ts', 'stock_intervals')
+    ts_after = i._get_requested_ts('eh_max_ts', 'yf_intervals')
 
     if ts_after is None:
-        failure("earnings_history_max_ts should be set after the first fetch", i)
+        failure("eh_max_ts should be set after the first fetch", i)
 
-    print(colored(f"Fetched {fetched} entries. earnings_history_max_ts recorded: {get_dt(ts_after)}", 'green'))
-
-    #######################################################
-
-    print("\nSECTION EH3: Second get_earnings_history() does not refetch (same-day throttle)")
-    print("________________________________________________________________________________")
-
-    num_after = i.get_earnings_history_num()
-
-    fetched_again = i.get_earnings_history()
-
-    if fetched_again != 0:
-        failure(f"Second get_earnings_history() should not refetch (0 new entries), got {fetched_again}", i)
-
-    num_final = i.get_earnings_history_num()
-
-    if num_final != num_after:
-        failure(f"earnings history count should not change on second call: {num_after} -> {num_final}", i)
-
-    print(colored("Second get_earnings_history() returned 0 new entries (interval covered).", 'green'))
+    print(colored(f"Fetched {fetched} entries. eh_max_ts recorded: {get_dt(ts_after)}", 'green'))
 
 def test_subqueries(i, source_eh):
     i.get()
@@ -432,7 +410,7 @@ def test_get_delisted():
         failure("No quotes should be fetched for a delisted symbol", yfi)
 
     if yfi.get_min_request_ts() is not None or yfi.get_max_request_ts() is not None:
-        failure("No quote_intervals should be marked for a delisted symbol", yfi)
+        failure("No sec_intervals should be marked for a delisted symbol", yfi)
 
     print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
 

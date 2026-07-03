@@ -35,7 +35,6 @@ class ROStockData(ReadOnlyData):
         self._income_statement_tbl = None
         self._balance_sheet_tbl = None
         self._cash_flow_tbl = None
-        self._earnings_history_tbl = None
 
         self._stock_info_supported = False  # Indicates if stock info is supported
 
@@ -216,7 +215,6 @@ class ROStockData(ReadOnlyData):
                                                 source_id INTEGER NOT NULL,
                                                 div_max_ts INTEGER,
                                                 split_max_ts INTEGER,
-                                                earnings_history_max_ts INTEGER,
                                                     CONSTRAINT fk_source
                                                         FOREIGN KEY (source_id)
                                                         REFERENCES sources(source_id)
@@ -814,17 +812,6 @@ class RWStockData(ROStockData, ReadWriteData):
         """
         return self._get_data_num('stock_splits')
 
-    def get_earnings_history_num(self):
-        """Get the number of earnings history entries for the symbol.
-
-            Returns:
-                int: the number of earnings history entries.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        return self._get_data_num(self._earnings_history_tbl)
-
     def add_dividends(self, divs):
         """
             Add cash dividend entries to the database.
@@ -1154,23 +1141,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                                         add_method=self.add_splits,
                                         fetch_method=self.fetch_splits)
 
-    def get_earnings_history(self):
-        """
-            Fetch all the available earnings history data if needed.
-
-            Returns:
-                array: the fetched entries.
-                int: the number of fetched entries.
-        """
-        if self.get_total_symbol_quotes_num() == 0:
-            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
-
-        return self._fetch_data_if_none(column='earnings_history_max_ts',
-                                        interval_table='stock_intervals',
-                                        num_method=self.get_earnings_history_num,
-                                        add_method=self.add_earnings_history,
-                                        fetch_method=self.fetch_earnings_history)
-
     @abc.abstractmethod
     def fetch_income_statement(self):
         """Abstract method to fetch income statement"""
@@ -1192,10 +1162,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         """Abstract method to fetch splits"""
 
     @abc.abstractmethod
-    def fetch_earnings_history(self):
-        """Abstract method to fetch earnings history"""
-
-    @abc.abstractmethod
     def add_income_statement(self, reports):
         """Add income statement report."""
 
@@ -1206,7 +1172,3 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def add_cash_flow(self, reports):
         """Add cash flow report."""
-
-    @abc.abstractmethod
-    def add_earnings_history(self, results):
-        """Add earnings history data."""

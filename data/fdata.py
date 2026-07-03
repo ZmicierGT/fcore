@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 24
+DB_VERSION = 25
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -626,17 +626,17 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
-        # Check if we need to create table 'quote_intervals'
+        # Check if we need to create table 'sec_intervals'
         try:
-            check_quote_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='quote_intervals';"
+            check_quote_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='sec_intervals';"
 
             self.cur.execute(check_quote_intervals)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'quote_intervals': {e}\n{check_quote_intervals}") from e
+            raise FdataError(f"Can't execute a query on a table 'sec_intervals': {e}\n{check_quote_intervals}") from e
 
         if len(rows) == 0:
-            create_quote_intervals = """CREATE TABLE quote_intervals (
+            create_quote_intervals = """CREATE TABLE sec_intervals (
                                             quote_interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             symbol_id INTEGER NOT NULL,
                                             source_id INTEGER NOT NULL,
@@ -661,15 +661,15 @@ class ReadOnlyData():
             try:
                 self.cur.execute(create_quote_intervals)
             except self.Error as e:
-                raise FdataError(f"Can't create table quote_intervals: {e}") from e
+                raise FdataError(f"Can't create table sec_intervals: {e}") from e
 
-            # Create indexes for quote_intervals
-            create_quote_intervals_idx = "CREATE INDEX idx_quote_intervals ON quote_intervals(symbol_id, source_id, time_span_id);"
+            # Create indexes for sec_intervals
+            create_quote_intervals_idx = "CREATE INDEX idx_sec_intervals ON sec_intervals(symbol_id, source_id, time_span_id);"
 
             try:
                 self.cur.execute(create_quote_intervals_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create indexes for quote_intervals table: {e}") from e
+                raise FdataError(f"Can't create indexes for sec_intervals table: {e}") from e
 
         # TODO Mid need to think of a better way how to combine data from various sources
         # Check if we need to create table 'quotes'
@@ -1205,7 +1205,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='quote_intervals', column='min_request_ts')
+        return self._get_ts(table='sec_intervals', column='min_request_ts')
 
     def get_max_request_ts(self):
         """
@@ -1215,7 +1215,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='quote_intervals', column='max_request_ts')
+        return self._get_ts(table='sec_intervals', column='max_request_ts')
 
     def get_max_ts(self):
         """
@@ -1576,23 +1576,23 @@ class ReadWriteData(ReadOnlyData):
         ts = min(now, self.last_date_ts)
 
         # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
-        update_fetched = f"""INSERT OR REPLACE INTO quote_intervals (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
+        update_fetched = f"""INSERT OR REPLACE INTO sec_intervals (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
                                       (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}'),
                                       (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                       (SELECT ifnull(
-                                                     (SELECT min(min_request_ts, {self.first_date_ts})
-	                                                  FROM quote_intervals
+                                                      (SELECT min(min_request_ts, {self.first_date_ts})
+	                                                  FROM sec_intervals
 	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
 	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
 	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
                                               ), {self.first_date_ts})),
                                       (SELECT ifnull(
-                                                     (SELECT max(max_request_ts, {ts})
-                                                      FROM quote_intervals
-                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
-                                                      AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
+                                                      (SELECT max(max_request_ts, {ts})
+                                                       FROM sec_intervals
+                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                       AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
                                               ), {ts}))
                            );"""
 
@@ -1600,7 +1600,7 @@ class ReadWriteData(ReadOnlyData):
             self.cur.execute(update_fetched)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'quote_intervals': {e}\n{update_fetched}") from e
+            raise FdataError(f"Can't execute a query on a table 'sec_intervals': {e}\n{update_fetched}") from e
 
     def add_info(self, info):
         """

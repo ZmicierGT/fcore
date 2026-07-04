@@ -14,7 +14,7 @@ import requests
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes, Timezones
+from data.fvalues import Timespans, SecType, Currency, DataEntries, def_first_date, def_last_date, DbTypes, Timezones
 from data.futils import get_dt, get_labelled_ndarray, logger
 
 import settings
@@ -28,7 +28,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 25
+DB_VERSION = 26
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -626,26 +626,87 @@ class ReadOnlyData():
             except self.Error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
-        # Check if we need to create table 'sec_intervals'
+        # Check if we need to create table 'data_entries'
         try:
-            check_quote_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='sec_intervals';"
+            check_data_entries = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_entries';"
 
-            self.cur.execute(check_quote_intervals)
+            self.cur.execute(check_data_entries)
             rows = self.cur.fetchall()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'sec_intervals': {e}\n{check_quote_intervals}") from e
+            raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{check_data_entries}") from e
 
         if len(rows) == 0:
-            create_quote_intervals = """CREATE TABLE sec_intervals (
-                                            quote_interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            create_data_entries = """CREATE TABLE data_entries(
+                                        data_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        title TEXT NOT NULL UNIQUE
+                                    );"""
+
+            try:
+                self.cur.execute(create_data_entries)
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{create_data_entries}") from e
+
+            # Create index for data_entries title
+            create_data_entries_idx = "CREATE INDEX idx_data_entries_title ON data_entries(title);"
+
+            try:
+                self.cur.execute(create_data_entries_idx)
+            except self.Error as e:
+                raise FdataError(f"Can't create index for data_entries(title): {e}") from e
+
+        # Check if data_entries table is populated with the expected entries.
+        # The expected rows are all Timespans (excluding All/Unknown) plus all DataEntries.
+        try:
+            all_data_entries = "SELECT * FROM data_entries;"
+
+            self.cur.execute(all_data_entries)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{all_data_entries}") from e
+
+        expected_entries_num = (len(Timespans) - 2) + len(DataEntries)
+
+        if len(rows) < expected_entries_num:
+            # Prepare the query with all supported data entries
+            entries = ""
+
+            for timespan in Timespans:
+                if timespan not in (Timespans.All, Timespans.Unknown):
+                    entries += f"('{timespan.value}'),"
+
+            for entry in DataEntries:
+                entries += f"('{entry.value}'),"
+
+            entries = entries[:len(entries) - 2]
+
+            insert_data_entries = f"""INSERT OR IGNORE INTO data_entries (title)
+                                        VALUES {entries});"""
+
+            try:
+                self.cur.execute(insert_data_entries)
+            except self.Error as e:
+                raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_data_entries}") from e
+
+        # Check if we need to create table 'data_intervals'
+        try:
+            check_data_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_intervals';"
+
+            self.cur.execute(check_data_intervals)
+            rows = self.cur.fetchall()
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{check_data_intervals}") from e
+
+        if len(rows) == 0:
+            create_data_intervals = """CREATE TABLE data_intervals (
+                                            interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             symbol_id INTEGER NOT NULL,
                                             source_id INTEGER NOT NULL,
-                                            time_span_id INTEGER NOT NULL,
-                                            min_request_ts INTEGER NOT NULL,
-                                            max_request_ts INTEGER NOT NULL,
-                                                CONSTRAINT fk_timespans
-                                                    FOREIGN KEY (time_span_id)
-                                                    REFERENCES timespans(time_span_id)
+                                            data_entry_id INTEGER NOT NULL,
+                                            min_ts INTEGER,
+                                            max_ts INTEGER,
+                                                CONSTRAINT fk_data_entries
+                                                    FOREIGN KEY (data_entry_id)
+                                                    REFERENCES data_entries(data_entry_id)
                                                     ON DELETE CASCADE
                                                 CONSTRAINT fk_source
                                                     FOREIGN KEY (source_id)
@@ -655,21 +716,21 @@ class ReadOnlyData():
                                                     FOREIGN KEY (symbol_id)
                                                     REFERENCES symbols(symbol_id)
                                                     ON DELETE CASCADE
-                                            UNIQUE(symbol_id, source_id, time_span_id)
+                                            UNIQUE(symbol_id, source_id, data_entry_id)
                                             );"""
 
             try:
-                self.cur.execute(create_quote_intervals)
+                self.cur.execute(create_data_intervals)
             except self.Error as e:
-                raise FdataError(f"Can't create table sec_intervals: {e}") from e
+                raise FdataError(f"Can't create table data_intervals: {e}") from e
 
-            # Create indexes for sec_intervals
-            create_quote_intervals_idx = "CREATE INDEX idx_sec_intervals ON sec_intervals(symbol_id, source_id, time_span_id);"
+            # Create indexes for data_intervals
+            create_data_intervals_idx = "CREATE INDEX idx_data_intervals ON data_intervals(symbol_id, source_id, data_entry_id);"
 
             try:
-                self.cur.execute(create_quote_intervals_idx)
+                self.cur.execute(create_data_intervals_idx)
             except self.Error as e:
-                raise FdataError(f"Can't create indexes for sec_intervals table: {e}") from e
+                raise FdataError(f"Can't create indexes for data_intervals table: {e}") from e
 
         # TODO Mid need to think of a better way how to combine data from various sources
         # Check if we need to create table 'quotes'
@@ -1144,6 +1205,44 @@ class ReadOnlyData():
 
         return self.cur.fetchone()[0]
 
+    def _get_interval_ts(self, data_entry, is_max=True):
+        """
+            Get Min/Max timestamp for a particular symbol, source and data entry
+            (a Timespans value for quote intervals or a DataEntries value for datasets)
+            from the 'data_intervals' table.
+
+            Args:
+                data_entry(str): data entry title.
+                is_max(bool): indicates if Min or Max timestamp should be obtained.
+
+            Returns:
+                int: timestamp of min/max timestamp (None if no row present).
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        column = 'max_ts'
+
+        if is_max is False:
+            column = 'min_ts'
+
+        self.check_if_connected()
+
+        timestamp_query = f"""SELECT {('MAX' if is_max else 'MIN')}(di.{column}) FROM data_intervals di
+                                    INNER JOIN symbols ON di.symbol_id = symbols.symbol_id
+                                    INNER JOIN sources on di.source_id = sources.source_id
+                                    INNER JOIN data_entries on di.data_entry_id = data_entries.data_entry_id
+                                    WHERE symbols.ticker = '{self.symbol}'
+                                    AND sources.title = '{self.source_title}'
+                                    AND data_entries.title = '{data_entry}';"""
+
+        try:
+            self.cur.execute(timestamp_query)
+        except self.Error as e:
+            raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{timestamp_query}") from e
+
+        return self.cur.fetchone()[0]
+
     def get_min_request_ts(self):
         """
             Get the earliest request timestamp to obtain quotes for a particular symbol,
@@ -1152,7 +1251,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='sec_intervals', column='min_request_ts')
+        return self._get_interval_ts(self.timespan.value, is_max=False)
 
     def get_max_request_ts(self):
         """
@@ -1162,7 +1261,7 @@ class ReadOnlyData():
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_ts(table='sec_intervals', column='max_request_ts')
+        return self._get_interval_ts(self.timespan.value, is_max=True)
 
     def get_max_ts(self):
         """
@@ -1521,31 +1620,70 @@ class ReadWriteData(ReadOnlyData):
         ts = min(now, self.last_date_ts)
 
         # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
-        update_fetched = f"""INSERT OR REPLACE INTO sec_intervals (symbol_id, time_span_id, source_id, min_request_ts, max_request_ts)
+        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
-                                      (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}'),
+                                      (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}'),
                                       (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                       (SELECT ifnull(
-                                                      (SELECT min(min_request_ts, {self.first_date_ts})
-	                                                  FROM sec_intervals
-	                                                  WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-	                                                  AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
-	                                                  AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
-                                              ), {self.first_date_ts})),
+                                                      (SELECT min(min_ts, {self.first_date_ts})
+                                                      FROM data_intervals
+                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
+                                      ), {self.first_date_ts})),
                                       (SELECT ifnull(
-                                                      (SELECT max(max_request_ts, {ts})
-                                                       FROM sec_intervals
+                                                      (SELECT max(max_ts, {ts})
+                                                       FROM data_intervals
                                                        WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
                                                        AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
-                                                       AND time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')
-                                              ), {ts}))
+                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
+                                               ), {ts}))
                            );"""
 
         try:
             self.cur.execute(update_fetched)
             self.conn.commit()
         except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'sec_intervals': {e}\n{update_fetched}") from e
+            raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{update_fetched}") from e
+
+    def update_fetch_marker(self, data_entry):
+        """
+            Update (if needed) the fetch marker for a dataset interval.
+
+            Writes/updates a data_intervals row for the given dataset with
+            max_ts = max(existing, now) and min_ts left as NULL.
+
+            Args:
+                data_entry(DataEntries): the data entry to update.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self.check_if_connected()
+
+        now = self.current_ts(adjusted=False)
+        title = data_entry.value
+
+        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, source_id, data_entry_id, min_ts, max_ts)
+                              VALUES (
+                                    (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                    (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                    (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
+                                    NULL,
+                                    (SELECT ifnull(
+                                                    (SELECT max(max_ts, {now})
+                                                     FROM data_intervals
+                                                     WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                     AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                     AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
+                                            ), {now}))
+                           );"""
+
+        try:
+            self.cur.execute(update_fetched)
+            self.conn.commit()
+        except self.Error as e:
+            raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
 
     def add_info(self, info):
         """

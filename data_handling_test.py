@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import yf
-from data.fvalues import Timespans, SecType, Currency, StockQuotes, def_last_date
+from data.fvalues import Timespans, SecType, Currency, StockQuotes, DataEntries, def_last_date
 from data.fdata import Subquery, FdataError
 from data.futils import get_dt
 
@@ -287,12 +287,12 @@ def test_request_intervals(source, timespans):
 
 def test_earnings_history_intervals(i):
     """
-        Test interval tracking for earnings history data via yf_intervals.
+        Test interval tracking for earnings history data via data_intervals.
 
         Verifies two things:
         - EH1: eh_max_ts is None before the first fetch.
         - EH2: the first get_earnings_history() fetches data (>0 entries) and
-          records eh_max_ts in yf_intervals.
+          records eh_max_ts in data_intervals.
 
         Args:
             i(YF): the data source instance (already db-connected, no quotes yet).
@@ -303,7 +303,7 @@ def test_earnings_history_intervals(i):
     print("\nSECTION EH1: eh_max_ts is None before the first fetch")
     print("__________________________________________________________")
 
-    ts_before = i._get_requested_ts('eh_max_ts', 'yf_intervals')
+    ts_before = i._get_interval_ts(DataEntries.EarningsHistory.value)
 
     if ts_before is not None:
         failure(f"eh_max_ts should be None before the first fetch, got {ts_before}", i)
@@ -322,7 +322,7 @@ def test_earnings_history_intervals(i):
     if fetched <= 0:
         failure(f"First get_earnings_history() should fetch >0 entries, got {fetched}", i)
 
-    ts_after = i._get_requested_ts('eh_max_ts', 'yf_intervals')
+    ts_after = i._get_interval_ts(DataEntries.EarningsHistory.value)
 
     if ts_after is None:
         failure("eh_max_ts should be set after the first fetch", i)
@@ -410,7 +410,7 @@ def test_get_delisted():
         failure("No quotes should be fetched for a delisted symbol", yfi)
 
     if yfi.get_min_request_ts() is not None or yfi.get_max_request_ts() is not None:
-        failure("No sec_intervals should be marked for a delisted symbol", yfi)
+        failure("No data_intervals should be marked for a delisted symbol", yfi)
 
     print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
 

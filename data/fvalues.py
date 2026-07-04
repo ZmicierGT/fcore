@@ -575,6 +575,19 @@ class ReportPeriod(StrEnum):
     Quarter = "Quarter"
     Year = "Year"
 
+class DataEntries(StrEnum):
+    """
+        Enum class for data entries (datasets fetched per symbol/source).
+
+        These titles populate the 'data_entries' lookup table together with
+        the Timespans enum (excluding All/Unknown). Each entry identifies a
+        kind of interval tracked in 'data_intervals'. Fundamental reports are
+        intentionally excluded for now as their tables are per-source.
+    """
+    Dividends = 'Dividends'
+    Splits = 'Splits'
+    EarningsHistory = 'EarningsHistory'
+
 class DbTypes(StrEnum):
     """
         Database types enum. Currently only SQLite is supported.

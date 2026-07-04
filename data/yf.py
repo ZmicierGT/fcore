@@ -14,7 +14,7 @@ import numpy as np
 import yfinance as yfin
 
 from data import stock
-from data.fvalues import Timespans, SecType, Currency
+from data.fvalues import Timespans, SecType, Currency, DataEntries
 from data.fdata import FdataError
 from data.futils import get_labelled_ndarray, get_dt
 
@@ -408,45 +408,6 @@ class YF(stock.StockFetcher):
             except self.Error as e:
                 raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
 
-        # Check if we need to create table 'yf_intervals'
-        try:
-            check_yf_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='yf_intervals';"
-
-            self.cur.execute(check_yf_intervals)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'yf_intervals': {e}\n{check_yf_intervals}") from e
-
-        if len(rows) == 0:
-            create_yf_intervals = """CREATE TABLE yf_intervals (
-                                                interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                symbol_id INTEGER NOT NULL,
-                                                source_id INTEGER NOT NULL,
-                                                eh_max_ts INTEGER,
-                                                    CONSTRAINT fk_source
-                                                        FOREIGN KEY (source_id)
-                                                        REFERENCES sources(source_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_symbols
-                                                        FOREIGN KEY (symbol_id)
-                                                        REFERENCES symbols(symbol_id)
-                                                        ON DELETE CASCADE
-                                                UNIQUE(symbol_id, source_id)
-                                            );"""
-
-            try:
-                self.cur.execute(create_yf_intervals)
-            except self.Error as e:
-                raise FdataError(f"Can't create table yf_intervals: {e}") from e
-
-            # Create indexes for yf_intervals
-            create_yf_intervals_idx = "CREATE INDEX idx_yf_intervals ON yf_intervals(symbol_id, source_id);"
-
-            try:
-                self.cur.execute(create_yf_intervals_idx)
-            except self.Error as e:
-                raise FdataError(f"Can't create indexes for yf_intervals table: {e}") from e
-
     def fetch_earnings_history(self):
         """
             Fetch the earnings history data.
@@ -543,7 +504,7 @@ class YF(stock.StockFetcher):
 
         self.commit()
 
-        self._update_intervals('eh_max_ts', 'yf_intervals')
+        self.update_fetch_marker(DataEntries.EarningsHistory)
 
         return (num_before, self.get_earnings_history_num())
 
@@ -568,8 +529,7 @@ class YF(stock.StockFetcher):
         if self.get_total_symbol_quotes_num() == 0:
             raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
 
-        return self._fetch_data_if_none(column='eh_max_ts',
-                                        interval_table='yf_intervals',
+        return self._fetch_data_if_none(data_entry=DataEntries.EarningsHistory,
                                         num_method=self.get_earnings_history_num,
                                         add_method=self.add_earnings_history,
                                         fetch_method=self.fetch_earnings_history)

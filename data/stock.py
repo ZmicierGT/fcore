@@ -5,15 +5,13 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date, Sector
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, DataEntries, Timespans, def_last_date, Sector
 
 from data.futils import get_labelled_ndarray, get_dt
 
 import abc
 
 import numpy as np
-
-from dateutil.relativedelta import relativedelta
 
 import calendar
 
@@ -31,10 +29,17 @@ class ROStockData(ReadOnlyData):
         super().__init__(**kwargs)
 
         # Data related to fundamental tables. Need to be overridden in the derived class.
-        self._fundamental_intervals_tbl = None
         self._income_statement_tbl = None
         self._balance_sheet_tbl = None
         self._cash_flow_tbl = None
+
+        # Data entries for fundamental datasets (per-source). Need to be overridden
+        # in the derived class together with fetch_*/add_* methods to enable
+        # fundamental data fetching via data_intervals. None means the dataset is
+        # not supported by the source.
+        self._income_statement_entry = None
+        self._balance_sheet_entry = None
+        self._cash_flow_entry = None
 
         self._stock_info_supported = False  # Indicates if stock info is supported
 
@@ -198,46 +203,6 @@ class ROStockData(ReadOnlyData):
                 self.cur.execute(create_symbol_date_stock_splits_idx)
             except self.Error as e:
                 raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
-
-        # Check if we need to create table 'stock_intervals'
-        try:
-            check_stock_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_intervals';"
-
-            self.cur.execute(check_stock_intervals)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_intervals': {e}\n{check_stock_intervals}") from e
-
-        if len(rows) == 0:
-            create_stock_intervals = """CREATE TABLE stock_intervals (
-                                                interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                symbol_id INTEGER NOT NULL,
-                                                source_id INTEGER NOT NULL,
-                                                div_max_ts INTEGER,
-                                                split_max_ts INTEGER,
-                                                    CONSTRAINT fk_source
-                                                        FOREIGN KEY (source_id)
-                                                        REFERENCES sources(source_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_symbols
-                                                        FOREIGN KEY (symbol_id)
-                                                        REFERENCES symbols(symbol_id)
-                                                        ON DELETE CASCADE
-                                                UNIQUE(symbol_id, source_id)
-                                            );"""
-
-            try:
-                self.cur.execute(create_stock_intervals)
-            except self.Error as e:
-                raise FdataError(f"Can't create table stock_intervals: {e}") from e
-
-            # Create indexes for stock_intervals
-            create_stock_intervals_idx = "CREATE INDEX idx_stock_intervals ON stock_intervals(symbol_id, source_id);"
-
-            try:
-                self.cur.execute(create_stock_intervals_idx)
-            except self.Error as e:
-                raise FdataError(f"Can't create indexes for stock_intervals table: {e}") from e
 
         # Check if we need to create table 'stock_sectors'
         try:
@@ -629,118 +594,12 @@ class RWStockData(ROStockData, ReadWriteData):
         """
         return self._get_data_num(self._cash_flow_tbl)
 
-    # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
-    def _update_intervals(self, column, table):
+    def need_to_update(self, modified_ts):
         """
-            Update (if needed) the requested timestamps for stock-related data.
+            Check if we need to update data based on the last fetch marker.
 
             Args:
-                column(str): the columns to update
-                table(str): the table to update
-
-            Raises:
-                db error: can't update data.
-        """
-        get_columns = f"""SELECT name FROM PRAGMA_TABLE_INFO('{table}')
-                            WHERE name NOT IN ('symbol_id', 'source_id', 'interval_id', '{column}')"""
-
-        try:
-            self.cur.execute(get_columns)
-            columns = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query to update intervals: {e}\n{get_columns}") from e
-
-        condition = f"""WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-                        AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')"""
-
-        to_insert = ''
-        values = ''
-
-        for col in columns:
-            to_insert += f"{col[0]}, "
-            values += f"(SELECT {col[0]} FROM {table} {condition}),"
-
-        now = self.current_ts(adjusted=False)
-
-        update_intervals = f"""INSERT OR REPLACE INTO {table} (symbol_id, source_id, {to_insert} {column})
-                                VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
-                                        (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
-                                        {values}
-                                        (SELECT ifnull(
-                                                        (SELECT max({column}, {now})
-                                                        FROM {table}
-                                                        {condition}
-                                                ), {now}))
-                            );"""
-
-        try:
-            self.cur.execute(update_intervals)
-            self.conn.commit()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query to update intervals: {e}\n{update_intervals}") from e
-
-    def _get_requested_ts(self, column, table, period=None):
-        """
-            Get the timestamp of a particular data entry for varios stock data entries.
-
-            Args:
-                column(str): the column to query
-                table(str): the table to query
-                period(ReportPeriod): period to get the data for fundamental reports.
-
-            Returns:
-                int: last modification timestamp.
-
-            Raises:
-                db error: database error during querying happened.
-        """
-        initially_connected = self.is_connected()
-
-        if self.is_connected() is False:
-            self.db_connect()
-
-        period_query = ''
-
-        if period is not None and period not in (ReportPeriod.All, ReportPeriod.Unknown):
-            period_query = f"AND reported_period = (SELECT period_id FROM report_periods WHERE title='{period}')"
-
-        query_requested_ts = f"""SELECT MAX({column}) FROM {table}
-                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
-                                AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
-                                {period_query};"""
-
-        try:
-            self.cur.execute(query_requested_ts)
-            result = self.cur.fetchone()[0]
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{query_requested_ts}") from e
-        finally:
-            if initially_connected is False:
-                self.db_close()
-
-        return result
-
-    def get_fiscal_date(self, table, period):
-        """
-            Get fiscal date ending timestamp.
-
-            Args:
-                table(str): the table to query
-                period(ReportPeriod): period to get the data (for fundamental reports).
-
-            Return:
-                int: fiscal date ending timestamp.
-        """
-        return self._get_requested_ts(column='fiscalDate', table=table, period=period)
-
-    def need_to_update(self, modified_ts, table=None):
-        """
-            Check if we need to update data in the table.
-
-            Args:
-                table(str): table to perform the check.
-                modified_ts(int): the timestamp of last data request.
-                funadamental(bool): indicates if fundamental data should be checked as well.
+                modified_ts(int): the timestamp of last data fetch.
 
             Returns:
                 bool: indicates if update is needed.
@@ -760,29 +619,6 @@ class RWStockData(ROStockData, ReadWriteData):
         # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
         if (current - modified).days < 1:
             return False
-
-        # Check fundamental data update if needed
-        if table is not None:
-            if self._annual_report_supported:
-                # Need to check reports if the difference between the current date and the last annual fiscal date ending
-                # is more than a year.
-                if relativedelta(current, get_dt(self.get_fiscal_date(table, ReportPeriod.Year))).years > 0:
-                    return True
-
-            if self._quarter_report_supported:
-                # Need to recheck reports if the difference between any report is more than 3 months
-                # and 6 months for the third quarter report as some companies do not issue the 4-th quarter report.
-                months_delta = relativedelta(current, get_dt(self.get_fiscal_date(table, ReportPeriod.All))).months
-
-                if get_dt(self.get_fiscal_date(table, ReportPeriod.Quarter)).month != 9:
-                    return months_delta >= 3
-                else:
-                    return months_delta >= 6
-
-            return False
-
-        # Better to re-fetch the data in unexpected situation
-        self.log(f"Warning! Can't determine if data should be updated for {self.symbol}. Updating by default.")
 
         return True
 
@@ -859,7 +695,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         self.commit()
 
-        self._update_intervals('div_max_ts', 'stock_intervals')
+        self.update_fetch_marker(DataEntries.Dividends)
 
         return(num_before, self.get_dividends_num())
 
@@ -902,7 +738,7 @@ class RWStockData(ROStockData, ReadWriteData):
 
         self.commit()
 
-        self._update_intervals('split_max_ts', 'stock_intervals')
+        self.update_fetch_marker(DataEntries.Splits)
 
         return(num_before, self.get_split_num())
 
@@ -1028,26 +864,31 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
 
     # TODO LOW Think if need to move it to the base class
     def _fetch_data_if_none(self,
-                            column,
-                            interval_table,
+                            data_entry,
                             num_method,
                             add_method,
-                            fetch_method,
-                            data_table=None):
+                            fetch_method):
         """
             Fetch all the available additional data if needed.
 
             Args:
-                column(str): column to check maximum requested timestamp.
-                interval_table(str): table to get max requested timestamp from
+                data_entry(DataEntries): data entry to check the fetch marker.
+                    None means the dataset is not configured for this data source
+                    (e.g. fundamentals in a source that doesn't override the
+                    corresponding _*_entry instance variable): the method logs
+                    a skip and returns 0 fetched.
                 num_method(method): method to get the current entries number.
                 add_method(method): method to add the entries to the database.
                 fetch_method(method): method to fetch the entries.
-                data_table(str): table with data to check for maximum fiscal date ending
 
             Returns:
                 int: the number of fetched entries.
         """
+        # Feature not configured for this data source. Skip gracefully.
+        if data_entry is None:
+            self.log(f"Data entry is not configured. Skipping fetch for {self.symbol}.")
+            return 0
+
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
@@ -1057,7 +898,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
         num = current_num
 
         # Check if we need to fetch the data
-        if self.need_to_update(modified_ts=self._get_requested_ts(column, interval_table), table=data_table):
+        if self.need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
             add_method(fetch_method())
             num = num_method()
 
@@ -1074,9 +915,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(column='income_statement_max_ts',
-                                        interval_table=self._fundamental_intervals_tbl,
-                                        data_table=self._income_statement_tbl,
+        return self._fetch_data_if_none(data_entry=self._income_statement_entry,
                                         num_method=self.get_income_statement_num,
                                         add_method=self.add_income_statement,
                                         fetch_method=self.fetch_income_statement)
@@ -1089,9 +928,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(column='balance_sheet_max_ts',
-                                        interval_table=self._fundamental_intervals_tbl,
-                                        data_table=self._balance_sheet_tbl,
+        return self._fetch_data_if_none(data_entry=self._balance_sheet_entry,
                                         num_method=self.get_balance_sheet_num,
                                         add_method=self.add_balance_sheet,
                                         fetch_method=self.fetch_balance_sheet)
@@ -1104,9 +941,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched reports.
                 int: the number of fetched reports.
         """
-        return self._fetch_data_if_none(column='cash_flow_max_ts',
-                                        interval_table=self._fundamental_intervals_tbl,
-                                        data_table=self._cash_flow_tbl,
+        return self._fetch_data_if_none(data_entry=self._cash_flow_entry,
                                         num_method=self.get_cash_flow_num,
                                         add_method=self.add_cash_flow,
                                         fetch_method=self.fetch_cash_flow)
@@ -1119,8 +954,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(column='div_max_ts',
-                                        interval_table='stock_intervals',
+        return self._fetch_data_if_none(data_entry=DataEntries.Dividends,
                                         num_method=self.get_dividends_num,
                                         add_method=self.add_dividends,
                                         fetch_method=self.fetch_dividends)
@@ -1133,8 +967,7 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(column='split_max_ts',
-                                        interval_table='stock_intervals',
+        return self._fetch_data_if_none(data_entry=DataEntries.Splits,
                                         num_method=self.get_split_num,
                                         add_method=self.add_splits,
                                         fetch_method=self.fetch_splits)

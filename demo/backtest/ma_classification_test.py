@@ -189,5 +189,4 @@ if __name__ == "__main__":
     report.add_annotations(data=results_cmp, title=title_cmp)
 
     # Show image
-    new_file = report.show_image()
-    print(f"{new_file} is written.")
+    report.show_image()

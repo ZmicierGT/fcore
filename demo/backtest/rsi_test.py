@@ -164,5 +164,4 @@ if __name__ == "__main__":
     report.add_annotations(title=title)
 
     # Show image
-    new_file = report.show_image()
-    print(f"{new_file} is written.")
+    report.show_image()

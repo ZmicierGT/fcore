@@ -103,6 +103,8 @@ def write_image(img):
     else:
         raise RuntimeError(f"Unsupported image type: {type(img).__name__}")
 
+    print(f"{new_file} is written.")
+
     return new_file
 
 def gen_image_path():
@@ -151,13 +153,36 @@ def open_image(image_path):
     else:  # Linux
         subprocess.call(('xdg-open', image_path))
 
+def gui_available():
+    """
+        Detect if a GUI session is available to display a chart window.
+
+        Over SSH, no GUI is considered available on any platform.
+
+        Returns:
+            bool: True if a viewer window can be opened.
+    """
+    sys_name = platform.system()
+
+    # SSH session: no GUI on any platform.
+    if ('SSH_CONNECTION' in os.environ
+            or 'SSH_TTY' in os.environ
+            or 'SSH_CLIENT' in os.environ):
+        return False
+
+    return True
+
 def show_image(fig):
     """
         Write the image and open it in the system default image viewer.
 
         Returns:
-            str: path to the image
+            str: path to the image.
     """
+    if fig is None or not gui_available():
+        print("GUI not available or no image provided; skipping chart display.")
+        return None
+
     image_path = write_image(fig)
     open_image(image_path)
 

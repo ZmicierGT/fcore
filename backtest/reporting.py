@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.futils import write_image, open_image
+from data.futils import show_image, gui_available
 
 import plotly.graph_objects as go
 from plotly import subplots
@@ -402,8 +402,9 @@ class Report():
             Returns:
                 str: path to the image
         """
-        image = self.combine_charts()
-        image_path = write_image(image)
-        open_image(image_path)
+        image = None
 
-        return image_path
+        if gui_available():
+            image = self.combine_charts()
+
+        return show_image(image)

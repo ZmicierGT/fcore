@@ -165,6 +165,4 @@ if __name__ == "__main__":
 
     update_layout(fig, f"LSTM example chart for {symbol}", test_length + forecast_size)
 
-    new_file = show_image(fig)
-
-    print(f"{new_file} is written.")
+    show_image(fig)

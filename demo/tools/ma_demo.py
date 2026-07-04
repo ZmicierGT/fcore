@@ -75,6 +75,4 @@ if __name__ == "__main__":
     fig.update_yaxes(title_text="<b>Price</b>", secondary_y=False)
     fig.update_yaxes(title_text="<b>SMA/EMA</b>", secondary_y=False)
 
-    new_file = show_image(fig)
-
-    print(f"{new_file} is written.")
+    show_image(fig)

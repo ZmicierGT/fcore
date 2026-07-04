@@ -246,5 +246,4 @@ if __name__ == "__main__":
     report.add_annotations(data=results, title=title_sim)
 
     # Show image
-    new_file = report.show_image()
-    print(f"{new_file} is written.")
+    report.show_image()

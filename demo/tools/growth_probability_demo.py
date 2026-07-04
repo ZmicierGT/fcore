@@ -163,6 +163,4 @@ if __name__ == "__main__":
 
     update_layout(fig, f"Probabilities example chart for {symbol}", length)
 
-    new_file = show_image(fig)
-
-    print(f"{new_file} is written.")
+    show_image(fig)

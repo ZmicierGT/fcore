@@ -162,7 +162,7 @@ def gui_available():
         Returns:
             bool: True if a viewer window can be opened.
     """
-    sys_name = platform.system()
+    sys_name = platform.system().lower()
 
     # SSH session: no GUI on any platform.
     if ('SSH_CONNECTION' in os.environ
@@ -170,7 +170,19 @@ def gui_available():
             or 'SSH_CLIENT' in os.environ):
         return False
 
-    return True
+    # If not on ssh, check if gui is available on each system individually
+    if 'darwin' in sys_name:
+        return os.environ.get("__CFBundleIdentifier") is not None
+    elif 'linux' in sys_name:
+        # X11 or Wayland session present?
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    elif 'win32' in sys_name:
+        import ctypes
+        # SM_CXSCREEN — fails/returns 0 with no display, e.g. some headless/service contexts
+        return ctypes.windll.user32.GetSystemMetrics(0) != 0
+
+    # Assume that there is no GUI on unknown systems
+    return False
 
 def show_image(fig):
     """

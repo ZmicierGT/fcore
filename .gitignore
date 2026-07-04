@@ -10,3 +10,4 @@ int_*.py
 strategy
 debris
 package-lock.json
+serve.sh

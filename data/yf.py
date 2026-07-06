@@ -21,7 +21,7 @@ from data.futils import get_labelled_ndarray, get_dt
 import urllib.error
 import http.client
 
-class YF(stock.StockFetcher):
+class YF(stock.StockData):
     """
         Yahoo Finance wrapper class.
     """

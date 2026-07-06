@@ -24,7 +24,7 @@ class DBConn(metaclass=abc.ABCMeta):
             Initialize the database connection.
 
             Args:
-                source(ReadOnlyData): data source to initialize the database connection.
+                source(SecData): data source to initialize the database connection.
         """
         self.conn = None
         self.cur = None

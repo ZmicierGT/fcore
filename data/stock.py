@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fdata import FdataError, ReadOnlyData, ReadWriteData, BaseFetcher
+from data.fdata import FdataError, SecData, SecFetcher
 from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, DataEntries, Timespans, def_last_date, Sector
 
 from data.futils import get_labelled_ndarray, get_dt
@@ -18,13 +18,40 @@ import calendar
 report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
 
-class ROStockData(ReadOnlyData):
+class StockFetcher(object, metaclass=abc.ABCMeta):
     """
-        The class for read only stock operations and database integrity check for storing stock data.
+        Abstract class providing the stock-specific external API fetch contract.
+        Sibling to SecFetcher (does NOT inherit from it): only stock-specific
+        fetch methods live here. DB and orchestration concerns live in StockData.
+    """
+    @abc.abstractmethod
+    def fetch_income_statement(self):
+        """Abstract method to fetch income statement"""
+
+    @abc.abstractmethod
+    def fetch_balance_sheet(self):
+        """Abstract method to fetch balance sheet"""
+
+    @abc.abstractmethod
+    def fetch_cash_flow(self):
+        """Abstract method to fetch cash flow"""
+
+    @abc.abstractmethod
+    def fetch_dividends(self):
+        """Abstract method to fetch dividends"""
+
+    @abc.abstractmethod
+    def fetch_splits(self):
+        """Abstract method to fetch splits"""
+
+
+class StockData(SecData, StockFetcher):
+    """
+        The class for stock operations and database integrity check for storing stock data.
     """
     def __init__(self, **kwargs):
         """
-            Initializes the read only stock operations class.
+            Initializes the stock operations class.
         """
         super().__init__(**kwargs)
 
@@ -556,10 +583,6 @@ class ROStockData(ReadOnlyData):
 
         return quotes[:max_idx]
 
-class RWStockData(ROStockData, ReadWriteData):
-    """
-        Base class for read/write stock data SQL operations.
-    """
 
     def get_income_statement_num(self):
         """Get the number of income statement reports.
@@ -783,10 +806,6 @@ class RWStockData(ROStockData, ReadWriteData):
 
             self.commit()
 
-class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
-    """
-        Abstract class to fetch quotes by API wrapper and add them to the database.
-    """
     def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
         """
             Get stock quotes, divs and splits data if needed.
@@ -971,27 +990,6 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
                                         num_method=self.get_split_num,
                                         add_method=self.add_splits,
                                         fetch_method=self.fetch_splits)
-
-    @abc.abstractmethod
-    def fetch_income_statement(self):
-        """Abstract method to fetch income statement"""
-
-    @abc.abstractmethod
-    def fetch_balance_sheet(self):
-        """Abstract method to fetch balance sheet"""
-
-    @abc.abstractmethod
-    def fetch_cash_flow(self):
-        """Abstract method to fetch cash flow"""
-
-    @abc.abstractmethod
-    def fetch_dividends(self):
-        """Abstract method to fetch dividends"""
-
-    @abc.abstractmethod
-    def fetch_splits(self):
-        """Abstract method to fetch splits"""
-
     @abc.abstractmethod
     def add_income_statement(self, reports):
         """Add income statement report."""
@@ -1003,3 +1001,4 @@ class StockFetcher(RWStockData, BaseFetcher, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def add_cash_flow(self, reports):
         """Add cash flow report."""
+

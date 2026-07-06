@@ -86,21 +86,279 @@ class FdataError(Exception):
         Base data exception class.
     """
 
-class ReadOnlyData():
+##########################
+# Base data fetcher class (pure external API layer)
+##########################
+class SecFetcher(object, metaclass=abc.ABCMeta):
     """
-        Base class for SQL 'read only' data operations and database integrity check.
+        Abstract class to fetch quotes by API wrapper and add them to the database.
+    """
+    def __init__(self, **kwargs):
+        """Initialize the instance of SecFetcher class."""
+        super().__init__(**kwargs)
+
+        self.max_queries = None # Maximul allowed number of API queries per minute
+        self._queries = []  # List of queries to calculate API call pauses
+
+    # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
+    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
+        """
+            Check is the required number of quotes exist in the database and fetch if not.
+            The data will be cached in the database. This method will connect to the database automatically if needed.
+            At the end the connection status will be resumed.
+
+            Args:
+                num(int): the number of rows to get. 0 gets all the quotes.
+                columns(list): additional columns to query.
+                joins(list): additional joins to get data from other tables.
+                queries(list): additional queries from other tables (like funamental, global economic data).
+                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
+
+            Returns:
+                array: the fetched data.
+                int: the number of fetched quotes.
+        """
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self.db_connect()
+
+        # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
+        # sec_info once and raises FdataError here if the symbol is NotExist, so we never
+        # waste a quote fetch or falsely mark intervals for a non-existent ticker.
+        self.get_info()
+
+        total_num = self.get_symbol_quotes_num(dt=False)
+
+        last_ts_adj = min(self.last_date_ts, self.current_ts())
+
+        # We need to check if the earliest and latest dates in database exceed the requested date for specified
+        # source and time span. If not, no need to fetch.
+        min_request_ts = self.get_min_request_ts()
+        max_request_ts = self.get_max_request_ts()
+
+        if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
+            intervals = []
+
+            # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
+            # if they already present in DB.
+            if total_num and min_request_ts is not None and max_request_ts is not None:
+                # Fetch the requested range excluding the part already covered by recorded
+                # intervals. Two independent checks: a request can extend on
+                # one side, both sides, or touch the recorded boundary exactly.
+                if self.first_date_ts < min_request_ts:
+                    intervals.append([self.first_date_ts, min_request_ts])
+
+                if last_ts_adj > max_request_ts:
+                    intervals.append([max_request_ts, last_ts_adj])
+            else:
+                intervals.append([self.first_date_ts, last_ts_adj])
+
+            for first_ts, last_ts in intervals:
+                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+
+                self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+
+            # Mark the fetched range. Runs even when a sub-interval returned zero quotes
+            # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
+            # known-empty ranges. A fetch failure (e.g. connection error) raises before
+            # reaching here, so intervals are not updated and the range is retried next time.
+            self.update_quote_intervals()
+
+        rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+
+        if initially_connected is False:
+            self.db_close()
+
+        # TODO MID Think if we should return None here without raising an exception
+        if rows is None:
+            raise FdataError(f"No quotes for ticker {self.symbol}")
+
+        return rows
+
+    def query_api(self, url, timeout=30):
+        """
+            Check if we need to wait before the next API query, wait if needed and query the API.
+
+            Args:
+                url(string): URL to fetch
+                timeout(int): timeout for a response
+
+            Returns:
+                Response: obtained data
+        """
+        # Check if we are about to reach the API key limit for queries
+        if len(self._queries) >= self.max_queries:
+            # Get the first query time from the array
+            first_query_time = self._queries[0]
+
+            # Calculate time to sleep and sleep if needed
+            sleep_time = max(0, 60 - (perf_counter() - first_query_time))
+
+            self.log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+
+            sleep(sleep_time)
+
+            self._queries = []
+
+        # Perform the query
+        try:
+            self.log(f"Fetching URL: {url}")
+
+            session = requests.Session()
+            headers = {'Cache-Control': 'no-cache'}  # Disable cache for the request
+            response = session.get(url, headers=headers, timeout=timeout)
+            session.close()
+        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
+            raise FdataError(f"Can't fetch quotes: {e}") from e
+        finally:
+            self._queries.append(perf_counter())
+
+        return response
+
+    def get_request_datetimes(self, first_ts, last_ts, trim_last=False):
+        """
+            Get the datetimes adjusted to the time zone of symbol's exchange for the request.
+
+            Args:
+                num(int): the number of days to limit the request.
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
+
+            Returns:
+                tuple(datetime): the adjusted datetimes.
+        """
+        if first_ts is not None:
+            first_dt = get_dt(first_ts)
+        else:
+            first_dt = self.first_date
+
+        if trim_last:
+            current_ts = int(datetime.now(tz.UTC).timestamp())
+
+            if last_ts is None:
+                last_ts = current_ts
+            else:
+                last_ts = min(last_ts, current_ts)
+
+        if last_ts is not None:
+            last_dt = get_dt(last_ts)
+        else:
+            last_dt = self.last_date
+
+        # Convert dates to the symbol's time zome for the request. In DB timestamps are always UTC adjusted,
+        # but data source usually expect dates in the timezone of the exchange. When we convert dates
+        # consider that the current time is noon to avoid excessive dates shift if time zone difference is not big.
+        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
+        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
+
+        return (first_datetime, last_datetime)
+
+    def get_request_dates(self, first_ts, last_ts, trim_last=False):
+        """
+            Get the dates adjusted to the time zone of symbol's exchange for the request.
+
+            Args:
+                num(int): the number of days to limit the request.
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
+
+            Returns:
+                tuple(datetime.date): the adjusted dates.
+        """
+        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts, trim_last=trim_last)
+
+        first_date = first_dt.date()
+        last_date = last_dt.date()
+
+        return (first_date, last_date)
+
+    @abc.abstractmethod
+    def get_recent_data(self, to_cache=False):
+        """
+            Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
+            for a particular data source.
+
+            Args:
+                to_cache(bool): indicates if real time data should be cached in a database.
+
+            Returns:
+                ndarray: real time data.
+        """
+
+    @abc.abstractmethod
+    def fetch_quotes(self, first_ts=None, last_ts=None):
+        """
+            Abstract method to fetch quotes.
+
+            Args:
+                first_ts(int): overridden first ts to fetch.
+                last_ts(int): overridden last ts to fetch.
+
+            Returns:
+                list(dict): obtained quotes.
+        """
+
+    @abc.abstractmethod
+    def get_timespan_str(self):
+        """
+            Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
+            in the datasource instance.
+
+            Returns:
+                str: timespan string.
+        """
+
+    def fetch_info(self):
+        """
+            Fetch security info. Default for sources without a dedicated info API.
+
+            Returns Unknown security type, Unknown currency, and America/New_York timezone.
+            Concrete sources are expected to override this to at least perform a security
+            existence check (returning SecType.NotExist for delisted/non-existent tickers).
+
+            Returns:
+                dict: info with fc_sec_type, fc_currency, fc_time_zone keys.
+        """
+        return {
+            'fc_sec_type': SecType.Unknown,
+            'fc_currency': Currency.Unknown,
+            'fc_time_zone': 'America/New_York',
+        }
+
+    # TODO LOW Kept for possible usage with data sources which have API request limits per time interval
+    def query_and_parse(self, url, timeout=30):
+        """
+            Query the data source and parse the response. Used to handle data source API call limit.
+
+            Args:
+                url(str): the url for a request.
+                timeout(int): timeout for the request.
+
+            Returns:
+                Parsed data.
+        """
+
+
+class SecData(SecFetcher):
+    """
+        Base class for SQL data operations and database integrity check.
     """
     def __init__(self,
+                 update=True,
                  symbol="",
                  first_date=def_first_date,
                  last_date=def_last_date,
                  timespan=Timespans.Day,
-                 verbosity=False
-                ):
+                 verbosity=False,
+                 **kwargs):
         """
-            Initialize base database read only/integrity class.
+            Initialize the base database class.
 
             Args:
+                update(bool): indicates if existing quotes should be updated.
                 symbol(str): the symbol to use.
                 first_date(datetime, str, int): the first date for queries.
                 last_date(datetime, str, int): the last date for queries.
@@ -145,6 +403,15 @@ class ReadOnlyData():
         self._time_zone = None  # Cached time zone to avoid too many db queries
         self._sec_type = None  # Cached security type to avoid too many db queries
         self._currency = None  # Cached security type to avoid too many db queries
+
+        # Underlying variable for getter/setter (merged from ReadWriteData)
+        self._update = None
+
+        # Indicates if existed quotes should be updated
+        self.update = update
+
+        # Cooperative MI: forward any remaining kwargs down the MRO.
+        super().__init__(**kwargs)
 
     ########################################################
     # Get/set datetimes (depending on the input value type).
@@ -1450,29 +1717,6 @@ class ReadOnlyData():
         except self.Error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
-#############################
-# Read/Write operations class
-#############################
-
-class ReadWriteData(ReadOnlyData):
-    """
-        Base class for read/write SQL operations.
-    """
-    def __init__(self, update=True, **kwargs):
-        """
-            Initialize read/write SQL abstraction class.
-
-            Args:
-                update(bool): indicates if existing quotes should be updated.
-        """
-        super().__init__(**kwargs)
-
-        # Underlying variable for getter/setter
-        self._update = None
-
-        # Indicates if existed quotes should be updated
-        self.update = update
-
     @property
     def update(self):
         """
@@ -1729,257 +1973,3 @@ class ReadWriteData(ReadOnlyData):
 
         self.commit()
 
-##########################
-# Base data fetching class
-##########################
-class BaseFetcher(ReadWriteData, metaclass=abc.ABCMeta):
-    """
-        Abstract class to fetch quotes by API wrapper and add them to the database.
-    """
-    def __init__(self, **kwargs):
-        """Initialize the instance of BaseFetcher class."""
-        super().__init__(**kwargs)
-
-        self.max_queries = None # Maximul allowed number of API queries per minute
-        self._queries = []  # List of queries to calculate API call pauses
-
-    # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
-    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
-        """
-            Check is the required number of quotes exist in the database and fetch if not.
-            The data will be cached in the database. This method will connect to the database automatically if needed.
-            At the end the connection status will be resumed.
-
-            Args:
-                num(int): the number of rows to get. 0 gets all the quotes.
-                columns(list): additional columns to query.
-                joins(list): additional joins to get data from other tables.
-                queries(list): additional queries from other tables (like funamental, global economic data).
-                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
-
-            Returns:
-                array: the fetched data.
-                int: the number of fetched quotes.
-        """
-        initially_connected = self.is_connected()
-
-        if self.is_connected() is False:
-            self.db_connect()
-
-        # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
-        # sec_info once and raises FdataError here if the symbol is NotExist, so we never
-        # waste a quote fetch or falsely mark intervals for a non-existent ticker.
-        self.get_info()
-
-        total_num = self.get_symbol_quotes_num(dt=False)
-
-        last_ts_adj = min(self.last_date_ts, self.current_ts())
-
-        # We need to check if the earliest and latest dates in database exceed the requested date for specified
-        # source and time span. If not, no need to fetch.
-        min_request_ts = self.get_min_request_ts()
-        max_request_ts = self.get_max_request_ts()
-
-        if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
-            intervals = []
-
-            # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
-            # if they already present in DB.
-            if total_num and min_request_ts is not None and max_request_ts is not None:
-                # Fetch the requested range excluding the part already covered by recorded
-                # intervals. Two independent checks: a request can extend on
-                # one side, both sides, or touch the recorded boundary exactly.
-                if self.first_date_ts < min_request_ts:
-                    intervals.append([self.first_date_ts, min_request_ts])
-
-                if last_ts_adj > max_request_ts:
-                    intervals.append([max_request_ts, last_ts_adj])
-            else:
-                intervals.append([self.first_date_ts, last_ts_adj])
-
-            for first_ts, last_ts in intervals:
-                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
-
-                self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
-
-            # Mark the fetched range. Runs even when a sub-interval returned zero quotes
-            # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
-            # known-empty ranges. A fetch failure (e.g. connection error) raises before
-            # reaching here, so intervals are not updated and the range is retried next time.
-            self.update_quote_intervals()
-
-        rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
-
-        if initially_connected is False:
-            self.db_close()
-
-        # TODO MID Think if we should return None here without raising an exception
-        if rows is None:
-            raise FdataError(f"No quotes for ticker {self.symbol}")
-
-        return rows
-
-    def query_api(self, url, timeout=30):
-        """
-            Check if we need to wait before the next API query, wait if needed and query the API.
-
-            Args:
-                url(string): URL to fetch
-                timeout(int): timeout for a response
-
-            Returns:
-                Response: obtained data
-        """
-        # Check if we are about to reach the API key limit for queries
-        if len(self._queries) >= self.max_queries:
-            # Get the first query time from the array
-            first_query_time = self._queries[0]
-
-            # Calculate time to sleep and sleep if needed
-            sleep_time = max(0, 60 - (perf_counter() - first_query_time))
-
-            self.log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
-
-            sleep(sleep_time)
-
-            self._queries = []
-
-        # Perform the query
-        try:
-            self.log(f"Fetching URL: {url}")
-
-            session = requests.Session()
-            headers = {'Cache-Control': 'no-cache'}  # Disable cache for the request
-            response = session.get(url, headers=headers, timeout=timeout)
-            session.close()
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
-            raise FdataError(f"Can't fetch quotes: {e}") from e
-        finally:
-            self._queries.append(perf_counter())
-
-        return response
-
-    def get_request_datetimes(self, first_ts, last_ts, trim_last=False):
-        """
-            Get the datetimes adjusted to the time zone of symbol's exchange for the request.
-
-            Args:
-                num(int): the number of days to limit the request.
-                first_ts(int): overridden first ts to fetch.
-                last_ts(int): overridden last ts to fetch.
-                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
-
-            Returns:
-                tuple(datetime): the adjusted datetimes.
-        """
-        if first_ts is not None:
-            first_dt = get_dt(first_ts)
-        else:
-            first_dt = self.first_date
-
-        if trim_last:
-            current_ts = int(datetime.now(tz.UTC).timestamp())
-
-            if last_ts is None:
-                last_ts = current_ts
-            else:
-                last_ts = min(last_ts, current_ts)
-
-        if last_ts is not None:
-            last_dt = get_dt(last_ts)
-        else:
-            last_dt = self.last_date
-
-        # Convert dates to the symbol's time zome for the request. In DB timestamps are always UTC adjusted,
-        # but data source usually expect dates in the timezone of the exchange. When we convert dates
-        # consider that the current time is noon to avoid excessive dates shift if time zone difference is not big.
-        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
-        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
-
-        return (first_datetime, last_datetime)
-
-    def get_request_dates(self, first_ts, last_ts, trim_last=False):
-        """
-            Get the dates adjusted to the time zone of symbol's exchange for the request.
-
-            Args:
-                num(int): the number of days to limit the request.
-                first_ts(int): overridden first ts to fetch.
-                last_ts(int): overridden last ts to fetch.
-                trim_last(bool): indicates if the last date should be set to the current date if it exceeds it.
-
-            Returns:
-                tuple(datetime.date): the adjusted dates.
-        """
-        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts, trim_last=trim_last)
-
-        first_date = first_dt.date()
-        last_date = last_dt.date()
-
-        return (first_date, last_date)
-
-    @abc.abstractmethod
-    def get_recent_data(self, to_cache=False):
-        """
-            Get real time data. Used in screening. This method should be overloaded if real time data fetching is possible
-            for a particular data source.
-
-            Args:
-                to_cache(bool): indicates if real time data should be cached in a database.
-
-            Returns:
-                ndarray: real time data.
-        """
-
-    @abc.abstractmethod
-    def fetch_quotes(self, first_ts=None, last_ts=None):
-        """
-            Abstract method to fetch quotes.
-
-            Args:
-                first_ts(int): overridden first ts to fetch.
-                last_ts(int): overridden last ts to fetch.
-
-            Returns:
-                list(dict): obtained quotes.
-        """
-
-    @abc.abstractmethod
-    def get_timespan_str(self):
-        """
-            Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
-            in the datasource instance.
-
-            Returns:
-                str: timespan string.
-        """
-
-    def fetch_info(self):
-        """
-            Fetch security info. Default for sources without a dedicated info API.
-
-            Returns Unknown security type, Unknown currency, and America/New_York timezone.
-            Concrete sources are expected to override this to at least perform a security
-            existence check (returning SecType.NotExist for delisted/non-existent tickers).
-
-            Returns:
-                dict: info with fc_sec_type, fc_currency, fc_time_zone keys.
-        """
-        return {
-            'fc_sec_type': SecType.Unknown,
-            'fc_currency': Currency.Unknown,
-            'fc_time_zone': 'America/New_York',
-        }
-
-    # TODO LOW Kept for possible usage with data sources which have API request limits per time interval
-    def query_and_parse(self, url, timeout=30):
-        """
-            Query the data source and parse the response. Used to handle data source API call limit.
-
-            Args:
-                url(str): the url for a request.
-                timeout(int): timeout for the request.
-
-            Returns:
-                Parsed data.
-        """

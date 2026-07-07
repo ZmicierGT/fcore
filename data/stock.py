@@ -919,16 +919,18 @@ class StockData(SecData, StockFetcher):
         if self.is_connected() is False:
             self.db_connect()
 
-        current_num = num_method()
-        num = current_num
+        # TODO LOW Think if such try..finally blocks (without catching a particular exception) are suitable
+        try:
+            current_num = num_method()
+            num = current_num
 
-        # Check if we need to fetch the data
-        if self.need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
-            add_method(fetch_method())
-            num = num_method()
-
-        if initially_connected is False:
-            self.db_close()
+            # Check if we need to fetch the data
+            if self.need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
+                add_method(fetch_method())
+                num = num_method()
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         return num - current_num
 

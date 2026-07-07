@@ -121,52 +121,53 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         if self.is_connected() is False:
             self.db_connect()
 
-        # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
-        # sec_info once and raises FdataError here if the symbol is NotExist, so we never
-        # waste a quote fetch or falsely mark intervals for a non-existent ticker.
-        self.get_info()
+        try:
+            # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
+            # sec_info once and raises FdataError here if the symbol is NotExist, so we never
+            # waste a quote fetch or falsely mark intervals for a non-existent ticker.
+            self.get_info()
 
-        total_num = self.get_symbol_quotes_num(dt=False)
+            total_num = self.get_symbol_quotes_num(dt=False)
 
-        last_ts_adj = min(self.last_date_ts, self.current_ts())
+            last_ts_adj = min(self.last_date_ts, self.current_ts())
 
-        # We need to check if the earliest and latest dates in database exceed the requested date for specified
-        # source and time span. If not, no need to fetch.
-        min_request_ts = self.get_min_request_ts()
-        max_request_ts = self.get_max_request_ts()
+            # We need to check if the earliest and latest dates in database exceed the requested date for specified
+            # source and time span. If not, no need to fetch.
+            min_request_ts = self.get_min_request_ts()
+            max_request_ts = self.get_max_request_ts()
 
-        if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
-            intervals = []
+            if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
+                intervals = []
 
-            # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
-            # if they already present in DB.
-            if total_num and min_request_ts is not None and max_request_ts is not None:
-                # Fetch the requested range excluding the part already covered by recorded
-                # intervals. Two independent checks: a request can extend on
-                # one side, both sides, or touch the recorded boundary exactly.
-                if self.first_date_ts < min_request_ts:
-                    intervals.append([self.first_date_ts, min_request_ts])
+                # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
+                # if they already present in DB.
+                if total_num and min_request_ts is not None and max_request_ts is not None:
+                    # Fetch the requested range excluding the part already covered by recorded
+                    # intervals. Two independent checks: a request can extend on
+                    # one side, both sides, or touch the recorded boundary exactly.
+                    if self.first_date_ts < min_request_ts:
+                        intervals.append([self.first_date_ts, min_request_ts])
 
-                if last_ts_adj > max_request_ts:
-                    intervals.append([max_request_ts, last_ts_adj])
-            else:
-                intervals.append([self.first_date_ts, last_ts_adj])
+                    if last_ts_adj > max_request_ts:
+                        intervals.append([max_request_ts, last_ts_adj])
+                else:
+                    intervals.append([self.first_date_ts, last_ts_adj])
 
-            for first_ts, last_ts in intervals:
-                self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+                for first_ts, last_ts in intervals:
+                    self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
-                self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+                    self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
-            # Mark the fetched range. Runs even when a sub-interval returned zero quotes
-            # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
-            # known-empty ranges. A fetch failure (e.g. connection error) raises before
-            # reaching here, so intervals are not updated and the range is retried next time.
-            self.update_quote_intervals()
+                # Mark the fetched range. Runs even when a sub-interval returned zero quotes
+                # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
+                # known-empty ranges. A fetch failure (e.g. connection error) raises before
+                # reaching here, so intervals are not updated and the range is retried next time.
+                self.update_quote_intervals()
 
-        rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
-
-        if initially_connected is False:
-            self.db_close()
+            rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         # TODO MID Think if we should return None here without raising an exception
         if rows is None:

@@ -381,14 +381,14 @@ class StockData(SecData, StockFetcher):
             divs = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         if len(divs):
             divs = get_labelled_ndarray(divs)
         else:
             divs = None
-
-        if initially_connected is False:
-            self.db_close()
 
         return divs
 
@@ -408,10 +408,10 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         get_splits = f"""SELECT	split_date,
-		                        split_ratio,
-		                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
-	                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
-	                        WHERE s.ticker = '{self.symbol}'
+	                        split_ratio,
+	                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
+                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
+                        WHERE s.ticker = '{self.symbol}'
                             AND split_date >= {self.first_date_ts}
                             AND split_date <= {last_ts}
                             AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
@@ -422,15 +422,15 @@ class StockData(SecData, StockFetcher):
             splits = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         if len(splits):
             splits = get_labelled_ndarray(splits)
         else:
             splits = None
             self.log(f"No split data for {self.symbol}")
-
-        if initially_connected is False:
-            self.db_close()
 
         return splits
 
@@ -875,11 +875,14 @@ class StockData(SecData, StockFetcher):
                 row = self.cur.fetchone()[0]
             except (self.Error, TypeError) as e:
                 raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
+            finally:
+                if initially_connected is False:
+                    self.db_close()
 
             stock_info = {'sector': row}
             base_info.update(stock_info)
-
-        if initially_connected is False:
+        elif initially_connected is False:
+            # The if-branch path closes via the finally above; cover the else-branch path here.
             self.db_close()
 
         return base_info

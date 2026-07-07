@@ -1342,16 +1342,15 @@ class SecData(SecFetcher):
 
         try:
             self.cur.execute(quotes_num)
+            result = self.cur.fetchone()[0]
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{quotes_num}") from e
-
-        result = self.cur.fetchone()[0]
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         if result is None:
             result = 0
-
-        if initially_connected is False:
-            self.db_close()
 
         return result
 
@@ -1573,9 +1572,9 @@ class SecData(SecFetcher):
             rows = self.cur.fetchall()
         except self.Error as e:
             raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
-
-        if initially_connected is False:
-            self.db_close()
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
         row = rows[0]
 

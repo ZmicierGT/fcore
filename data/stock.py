@@ -435,7 +435,7 @@ class StockData(SecData, StockFetcher):
         return splits
 
     # TODO MID Think if ignore last date is needed here
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -454,20 +454,23 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        if isinstance(columns, list) is False:
+        if not isinstance(columns, list):
+            self.log('Incorrect columns list provided. Overriding as list with stock-related data.')
             columns = []
 
-        columns.append('opened AS adj_open')
-        columns.append('high AS adj_high')
-        columns.append('low AS adj_low')
-        columns.append('closed AS adj_close')
-        columns.append('volume AS adj_volume')
-        columns.append('0.0 AS divs_ex')
-        columns.append('0.0 AS divs_pay')
-        columns.append('1.0 AS splits')
+        stock_columns = list(columns)  # Make a copy of columns so the caller's data is not affected
+
+        stock_columns.append('opened AS adj_open')
+        stock_columns.append('high AS adj_high')
+        stock_columns.append('low AS adj_low')
+        stock_columns.append('closed AS adj_close')
+        stock_columns.append('volume AS adj_volume')
+        stock_columns.append('0.0 AS divs_ex')
+        stock_columns.append('0.0 AS divs_pay')
+        stock_columns.append('1.0 AS splits')
 
         quotes = super().get_quotes(num=num,
-                                    columns=columns,
+                                    columns=stock_columns,
                                     joins=joins,
                                     queries=queries,
                                     ignore_last_date=ignore_last_date,
@@ -806,7 +809,7 @@ class StockData(SecData, StockFetcher):
 
             self.commit()
 
-    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
+    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
         """
             Get stock quotes, divs and splits data if needed.
 

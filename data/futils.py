@@ -20,7 +20,19 @@ import threading
 import multiprocessing
 import time
 import platform
+import sys
 import subprocess
+
+def logger(verbosity, message):
+    """
+        Depending on a verbosity flag, display a logging message.
+
+        Args:
+            verbosity(bool): verbosity flag.
+            message(str): message.
+    """
+    if verbosity:
+        print(message)
 
 def get_dt(value, timezone=tz.UTC):
     """
@@ -146,12 +158,14 @@ def open_image(image_path):
             path(str): path to the opened image.
     """
     # Open image file in the default viewer.
-    if platform.system() == 'Darwin':  # macOS
+    if 'darwin' in sys.platform:  # macOS
         subprocess.call(('open', image_path))
-    elif platform.system() == 'Windows':
+    elif 'win32' in sys.platform:
         os.startfile(image_path)
-    else:  # Linux
+    elif 'linux' in sys.platform or 'bsd' in sys.platform:
         subprocess.call(('xdg-open', image_path))
+    else:
+        logger(f"Can't open image: unknown platform: {sys.platform}")
 
 def gui_available():
     """
@@ -162,8 +176,6 @@ def gui_available():
         Returns:
             bool: True if a viewer window can be opened.
     """
-    sys_name = platform.system().lower()
-
     # SSH session: no GUI on any platform.
     if ('SSH_CONNECTION' in os.environ
             or 'SSH_TTY' in os.environ
@@ -171,12 +183,12 @@ def gui_available():
         return False
 
     # If not on ssh, check if gui is available on each system individually
-    if 'darwin' in sys_name:
+    if 'darwin' in sys.platform:
         return os.environ.get("__CFBundleIdentifier") is not None
-    elif 'linux' in sys_name:
+    elif 'linux' in sys.platform or 'bsd' in sys.platform:
         # X11 or Wayland session present?
         return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-    elif 'win32' in sys_name:
+    elif 'win32' in sys.platform:
         import ctypes
         # SM_CXSCREEN — fails/returns 0 with no display, e.g. some headless/service contexts
         return ctypes.windll.user32.GetSystemMetrics(0) != 0
@@ -310,17 +322,6 @@ def trim_time(data, start=None, end=None):
         data = data[np.where(pick_time(data[Quotes.TimeStamp]) <= end_time)]
 
     return data
-
-def logger(verbosity, message):
-    """
-        Depending on a verbosity flag, display a logging message.
-
-        Args:
-            verbosity(bool): verbosity flag.
-            message(str): message.
-    """
-    if verbosity:
-        print(message)
 
 # The project is intended to be used with GIL-free Python interpreters (like nogil-3.9.10). However, it is fully compatible with regular
 # CPython but in such case there won't be any benefit related to parallel computing.

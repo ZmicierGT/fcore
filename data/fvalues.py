@@ -55,8 +55,8 @@ djia_nov_08_2024 = ['MMM', 'AXP', 'AMGN', 'AAPL', 'BA', 'CAT', 'CVX', 'CSCO', 'K
 
 # Note that each time sorting of the resulting list may be different
 djia_combined = sorted(list(set(djia_jun_08_2009 + djia_sep_24_2012 + djia_sep_23_2013 + djia_mar_19_2015 + \
-                                djia_jun_26_2018 + djia_apr_02_2019 + djia_apr_06_2020 + djia_feb_26_2024 + \
-                                djia_nov_08_2024)))
+                                djia_jun_26_2018 + djia_apr_02_2019 + djia_apr_06_2020 + djia_aug_31_2020 + \
+                                djia_feb_26_2024 + djia_nov_08_2024)))
 
 djia_combined.remove('UTX')  # No historical quotes for these delisted symbols in the supported data sources
 djia_combined.remove('KRFT')
@@ -65,7 +65,7 @@ djia_dict = {'2009-06-08': djia_jun_08_2009,
              '2012-09-24': djia_sep_24_2012,
              '2013-09-23': djia_sep_23_2013,
              '2015-03-19': djia_mar_19_2015,
-             '2018-06-26': djia_mar_19_2015,
+             '2018-06-26': djia_jun_26_2018,
              '2019-04-02': djia_apr_02_2019,
              '2020-04-06': djia_apr_06_2020,
              '2020-08-31': djia_aug_31_2020,
@@ -193,7 +193,7 @@ sw20_combined = sorted(list(set(sw20_05_jul_07 + sw20_21_sep_09 + sw20_21_jun_10
                                 sw20_18_jun_12 + sw20_14_jan_16 + sw20_24_apr_17 + sw20_27_mar_19 + \
                                 sw20_03_sep_20 + sw20_05_sep_21 + sw20_24_sep_22 + sw20_06_jun_23)))
 
-sw20_combined_yf = sw20_combined
+sw20_combined_yf = list(sw20_combined)
 
 # No data at yfinance
 sw20_combined_yf.remove('ATLN.SW')
@@ -298,7 +298,7 @@ sw20_adr_combined = sorted(list(set(sw20_adr_05_jul_07 + sw20_adr_21_sep_09 + sw
                                     sw20_adr_18_jun_12 + sw20_adr_14_jan_16 + sw20_adr_24_apr_17 + sw20_adr_27_mar_19 + \
                                     sw20_adr_03_sep_20 + sw20_adr_05_sep_21 + sw20_adr_24_sep_22 + sw20_adr_06_jun_23)))
 
-sw20_adr_combined_yf = sw20_adr_combined
+sw20_adr_combined_yf = list(sw20_adr_combined)
 
 # No data on yahoo finance
 sw20_adr_combined_yf.remove('CS')
@@ -386,7 +386,7 @@ sector_etfs_global = ['IXN',  # Technology 5 Apr 2002
 # Global sectors ETFs (UCITS). The earliest date is 22 Nov 2010
 sector_etfs_ucits = ['XDWT.L',  # Technology 22 Nov 2010
                      'XDWF.L',  # Financial Services 22 Nov 2010
-                     'XDWF.L',  # Health Care 22 Nov 2010
+                     'XDWH.L',  # Health Care 22 Nov 2010
                      'XDWC.L',  # Consumer Discretionary 22 Nov 2010
                      'XDWI.L',  # Industrials 22 Nov 2010
                      'XWTS.L',  # Communication Services 22 Nov 2010

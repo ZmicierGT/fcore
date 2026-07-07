@@ -19,8 +19,6 @@ from data.futils import get_dt, get_labelled_ndarray, logger
 
 import settings
 
-import json
-
 from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
@@ -101,7 +99,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         self._queries = []  # List of queries to calculate API call pauses
 
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
-    def get(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False):
+    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
@@ -186,6 +184,9 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
 
             Returns:
                 Response: obtained data
+
+            Raises:
+                FdataError: if the request fails (timeout, connection error, HTTP error, etc.).
         """
         # Check if we are about to reach the API key limit for queries
         if len(self._queries) >= self.max_queries:
@@ -201,15 +202,14 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
 
             self._queries = []
 
+        self.log(f"Fetching URL: {url}")
+        headers = {'Cache-Control': 'no-cache'}
+
         # Perform the query
         try:
-            self.log(f"Fetching URL: {url}")
-
-            session = requests.Session()
-            headers = {'Cache-Control': 'no-cache'}  # Disable cache for the request
-            response = session.get(url, headers=headers, timeout=timeout)
-            session.close()
-        except (urllib.error.HTTPError, urllib.error.URLError, http.client.HTTPException, json.decoder.JSONDecodeError) as e:
+            with requests.Session() as session:
+                response = session.get(url, headers=headers, timeout=timeout)
+        except (requests.exceptions.RequestException, urllib.error, http.client.HTTPException) as e:
             raise FdataError(f"Can't fetch quotes: {e}") from e
         finally:
             self._queries.append(perf_counter())
@@ -1189,7 +1189,7 @@ class SecData(SecFetcher):
 
         return rows
 
-    def get_quotes(self, num=0, columns=None, joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -1322,6 +1322,7 @@ class SecData(SecFetcher):
 
         return get_labelled_ndarray(rows)
 
+    # TODO LOW Querying COUNT(*) may impact performance. In the future a faster approach should be used.
     def get_quotes_num(self):
         """
             Get the number of quotes in the database.

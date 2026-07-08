@@ -98,6 +98,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         self.max_queries = None # Maximul allowed number of API queries per minute
         self._queries = []  # List of queries to calculate API call pauses
 
+    # TODO HIGH Move if out of the fetcher class to the data class
     # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
     def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
         """
@@ -410,6 +411,9 @@ class SecData(SecFetcher):
 
         # Indicates if existed quotes should be updated
         self.update = update
+
+        # Cached security info
+        self._info = None
 
         # Cooperative MI: forward any remaining kwargs down the MRO.
         super().__init__(**kwargs)
@@ -1553,37 +1557,39 @@ class SecData(SecFetcher):
         """
             Fetch (if needed) and return security info data.
         """
-        initially_connected = self.is_connected()
+        # Use the cached value (if any)
+        if self._info is None:
+            initially_connected = self.is_connected()
 
-        if self.is_connected() is False:
-            self.db_connect()
+            if self.is_connected() is False:
+                self.db_connect()
 
-        # Fetch data if no data present
-        if self._get_data_num('sec_info') == 0:
-            self.add_info(self.fetch_info())
+            # Fetch data if no data present
+            if self._get_data_num('sec_info') == 0:
+                self.add_info(self.fetch_info())
 
-        # Just time zone is used from info for now
-        info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
-                            INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
-                            INNER JOIN currency c ON si.currency_id = c.currency_id
-                            WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
+            # Just time zone is used from info for now
+            info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
+                                INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
+                                INNER JOIN currency c ON si.currency_id = c.currency_id
+                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
 
-        try:
-            self.cur.execute(info_query)
-            rows = self.cur.fetchall()
-        except self.Error as e:
-            raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
-        finally:
-            if initially_connected is False:
-                self.db_close()
+            try:
+                self.cur.execute(info_query)
+                rows = self.cur.fetchall()
+            except self.Error as e:
+                raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
+            finally:
+                if initially_connected is False:
+                    self.db_close()
 
-        row = rows[0]
+            self._info = rows[0]
 
         # TODO MID Think if exception here is rational or better to return the corresponding dict (with NotExist sec_type)
-        if row['sec_type'] == SecType.NotExist.value:
+        if self._info['sec_type'] == SecType.NotExist.value:
             raise FdataError(f"Ticker {self.symbol} is likely delisted or incorrect as it is marked as not-existent.")
 
-        return {'time_zone': row['time_zone'], 'sec_type': row['sec_type'], 'currency': row['curr']}
+        return {'time_zone': self._info['time_zone'], 'sec_type': self._info['sec_type'], 'currency': self._info['curr']}
 
     def get_timezone(self):
         """

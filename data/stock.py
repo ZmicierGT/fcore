@@ -68,10 +68,15 @@ class StockData(SecData, StockFetcher):
         self._balance_sheet_entry = None
         self._cash_flow_entry = None
 
+        # TODO LOW Think if we should always consider that stock info is supported (same as with a 'generic' security)
         self._stock_info_supported = False  # Indicates if stock info is supported
 
         self._annual_report_supported = False
         self._quarter_report_supported = False
+
+        # TODO MID Think if we can refactor it to use one cache per security (not additional for a particular security type)
+        # Cached stock info
+        self._stock_info = None
 
     def check_database(self):
         """
@@ -848,11 +853,6 @@ class StockData(SecData, StockFetcher):
         """
             Fetch (if needed) and return stock info data.
         """
-        initially_connected = self.is_connected()
-
-        if self.is_connected() is False:
-            self.db_connect()
-
         # Get base security info
         base_info = super().get_info()
 
@@ -860,30 +860,33 @@ class StockData(SecData, StockFetcher):
         # is really stock.
         sec_type = base_info['sec_type']
 
-        if self._stock_info_supported and sec_type == SecType.Stock:
-            # Fetch data if no data present
-            if self._get_data_num('stock_info') == 0:
-                self.add_info(self.fetch_info())
+        if self._stock_info is None:
+            if self._stock_info_supported and sec_type == SecType.Stock:
+                # Fetch data if no data present
+                initially_connected = self.is_connected()
 
-            # Just sector title is used from info for now
-            info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
-                                (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
-                                    (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
+                if self.is_connected() is False:
+                    self.db_connect()
 
-            try:
-                self.cur.execute(info_query)
-                row = self.cur.fetchone()[0]
-            except (self.Error, TypeError) as e:
-                raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
-            finally:
-                if initially_connected is False:
-                    self.db_close()
+                if self._get_data_num('stock_info') == 0:
+                    self.add_info(self.fetch_info())
 
-            stock_info = {'sector': row}
-            base_info.update(stock_info)
-        elif initially_connected is False:
-            # The if-branch path closes via the finally above; cover the else-branch path here.
-            self.db_close()
+                # Just sector title is used from info for now
+                info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
+                                    (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
+                                        (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
+
+                try:
+                    self.cur.execute(info_query)
+                    row = self.cur.fetchone()[0]
+                except (self.Error, TypeError) as e:
+                    raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
+                finally:
+                    if initially_connected is False:
+                        self.db_close()
+
+                self._stock_info = {'sector': row}
+                base_info.update(self._stock_info)
 
         return base_info
 

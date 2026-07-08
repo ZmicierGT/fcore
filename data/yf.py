@@ -197,7 +197,7 @@ class YF(stock.StockData):
         row = data.iloc[-1]
         row = row.droplevel(1)
 
-        dt = data.index[-1].to_pydatetime().replace(tzinfo=None)
+        dt = data.index[-1].to_pydatetime().astimezone(tz.UTC)
         ts = int(datetime.timestamp(dt))
 
         volume = row['Volume'].astype(int)

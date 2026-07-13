@@ -41,7 +41,7 @@ class YF(stock.StockData):
 
         self._earnings_history_tbl = 'yf_earnings_history'
 
-    def get_timespan_str(self):
+    def _get_timespan_str(self):
         """
             Get the timespan for queries.
 
@@ -71,7 +71,7 @@ class YF(stock.StockData):
             raise FdataError(f"Requested timespan is not supported by YF: {self.timespan.value}")
 
     # TODO MID Think how to handle a situation that YF fetches the current quote even if period is incomplete
-    def fetch_quotes(self, first_ts=None, last_ts=None):
+    def _fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
 
@@ -86,7 +86,7 @@ class YF(stock.StockData):
                 FdataError: network error, no data obtained, can't parse json or the date is incorrect.
         """
         # Adjust dates for the exchange time zone for the request
-        first_date, last_date = self.get_request_dates(first_ts, last_ts)
+        first_date, last_date = self._get_request_dates(first_ts, last_ts)
 
         # Dates should differ or no data obtained
         if (last_date - first_date).days == 0:
@@ -94,7 +94,7 @@ class YF(stock.StockData):
 
         try:
             data = yfin.download(self.symbol,
-                                 interval=self.get_timespan_str(),
+                                 interval=self._get_timespan_str(),
                                  start=first_date,
                                  end=last_date,
                                  auto_adjust=False)
@@ -308,19 +308,19 @@ class YF(stock.StockData):
         return df_result
 
     # TODO MID Dividends are adjusted by default!
-    def fetch_dividends(self):
+    def _fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.
         """
         return self.__fetch_dividends().T.to_dict().values()
 
-    def fetch_splits(self):
+    def _fetch_splits(self):
         """
             Fetch the split data.
         """
         return self.__fetch_splits().T.to_dict().values()
 
-    def fetch_info(self):
+    def _fetch_info(self):
         """
             Fetch and return the info of the security.
 
@@ -534,13 +534,13 @@ class YF(stock.StockData):
                                         add_method=self.add_earnings_history,
                                         fetch_method=self.fetch_earnings_history)
 
-    def fetch_income_statement(self):
+    def _fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")
 
-    def fetch_balance_sheet(self):
+    def _fetch_balance_sheet(self):
         raise FdataError(f"Balance sheet data is not supported (yet) for the source {type(self).__name__}")
 
-    def fetch_cash_flow(self):
+    def _fetch_cash_flow(self):
         raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
 
     def add_income_statement(self, reports):

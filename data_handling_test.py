@@ -77,8 +77,8 @@ def test_request_ts(source):
     print("\nSECTION1b: check if quotes, dividends and splits number increases")
     print("_________________________________________________________________")
 
-    div_data = source.fetch_dividends()  # Split data may be fetched as it is needed to reverse-adjust the dividends
-    split_data = source.fetch_splits()
+    div_data = source._fetch_dividends()  # Split data may be fetched as it is needed to reverse-adjust the dividends
+    split_data = source._fetch_splits()
 
     before, after = source.add_dividends(div_data)
 
@@ -389,8 +389,7 @@ def test_get_delisted():
     """
     print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
 
-    yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True)
-    yfi.db_name = ":memory:"
+    yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
 
     # First invocation: empty DB. fetch_info() runs, detects NotExist, persists
@@ -455,8 +454,7 @@ def test_get_existing():
     """
     print(colored("\nTesting get() for an existing symbol (IBM):\n", "yellow"))
 
-    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True)
-    yfi.db_name = ":memory:"
+    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
 
     # First invocation: empty DB.
@@ -507,8 +505,7 @@ def test_get_empty_range_valid_symbol():
     """
     print(colored("\nTesting get() for a valid symbol with empty range (INFQ):\n", "yellow"))
 
-    yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True)
-    yfi.db_name = ":memory:"
+    yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True, db_name=":memory:")
     yfi.db_connect()
 
     # First invocation: empty DB, valid symbol, range before first quote.
@@ -536,8 +533,7 @@ def test_get_empty_range_valid_symbol():
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
-    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True)
-    yfi.db_name = ":memory:"
+    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
 
     test_request_ts(yfi)
@@ -560,8 +556,7 @@ if __name__ == "__main__":
 
     print(colored("\nTesting subqueries support:\n", "yellow"))
 
-    yfi = yf.YF(symbol='IBM', verbosity=True)
-    yfi.db_name = ":memory:"
+    yfi = yf.YF(symbol='IBM', verbosity=True, db_name=":memory:")
     yfi.db_connect()
 
     # At first, obtain the raw earnings history data directly.

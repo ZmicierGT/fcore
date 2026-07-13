@@ -26,7 +26,7 @@ import calendar
 # TODO MID Use sql-formatter on SQL code
 
 # Current database compatibility version
-DB_VERSION = 26
+_DB_VERSION = 26
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -46,16 +46,16 @@ class Subquery():
                 fill(bool): Indicates if all rows should have the value. False if only a row with the most
                             suitable data (according to time stamp) should have it.
         """
-        self.table = table
-        self.column = column
-        self.condition = condition
-        self.fill = fill
+        self._table = table
+        self._column = column
+        self._condition = condition
+        self._fill = fill
 
         # Use the default column name as the title if the title is not specified
         if title is None:
-            self.title = column
+            self._title = column
         else:
-            self.title = title
+            self._title = title
 
     def generate(self):
         """
@@ -66,16 +66,16 @@ class Subquery():
         """
         ts_query = ''
 
-        if self.fill is False:
+        if self._fill is False:
             ts_query = """ AND report_tbl.time_stamp >
                            (SELECT time_stamp FROM quotes qqq WHERE qqq.quote_id > quotes.quote_id ORDER BY qqq.quote_id ASC LIMIT 1)"""
 
-        subquery = f"""(SELECT {self.column}
-                            FROM {self.table} report_tbl
+        subquery = f"""(SELECT {self._column}
+                            FROM {self._table} report_tbl
                             WHERE report_tbl.time_stamp <= quotes.time_stamp{ts_query}
                             AND symbol_id = quotes.symbol_id
-                            {self.condition}
-                            ORDER BY report_tbl.time_stamp DESC LIMIT 1) AS {self.title}\n"""
+                            {self._condition}
+                            ORDER BY report_tbl.time_stamp DESC LIMIT 1) AS {self._title}\n"""
 
         return subquery
 
@@ -95,10 +95,10 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         """Initialize the instance of SecFetcher class."""
         super().__init__(**kwargs)
 
-        self.max_queries = None # Maximul allowed number of API queries per minute
+        self._max_queries = None # Maximul allowed number of API queries per minute
         self._queries = []  # List of queries to calculate API call pauses
 
-    def query_api(self, url, timeout=30):
+    def _query_api(self, url, timeout=30):
         """
             Check if we need to wait before the next API query, wait if needed and query the API.
 
@@ -113,7 +113,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
                 FdataError: if the request fails (timeout, connection error, HTTP error, etc.).
         """
         # Check if we are about to reach the API key limit for queries
-        if len(self._queries) >= self.max_queries:
+        if len(self._queries) >= self._max_queries:
             # Get the first query time from the array
             first_query_time = self._queries[0]
 
@@ -140,7 +140,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
 
         return response
 
-    def get_request_datetimes(self, first_ts, last_ts, trim_last=False):
+    def _get_request_datetimes(self, first_ts, last_ts, trim_last=False):
         """
             Get the datetimes adjusted to the time zone of symbol's exchange for the request.
 
@@ -179,7 +179,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
 
         return (first_datetime, last_datetime)
 
-    def get_request_dates(self, first_ts, last_ts, trim_last=False):
+    def _get_request_dates(self, first_ts, last_ts, trim_last=False):
         """
             Get the dates adjusted to the time zone of symbol's exchange for the request.
 
@@ -192,7 +192,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
             Returns:
                 tuple(datetime.date): the adjusted dates.
         """
-        first_dt, last_dt = self.get_request_datetimes(first_ts=first_ts, last_ts=last_ts, trim_last=trim_last)
+        first_dt, last_dt = self._get_request_datetimes(first_ts=first_ts, last_ts=last_ts, trim_last=trim_last)
 
         first_date = first_dt.date()
         last_date = last_dt.date()
@@ -213,7 +213,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def fetch_quotes(self, first_ts=None, last_ts=None):
+    def _fetch_quotes(self, first_ts=None, last_ts=None):
         """
             Abstract method to fetch quotes.
 
@@ -226,7 +226,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def get_timespan_str(self):
+    def _get_timespan_str(self):
         """
             Get timespan string (like '5min' and so on) to query a particular data source based on the timespan specified
             in the datasource instance.
@@ -235,7 +235,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
                 str: timespan string.
         """
 
-    def fetch_info(self):
+    def _fetch_info(self):
         """
             Fetch security info. Default for sources without a dedicated info API.
 
@@ -253,7 +253,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         }
 
     # TODO LOW Kept for possible usage with data sources which have API request limits per time interval
-    def query_and_parse(self, url, timeout=30):
+    def _query_and_parse(self, url, timeout=30):
         """
             Query the data source and parse the response. Used to handle data source API call limit.
 
@@ -277,6 +277,7 @@ class SecData(SecFetcher):
                  last_date=def_last_date,
                  timespan=Timespans.Day,
                  verbosity=False,
+                 db_name=None,
                  **kwargs):
         """
             Initialize the base database class.
@@ -288,6 +289,7 @@ class SecData(SecFetcher):
                 last_date(datetime, str, int): the last date for queries.
                 timespan(Timespans): timespan to use in queries.
                 verbosity(bool): indicates if additional outputs are needed (logging and so on).
+                db_name(str): database name. Defaults to settings.Quotes.db_name.
         """
         # Setting the default values
         self.symbol = symbol
@@ -310,7 +312,7 @@ class SecData(SecFetcher):
 
         # Default setting for the base data source
         self.db_type = settings.Quotes.db_type
-        self.db_name = settings.Quotes.db_name
+        self.db_name = db_name if db_name is not None else settings.Quotes.db_name
 
         self.database = None
         self.conn = None
@@ -398,7 +400,7 @@ class SecData(SecFetcher):
                 for first_ts, last_ts in intervals:
                     self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
-                    self.add_quotes(self.fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+                    self.add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
                 # Mark the fetched range. Runs even when a sub-interval returned zero quotes
                 # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
@@ -651,7 +653,7 @@ class SecData(SecFetcher):
         elif len(rows) == 0:
             # Insert the environment data to the table
             insert_environment = f"""INSERT INTO environment (version)
-                                    VALUES ({DB_VERSION});"""
+                                    VALUES ({_DB_VERSION});"""
 
             try:
                 self.cur.execute(insert_environment)
@@ -667,7 +669,7 @@ class SecData(SecFetcher):
 
             version = self.cur.fetchone()[0]
 
-            if version != DB_VERSION:
+            if version != _DB_VERSION:
                 raise FdataError(f"DB Version is unexpected. Please, delete the database file {self.db_name} or change db patch in settings.py")
 
         # Check if we need to create table 'currency'
@@ -1565,7 +1567,7 @@ class SecData(SecFetcher):
 
             # Fetch data if no data present
             if self._get_data_num('sec_info') == 0:
-                self.add_info(self.fetch_info())
+                self.add_info(self._fetch_info())
 
             # Just time zone is used from info for now
             info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si

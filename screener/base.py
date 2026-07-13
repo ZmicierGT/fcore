@@ -75,15 +75,15 @@ class BaseScr(metaclass=abc.ABCMeta):
             raise ScrError(f"Interval should not be <= 0: {interval}")
         self.__interval = interval
 
+        if timespan not in set(item.value for item in fvalues.Timespans):
+            raise ScrError(f"Unknown timespan: {timespan.value}")
+        self.__timespan = timespan
+
         self.__symbols = []
 
         for symbol in symbols:
             data = ScrData(symbol['Title'], symbol['Source'], self, init_days)
             self.__symbols.append(data)
-
-        if timespan not in set(item.value for item in fvalues.Timespans):
-            raise ScrError(f"Unknown timespan: {timespan.value}")
-        self.__timespan = timespan
 
         # Set counter till the next update
         self.set_datetime()
@@ -176,10 +176,6 @@ class BaseScr(metaclass=abc.ABCMeta):
 
         # Create data source object for each symbol
         for symbol in self.get_symbols():
-            # Connect to the database
-            symbol.get_source().symbol = symbol.get_title()
-            symbol.get_source().timespan = self.get_timespan()
-
             # Check if initial data was initialized
             if self.get_init_status() == False:
                 symbol.get_source().db_connect()
@@ -234,6 +230,9 @@ class ScrData():
         if title == "":
             raise ScrError("Title should not be empty.")
         self.__title = title
+
+        source.symbol = title
+        source.timespan = caller.get_timespan()
 
         self.__source = source
         self.__caller = caller
@@ -346,14 +345,11 @@ class ScrData():
         # Get yesterday to fetch current quotes
         yesterday = datetime.now() - timedelta(days=1)
 
-        self.get_source().get_info()
-
         self.get_source().first_date = yesterday
         self.get_source().last_date = yesterday + timedelta(days=self.get_init_days())
 
         try:
-            self.get_source().add_quotes(self.get_source().fetch_quotes())
-            data = self.get_source().get_quotes()
+            data = self.get_source().get()
         except FdataError as e:
             raise ScrError(e) from e
 

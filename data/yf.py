@@ -369,9 +369,9 @@ class YF(stock.StockData):
         try:
             check_earnings_history = "SELECT name FROM sqlite_master WHERE type='table' AND name='yf_earnings_history';"
 
-            self.cur.execute(check_earnings_history)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_earnings_history)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{check_earnings_history}") from e
 
         if len(rows) == 0:
@@ -396,16 +396,16 @@ class YF(stock.StockData):
                                 );"""
 
             try:
-                self.cur.execute(create_earnings_history)
-            except self.Error as e:
+                self._cur.execute(create_earnings_history)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{create_earnings_history}") from e
 
             # Create index for symbol_id
             create_eh_idx = "CREATE INDEX idx_yf_earnings_history ON yf_earnings_history(symbol_id, time_stamp);"
 
             try:
-                self.cur.execute(create_eh_idx)
-            except self.Error as e:
+                self._cur.execute(create_eh_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
 
     def fetch_earnings_history(self):
@@ -498,8 +498,8 @@ class YF(stock.StockData):
                                             {result['surprisePercent']});"""
 
             try:
-                self.cur.execute(insert_eh)
-            except self.Error as e:
+                self._cur.execute(insert_eh)
+            except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 
         self.commit()

@@ -25,14 +25,34 @@ class DBConn(metaclass=abc.ABCMeta):
 
             Args:
                 db_name(str): database name/path used to establish the connection.
-        """
-        self.conn = None
-        self.cur = None
+            """
+        self._conn = None
+        self._cur = None
 
         # Type of exception for db queries
-        self.Error = None
+        self._error = None
 
-        self.db_name = db_name
+        self._db_name = db_name
+
+    @property
+    def conn(self):
+        """Get the database connection."""
+        return self._conn
+
+    @property
+    def cur(self):
+        """Get the database cursor."""
+        return self._cur
+
+    @property
+    def error(self):
+        """Get the exception type for db queries."""
+        return self._error
+
+    @property
+    def db_name(self):
+        """Get the database name."""
+        return self._db_name
 
     # Abstract method to connect to db
     @abc.abstractmethod
@@ -58,23 +78,23 @@ class SQLiteConn(DBConn):
                 FdatabaseError: Can't connect to a database.
         """
         try:
-            self.conn = sqlite3.connect(self.db_name)
+            self._conn = sqlite3.connect(self._db_name)
         except Error as e:
-            raise FdatabaseError(f"An error has happened when trying to connect to a {self.db_name}: {e}") from e
+            raise FdatabaseError(f"An error has happened when trying to connect to a {self._db_name}: {e}") from e
 
         # Set the row factory
-        self.conn.row_factory = sqlite3.Row
+        self._conn.row_factory = sqlite3.Row
 
-        self.cur = self.conn.cursor()
-        self.Error = Error
+        self._cur = self._conn.cursor()
+        self._error = Error
 
         # Enable foreign keys
         try:
-            self.cur.execute("PRAGMA foreign_keys=on;")
-        except self.Error as e:
+            self._cur.execute("PRAGMA foreign_keys=on;")
+        except self._error as e:
             raise FdatabaseError(f"Can't enable foreign keys: {e}") from e
 
     # Close the connection
     def db_close(self):
-        self.cur.close()
-        self.conn.close()
+        self._cur.close()
+        self._conn.close()

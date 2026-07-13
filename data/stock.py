@@ -96,9 +96,9 @@ class StockData(SecData, StockFetcher):
         try:
             check_report_periods = "SELECT name FROM sqlite_master WHERE type='table' AND name='report_periods';"
 
-            self.cur.execute(check_report_periods)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_report_periods)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{check_report_periods}") from e
 
         if len(rows) == 0:
@@ -108,25 +108,25 @@ class StockData(SecData, StockFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_report_periods)
-            except self.Error as e:
+                self._cur.execute(create_report_periods)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{create_report_periods}") from e
 
             # Create index for sectype title
             create_report_period_title_idx = "CREATE INDEX idx_report_period_title ON report_periods(title);"
 
             try:
-                self.cur.execute(create_report_period_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_report_period_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for report_periods(title): {e}") from e
 
         # Check if report_periods table is empty
         try:
             all_report_periods = "SELECT * FROM report_periods;"
 
-            self.cur.execute(all_report_periods)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_report_periods)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{all_report_periods}") from e
 
         # Check if reports_periods table has data
@@ -144,17 +144,17 @@ class StockData(SecData, StockFetcher):
                                     VALUES {report_periods});"""
 
             try:
-                self.cur.execute(insert_report_periods)
-            except self.Error as e:
+                self._cur.execute(insert_report_periods)
+            except self._error as e:
                 raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
 
         # Check if we need a separate table for cash dividends
         try:
             check_cash_divs = "SELECT name FROM sqlite_master WHERE type='table' AND name='cash_dividends';"
 
-            self.cur.execute(check_cash_divs)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_cash_divs)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{check_cash_divs}") from e
 
         if len(rows) == 0:
@@ -184,25 +184,25 @@ class StockData(SecData, StockFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_cash_divs)
-            except self.Error as e:
+                self._cur.execute(create_cash_divs)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{create_cash_divs}") from e
 
             # Create index for symbol_id
             create_symbol_date_cash_divs_idx = "CREATE INDEX idx_cash_dividends ON cash_dividends(symbol_id, ex_date);"
 
             try:
-                self.cur.execute(create_symbol_date_cash_divs_idx)
-            except self.Error as e:
+                self._cur.execute(create_symbol_date_cash_divs_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
 
         # Check if we need a separate table for stock splits
         try:
             check_stock_splits = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_splits';"
 
-            self.cur.execute(check_stock_splits)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_stock_splits)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{check_stock_splits}") from e
 
         if len(rows) == 0:
@@ -224,25 +224,25 @@ class StockData(SecData, StockFetcher):
                                     );"""
 
             try:
-                self.cur.execute(create_stock_splits)
-            except self.Error as e:
+                self._cur.execute(create_stock_splits)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{create_stock_splits}") from e
 
             # Create index for symbol_id
             create_symbol_date_stock_splits_idx = "CREATE INDEX idx_stock_splits ON stock_splits(symbol_id, split_date);"
 
             try:
-                self.cur.execute(create_symbol_date_stock_splits_idx)
-            except self.Error as e:
+                self._cur.execute(create_symbol_date_stock_splits_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
 
         # Check if we need to create table 'stock_sectors'
         try:
             check_stock_sectors = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_sectors';"
 
-            self.cur.execute(check_stock_sectors)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_stock_sectors)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{check_stock_sectors}") from e
 
         if len(rows) == 0:
@@ -252,25 +252,25 @@ class StockData(SecData, StockFetcher):
                                             );"""
 
             try:
-                self.cur.execute(create_stock_sectors)
-            except self.Error as e:
+                self._cur.execute(create_stock_sectors)
+            except self._error as e:
                 raise FdataError(f"Can't create table stock_sectors: {e}") from e
 
             # Create index for stock_sectors title
             create_stock_sectors_title_idx = "CREATE INDEX idx_stock_sectors_title ON stock_sectors(title);"
 
             try:
-                self.cur.execute(create_stock_sectors_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_stock_sectors_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
 
         # Check if stock_sectors table is empty
         try:
             all_sectors = "SELECT COUNT(*) FROM stock_sectors;"
 
-            self.cur.execute(all_sectors)
-            sectors_length = self.cur.fetchone()[0]
-        except self.Error as e:
+            self._cur.execute(all_sectors)
+            sectors_length = self._cur.fetchone()[0]
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{all_sectors}") from e
 
         if sectors_length != len(Sector):
@@ -287,18 +287,18 @@ class StockData(SecData, StockFetcher):
             insert_sectors = f"INSERT INTO stock_sectors ('title') VALUES {sectors});"
 
             try:
-                self.cur.execute(insert_sectors)
+                self._cur.execute(insert_sectors)
                 self.commit()
-            except self.Error as e:
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{insert_sectors}") from e
 
         # Check if we need to create table 'stock_info'
         try:
             check_stock_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_info';"
 
-            self.cur.execute(check_stock_info)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_stock_info)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{check_stock_info}") from e
 
         if len(rows) == 0:
@@ -325,16 +325,16 @@ class StockData(SecData, StockFetcher):
                                             );"""
 
             try:
-                self.cur.execute(create_stock_info)
-            except self.Error as e:
+                self._cur.execute(create_stock_info)
+            except self._error as e:
                 raise FdataError(f"Can't create table stock_info: {e}") from e
 
             # Create indexes for stock_info
             create_stock_info_idx = "CREATE INDEX idx_stock_info ON stock_info(symbol_id);"
 
             try:
-                self.cur.execute(create_stock_info_idx)
-            except self.Error as e:
+                self._cur.execute(create_stock_info_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
 
             # Create trigger to last modified time on stock_info
@@ -348,8 +348,8 @@ class StockData(SecData, StockFetcher):
                                         END;"""
 
             try:
-                self.cur.execute(create_cap_trigger)
-            except self.Error as e:
+                self._cur.execute(create_cap_trigger)
+            except self._error as e:
                 raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 
     def get_db_dividends(self, last_ts=def_last_date):
@@ -382,9 +382,9 @@ class StockData(SecData, StockFetcher):
                             ORDER BY ex_date;"""
 
         try:
-            self.cur.execute(get_divs)
-            divs = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(get_divs)
+            divs = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
         finally:
             if initially_connected is False:
@@ -423,9 +423,9 @@ class StockData(SecData, StockFetcher):
                             ORDER BY split_date;"""
 
         try:
-            self.cur.execute(get_splits)
-            splits = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(get_splits)
+            splits = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
         finally:
             if initially_connected is False:
@@ -635,7 +635,7 @@ class StockData(SecData, StockFetcher):
             Returns:
                 bool: indicates if update is needed.
         """
-        current = get_dt(self.current_ts())
+        current = get_dt(self._current_ts())
 
         # No data fetched yet
         if modified_ts is None:
@@ -720,8 +720,8 @@ class StockData(SecData, StockFetcher):
                                             {div['amount']});"""
 
             try:
-                self.cur.execute(insert_dividends)
-            except self.Error as e:
+                self._cur.execute(insert_dividends)
+            except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
         self.commit()
@@ -763,8 +763,8 @@ class StockData(SecData, StockFetcher):
 											{split['split_ratio']});"""
 
             try:
-                self.cur.execute(insert_splits)
-            except self.Error as e:
+                self._cur.execute(insert_splits)
+            except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self.commit()
@@ -808,8 +808,8 @@ class StockData(SecData, StockFetcher):
                                         );"""
 
             try:
-                self.cur.execute(insert_info)
-            except self.Error as e:
+                self._cur.execute(insert_info)
+            except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
 
             self.commit()
@@ -877,9 +877,9 @@ class StockData(SecData, StockFetcher):
                                         (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}'))"""
 
                 try:
-                    self.cur.execute(info_query)
-                    row = self.cur.fetchone()[0]
-                except (self.Error, TypeError) as e:
+                    self._cur.execute(info_query)
+                    row = self._cur.fetchone()[0]
+                except (self._error, TypeError) as e:
                     raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
                 finally:
                     if initially_connected is False:

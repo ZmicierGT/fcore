@@ -311,15 +311,15 @@ class SecData(SecFetcher):
         self.source_title = ''
 
         # Default setting for the base data source
-        self.db_type = settings.Quotes.db_type
-        self.db_name = db_name if db_name is not None else settings.Quotes.db_name
+        self._db_type = settings.Quotes.db_type
+        self._db_name = db_name if db_name is not None else settings.Quotes.db_name
 
-        self.database = None
-        self.conn = None
-        self.cur = None
+        self._database = None
+        self._conn = None
+        self._cur = None
 
         # Type of exception for db queries
-        self.Error = None
+        self._error = None
 
         # Flag which indicates if the database is connected
         self._connected = False
@@ -373,7 +373,7 @@ class SecData(SecFetcher):
 
             total_num = self.get_symbol_quotes_num(dt=False)
 
-            last_ts_adj = min(self.last_date_ts, self.current_ts())
+            last_ts_adj = min(self.last_date_ts, self._current_ts())
 
             # We need to check if the earliest and latest dates in database exceed the requested date for specified
             # source and time span. If not, no need to fetch.
@@ -566,14 +566,15 @@ class SecData(SecFetcher):
         """
         logger(self._verbosity, message)
 
-    def get_db_type(self):
+    @property
+    def db_type(self):
         """
             Get used database type.
 
             Returns:
                 DbTypes: database type.
         """
-        return self.db_type
+        return self._db_type
 
     def is_connected(self):
         """Returns True/False if db is connected."""
@@ -590,13 +591,13 @@ class SecData(SecFetcher):
         """
             Connect to the databse.
         """
-        if self.db_type == DbTypes.SQLite:
-            self.database = fdatabase.SQLiteConn(self.db_name)
-            self.database.db_connect()
+        if self._db_type == DbTypes.SQLite:
+            self._database = fdatabase.SQLiteConn(self._db_name)
+            self._database.db_connect()
 
-            self.conn = self.database.conn
-            self.cur = self.database.cur
-            self.Error = self.database.Error
+            self._conn = self._database.conn
+            self._cur = self._database.cur
+            self._error = self._database.error
 
             self._connected = True
 
@@ -615,12 +616,12 @@ class SecData(SecFetcher):
         """
         self.check_if_connected()
 
-        self.database.db_close()
+        self._database.db_close()
         self._connected = False
 
-        self.conn = None
-        self.cur = None
-        self.Error = None
+        self._conn = None
+        self._cur = None
+        self._error = None
 
     def check_database(self):
         """
@@ -636,9 +637,9 @@ class SecData(SecFetcher):
         try:
             check_environment = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
 
-            self.cur.execute(check_environment)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_environment)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{check_environment}") from e
 
         if len(rows) == 0:
@@ -647,51 +648,51 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_environment)
-            except self.Error as e:
+                self._cur.execute(create_environment)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{create_environment}") from e
 
         # Check if environment table is empty
         try:
             all_environment = "SELECT * FROM environment;"
 
-            self.cur.execute(all_environment)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_environment)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{all_environment}") from e
 
         # Check if environment table has data
         if len(rows) > 1:  # This table should have one row only
-            raise FdataError(f"The environment table is broken. Please, delete the database file {self.db_name} or change db patch in settings.py")
+            raise FdataError(f"The environment table is broken. Please, delete the database file {self._db_name} or change db patch in settings.py")
         elif len(rows) == 0:
             # Insert the environment data to the table
             insert_environment = f"""INSERT INTO environment (version)
                                     VALUES ({_DB_VERSION});"""
 
             try:
-                self.cur.execute(insert_environment)
-            except self.Error as e:
+                self._cur.execute(insert_environment)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{insert_environment}") from e
         else:  # One row present in the table so it is expected
             environment_query = "SELECT version FROM environment;"
 
             try:
-                self.cur.execute(environment_query)
-            except self.Error as e:
+                self._cur.execute(environment_query)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{environment_query}") from e
 
-            version = self.cur.fetchone()[0]
+            version = self._cur.fetchone()[0]
 
             if version != _DB_VERSION:
-                raise FdataError(f"DB Version is unexpected. Please, delete the database file {self.db_name} or change db patch in settings.py")
+                raise FdataError(f"DB Version is unexpected. Please, delete the database file {self._db_name} or change db patch in settings.py")
 
         # Check if we need to create table 'currency'
         try:
             check_currency = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
 
-            self.cur.execute(check_currency)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_currency)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{check_currency}") from e
 
         if len(rows) == 0:
@@ -701,24 +702,24 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_currency)
-            except self.Error as e:
+                self._cur.execute(create_currency)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
 
             # Create index for sectype title
             create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
 
             try:
-                self.cur.execute(create_currency_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_currency_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for currency(title): {e}") from e
 
         # Check if currency table is empty
         try:
             all_currency = "SELECT * FROM currency;"
-            self.cur.execute(all_currency)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_currency)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{all_currency}") from e
 
         # Check if currency table has data
@@ -736,17 +737,17 @@ class SecData(SecFetcher):
                                     VALUES {currencies});"""
 
             try:
-                self.cur.execute(insert_currency)
-            except self.Error as e:
+                self._cur.execute(insert_currency)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
 
         # Check if we need to create table 'sectypes'
         try:
             check_sectypes = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
 
-            self.cur.execute(check_sectypes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_sectypes)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{check_sectypes}") from e
 
         if len(rows) == 0:
@@ -756,25 +757,25 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_sectypes)
-            except self.Error as e:
+                self._cur.execute(create_sectypes)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
 
             # Create index for sectype title
             create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
 
             try:
-                self.cur.execute(create_sectype_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_sectype_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for sectypes(title): {e}") from e
 
         # Check if sectypes table is empty
         try:
             all_sectypes = "SELECT * FROM sectypes;"
 
-            self.cur.execute(all_sectypes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_sectypes)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{all_sectypes}") from e
 
         # Check if sectypes table has data
@@ -792,17 +793,17 @@ class SecData(SecFetcher):
                                     VALUES {sec_types});"""
 
             try:
-                self.cur.execute(insert_sectypes)
-            except self.Error as e:
+                self._cur.execute(insert_sectypes)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
 
         # Check if we need to create table 'symbols'
         try:
             check_symbols = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
 
-            self.cur.execute(check_symbols)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_symbols)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{check_symbols}") from e
 
         if len(rows) == 0:
@@ -815,25 +816,25 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_symbols)
-            except self.Error as e:
+                self._cur.execute(create_symbols)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{create_symbols}") from e
 
             # Create index for ticker
             create_ticker_idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
 
             try:
-                self.cur.execute(create_ticker_idx)
-            except self.Error as e:
+                self._cur.execute(create_ticker_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for symbols(ticker): {e}") from e
 
         # Check if we need to create table 'sources'
         try:
             check_sources = "SELECT name FROM sqlite_master WHERE type='table' AND name='sources';"
 
-            self.cur.execute(check_sources)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_sources)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{check_sources}") from e
 
         if len(rows) == 0:
@@ -844,25 +845,25 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_sources)
-            except self.Error as e:
+                self._cur.execute(create_sources)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{create_sources}") from e
 
             # Create index for source title
             create_source_title_idx = "CREATE INDEX idx_source_title ON sources(title);"
 
             try:
-                self.cur.execute(create_source_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_source_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for sources(title): {e}") from e
 
         # Check if we need to create table 'timespans'
         try:
             check_timespans = "SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';"
 
-            self.cur.execute(check_timespans)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_timespans)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{check_timespans}") from e
 
         if len(rows) == 0:
@@ -872,25 +873,25 @@ class SecData(SecFetcher):
                                 );"""
 
             try:
-                self.cur.execute(create_timespans)
-            except self.Error as e:
+                self._cur.execute(create_timespans)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{create_timespans}") from e
 
             # Create index for timespan title
             create_timespan_title_idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
 
             try:
-                self.cur.execute(create_timespan_title_idx)
-            except self.Error as e:
+                self._cur.execute(create_timespan_title_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for timespans(title): {e}") from e
 
         # Check if timespans table is empty
         try:
             all_timespans = "SELECT * FROM timespans;"
 
-            self.cur.execute(all_timespans)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_timespans)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{all_timespans}") from e
 
         # Check if timespans table has data
@@ -908,17 +909,17 @@ class SecData(SecFetcher):
                                     VALUES {timespans});"""
 
             try:
-                self.cur.execute(insert_timespans)
-            except self.Error as e:
+                self._cur.execute(insert_timespans)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
         # Check if we need to create table 'data_entries'
         try:
             check_data_entries = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_entries';"
 
-            self.cur.execute(check_data_entries)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_data_entries)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{check_data_entries}") from e
 
         if len(rows) == 0:
@@ -928,16 +929,16 @@ class SecData(SecFetcher):
                                     );"""
 
             try:
-                self.cur.execute(create_data_entries)
-            except self.Error as e:
+                self._cur.execute(create_data_entries)
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{create_data_entries}") from e
 
             # Create index for data_entries title
             create_data_entries_idx = "CREATE INDEX idx_data_entries_title ON data_entries(title);"
 
             try:
-                self.cur.execute(create_data_entries_idx)
-            except self.Error as e:
+                self._cur.execute(create_data_entries_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create index for data_entries(title): {e}") from e
 
         # Check if data_entries table is populated with the expected entries.
@@ -945,9 +946,9 @@ class SecData(SecFetcher):
         try:
             all_data_entries = "SELECT * FROM data_entries;"
 
-            self.cur.execute(all_data_entries)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(all_data_entries)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{all_data_entries}") from e
 
         expected_entries_num = (len(Timespans) - 2) + len(DataEntries)
@@ -969,17 +970,17 @@ class SecData(SecFetcher):
                                         VALUES {entries});"""
 
             try:
-                self.cur.execute(insert_data_entries)
-            except self.Error as e:
+                self._cur.execute(insert_data_entries)
+            except self._error as e:
                 raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_data_entries}") from e
 
         # Check if we need to create table 'data_intervals'
         try:
             check_data_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_intervals';"
 
-            self.cur.execute(check_data_intervals)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_data_intervals)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{check_data_intervals}") from e
 
         if len(rows) == 0:
@@ -1006,16 +1007,16 @@ class SecData(SecFetcher):
                                             );"""
 
             try:
-                self.cur.execute(create_data_intervals)
-            except self.Error as e:
+                self._cur.execute(create_data_intervals)
+            except self._error as e:
                 raise FdataError(f"Can't create table data_intervals: {e}") from e
 
             # Create indexes for data_intervals
             create_data_intervals_idx = "CREATE INDEX idx_data_intervals ON data_intervals(symbol_id, source_id, data_entry_id);"
 
             try:
-                self.cur.execute(create_data_intervals_idx)
-            except self.Error as e:
+                self._cur.execute(create_data_intervals_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create indexes for data_intervals table: {e}") from e
 
         # TODO Mid need to think of a better way how to combine data from various sources
@@ -1023,9 +1024,9 @@ class SecData(SecFetcher):
         try:
             check_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
 
-            self.cur.execute(check_quotes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_quotes)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{check_quotes}") from e
 
         if len(rows) == 0:
@@ -1057,25 +1058,25 @@ class SecData(SecFetcher):
                             );"""
 
             try:
-                self.cur.execute(create_quotes)
-            except self.Error as e:
+                self._cur.execute(create_quotes)
+            except self._error as e:
                 raise FdataError(f"Can't create table quotes: {e}") from e
 
             # Create indexes for quotes
             create_quotes_idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
 
             try:
-                self.cur.execute(create_quotes_idx)
-            except self.Error as e:
+                self._cur.execute(create_quotes_idx)
+            except self._error as e:
                 raise FdataError(f"Can't create indexes for quotes table: {e}") from e
 
         # Check if we need to create table 'sec_info'
         try:
             check_sec_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='sec_info';"
 
-            self.cur.execute(check_sec_info)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(check_sec_info)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{check_sec_info}") from e
 
         if len(rows) == 0:
@@ -1109,8 +1110,8 @@ class SecData(SecFetcher):
                                             );"""
 
             try:
-                self.cur.execute(create_sec_info)
-            except self.Error as e:
+                self._cur.execute(create_sec_info)
+            except self._error as e:
                 raise FdataError(f"Can't create table sec_info: {e}") from e
 
             # Create indexes for sec_info
@@ -1119,10 +1120,10 @@ class SecData(SecFetcher):
             create_sec_info_idx_currency = "CREATE INDEX idx_sec_info_currency ON sec_info(currency_id);"
 
             try:
-                self.cur.execute(create_sec_info_idx_symbol)
-                self.cur.execute(create_sec_info_idx_sectype)
-                self.cur.execute(create_sec_info_idx_currency)
-            except self.Error as e:
+                self._cur.execute(create_sec_info_idx_symbol)
+                self._cur.execute(create_sec_info_idx_sectype)
+                self._cur.execute(create_sec_info_idx_currency)
+            except self._error as e:
                 raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
             # Create trigger to last modified time on sec_info
@@ -1136,11 +1137,11 @@ class SecData(SecFetcher):
                                         END;"""
 
             try:
-                self.cur.execute(create_cap_trigger)
-            except self.Error as e:
+                self._cur.execute(create_cap_trigger)
+            except self._error as e:
                 raise FdataError(f"Can't create trigger for sec_info: {e}") from e
 
-        self.conn.commit()
+        self._conn.commit()
 
     def check_source(self):
         """
@@ -1157,9 +1158,9 @@ class SecData(SecFetcher):
         try:
             source_exists = f"SELECT title FROM sources WHERE title = '{self.source_title}';"
 
-            self.cur.execute(source_exists)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(source_exists)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{source_exists}") from e
 
         # Check if sources table has the required row
@@ -1177,9 +1178,9 @@ class SecData(SecFetcher):
         insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.source_title}')"
 
         try:
-            self.cur.execute(insert_source)
-            self.conn.commit()
-        except self.Error as e:
+            self._cur.execute(insert_source)
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{insert_source}") from e
 
     ##################################
@@ -1201,9 +1202,9 @@ class SecData(SecFetcher):
         try:
             get_all_symbols = "SELECT ticker, isin, description FROM symbols;"
 
-            self.cur.execute(get_all_symbols)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(get_all_symbols)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{get_all_symbols}") from e
 
         return rows
@@ -1330,9 +1331,9 @@ class SecData(SecFetcher):
                             {num_query};"""
 
         try:
-            self.cur.execute(select_quotes)
-            rows = self.cur.fetchall()
-        except self.Error as e:
+            self._cur.execute(select_quotes)
+            rows = self._cur.fetchall()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
 
         if len(rows) == 0:
@@ -1360,9 +1361,9 @@ class SecData(SecFetcher):
         quotes_num = "SELECT COUNT(*) FROM quotes;"
 
         try:
-            self.cur.execute(quotes_num)
-            result = self.cur.fetchone()[0]
-        except self.Error as e:
+            self._cur.execute(quotes_num)
+            result = self._cur.fetchone()[0]
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{quotes_num}") from e
         finally:
             if initially_connected is False:
@@ -1390,11 +1391,11 @@ class SecData(SecFetcher):
         get_num = f"""SELECT COUNT(*) FROM {table}
                         WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}');"""
         try:
-            self.cur.execute(get_num)
-        except self.Error as e:
+            self._cur.execute(get_num)
+        except self._error as e:
             raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_num}") from e
 
-        result = self.cur.fetchone()[0]
+        result = self._cur.fetchone()[0]
 
         if result is None:
             result = 0
@@ -1443,11 +1444,11 @@ class SecData(SecFetcher):
                         ;"""
 
         try:
-            self.cur.execute(num_query)
-        except self.Error as e:
+            self._cur.execute(num_query)
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{num_query}") from e
 
-        result = self.cur.fetchone()[0]
+        result = self._cur.fetchone()[0]
 
         if result is None:
             result = 0
@@ -1485,11 +1486,11 @@ class SecData(SecFetcher):
                                     AND timespans.title = '{self.timespan}';"""
 
         try:
-            self.cur.execute(timestamp_query)
-        except self.Error as e:
+            self._cur.execute(timestamp_query)
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{timestamp_query}") from e
 
-        return self.cur.fetchone()[0]
+        return self._cur.fetchone()[0]
 
     def _get_interval_ts(self, data_entry, is_max=True):
         """
@@ -1523,11 +1524,11 @@ class SecData(SecFetcher):
                                     AND data_entries.title = '{data_entry}';"""
 
         try:
-            self.cur.execute(timestamp_query)
-        except self.Error as e:
+            self._cur.execute(timestamp_query)
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{timestamp_query}") from e
 
-        return self.cur.fetchone()[0]
+        return self._cur.fetchone()[0]
 
     def get_min_request_ts(self):
         """
@@ -1589,9 +1590,9 @@ class SecData(SecFetcher):
                                 WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}')"""
 
             try:
-                self.cur.execute(info_query)
-                rows = self.cur.fetchall()
-            except self.Error as e:
+                self._cur.execute(info_query)
+                rows = self._cur.fetchall()
+            except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
             finally:
                 if initially_connected is False:
@@ -1682,7 +1683,7 @@ class SecData(SecFetcher):
 
         return timespan != Timespans.Day
 
-    def current_ts(self, adjusted=False, timespan=None):
+    def _current_ts(self, adjusted=False, timespan=None):
         """
             Get the current UTC and time span adjusted timestamp.
 
@@ -1734,8 +1735,8 @@ class SecData(SecFetcher):
         self.check_if_connected()
 
         try:
-            self.conn.commit()
-        except self.Error as e:
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
     @property
@@ -1763,9 +1764,9 @@ class SecData(SecFetcher):
                                 '{self._symbol}');"""
 
         try:
-            self.cur.execute(insert_symbol)
-            self.conn.commit()
-        except self.Error as e:
+            self._cur.execute(insert_symbol)
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{insert_symbol}") from e
 
     def remove_symbol(self):
@@ -1784,9 +1785,9 @@ class SecData(SecFetcher):
         delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}');"
 
         try:
-            self.cur.execute(delete_symbol)
-            self.conn.commit()
-        except self.Error as e:
+            self._cur.execute(delete_symbol)
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{delete_symbol}") from e
 
     def _add_base_quote_data(self, quote):
@@ -1828,11 +1829,11 @@ class SecData(SecFetcher):
                         );"""
 
         try:
-            self.cur.execute(insert_quote)
-        except self.Error as e:
+            self._cur.execute(insert_quote)
+        except self._error as e:
             raise FdataError(f"Can't add quotes data to a table 'quotes': {e}\n\nThe query is\n{insert_quote}") from e
 
-        return self.cur.lastrowid
+        return self._cur.lastrowid
 
     def add_quotes(self, quotes_dict):
         """
@@ -1871,7 +1872,7 @@ class SecData(SecFetcher):
         """
             Update the earliest requested quote (if needed).
         """
-        now = self.current_ts(adjusted=True)
+        now = self._current_ts(adjusted=True)
         ts = min(now, self.last_date_ts)
 
         # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
@@ -1896,9 +1897,9 @@ class SecData(SecFetcher):
                            );"""
 
         try:
-            self.cur.execute(update_fetched)
-            self.conn.commit()
-        except self.Error as e:
+            self._cur.execute(update_fetched)
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{update_fetched}") from e
 
     def update_fetch_marker(self, data_entry):
@@ -1916,7 +1917,7 @@ class SecData(SecFetcher):
         """
         self.check_if_connected()
 
-        now = self.current_ts(adjusted=False)
+        now = self._current_ts(adjusted=False)
         title = data_entry.value
 
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, source_id, data_entry_id, min_ts, max_ts)
@@ -1935,9 +1936,9 @@ class SecData(SecFetcher):
                            );"""
 
         try:
-            self.cur.execute(update_fetched)
-            self.conn.commit()
-        except self.Error as e:
+            self._cur.execute(update_fetched)
+            self._conn.commit()
+        except self._error as e:
             raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
 
     def add_info(self, info):
@@ -1978,8 +1979,8 @@ class SecData(SecFetcher):
                                     );"""
 
         try:
-            self.cur.execute(insert_info)
-        except self.Error as e:
+            self._cur.execute(insert_info)
+        except self._error as e:
             raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
 
         self.commit()

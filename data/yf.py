@@ -35,7 +35,7 @@ class YF(stock.StockData):
         self.source_title = "YF"
 
         self._data = None  # Cached data for splits/divs
-        self._data_symbol = self.symbol  # Symbol of cached data
+        self._data_symbol = self._symbol  # Symbol of cached data
 
         self._stock_info_supported = True
 
@@ -93,13 +93,13 @@ class YF(stock.StockData):
             first_date = first_date - timedelta(days=1)
 
         try:
-            data = yfin.download(self.symbol,
+            data = yfin.download(self._symbol,
                                  interval=self._get_timespan_str(),
                                  start=first_date,
                                  end=last_date,
                                  auto_adjust=False)
         except Exception as e:
-            raise FdataError(f"Can't fetch quotes for {self.symbol} from YF: {e}") from e
+            raise FdataError(f"Can't fetch quotes for {self._symbol} from YF: {e}") from e
 
         length = len(data)
 
@@ -178,7 +178,7 @@ class YF(stock.StockData):
             quotes_data.append(quote_dict)
 
         if len(quotes_data) == 0:
-            raise FdataError(f"No valid quotes obtained for {self.symbol}. The security may be delisted or the symbol is incorrect.")
+            raise FdataError(f"No valid quotes obtained for {self._symbol}. The security may be delisted or the symbol is incorrect.")
 
         return quotes_data
 
@@ -193,7 +193,7 @@ class YF(stock.StockData):
             Returns:
                 ndarray: real time data.
         """
-        data = yfin.download(tickers=self.symbol, period='1d', interval='1m', auto_adjust=False)
+        data = yfin.download(tickers=self._symbol, period='1d', interval='1m', auto_adjust=False)
         row = data.iloc[-1]
         row = row.droplevel(1)
 
@@ -234,11 +234,11 @@ class YF(stock.StockData):
             Returns:
                 data instance for getting dividends/splits.
         """
-        if self._data is None or self.symbol != self._data_symbol:
-            self._data = yfin.Ticker(self.symbol)
+        if self._data is None or self._symbol != self._data_symbol:
+            self._data = yfin.Ticker(self._symbol)
             self._data.history(period='max')
 
-            self._data_symbol = self.symbol
+            self._data_symbol = self._symbol
 
         return self._data
 
@@ -327,7 +327,7 @@ class YF(stock.StockData):
             Returns:
                 dict: dictionary with the info
         """
-        ticker = yfin.Ticker(self.symbol)
+        ticker = yfin.Ticker(self._symbol)
 
         try:
             info = ticker.info
@@ -418,15 +418,15 @@ class YF(stock.StockData):
             Raises:
                 FdataError: network error or no data obtained.
         """
-        ticker = yfin.Ticker(self.symbol)
+        ticker = yfin.Ticker(self._symbol)
 
         try:
             eh = ticker.earnings_history
         except Exception as e:
-            raise FdataError(f"Can't fetch earnings history for {self.symbol} from YF: {e}") from e
+            raise FdataError(f"Can't fetch earnings history for {self._symbol} from YF: {e}") from e
 
         if eh is None or eh.empty:
-            self.log(f"No earnings history data obtained for {self.symbol}")
+            self.log(f"No earnings history data obtained for {self._symbol}")
             return []
 
         eh = eh.reset_index()
@@ -489,7 +489,7 @@ class YF(stock.StockData):
                                         epsDifference,
                                         surprisePercent)
                                     VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                             {result['time_stamp']},
                                             {result['epsActual']},

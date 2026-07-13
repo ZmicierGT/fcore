@@ -231,7 +231,6 @@ class ScrData():
             raise ScrError("Title should not be empty.")
         self.__title = title
 
-        source.symbol = title
         source.timespan = caller.get_timespan()
 
         self.__source = source

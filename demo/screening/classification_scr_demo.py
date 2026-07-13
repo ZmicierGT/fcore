@@ -88,8 +88,8 @@ if __name__ == "__main__":
     # Keep in-memory DB connected while screening
     fcdb = sqlite3.connect(db_name)
 
-    source_btc = YF(db_name=db_name)
-    source_ltc = YF(db_name=db_name)
+    source_btc = YF(symbol='BTC-USD', db_name=db_name)
+    source_ltc = YF(symbol='LTC-USD', db_name=db_name)
 
     # Despite having a model trained using stock quotes, lets use crypto to make estimations as crypto quotes change 24/7
     btc = {'Title': 'BTC-USD', 'Source': source_btc}

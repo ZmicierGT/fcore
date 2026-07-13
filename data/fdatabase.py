@@ -19,17 +19,20 @@ class DBConn(metaclass=abc.ABCMeta):
     """
         Class to represent a database connection.
     """
-    def __init__(self, source):
+    def __init__(self, db_name):
         """
             Initialize the database connection.
 
             Args:
-                source(SecData): data source to initialize the database connection.
+                db_name(str): database name/path used to establish the connection.
         """
         self.conn = None
         self.cur = None
 
-        self.source = source
+        # Type of exception for db queries
+        self.Error = None
+
+        self.db_name = db_name
 
     # Abstract method to connect to db
     @abc.abstractmethod
@@ -55,23 +58,23 @@ class SQLiteConn(DBConn):
                 FdatabaseError: Can't connect to a database.
         """
         try:
-            self.source.conn = sqlite3.connect(self.source.db_name)
+            self.conn = sqlite3.connect(self.db_name)
         except Error as e:
-            raise FdatabaseError(f"An error has happened when trying to connect to a {self.source.db_name}: {e}") from e
+            raise FdatabaseError(f"An error has happened when trying to connect to a {self.db_name}: {e}") from e
 
         # Set the row factory
-        self.source.conn.row_factory = sqlite3.Row
+        self.conn.row_factory = sqlite3.Row
 
-        self.source.cur = self.source.conn.cursor()
-        self.source.Error = Error
+        self.cur = self.conn.cursor()
+        self.Error = Error
 
         # Enable foreign keys
         try:
-            self.source.cur.execute("PRAGMA foreign_keys=on;")
-        except self.source.Error as e:
+            self.cur.execute("PRAGMA foreign_keys=on;")
+        except self.Error as e:
             raise FdatabaseError(f"Can't enable foreign keys: {e}") from e
 
     # Close the connection
     def db_close(self):
-        self.source.cur.close()
-        self.source.conn.close()
+        self.cur.close()
+        self.conn.close()

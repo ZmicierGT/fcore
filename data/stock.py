@@ -375,7 +375,7 @@ class StockData(SecData, StockFetcher):
                                 (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
                                 (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
                             FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
-                            WHERE s.ticker = '{self.symbol}'
+                            WHERE s.ticker = '{self._symbol}'
                             AND ex_date >= {self.first_date_ts}
                             AND ex_date <= {last_ts}
                             AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
@@ -416,7 +416,7 @@ class StockData(SecData, StockFetcher):
 	                        split_ratio,
 	                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
                         FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
-                        WHERE s.ticker = '{self.symbol}'
+                        WHERE s.ticker = '{self._symbol}'
                             AND split_date >= {self.first_date_ts}
                             AND split_date <= {last_ts}
                             AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
@@ -435,7 +435,7 @@ class StockData(SecData, StockFetcher):
             splits = get_labelled_ndarray(splits)
         else:
             splits = None
-            self.log(f"No split data for {self.symbol}")
+            self.log(f"No split data for {self._symbol}")
 
         return splits
 
@@ -556,7 +556,7 @@ class StockData(SecData, StockFetcher):
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
         else:
-            self.log(f"Warning: No dividend data for {self.symbol} in the requested period.")
+            self.log(f"Warning: No dividend data for {self._symbol} in the requested period.")
 
         # Adjust the price to stock splits
         if splits is not None:
@@ -578,7 +578,7 @@ class StockData(SecData, StockFetcher):
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass
         else:
-            self.log(f"Warning: No split data for {self.symbol} in the requested period.")
+            self.log(f"Warning: No split data for {self._symbol} in the requested period.")
 
         last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
 
@@ -710,7 +710,7 @@ class StockData(SecData, StockFetcher):
 										payment_date,
                                         amount)
 									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                             (SELECT currency_id FROM currency WHERE title = '{div['currency']}'),
 											{div['decl_ts']},
@@ -757,7 +757,7 @@ class StockData(SecData, StockFetcher):
 										split_date,
                                         split_ratio)
 									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
 											{split['ts']},
 											{split['split_ratio']});"""
@@ -802,7 +802,7 @@ class StockData(SecData, StockFetcher):
                                         source_id,
                                         stock_sector_id)
                                     VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                             (SELECT stock_sector_id FROM stock_sectors WHERE title = '{sector}')
                                         );"""
@@ -874,7 +874,7 @@ class StockData(SecData, StockFetcher):
                 # Just sector title is used from info for now
                 info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
                                     (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
-                                        (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}'))"""
+                                        (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}'))"""
 
                 try:
                     self.cur.execute(info_query)
@@ -914,7 +914,7 @@ class StockData(SecData, StockFetcher):
         """
         # Feature not configured for this data source. Skip gracefully.
         if data_entry is None:
-            self.log(f"Data entry is not configured. Skipping fetch for {self.symbol}.")
+            self.log(f"Data entry is not configured. Skipping fetch for {self._symbol}.")
             return 0
 
         initially_connected = self.is_connected()

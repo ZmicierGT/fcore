@@ -24,8 +24,8 @@ if __name__ == "__main__":
     # Keep in-memory DB connected while screening
     fcdb = sqlite3.connect(db_name)
 
-    source_btc = yf.YF(db_name=db_name)
-    source_ltc = yf.YF(db_name=db_name)
+    source_btc = yf.YF(symbol='BTC-USD', db_name=db_name)
+    source_ltc = yf.YF(symbol='LTC-USD', db_name=db_name)
 
     btc = {'Title': 'BTC-USD', 'Source': source_btc}
     ltc = {'Title': 'LTC-USD', 'Source': source_ltc}

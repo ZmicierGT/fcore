@@ -292,7 +292,7 @@ class SecData(SecFetcher):
                 db_name(str): database name. Defaults to settings.Quotes.db_name.
         """
         # Setting the default values
-        self.symbol = symbol
+        self._symbol = symbol
 
         # Underlying variables for getters/setter
         self._first_date = None
@@ -324,17 +324,17 @@ class SecData(SecFetcher):
         # Flag which indicates if the database is connected
         self._connected = False
 
+        # Indicates if the database schema and source have been initialized for this instance
+        self._db_initialized = False
+
         self._verbosity = verbosity
 
         self._time_zone = None  # Cached time zone to avoid too many db queries
         self._sec_type = None  # Cached security type to avoid too many db queries
         self._currency = None  # Cached security type to avoid too many db queries
 
-        # Underlying variable for getter/setter (merged from ReadWriteData)
-        self._update = None
-
-        # Indicates if existed quotes should be updated
-        self.update = update
+        # Underlying variable for the update getter (merged from ReadWriteData)
+        self._update = 'REPLACE' if update else 'IGNORE'
 
         # Cached security info
         self._info = None
@@ -398,7 +398,7 @@ class SecData(SecFetcher):
                     intervals.append([self.first_date_ts, last_ts_adj])
 
                 for first_ts, last_ts in intervals:
-                    self.log(f"Fetching contiguous data for {self.symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+                    self.log(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
                     self.add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
@@ -415,7 +415,7 @@ class SecData(SecFetcher):
 
         # TODO MID Think if we should return None here without raising an exception
         if rows is None:
-            raise FdataError(f"No quotes for ticker {self.symbol}")
+            raise FdataError(f"No quotes for ticker {self._symbol}")
 
         return rows
 
@@ -432,6 +432,7 @@ class SecData(SecFetcher):
         """
         return self._first_date
 
+    # TODO MID Do we need these setters or dates should be only set on instance creation?
     @first_date.setter
     def first_date(self, value):
         """
@@ -590,15 +591,23 @@ class SecData(SecFetcher):
             Connect to the databse.
         """
         if self.db_type == DbTypes.SQLite:
-            self.database = fdatabase.SQLiteConn(self)
+            self.database = fdatabase.SQLiteConn(self.db_name)
             self.database.db_connect()
+
+            self.conn = self.database.conn
+            self.cur = self.database.cur
+            self.Error = self.database.Error
+
             self._connected = True
 
-            # Check the database integrity
-            self.check_database()
+            # Check the database integrity and register the source only once per instance
+            if self._db_initialized is False:
+                self.check_database()
 
-            if self.check_source() == False:
-                self.add_source()
+                if self.check_source() == False:
+                    self.add_source()
+
+                self._db_initialized = True
 
     def db_close(self):
         """
@@ -608,6 +617,10 @@ class SecData(SecFetcher):
 
         self.database.db_close()
         self._connected = False
+
+        self.conn = None
+        self.cur = None
+        self.Error = None
 
     def check_database(self):
         """
@@ -1286,7 +1299,7 @@ class SecData(SecFetcher):
         #                     INNER JOIN sectypes ON quotes.sec_type_id = sectypes.sec_type_id
         #                     INNER JOIN currency ON quotes.currency_id = currency.currency_id
         #                     {additional_joins}
-        #                     WHERE symbols.ticker = '{self.symbol}'
+        #                     WHERE symbols.ticker = '{self._symbol}'
         #                     {timespan_query}
         #                     {sectype_query}
         #                     {currency_query}
@@ -1308,7 +1321,7 @@ class SecData(SecFetcher):
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             {additional_joins}
-                            WHERE symbols.ticker = '{self.symbol}'
+                            WHERE symbols.ticker = '{self._symbol}'
                             {timespan_query}
                             AND time_stamp >= {self.first_date_ts}
                             AND time_stamp <= {last_date_ts}
@@ -1375,7 +1388,7 @@ class SecData(SecFetcher):
         self.check_if_connected()
 
         get_num = f"""SELECT COUNT(*) FROM {table}
-                        WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}');"""
+                        WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}');"""
         try:
             self.cur.execute(get_num)
         except self.Error as e:
@@ -1423,7 +1436,7 @@ class SecData(SecFetcher):
             dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {last_date_ts}"
 
         num_query = f"""SELECT COUNT(*) FROM quotes
-                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self.symbol}')
+                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}')
                             {dt_str}
                             AND time_span_id = (SELECT time_span_id FROM timespans where title = '{self.timespan}')
                             AND source_id = (SELECT source_id FROM sources where title = '{self.source_title}')
@@ -1467,7 +1480,7 @@ class SecData(SecFetcher):
                                     INNER JOIN symbols ON {table}.symbol_id = symbols.symbol_id
                                     INNER JOIN sources on {table}.source_id = sources.source_id
                                     INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id
-                                    WHERE symbols.ticker = '{self.symbol}'
+                                    WHERE symbols.ticker = '{self._symbol}'
                                     AND sources.title = '{self.source_title}'
                                     AND timespans.title = '{self.timespan}';"""
 
@@ -1505,7 +1518,7 @@ class SecData(SecFetcher):
                                     INNER JOIN symbols ON di.symbol_id = symbols.symbol_id
                                     INNER JOIN sources on di.source_id = sources.source_id
                                     INNER JOIN data_entries on di.data_entry_id = data_entries.data_entry_id
-                                    WHERE symbols.ticker = '{self.symbol}'
+                                    WHERE symbols.ticker = '{self._symbol}'
                                     AND sources.title = '{self.source_title}'
                                     AND data_entries.title = '{data_entry}';"""
 
@@ -1573,7 +1586,7 @@ class SecData(SecFetcher):
             info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
                                 INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
                                 INNER JOIN currency c ON si.currency_id = c.currency_id
-                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self.symbol}')"""
+                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}')"""
 
             try:
                 self.cur.execute(info_query)
@@ -1588,7 +1601,7 @@ class SecData(SecFetcher):
 
         # TODO MID Think if exception here is rational or better to return the corresponding dict (with NotExist sec_type)
         if self._info['sec_type'] == SecType.NotExist.value:
-            raise FdataError(f"Ticker {self.symbol} is likely delisted or incorrect as it is marked as not-existent.")
+            raise FdataError(f"Ticker {self._symbol} is likely delisted or incorrect as it is marked as not-existent.")
 
         return {'time_zone': self._info['time_zone'], 'sec_type': self._info['sec_type'], 'currency': self._info['curr']}
 
@@ -1737,16 +1750,6 @@ class SecData(SecFetcher):
         else:
             raise FdataError("Unknown update value.")
 
-    @update.setter
-    def update(self, value):
-        """
-            Setter fo update.
-        """
-        if value is False:
-            self._update = 'IGNORE'
-        else:
-            self._update = 'REPLACE'
-
     def add_symbol(self):
         """
             Add new symbol to the database.
@@ -1757,7 +1760,7 @@ class SecData(SecFetcher):
         self.check_if_connected()
 
         insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker) VALUES (
-                                '{self.symbol}');"""
+                                '{self._symbol}');"""
 
         try:
             self.cur.execute(insert_symbol)
@@ -1778,7 +1781,7 @@ class SecData(SecFetcher):
 
         # Cascade delete will remove the corresponding entries in tables related to specific security data
         # like fundamentals for stock
-        delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}');"
+        delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}');"
 
         try:
             self.cur.execute(delete_symbol)
@@ -1812,7 +1815,7 @@ class SecData(SecFetcher):
                                                                     volume,
                                                                     transactions)
                             VALUES (
-                            (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                             (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                             ({quote['ts']}),
                             (SELECT time_span_id FROM timespans WHERE title = '{self.timespan.value}' COLLATE NOCASE),
@@ -1873,20 +1876,20 @@ class SecData(SecFetcher):
 
         # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
-                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                       (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}'),
                                       (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                       (SELECT ifnull(
                                                       (SELECT min(min_ts, {self.first_date_ts})
                                                       FROM data_intervals
-                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
                                       ), {self.first_date_ts})),
                                       (SELECT ifnull(
                                                       (SELECT max(max_ts, {ts})
                                                        FROM data_intervals
-                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
                                                        AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                                                        AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
                                                ), {ts}))
@@ -1918,14 +1921,14 @@ class SecData(SecFetcher):
 
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, source_id, data_entry_id, min_ts, max_ts)
                               VALUES (
-                                    (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                    (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                     (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                     (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
                                     NULL,
                                     (SELECT ifnull(
                                                     (SELECT max(max_ts, {now})
                                                      FROM data_intervals
-                                                     WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}')
+                                                     WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
                                             ), {now}))
@@ -1967,7 +1970,7 @@ class SecData(SecFetcher):
                                     sec_type_id,
                                     currency_id)
                                 VALUES (
-                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self.symbol}'),
+                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                         (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
                                         ('{time_zone}'),
                                         (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),

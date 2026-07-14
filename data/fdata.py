@@ -400,7 +400,7 @@ class SecData(SecFetcher):
                 for first_ts, last_ts in intervals:
                     self.log(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
-                    self.add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+                    self._add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
                 # Mark the fetched range. Runs even when a sub-interval returned zero quotes
                 # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
@@ -606,7 +606,7 @@ class SecData(SecFetcher):
                 self.check_database()
 
                 if self.check_source() == False:
-                    self.add_source()
+                    self._add_source()
 
                 self._db_initialized = True
 
@@ -1166,7 +1166,7 @@ class SecData(SecFetcher):
         # Check if sources table has the required row
         return len(rows)
 
-    def add_source(self):
+    def _add_source(self):
         """
             Add source to the database.
 
@@ -1581,7 +1581,7 @@ class SecData(SecFetcher):
 
             # Fetch data if no data present
             if self._get_data_num('sec_info') == 0:
-                self.add_info(self._fetch_info())
+                self._add_info(self._fetch_info())
 
             # Just time zone is used from info for now
             info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
@@ -1751,7 +1751,7 @@ class SecData(SecFetcher):
         else:
             raise FdataError("Unknown update value.")
 
-    def add_symbol(self):
+    def _add_symbol(self):
         """
             Add new symbol to the database.
 
@@ -1835,7 +1835,7 @@ class SecData(SecFetcher):
 
         return self._cur.lastrowid
 
-    def add_quotes(self, quotes_dict):
+    def _add_quotes(self, quotes_dict):
         """
             Add quotes to the database.
 
@@ -1852,7 +1852,7 @@ class SecData(SecFetcher):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
         num_before = self.get_quotes_num()
 
@@ -1941,7 +1941,7 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
 
-    def add_info(self, info):
+    def _add_info(self, info):
         """
             Add security info to the database.
 
@@ -1955,7 +1955,7 @@ class SecData(SecFetcher):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
         try:
             time_zone = info['fc_time_zone']

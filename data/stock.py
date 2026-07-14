@@ -679,7 +679,7 @@ class StockData(SecData, StockFetcher):
         """
         return self._get_data_num('stock_splits')
 
-    def add_dividends(self, divs):
+    def _add_dividends(self, divs):
         """
             Add cash dividend entries to the database.
 
@@ -696,7 +696,7 @@ class StockData(SecData, StockFetcher):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
         num_before = self.get_dividends_num()
 
@@ -730,7 +730,7 @@ class StockData(SecData, StockFetcher):
 
         return(num_before, self.get_dividends_num())
 
-    def add_splits(self, splits):
+    def _add_splits(self, splits):
         """
             Add split entries to the database.
 
@@ -747,7 +747,7 @@ class StockData(SecData, StockFetcher):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
         num_before = self.get_split_num()
 
@@ -773,7 +773,7 @@ class StockData(SecData, StockFetcher):
 
         return(num_before, self.get_split_num())
 
-    def add_info(self, info):
+    def _add_info(self, info):
         """
             Add stock info to the database.
 
@@ -787,9 +787,9 @@ class StockData(SecData, StockFetcher):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
-        super().add_info(info)
+        super()._add_info(info)
 
         if self._stock_info_supported and info['fc_sec_type'] == SecType.Stock:
             try:
@@ -869,7 +869,7 @@ class StockData(SecData, StockFetcher):
                     self.db_connect()
 
                 if self._get_data_num('stock_info') == 0:
-                    self.add_info(self._fetch_info())
+                    self._add_info(self._fetch_info())
 
                 # Just sector title is used from info for now
                 info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
@@ -947,7 +947,7 @@ class StockData(SecData, StockFetcher):
         """
         return self._fetch_data_if_none(data_entry=self._income_statement_entry,
                                         num_method=self.get_income_statement_num,
-                                        add_method=self.add_income_statement,
+                                        add_method=self._add_income_statement,
                                         fetch_method=self._fetch_income_statement)
 
     def get_balance_sheet(self):
@@ -960,7 +960,7 @@ class StockData(SecData, StockFetcher):
         """
         return self._fetch_data_if_none(data_entry=self._balance_sheet_entry,
                                         num_method=self.get_balance_sheet_num,
-                                        add_method=self.add_balance_sheet,
+                                        add_method=self._add_balance_sheet,
                                         fetch_method=self._fetch_balance_sheet)
 
     def get_cash_flow(self):
@@ -973,7 +973,7 @@ class StockData(SecData, StockFetcher):
         """
         return self._fetch_data_if_none(data_entry=self._cash_flow_entry,
                                         num_method=self.get_cash_flow_num,
-                                        add_method=self.add_cash_flow,
+                                        add_method=self._add_cash_flow,
                                         fetch_method=self._fetch_cash_flow)
 
     def get_dividends(self):
@@ -986,7 +986,7 @@ class StockData(SecData, StockFetcher):
         """
         return self._fetch_data_if_none(data_entry=DataEntries.Dividends,
                                         num_method=self.get_dividends_num,
-                                        add_method=self.add_dividends,
+                                        add_method=self._add_dividends,
                                         fetch_method=self._fetch_dividends)
 
     def get_splits(self):
@@ -999,17 +999,17 @@ class StockData(SecData, StockFetcher):
         """
         return self._fetch_data_if_none(data_entry=DataEntries.Splits,
                                         num_method=self.get_split_num,
-                                        add_method=self.add_splits,
+                                        add_method=self._add_splits,
                                         fetch_method=self._fetch_splits)
     @abc.abstractmethod
-    def add_income_statement(self, reports):
+    def _add_income_statement(self, reports):
         """Add income statement report."""
 
     @abc.abstractmethod
-    def add_balance_sheet(self, reports):
+    def _add_balance_sheet(self, reports):
         """Add balance sheet report."""
 
     @abc.abstractmethod
-    def add_cash_flow(self, reports):
+    def _add_cash_flow(self, reports):
         """Add cash flow report."""
 

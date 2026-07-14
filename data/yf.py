@@ -227,7 +227,7 @@ class YF(stock.StockData):
 
         return result
 
-    def get_cached_data(self):
+    def _get_cached_data(self):
         """
             Gets the cached data for dividends/splits.
 
@@ -249,7 +249,7 @@ class YF(stock.StockData):
             Return:
                 DataFrame: splits data
         """
-        data = self.get_cached_data()
+        data = self._get_cached_data()
         splits = data.splits
 
         df_result = pd.DataFrame()
@@ -276,7 +276,7 @@ class YF(stock.StockData):
             Returns:
                 DataFrame: cash dividend data.
         """
-        data = self.get_cached_data()
+        data = self._get_cached_data()
         divs = data.dividends
         splits = self.__fetch_splits()
 
@@ -408,7 +408,7 @@ class YF(stock.StockData):
             except self._error as e:
                 raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
 
-    def fetch_earnings_history(self):
+    def _fetch_earnings_history(self):
         """
             Fetch the earnings history data.
 
@@ -459,7 +459,7 @@ class YF(stock.StockData):
 
         return eh_data
 
-    def add_earnings_history(self, results):
+    def _add_earnings_history(self, results):
         """
             Add earnings history data to the database.
 
@@ -476,7 +476,7 @@ class YF(stock.StockData):
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
-            self.add_symbol()
+            self._add_symbol()
 
         num_before = self.get_earnings_history_num()
 
@@ -531,8 +531,8 @@ class YF(stock.StockData):
 
         return self._fetch_data_if_none(data_entry=DataEntries.EarningsHistory,
                                         num_method=self.get_earnings_history_num,
-                                        add_method=self.add_earnings_history,
-                                        fetch_method=self.fetch_earnings_history)
+                                        add_method=self._add_earnings_history,
+                                        fetch_method=self._fetch_earnings_history)
 
     def _fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")
@@ -543,11 +543,11 @@ class YF(stock.StockData):
     def _fetch_cash_flow(self):
         raise FdataError(f"Cash flow data is not supported (yet) for the source {type(self).__name__}")
 
-    def add_income_statement(self, reports):
+    def _add_income_statement(self, reports):
         raise FdataError(f"Adding income statement data is not supported (yet) for the source {type(self).__name__}")
 
-    def add_balance_sheet(self, reports):
+    def _add_balance_sheet(self, reports):
         raise FdataError(f"Adding balance sheet data is not supported (yet) for the source {type(self).__name__}")
 
-    def add_cash_flow(self, reports):
+    def _add_cash_flow(self, reports):
         raise FdataError(f"Adding cash flow data is not supported (yet) for the source {type(self).__name__}")

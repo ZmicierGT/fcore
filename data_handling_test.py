@@ -80,14 +80,14 @@ def test_request_ts(source):
     div_data = source._fetch_dividends()  # Split data may be fetched as it is needed to reverse-adjust the dividends
     split_data = source._fetch_splits()
 
-    before, after = source.add_dividends(div_data)
+    before, after = source._add_dividends(div_data)
 
     print(f"Divs before {before}, divs after {after}.")
 
     if before >= after:
         failure("Number of divs did not increase", source)
 
-    before, after = source.add_splits(split_data)
+    before, after = source._add_splits(split_data)
 
     print(f"Splits before {before}, splits after {after}.")
 
@@ -564,7 +564,7 @@ if __name__ == "__main__":
     source_eh = ticker.earnings_history
 
     # Reset index so 'quarter' becomes a column. Calculate the quarter timestamp (UTC midnight) the
-    # same way it is stored in the database by fetch_earnings_history() (see data/yf.py).
+    # same way it is stored in the database by _fetch_earnings_history() (see data/yf.py).
     source_eh = source_eh.reset_index()
     source_eh['ts'] = source_eh['quarter'].apply(
         lambda q: int(calendar.timegm(

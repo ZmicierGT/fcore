@@ -32,7 +32,7 @@ def failure(text, source):
             source(ReadOnlyData): data source instance
     """
     print(colored(text, "red"))
-    source.db_close()
+    source._db_close()
     sys.exit()
 
 def test_request_ts(source):
@@ -69,7 +69,7 @@ def test_request_ts(source):
     if quotes_num != 0:
         failure("There should be no quotes in the db at the beginning.", source)
 
-    rows = source.get_quotes_only()
+    rows = source._get_quotes_only()
 
     min_req = source.get_min_request_ts()
     max_req = source.get_max_request_ts()
@@ -195,7 +195,7 @@ def test_request_ts(source):
     now = datetime.now(tz.UTC)
 
     if source.is_intraday() is False:
-        now = source.set_eod_time(now)
+        now = source._set_eod_time(now)
 
     ts = int(now.timestamp())
 
@@ -230,7 +230,7 @@ def test_request_intervals(source, timespans):
 
         source.timespan = value
 
-        quotes = source.get_quotes_only()
+        quotes = source._get_quotes_only()
 
         utc_now = get_dt(datetime.now(tz.UTC))
 
@@ -261,7 +261,7 @@ def test_request_intervals(source, timespans):
 
     source.timespan = Timespans.Day
 
-    quotes = source.get_quotes_only()
+    quotes = source._get_quotes_only()
 
     utc_now = get_dt(datetime.now(tz.UTC))
 
@@ -390,7 +390,7 @@ def test_get_delisted():
     print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
 
     yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi.db_connect()
+    yfi._db_connect()
 
     # First invocation: empty DB. fetch_info() runs, detects NotExist, persists
     # sec_info; get_info() raises (fdata.py:1271) before any quote fetch.
@@ -443,7 +443,7 @@ def test_get_delisted():
 
     print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
 
-    yfi.db_close()
+    yfi._db_close()
 
 def test_get_existing():
     """
@@ -455,7 +455,7 @@ def test_get_existing():
     print(colored("\nTesting get() for an existing symbol (IBM):\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi.db_connect()
+    yfi._db_connect()
 
     # First invocation: empty DB.
     print("First invocation (empty DB): expecting fetch + rows ...")
@@ -494,7 +494,7 @@ def test_get_existing():
 
     print(colored("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged", "green"))
 
-    yfi.db_close()
+    yfi._db_close()
 
 def test_get_empty_range_valid_symbol():
     """
@@ -506,7 +506,7 @@ def test_get_empty_range_valid_symbol():
     print(colored("\nTesting get() for a valid symbol with empty range (INFQ):\n", "yellow"))
 
     yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True, db_name=":memory:")
-    yfi.db_connect()
+    yfi._db_connect()
 
     # First invocation: empty DB, valid symbol, range before first quote.
     # Accept either raise (current YF empty-download contract) or None return —
@@ -528,13 +528,13 @@ def test_get_empty_range_valid_symbol():
 
     print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
 
-    yfi.db_close()
+    yfi._db_close()
 
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi.db_connect()
+    yfi._db_connect()
 
     test_request_ts(yfi)
 
@@ -550,14 +550,14 @@ if __name__ == "__main__":
 
     test_request_intervals(yfi, timespans_yf)
 
-    yfi.db_close()
+    yfi._db_close()
 
     print(colored("ALL INTERVAL TESTS PASSED for YF data source!", "green"))
 
     print(colored("\nTesting subqueries support:\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', verbosity=True, db_name=":memory:")
-    yfi.db_connect()
+    yfi._db_connect()
 
     # At first, obtain the raw earnings history data directly.
     ticker = yfin.Ticker('IBM')
@@ -577,7 +577,7 @@ if __name__ == "__main__":
 
     test_subqueries(yfi, source_eh)
 
-    yfi.db_close()
+    yfi._db_close()
 
     # get() behavior for delisted vs. existing symbols (fresh in-memory DBs)
     test_get_delisted()

@@ -120,13 +120,13 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
             # Calculate time to sleep and sleep if needed
             sleep_time = max(0, 60 - (perf_counter() - first_query_time))
 
-            self.log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+            self._log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
 
             sleep(sleep_time)
 
             self._queries = []
 
-        self.log(f"Fetching URL: {url}")
+        self._log(f"Fetching URL: {url}")
         headers = {'Cache-Control': 'no-cache'}
 
         # Perform the query
@@ -174,8 +174,8 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         # Convert dates to the symbol's time zome for the request. In DB timestamps are always UTC adjusted,
         # but data source usually expect dates in the timezone of the exchange. When we convert dates
         # consider that the current time is noon to avoid excessive dates shift if time zone difference is not big.
-        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
-        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.get_timezone()).replace(tzinfo=None)
+        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self._get_timezone()).replace(tzinfo=None)
+        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self._get_timezone()).replace(tzinfo=None)
 
         return (first_datetime, last_datetime)
 
@@ -305,6 +305,7 @@ class SecData(SecFetcher):
         if self.first_date > self.last_date:
             raise FdataError(f"First date can't be bigger than the last date: {self.first_date} > {self.last_date}")
 
+        # TODO High should be made protected (with a public getter) when screeners are revamped
         self.timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources
@@ -363,7 +364,7 @@ class SecData(SecFetcher):
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
-            self.db_connect()
+            self._db_connect()
 
         try:
             # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
@@ -398,7 +399,7 @@ class SecData(SecFetcher):
                     intervals.append([self.first_date_ts, last_ts_adj])
 
                 for first_ts, last_ts in intervals:
-                    self.log(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+                    self._log(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
                     self._add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
@@ -406,12 +407,12 @@ class SecData(SecFetcher):
                 # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
                 # known-empty ranges. A fetch failure (e.g. connection error) raises before
                 # reaching here, so intervals are not updated and the range is retried next time.
-                self.update_quote_intervals()
+                self._update_quote_intervals()
 
             rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
-                self.db_close()
+                self._db_close()
 
         # TODO MID Think if we should return None here without raising an exception
         if rows is None:
@@ -527,7 +528,7 @@ class SecData(SecFetcher):
         """
         return self.last_date.strftime('%Y-%m-%d')
 
-    def set_eod_time(self, dt):
+    def _set_eod_time(self, dt):
         """
             Set the time to 23:59:59 which is used in EOD quotes.
 
@@ -541,23 +542,23 @@ class SecData(SecFetcher):
         return dt.replace(hour=23, minute=59, second=59, tzinfo=tz.UTC)
 
     # TODO LOW It is not used now. Is there a sence to keep it?
-    def first_date_set_eod(self):
+    def _first_date_set_eod(self):
         """
             Set the first date's h/m/s/ to EOD (23:59:59)
         """
-        self._first_date = self.set_eod_time(self._first_date)
+        self._first_date = self._set_eod_time(self._first_date)
 
-    def last_date_set_eod(self):
+    def _last_date_set_eod(self):
         """
             Set the last date's h/m/s/ to EOD (23:59:59)
         """
-        self._last_date = self.set_eod_time(self._last_date)
+        self._last_date = self._set_eod_time(self._last_date)
 
     ##############################################
     # End of datetime handling methods/properties.
     ##############################################
 
-    def log(self, message):
+    def _log(self, message):
         """
             Display a logging message depending on verbotisy flag.
 
@@ -580,14 +581,16 @@ class SecData(SecFetcher):
         """Returns True/False if db is connected."""
         return self._connected
 
-    def check_if_connected(self):
+    def _check_if_connected(self):
         """
             Raise an exception if db is not connected.
         """
         if self.is_connected() is False:
             raise FdataError("The database is not connected. Invoke db_connect() at first.")
 
-    def db_connect(self):
+    # TODO HIGH We may switch auto connect logic to use a decorator:
+    # Introduce a small private @_auto_connect decorator in fdata.py and apply it to ALL public DB-reading
+    def _db_connect(self):
         """
             Connect to the databse.
         """
@@ -603,18 +606,18 @@ class SecData(SecFetcher):
 
             # Check the database integrity and register the source only once per instance
             if self._db_initialized is False:
-                self.check_database()
+                self._check_database()
 
                 if self.check_source() == False:
                     self._add_source()
 
                 self._db_initialized = True
 
-    def db_close(self):
+    def _db_close(self):
         """
             Close the database connection.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         self._database.db_close()
         self._connected = False
@@ -623,7 +626,7 @@ class SecData(SecFetcher):
         self._cur = None
         self._error = None
 
-    def check_database(self):
+    def _check_database(self):
         """
             Database create/integrity check method.
             Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
@@ -631,7 +634,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         # Check if we need to create table 'environment'
         try:
@@ -1153,7 +1156,10 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
 
         try:
             source_exists = f"SELECT title FROM sources WHERE title = '{self.source_title}';"
@@ -1162,6 +1168,9 @@ class SecData(SecFetcher):
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{source_exists}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
         # Check if sources table has the required row
         return len(rows)
@@ -1173,7 +1182,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.source_title}')"
 
@@ -1197,7 +1206,10 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
 
         try:
             get_all_symbols = "SELECT ticker, isin, description FROM symbols;"
@@ -1206,6 +1218,9 @@ class SecData(SecFetcher):
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{get_all_symbols}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
         return rows
 
@@ -1228,7 +1243,10 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
 
         # Timespan subquery
         timespan_query = ""
@@ -1240,14 +1258,14 @@ class SecData(SecFetcher):
         # # Sectype subquery
         # sectype_query = ""
 
-        # if self.get_sectype() != SecType.All:
-        #     sectype_query = "AND sectypes.title = '" + self.get_sectype() + "'"
+        # if self._get_sectype() != SecType.All:
+        #     sectype_query = "AND sectypes.title = '" + self._get_sectype() + "'"
 
         # # Currency subquery
         # currency_query = ""
 
-        # if self.get_currency() != Currency.All:
-        #     currency_query = "AND currency.title = '" + self.get_currency() + "'"
+        # if self._get_currency() != Currency.All:
+        #     currency_query = "AND currency.title = '" + self._get_currency() + "'"
 
         # Quotes number subquery
         num_query = ""
@@ -1275,7 +1293,7 @@ class SecData(SecFetcher):
             for join in joins:
                 additional_joins += join + '\n'
 
-        last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
+        last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
 
         if ignore_last_date:
             last_date_ts = def_last_date
@@ -1335,9 +1353,12 @@ class SecData(SecFetcher):
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
         if len(rows) == 0:
-            self.log("No data obtained.")
+            self._log("No data obtained.")
             return None
 
         return get_labelled_ndarray(rows)
@@ -1356,7 +1377,7 @@ class SecData(SecFetcher):
         initially_connected = self.is_connected()
 
         if self.is_connected() is False:
-            self.db_connect()
+            self._db_connect()
 
         quotes_num = "SELECT COUNT(*) FROM quotes;"
 
@@ -1367,7 +1388,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{quotes_num}") from e
         finally:
             if initially_connected is False:
-                self.db_close()
+                self._db_close()
 
         if result is None:
             result = 0
@@ -1386,7 +1407,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         get_num = f"""SELECT COUNT(*) FROM {table}
                         WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}');"""
@@ -1412,7 +1433,16 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_data_num('quotes')
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_data_num('quotes')
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_symbol_quotes_num(self, dt=True):
         """
@@ -1427,11 +1457,14 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
 
         dt_str = ''
 
-        last_date_ts = calendar.timegm(self.set_eod_time(self.last_date).utctimetuple())
+        last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
 
         if dt:
             dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {last_date_ts}"
@@ -1447,6 +1480,9 @@ class SecData(SecFetcher):
             self._cur.execute(num_query)
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{num_query}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
         result = self._cur.fetchone()[0]
 
@@ -1475,7 +1511,7 @@ class SecData(SecFetcher):
         if is_max:
             minmax = 'MAX'
 
-        self.check_if_connected()
+        self._check_if_connected()
 
         timestamp_query = f"""SELECT {minmax}({column}) FROM {table}
                                     INNER JOIN symbols ON {table}.symbol_id = symbols.symbol_id
@@ -1513,7 +1549,7 @@ class SecData(SecFetcher):
         if is_max is False:
             column = 'min_ts'
 
-        self.check_if_connected()
+        self._check_if_connected()
 
         timestamp_query = f"""SELECT {('MAX' if is_max else 'MIN')}(di.{column}) FROM data_intervals di
                                     INNER JOIN symbols ON di.symbol_id = symbols.symbol_id
@@ -1538,7 +1574,16 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_interval_ts(self.timespan.value, is_max=False)
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_interval_ts(self.timespan.value, is_max=False)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_max_request_ts(self):
         """
@@ -1548,7 +1593,16 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        return self._get_interval_ts(self.timespan.value, is_max=True)
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_interval_ts(self.timespan.value, is_max=True)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_max_ts(self):
         """
@@ -1557,7 +1611,16 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a maximum timestamp.
         """
-        return self._get_ts(is_max=True)
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_ts(is_max=True)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_min_ts(self):
         """
@@ -1566,7 +1629,16 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a minimum timestamp.
         """
-        return self._get_ts(is_max=False)
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_ts(is_max=False)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_info(self):
         """
@@ -1577,7 +1649,7 @@ class SecData(SecFetcher):
             initially_connected = self.is_connected()
 
             if self.is_connected() is False:
-                self.db_connect()
+                self._db_connect()
 
             # Fetch data if no data present
             if self._get_data_num('sec_info') == 0:
@@ -1596,7 +1668,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
             finally:
                 if initially_connected is False:
-                    self.db_close()
+                    self._db_close()
 
             self._info = rows[0]
 
@@ -1606,7 +1678,7 @@ class SecData(SecFetcher):
 
         return {'time_zone': self._info['time_zone'], 'sec_type': self._info['sec_type'], 'currency': self._info['curr']}
 
-    def get_timezone(self):
+    def _get_timezone(self):
         """
             Get the time zone of the specified symbol.
 
@@ -1624,12 +1696,12 @@ class SecData(SecFetcher):
                 else:
                     self._time_zone = timezone
             else:
-                self.log("Time zone data is not found. Returning ET.")
+                self._log("Time zone data is not found. Returning ET.")
                 self._time_zone = tz.gettz('America/New_York')
 
         return self._time_zone
 
-    def get_sectype(self):
+    def _get_sectype(self):
         """
             Get the security type of the specified symbol.
 
@@ -1644,12 +1716,12 @@ class SecData(SecFetcher):
             else:
                 self._sec_type = SecType.Unknown
 
-                self.log(f"Security type data is not found. Returning {self._sec_type.value}.")
+                self._log(f"Security type data is not found. Returning {self._sec_type.value}.")
 
         return self._sec_type
 
     # TODO LOW Note that Unknown will be returned each time as currencies are not supported yet.
-    def get_currency(self):
+    def _get_currency(self):
         """
             Get the currency of the specified symbol.
 
@@ -1664,7 +1736,7 @@ class SecData(SecFetcher):
             else:
                 self._currency = Currency.Unknown
 
-                self.log(f"Currency data is not found. Returning {self._currency.value}.")
+                self._log(f"Currency data is not found. Returning {self._currency.value}.")
 
         return self._currency
 
@@ -1701,7 +1773,7 @@ class SecData(SecFetcher):
 
         if adjusted:
             if self.is_intraday(timespan) is False:
-                now = self.set_eod_time(now)
+                now = self._set_eod_time(now)
             elif timespan == Timespans.Minute:
                 now += timedelta(minutes=1)
             elif timespan == Timespans.TwoMinutes:
@@ -1725,14 +1797,14 @@ class SecData(SecFetcher):
 
         return ts
 
-    def commit(self):
+    def _commit(self):
         """
             Commit the change to the database.
 
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         try:
             self._conn.commit()
@@ -1758,7 +1830,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker) VALUES (
                                 '{self._symbol}');"""
@@ -1778,7 +1850,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         # Cascade delete will remove the corresponding entries in tables related to specific security data
         # like fundamentals for stock
@@ -1803,7 +1875,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
                                                                     source_id,
@@ -1848,7 +1920,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
@@ -1860,7 +1932,7 @@ class SecData(SecFetcher):
             for quote in quotes_dict:
                 self._add_base_quote_data(quote)
 
-            self.commit()
+            self._commit()
 
         num_after = self.get_quotes_num()
 
@@ -1868,7 +1940,7 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
-    def update_quote_intervals(self):
+    def _update_quote_intervals(self):
         """
             Update the earliest requested quote (if needed).
         """
@@ -1902,7 +1974,8 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{update_fetched}") from e
 
-    def update_fetch_marker(self, data_entry):
+    # TODO High Should it be merged with update_quote_intervals()? Also should it use 'now' as the max_ts?
+    def _update_fetch_marker(self, data_entry):
         """
             Update (if needed) the fetch marker for a dataset interval.
 
@@ -1915,7 +1988,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         now = self._current_ts(adjusted=False)
         title = data_entry.value
@@ -1951,7 +2024,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
@@ -1983,5 +2056,5 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
 
-        self.commit()
+        self._commit()
 

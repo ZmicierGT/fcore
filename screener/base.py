@@ -178,9 +178,7 @@ class BaseScr(metaclass=abc.ABCMeta):
         for symbol in self.get_symbols():
             # Check if initial data was initialized
             if self.get_init_status() == False:
-                symbol.get_source().db_connect()
                 symbol.get_initial_data()
-                symbol.get_source().db_close()
 
         self.set_datetime()
 
@@ -268,8 +266,6 @@ class ScrData():
             Returns:
                 list: list with quotes for the screening.
         """
-        self.get_source().db_connect()
-
         if init_status is False:
             max_ts = self.get_source().get_max_ts()
 
@@ -284,8 +280,6 @@ class ScrData():
             self.__quotes_num += len(data)
 
             self._data = np.append(self._data, data)
-
-        self.get_source().db_close()
 
         return self._data[len(self._data) - period:]
 

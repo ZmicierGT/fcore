@@ -106,7 +106,7 @@ class YF(stock.StockData):
         if length == 0:
             return []
 
-        pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self.get_timezone()).utctimetuple()))
+        pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self._get_timezone()).utctimetuple()))
 
         data = data.reset_index()
 
@@ -158,7 +158,7 @@ class YF(stock.StockData):
             # Skip rows where OHLC is NaN (out-of-scope/future dates with no trading data).
             # Volume NaNs on valid trading days were interpolated above.
             if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val):
-                self.log(f"Skipping row {ind} (out-of-scope date, no OHLC data)")
+                self._log(f"Skipping row {ind} (out-of-scope date, no OHLC data)")
                 continue
 
             # Fallback: if volume is still NaN (e.g., entire Volume column was NaN), use 0.
@@ -294,7 +294,7 @@ class YF(stock.StockData):
         df_result['amount'] = divs.reset_index()['Dividends']
 
         # Not used in this data source
-        df_result['currency'] = self.get_currency()
+        df_result['currency'] = self._get_currency()
         df_result['decl_ts'] = 'NULL'
         df_result['record_ts'] = 'NULL'
         df_result['pay_ts'] = 'NULL'
@@ -356,14 +356,14 @@ class YF(stock.StockData):
 
         return info
 
-    def check_database(self):
+    def _check_database(self):
         """
             Database create/integrity check method for YF-specific tables.
 
             Raises:
                 FdataError: sql error happened.
         """
-        super().check_database()
+        super()._check_database()
 
         # Check if we need to create table 'yf_earnings_history'
         try:
@@ -426,7 +426,7 @@ class YF(stock.StockData):
             raise FdataError(f"Can't fetch earnings history for {self._symbol} from YF: {e}") from e
 
         if eh is None or eh.empty:
-            self.log(f"No earnings history data obtained for {self._symbol}")
+            self._log(f"No earnings history data obtained for {self._symbol}")
             return []
 
         eh = eh.reset_index()
@@ -472,7 +472,7 @@ class YF(stock.StockData):
             Raises:
                 FdataError: sql error happened.
         """
-        self.check_if_connected()
+        self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
         if self.get_total_symbol_quotes_num() == 0:
@@ -502,9 +502,9 @@ class YF(stock.StockData):
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 
-        self.commit()
+        self._commit()
 
-        self.update_fetch_marker(DataEntries.EarningsHistory)
+        self._update_fetch_marker(DataEntries.EarningsHistory)
 
         return (num_before, self.get_earnings_history_num())
 
@@ -517,7 +517,16 @@ class YF(stock.StockData):
             Raises:
                 FdataError: sql error happened.
         """
-        return self._get_data_num(self._earnings_history_tbl)
+        initially_connected = self.is_connected()
+
+        if self.is_connected() is False:
+            self._db_connect()
+
+        try:
+            return self._get_data_num(self._earnings_history_tbl)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def get_earnings_history(self):
         """

@@ -352,7 +352,7 @@ class StockData(SecData, StockFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 
-    def get_db_dividends(self, last_ts=def_last_date):
+    def _get_db_dividends(self, last_ts=def_last_date):
         """
             Get dividends.
 
@@ -362,9 +362,9 @@ class StockData(SecData, StockFetcher):
             Returns:
                 ndarray: dividends for a symbol.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         get_divs = f"""SELECT	declaration_date,
@@ -378,7 +378,7 @@ class StockData(SecData, StockFetcher):
                             WHERE s.ticker = '{self._symbol}'
                             AND ex_date >= {self.first_date_ts}
                             AND ex_date <= {last_ts}
-                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
                             ORDER BY ex_date;"""
 
         try:
@@ -397,7 +397,7 @@ class StockData(SecData, StockFetcher):
 
         return divs
 
-    def get_db_splits(self, last_ts=def_last_date):
+    def _get_db_splits(self, last_ts=def_last_date):
         """
             Get stock splits for a specified symbol and time interval.
 
@@ -407,9 +407,9 @@ class StockData(SecData, StockFetcher):
             Returns:
                 ndarray: splits for a symbol.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         get_splits = f"""SELECT	split_date,
@@ -419,7 +419,7 @@ class StockData(SecData, StockFetcher):
                         WHERE s.ticker = '{self._symbol}'
                             AND split_date >= {self.first_date_ts}
                             AND split_date <= {last_ts}
-                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
                             ORDER BY split_date;"""
 
         try:
@@ -441,7 +441,7 @@ class StockData(SecData, StockFetcher):
 
     # TODO HIGH Analyze the remaining public getters to make them protected
     # TODO MID Think if ignore last date is needed here
-    def get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -460,9 +460,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -481,7 +481,7 @@ class StockData(SecData, StockFetcher):
             stock_columns.append('0.0 AS divs_pay')
             stock_columns.append('1.0 AS splits')
 
-            quotes = super().get_quotes(num=num,
+            quotes = super()._get_quotes(num=num,
                                         columns=stock_columns,
                                         joins=joins,
                                         queries=queries,
@@ -496,10 +496,10 @@ class StockData(SecData, StockFetcher):
             last_ts = quotes[StockQuotes.TimeStamp][-1]
 
             # Get all dividend data
-            divs = self.get_db_dividends(last_ts=last_ts)
+            divs = self._get_db_dividends(last_ts=last_ts)
 
             # Get all split data
-            splits = self.get_db_splits(last_ts=last_ts)
+            splits = self._get_db_splits(last_ts=last_ts)
 
             # TODO MID Find out why adjustment precision is a bit less than expected
             # Adjust the price for dividends
@@ -611,9 +611,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -631,9 +631,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -651,9 +651,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -662,7 +662,8 @@ class StockData(SecData, StockFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    def need_to_update(self, modified_ts):
+    # TODO MID Maybe need to put it to the base class?
+    def _need_to_update(self, modified_ts):
         """
             Check if we need to update data based on the last fetch marker.
 
@@ -703,9 +704,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -723,9 +724,9 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -766,7 +767,7 @@ class StockData(SecData, StockFetcher):
                                         amount)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                             (SELECT currency_id FROM currency WHERE title = '{div['currency']}'),
 											{div['decl_ts']},
 											{div['ex_ts']},
@@ -813,7 +814,7 @@ class StockData(SecData, StockFetcher):
                                         split_ratio)
 									VALUES (
 											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
 											{split['ts']},
 											{split['split_ratio']});"""
 
@@ -858,7 +859,7 @@ class StockData(SecData, StockFetcher):
                                         stock_sector_id)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                             (SELECT stock_sector_id FROM stock_sectors WHERE title = '{sector}')
                                         );"""
 
@@ -919,9 +920,9 @@ class StockData(SecData, StockFetcher):
         if self._stock_info is None:
             if self._stock_info_supported and sec_type == SecType.Stock:
                 # Fetch data if no data present
-                initially_connected = self.is_connected()
+                initially_connected = self._is_connected()
 
-                if self.is_connected() is False:
+                if self._is_connected() is False:
                     self._db_connect()
 
                 if self._get_data_num('stock_info') == 0:
@@ -973,9 +974,9 @@ class StockData(SecData, StockFetcher):
             self._log(f"Data entry is not configured. Skipping fetch for {self._symbol}.")
             return 0
 
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         # TODO LOW Think if such try..finally blocks (without catching a particular exception) are suitable
@@ -984,7 +985,7 @@ class StockData(SecData, StockFetcher):
             num = current_num
 
             # Check if we need to fetch the data
-            if self.need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
+            if self._need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
                 add_method(fetch_method())
                 num = num_method()
         finally:

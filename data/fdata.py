@@ -309,7 +309,7 @@ class SecData(SecFetcher):
         self.timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources
-        self.source_title = ''
+        self._source_title = ''
 
         # Default setting for the base data source
         self._db_type = settings.Quotes.db_type
@@ -361,9 +361,9 @@ class SecData(SecFetcher):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -378,8 +378,8 @@ class SecData(SecFetcher):
 
             # We need to check if the earliest and latest dates in database exceed the requested date for specified
             # source and time span. If not, no need to fetch.
-            min_request_ts = self.get_min_request_ts()
-            max_request_ts = self.get_max_request_ts()
+            min_request_ts = self._get_min_request_ts()
+            max_request_ts = self._get_max_request_ts()
 
             if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
                 intervals = []
@@ -409,7 +409,7 @@ class SecData(SecFetcher):
                 # reaching here, so intervals are not updated and the range is retried next time.
                 self._update_quote_intervals()
 
-            rows = self.get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+            rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -423,6 +423,19 @@ class SecData(SecFetcher):
     ########################################################
     # Get/set datetimes (depending on the input value type).
     ########################################################
+    @property
+    def source_title(self):
+        """
+            Get the source title (read-only).
+
+            Concrete data sources must assign self._source_title in their
+            own __init__ before any database operation is attempted.
+
+            Returns:
+                str: the title identifying the data source.
+        """
+        return self._source_title
+
     @property
     def first_date(self):
         """
@@ -577,7 +590,7 @@ class SecData(SecFetcher):
         """
         return self._db_type
 
-    def is_connected(self):
+    def _is_connected(self):
         """Returns True/False if db is connected."""
         return self._connected
 
@@ -585,7 +598,7 @@ class SecData(SecFetcher):
         """
             Raise an exception if db is not connected.
         """
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             raise FdataError("The database is not connected. Invoke db_connect() at first.")
 
     # TODO HIGH We may switch auto connect logic to use a decorator:
@@ -608,7 +621,7 @@ class SecData(SecFetcher):
             if self._db_initialized is False:
                 self._check_database()
 
-                if self.check_source() == False:
+                if self._check_source() == False:
                     self._add_source()
 
                 self._db_initialized = True
@@ -1146,7 +1159,7 @@ class SecData(SecFetcher):
 
         self._conn.commit()
 
-    def check_source(self):
+    def _check_source(self):
         """
             Check if the current source exists in the table 'sources'
 
@@ -1156,13 +1169,13 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
-            source_exists = f"SELECT title FROM sources WHERE title = '{self.source_title}';"
+            source_exists = f"SELECT title FROM sources WHERE title = '{self._source_title}';"
 
             self._cur.execute(source_exists)
             rows = self._cur.fetchall()
@@ -1184,7 +1197,7 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self.source_title}')"
+        insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self._source_title}')"
 
         try:
             self._cur.execute(insert_source)
@@ -1206,9 +1219,9 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1224,7 +1237,7 @@ class SecData(SecFetcher):
 
         return rows
 
-    def get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -1243,9 +1256,9 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         # Timespan subquery
@@ -1301,7 +1314,7 @@ class SecData(SecFetcher):
         source_query = ''
 
         if ignore_source is False:
-            source_query = f"AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')"
+            source_query = f"AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')"
 
         # select_quotes = f"""SELECT time_stamp,
         #                         datetime(time_stamp, 'unixepoch') AS date_time,
@@ -1374,9 +1387,9 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         quotes_num = "SELECT COUNT(*) FROM quotes;"
@@ -1423,6 +1436,7 @@ class SecData(SecFetcher):
 
         return result
 
+    # TODO HIGH Should be united with get_symbol_quotes_num() (or even with general get_quotes_num())
     def get_total_symbol_quotes_num(self):
         """
             Get the number of quotes in the database per symbol.
@@ -1433,9 +1447,9 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1457,9 +1471,9 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         dt_str = ''
@@ -1473,7 +1487,7 @@ class SecData(SecFetcher):
                             WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}')
                             {dt_str}
                             AND time_span_id = (SELECT time_span_id FROM timespans where title = '{self.timespan}')
-                            AND source_id = (SELECT source_id FROM sources where title = '{self.source_title}')
+                            AND source_id = (SELECT source_id FROM sources where title = '{self._source_title}')
                         ;"""
 
         try:
@@ -1518,7 +1532,7 @@ class SecData(SecFetcher):
                                     INNER JOIN sources on {table}.source_id = sources.source_id
                                     INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id
                                     WHERE symbols.ticker = '{self._symbol}'
-                                    AND sources.title = '{self.source_title}'
+                                    AND sources.title = '{self._source_title}'
                                     AND timespans.title = '{self.timespan}';"""
 
         try:
@@ -1556,7 +1570,7 @@ class SecData(SecFetcher):
                                     INNER JOIN sources on di.source_id = sources.source_id
                                     INNER JOIN data_entries on di.data_entry_id = data_entries.data_entry_id
                                     WHERE symbols.ticker = '{self._symbol}'
-                                    AND sources.title = '{self.source_title}'
+                                    AND sources.title = '{self._source_title}'
                                     AND data_entries.title = '{data_entry}';"""
 
         try:
@@ -1566,7 +1580,7 @@ class SecData(SecFetcher):
 
         return self._cur.fetchone()[0]
 
-    def get_min_request_ts(self):
+    def _get_min_request_ts(self):
         """
             Get the earliest request timestamp to obtain quotes for a particular symbol,
             timespan, source.
@@ -1574,9 +1588,9 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1585,7 +1599,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    def get_max_request_ts(self):
+    def _get_max_request_ts(self):
         """
             Get the earliest request timestamp to obtain quotes for a particular symbol,
             timespan, source.
@@ -1593,9 +1607,9 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1604,6 +1618,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
+    # TODO High think how to make it protected
     def get_max_ts(self):
         """
             Get maximum timestamp for a particular symbol, source, timespan.
@@ -1611,9 +1626,9 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a maximum timestamp.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1622,6 +1637,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
+    # TODO HIGH check if may be united with _get_min_request_ts()
     def get_min_ts(self):
         """
             Get minimum timestamp for a particular symbol, source, timespan.
@@ -1629,9 +1645,9 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a minimum timestamp.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:
@@ -1646,9 +1662,9 @@ class SecData(SecFetcher):
         """
         # Use the cached value (if any)
         if self._info is None:
-            initially_connected = self.is_connected()
+            initially_connected = self._is_connected()
 
-            if self.is_connected() is False:
+            if self._is_connected() is False:
                 self._db_connect()
 
             # Fetch data if no data present
@@ -1889,7 +1905,7 @@ class SecData(SecFetcher):
                                                                     transactions)
                             VALUES (
                             (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                             ({quote['ts']}),
                             (SELECT time_span_id FROM timespans WHERE title = '{self.timespan.value}' COLLATE NOCASE),
                             ({quote['open']}),
@@ -1951,19 +1967,19 @@ class SecData(SecFetcher):
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
                                       (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}'),
-                                      (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                      (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                       (SELECT ifnull(
                                                       (SELECT min(min_ts, {self.first_date_ts})
                                                       FROM data_intervals
                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
                                       ), {self.first_date_ts})),
                                       (SELECT ifnull(
                                                       (SELECT max(max_ts, {ts})
                                                        FROM data_intervals
                                                        WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
                                                        AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
                                                ), {ts}))
                            );"""
@@ -1996,14 +2012,14 @@ class SecData(SecFetcher):
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, source_id, data_entry_id, min_ts, max_ts)
                               VALUES (
                                     (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                    (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                    (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                     (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
                                     NULL,
                                     (SELECT ifnull(
                                                     (SELECT max(max_ts, {now})
                                                      FROM data_intervals
                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                     AND source_id = (SELECT source_id FROM sources WHERE title = '{self.source_title}')
+                                                     AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
                                             ), {now}))
                            );"""
@@ -2045,7 +2061,7 @@ class SecData(SecFetcher):
                                     currency_id)
                                 VALUES (
                                         (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                        (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                        (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                         ('{time_zone}'),
                                         (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),
                                         (SELECT currency_id FROM currency WHERE title = '{currency}')

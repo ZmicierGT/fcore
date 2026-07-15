@@ -71,8 +71,8 @@ def test_request_ts(source):
 
     rows = source._get_quotes_only()
 
-    min_req = source.get_min_request_ts()
-    max_req = source.get_max_request_ts()
+    min_req = source._get_min_request_ts()
+    max_req = source._get_max_request_ts()
 
     print("\nSECTION1b: check if quotes, dividends and splits number increases")
     print("_________________________________________________________________")
@@ -137,7 +137,7 @@ def test_request_ts(source):
     print("\nSECTION4: Min request ts should decrease now")
     print("____________________________________________")
 
-    new_min_req = source.get_min_request_ts()
+    new_min_req = source._get_min_request_ts()
 
     if new_min_req != 1514764800:
         failure(f"Error: {min_req} should not be less or equal than {new_min_req}", source)
@@ -154,15 +154,15 @@ def test_request_ts(source):
     print("\nSECTION5: Max request should be bigger now")
     print("__________________________________________")
 
-    new_max_req = source.get_max_request_ts()
+    new_max_req = source._get_max_request_ts()
 
     if new_max_req != 1672531200:
         failure(f"Error: {max_req} should not be bigger or equal than {new_max_req}", source)
 
     print(colored(f"Timestamp increased as expected:: {max_req} > {new_max_req}", "green"))
 
-    min_req = source.get_min_request_ts()
-    max_req = source.get_max_request_ts()
+    min_req = source._get_min_request_ts()
+    max_req = source._get_max_request_ts()
 
     #######################################################
 
@@ -174,8 +174,8 @@ def test_request_ts(source):
     print("\nSECTION6: Max request should be bigger now and min request should be smaller")
     print("____________________________________________________________________________")
 
-    new_min_req = source.get_min_request_ts()
-    new_max_req = source.get_max_request_ts()
+    new_min_req = source._get_min_request_ts()
+    new_max_req = source._get_max_request_ts()
 
     if new_max_req != 1685577600 or new_min_req != 1483228800:
         failure(f"Error: {max_req} should not be bigger or equal than {new_max_req} and {min_req} should be not less or equal than {new_min_req}", source)
@@ -199,10 +199,10 @@ def test_request_ts(source):
 
     ts = int(now.timestamp())
 
-    if source.get_max_request_ts() > ts:
-        failure(f"Max request ts is {source.get_max_request_ts()} but it should be less or equal to {ts}", source)
+    if source._get_max_request_ts() > ts:
+        failure(f"Max request ts is {source._get_max_request_ts()} but it should be less or equal to {ts}", source)
 
-    print(colored(f"Final min/max request dates: {get_dt(source.get_min_request_ts())} {get_dt(source.get_max_request_ts())}", "green"))
+    print(colored(f"Final min/max request dates: {get_dt(source._get_min_request_ts())} {get_dt(source._get_max_request_ts())}", "green"))
 
     #######################################################
 
@@ -235,7 +235,7 @@ def test_request_intervals(source, timespans):
         utc_now = get_dt(datetime.now(tz.UTC))
 
         quotes_num = len(quotes)
-        max_req = source.get_max_request_ts()
+        max_req = source._get_max_request_ts()
 
         print(f"Initial: {utc_now}, max request: {get_dt(max_req)}")
 
@@ -266,7 +266,7 @@ def test_request_intervals(source, timespans):
     utc_now = get_dt(datetime.now(tz.UTC))
 
     quotes_num = len(quotes)
-    max_req = source.get_max_request_ts()
+    max_req = source._get_max_request_ts()
 
     print(f"Initial: {utc_now}, max request: {get_dt(max_req)}")
 
@@ -333,7 +333,7 @@ def test_subqueries(i, source_eh):
     i.get()
     i.get_earnings_history()
 
-    rows = i.get_quotes(queries=[Subquery('yf_earnings_history', 'epsActual', title='eps_actual'),
+    rows = i._get_quotes(queries=[Subquery('yf_earnings_history', 'epsActual', title='eps_actual'),
                                  Subquery('yf_earnings_history', 'epsEstimate', title='eps_estimate'),
                                  Subquery('yf_earnings_history', 'surprisePercent', title='surprise_pct')])
 
@@ -408,7 +408,7 @@ def test_get_delisted():
     if yfi.get_symbol_quotes_num(dt=False) != 0:
         failure("No quotes should be fetched for a delisted symbol", yfi)
 
-    if yfi.get_min_request_ts() is not None or yfi.get_max_request_ts() is not None:
+    if yfi._get_min_request_ts() is not None or yfi._get_max_request_ts() is not None:
         failure("No data_intervals should be marked for a delisted symbol", yfi)
 
     print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
@@ -468,8 +468,8 @@ def test_get_existing():
     if quotes_num_first == 0:
         failure("Quotes count should increase after first get()", yfi)
 
-    min_req_first = yfi.get_min_request_ts()
-    max_req_first = yfi.get_max_request_ts()
+    min_req_first = yfi._get_min_request_ts()
+    max_req_first = yfi._get_max_request_ts()
 
     if min_req_first is None or max_req_first is None:
         failure("Intervals should be marked after first get()", yfi)
@@ -489,7 +489,7 @@ def test_get_existing():
     if quotes_num_second != quotes_num_first:
         failure(f"Quotes count should not change on second get(): {quotes_num_first} -> {quotes_num_second}", yfi)
 
-    if yfi.get_min_request_ts() != min_req_first or yfi.get_max_request_ts() != max_req_first:
+    if yfi._get_min_request_ts() != min_req_first or yfi._get_max_request_ts() != max_req_first:
         failure("Intervals should not change on second get() (covered range)", yfi)
 
     print(colored("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged", "green"))
@@ -520,8 +520,8 @@ def test_get_empty_range_valid_symbol():
     if yfi.get_symbol_quotes_num(dt=False) != 0:
         failure("No quotes should be fetched for an empty range", yfi)
 
-    min_req = yfi.get_min_request_ts()
-    max_req = yfi.get_max_request_ts()
+    min_req = yfi._get_min_request_ts()
+    max_req = yfi._get_max_request_ts()
 
     if min_req is None or max_req is None:
         failure("Intervals should be recorded for an empty valid-symbol range", yfi)

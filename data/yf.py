@@ -32,7 +32,7 @@ class YF(stock.StockData):
         super().__init__(**kwargs)
 
         # Default values
-        self.source_title = "YF"
+        self._source_title = "YF"
 
         self._data = None  # Cached data for splits/divs
         self._data_symbol = self._symbol  # Symbol of cached data
@@ -490,7 +490,7 @@ class YF(stock.StockData):
                                         surprisePercent)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self.source_title}'),
+                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
                                             {result['time_stamp']},
                                             {result['epsActual']},
                                             {result['epsEstimate']},
@@ -517,9 +517,9 @@ class YF(stock.StockData):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self.is_connected()
+        initially_connected = self._is_connected()
 
-        if self.is_connected() is False:
+        if self._is_connected() is False:
             self._db_connect()
 
         try:

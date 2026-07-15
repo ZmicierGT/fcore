@@ -372,7 +372,7 @@ class SecData(SecFetcher):
             # waste a quote fetch or falsely mark intervals for a non-existent ticker.
             self.get_info()
 
-            total_num = self.get_symbol_quotes_num(dt=False)
+            total_num = self.get_quotes_num(dt=False)
 
             last_ts_adj = min(self.last_date_ts, self._current_ts())
 
@@ -1079,6 +1079,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't create table quotes: {e}") from e
 
             # Create indexes for quotes
+            # TODO LOW Think if index for source_id should be added (covering index-only scans in get_quotes_num).
             create_quotes_idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
 
             try:
@@ -1377,12 +1378,18 @@ class SecData(SecFetcher):
         return get_labelled_ndarray(rows)
 
     # TODO LOW Querying COUNT(*) may impact performance. In the future a faster approach should be used.
-    def get_quotes_num(self):
+    def get_quotes_num(self, symbol=True, source=True, timespan=True, dt=True):
         """
             Get the number of quotes in the database.
 
+            Args:
+                symbol(bool): filter by the symbol configured on the instance.
+                source(bool): filter by the source configured on the instance.
+                timespan(bool): filter by the timespan configured on the instance (applies to 'quotes' table only).
+                dt(bool): filter by the date range configured on the instance (applies to 'quotes' table only).
+
             Returns:
-                int: the total number of all quotes in the database.
+                int: the number of quotes matching the filters.
 
             Raises:
                 FdataError: sql error happened.
@@ -1392,27 +1399,21 @@ class SecData(SecFetcher):
         if self._is_connected() is False:
             self._db_connect()
 
-        quotes_num = "SELECT COUNT(*) FROM quotes;"
-
         try:
-            self._cur.execute(quotes_num)
-            result = self._cur.fetchone()[0]
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{quotes_num}") from e
+            return self._get_data_num('quotes', symbol=symbol, source=source, timespan=timespan, dt=dt)
         finally:
             if initially_connected is False:
                 self._db_close()
 
-        if result is None:
-            result = 0
-
-        return result
-
-    def _get_data_num(self, table):
-        """Get the number additional data entries for the symbol.
+    def _get_data_num(self, table, symbol=True, source=True, timespan=True, dt=False):
+        """Get the number of entries for the symbol in the specified table.
 
             Args:
-                table(string): the table with reports.
+                table(string): the table to query.
+                symbol(bool): filter by the symbol configured on the instance.
+                source(bool): filter by the source configured on the instance.
+                timespan(bool): filter by the timespan configured on the instance (applies to 'quotes' table only).
+                dt(bool): filter by the date range configured on the instance (applies to 'quotes' table only).
 
             Returns:
                 int: the number of entries in the specified table.
@@ -1422,81 +1423,34 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        get_num = f"""SELECT COUNT(*) FROM {table}
-                        WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}');"""
+        conditions = []
+
+        if symbol:
+            conditions.append(f"symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')")
+
+        if source:
+            conditions.append(f"source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')")
+
+        # timespan and dt filters are applicable to the 'quotes' table only.
+        if table == 'quotes':
+            if timespan:
+                conditions.append(f"time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')")
+
+            if dt:
+                last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
+                conditions.append(f"time_stamp >= {self.first_date_ts} AND time_stamp <= {last_date_ts}")
+
+        where = ""
+
+        if conditions:
+            where = f"WHERE {' AND '.join(conditions)}"
+
+        get_num = f"SELECT COUNT(*) FROM {table} {where};"
+
         try:
             self._cur.execute(get_num)
         except self._error as e:
             raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{get_num}") from e
-
-        result = self._cur.fetchone()[0]
-
-        if result is None:
-            result = 0
-
-        return result
-
-    # TODO HIGH Should be united with get_symbol_quotes_num() (or even with general get_quotes_num())
-    def get_total_symbol_quotes_num(self):
-        """
-            Get the number of quotes in the database per symbol.
-
-            Returns:
-                int: the number of quotes in the database per symbol.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        initially_connected = self._is_connected()
-
-        if self._is_connected() is False:
-            self._db_connect()
-
-        try:
-            return self._get_data_num('quotes')
-        finally:
-            if initially_connected is False:
-                self._db_close()
-
-    def get_symbol_quotes_num(self, dt=True):
-        """
-            Get the number of quotes in the database per symbol for specified dates, time span and source.
-
-            Args:
-                dt(bool): check for the particular datetime.
-
-            Returns:
-                int: the number of quotes in the database per symbol for specified dates, time span and source.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        initially_connected = self._is_connected()
-
-        if self._is_connected() is False:
-            self._db_connect()
-
-        dt_str = ''
-
-        last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
-
-        if dt:
-            dt_str = f"AND time_stamp >= {self.first_date_ts} AND time_stamp <= {last_date_ts}"
-
-        num_query = f"""SELECT COUNT(*) FROM quotes
-                            WHERE symbol_id = (SELECT symbol_id FROM symbols where ticker = '{self._symbol}')
-                            {dt_str}
-                            AND time_span_id = (SELECT time_span_id FROM timespans where title = '{self.timespan}')
-                            AND source_id = (SELECT source_id FROM sources where title = '{self._source_title}')
-                        ;"""
-
-        try:
-            self._cur.execute(num_query)
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{num_query}") from e
-        finally:
-            if initially_connected is False:
-                self._db_close()
 
         result = self._cur.fetchone()[0]
 
@@ -1618,7 +1572,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    # TODO High think how to make it protected
+    # TODO High think how to make it protected and if it should be united with get_max_request_ts()
     def get_max_ts(self):
         """
             Get maximum timestamp for a particular symbol, source, timespan.
@@ -1939,7 +1893,7 @@ class SecData(SecFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(timespan=False, dt=False) == 0:
             self._add_symbol()
 
         num_before = self.get_quotes_num()
@@ -2043,7 +1997,7 @@ class SecData(SecFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(timespan=False, dt=False) == 0:
             self._add_symbol()
 
         try:

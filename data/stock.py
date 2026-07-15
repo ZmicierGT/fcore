@@ -750,8 +750,9 @@ class StockData(SecData, StockFetcher):
         """
         self._check_if_connected()
 
+        # TODO HIGH Can we have a better symbol existing guard?
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(timespan=False, dt=False) == 0:
             self._add_symbol()
 
         num_before = self.get_dividends_num()
@@ -802,7 +803,7 @@ class StockData(SecData, StockFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(timespan=False, dt=False) == 0:
             self._add_symbol()
 
         num_before = self.get_split_num()
@@ -842,7 +843,7 @@ class StockData(SecData, StockFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(timespan=False, dt=False) == 0:
             self._add_symbol()
 
         super()._add_info(info)

@@ -64,7 +64,7 @@ def test_request_ts(source):
 
     #######################################################
 
-    quotes_num = source.get_symbol_quotes_num()
+    quotes_num = source.get_quotes_num()
 
     if quotes_num != 0:
         failure("There should be no quotes in the db at the beginning.", source)
@@ -94,7 +94,7 @@ def test_request_ts(source):
     if before > after:
         failure("Unexpected number of splits", source)
 
-    after = source.get_symbol_quotes_num()
+    after = source.get_quotes_num()
 
     print(f"Quotes before {quotes_num} quotes after {after}")
 
@@ -405,7 +405,7 @@ def test_get_delisted():
     if not raised_first:
         failure("First get() should have raised FdataError for a delisted symbol", yfi)
 
-    if yfi.get_symbol_quotes_num(dt=False) != 0:
+    if yfi.get_quotes_num(dt=False) != 0:
         failure("No quotes should be fetched for a delisted symbol", yfi)
 
     if yfi._get_min_request_ts() is not None or yfi._get_max_request_ts() is not None:
@@ -464,7 +464,7 @@ def test_get_existing():
     if rows_first is None or len(rows_first) == 0:
         failure("First get() should return fetched rows for IBM", yfi)
 
-    quotes_num_first = yfi.get_symbol_quotes_num(dt=False)
+    quotes_num_first = yfi.get_quotes_num(dt=False)
     if quotes_num_first == 0:
         failure("Quotes count should increase after first get()", yfi)
 
@@ -483,7 +483,7 @@ def test_get_existing():
     if rows_second is None or len(rows_second) == 0:
         failure("Second get() should return cached rows for IBM", yfi)
 
-    quotes_num_second = yfi.get_symbol_quotes_num(dt=False)
+    quotes_num_second = yfi.get_quotes_num(dt=False)
 
     # INSERT OR IGNORE guarantees no duplicate rows: count must be unchanged.
     if quotes_num_second != quotes_num_first:
@@ -517,7 +517,7 @@ def test_get_empty_range_valid_symbol():
     except FdataError as e:
         print(f"  Got FdataError: {e}")
 
-    if yfi.get_symbol_quotes_num(dt=False) != 0:
+    if yfi.get_quotes_num(dt=False) != 0:
         failure("No quotes should be fetched for an empty range", yfi)
 
     min_req = yfi._get_min_request_ts()

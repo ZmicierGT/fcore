@@ -475,7 +475,7 @@ class YF(stock.StockData):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_total_symbol_quotes_num() == 0:
+        if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
             self._add_symbol()
 
         num_before = self.get_earnings_history_num()
@@ -523,7 +523,7 @@ class YF(stock.StockData):
             self._db_connect()
 
         try:
-            return self._get_data_num(self._earnings_history_tbl)
+            return self._get_data_num(self._earnings_history_tbl, source=True)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -535,7 +535,8 @@ class YF(stock.StockData):
             Returns:
                 int: the number of fetched entries.
         """
-        if self.get_total_symbol_quotes_num() == 0:
+        # TODO LOW Is it needed?
+        if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
             raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
 
         return self._fetch_data_if_none(data_entry=DataEntries.EarningsHistory,

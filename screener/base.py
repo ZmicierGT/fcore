@@ -272,7 +272,7 @@ class ScrData():
             if max_ts is not None:
                 self.__max_datetime = get_dt(max_ts)
                 print(f"{max_ts} {self.__max_datetime}")
-            self.__quotes_num = self.get_source().get_total_symbol_quotes_num()
+            self.__quotes_num = self.get_source().get_quotes_num(timespan=False, dt=False)
         else:
             data = self.get_source().get_recent_data()
 

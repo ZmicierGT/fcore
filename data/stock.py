@@ -362,10 +362,7 @@ class StockData(SecData, StockFetcher):
             Returns:
                 ndarray: dividends for a symbol.
         """
-        initially_connected = self._is_connected()
-
-        if self._is_connected() is False:
-            self._db_connect()
+        self._check_if_connected()
 
         get_divs = f"""SELECT	declaration_date,
                                 ex_date,
@@ -386,9 +383,6 @@ class StockData(SecData, StockFetcher):
             divs = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
-        finally:
-            if initially_connected is False:
-                self._db_close()
 
         if len(divs):
             divs = get_labelled_ndarray(divs)
@@ -407,10 +401,7 @@ class StockData(SecData, StockFetcher):
             Returns:
                 ndarray: splits for a symbol.
         """
-        initially_connected = self._is_connected()
-
-        if self._is_connected() is False:
-            self._db_connect()
+        self._check_if_connected()
 
         get_splits = f"""SELECT	split_date,
 	                        split_ratio,
@@ -427,9 +418,6 @@ class StockData(SecData, StockFetcher):
             splits = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
-        finally:
-            if initially_connected is False:
-                self._db_close()
 
         if len(splits):
             splits = get_labelled_ndarray(splits)
@@ -460,146 +448,139 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        self._check_if_connected()
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if not isinstance(columns, list):
+            self._log('Incorrect columns list provided. Overriding as list with stock-related data.')
+            columns = []
 
-        try:
-            if not isinstance(columns, list):
-                self._log('Incorrect columns list provided. Overriding as list with stock-related data.')
-                columns = []
+        stock_columns = list(columns)  # Make a copy of columns so the caller's data is not affected
 
-            stock_columns = list(columns)  # Make a copy of columns so the caller's data is not affected
+        stock_columns.append('opened AS adj_open')
+        stock_columns.append('high AS adj_high')
+        stock_columns.append('low AS adj_low')
+        stock_columns.append('closed AS adj_close')
+        stock_columns.append('volume AS adj_volume')
+        stock_columns.append('0.0 AS divs_ex')
+        stock_columns.append('0.0 AS divs_pay')
+        stock_columns.append('1.0 AS splits')
 
-            stock_columns.append('opened AS adj_open')
-            stock_columns.append('high AS adj_high')
-            stock_columns.append('low AS adj_low')
-            stock_columns.append('closed AS adj_close')
-            stock_columns.append('volume AS adj_volume')
-            stock_columns.append('0.0 AS divs_ex')
-            stock_columns.append('0.0 AS divs_pay')
-            stock_columns.append('1.0 AS splits')
+        quotes = super()._get_quotes(num=num,
+                                    columns=stock_columns,
+                                    joins=joins,
+                                    queries=queries,
+                                    ignore_last_date=ignore_last_date,
+                                    ignore_source=ignore_source)
 
-            quotes = super()._get_quotes(num=num,
-                                        columns=stock_columns,
-                                        joins=joins,
-                                        queries=queries,
-                                        ignore_last_date=ignore_last_date,
-                                        ignore_source=ignore_source)
+        if quotes is None:
+            return
 
-            if quotes is None:
-                return
+        # Calculate the adjusted close price.
 
-            # Calculate the adjusted close price.
+        last_ts = quotes[StockQuotes.TimeStamp][-1]
 
-            last_ts = quotes[StockQuotes.TimeStamp][-1]
+        # Get all dividend data
+        divs = self._get_db_dividends(last_ts=last_ts)
 
-            # Get all dividend data
-            divs = self._get_db_dividends(last_ts=last_ts)
+        # Get all split data
+        splits = self._get_db_splits(last_ts=last_ts)
 
-            # Get all split data
-            splits = self._get_db_splits(last_ts=last_ts)
+        # TODO MID Find out why adjustment precision is a bit less than expected
+        # Adjust the price for dividends
+        if divs is not None:
+            # Need to establish if we have a payment date in the database. If we have no,
+            # then add one week to the ex-date.
+            payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
+            ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
-            # TODO MID Find out why adjustment precision is a bit less than expected
-            # Adjust the price for dividends
-            if divs is not None:
-                # Need to establish if we have a payment date in the database. If we have no,
-                # then add one week to the ex-date.
-                payment_date_num = np.count_nonzero(~np.isnan(divs[Dividends.PaymentDate].astype(float)))
-                ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
+            if payment_date_num != ex_date_num or payment_date_num == ex_date_num - 1:
+                self._log("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
-                if payment_date_num != ex_date_num or payment_date_num == ex_date_num - 1:
-                    self._log("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+                # Wipe the values in payment_date column
+                divs[Dividends.PaymentDate] = np.nan
+                divs[Dividends.PaymentDate] = divs[Dividends.ExDate] + 604800  # Add 7 days to ex_date to estimate a payment date
 
-                    # Wipe the values in payment_date column
-                    divs[Dividends.PaymentDate] = np.nan
-                    divs[Dividends.PaymentDate] = divs[Dividends.ExDate] + 604800  # Add 7 days to ex_date to estimate a payment date
+            for i in range(len(divs)):
+                idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
-                for i in range(len(divs)):
-                    idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
+                amount = divs[Dividends.Amount][i]
 
-                    amount = divs[Dividends.Amount][i]
+                try:
+                    quotes[StockQuotes.ExDividends][idx_ex] = amount
 
-                    try:
-                        quotes[StockQuotes.ExDividends][idx_ex] = amount
+                    opened = quotes[StockQuotes.Open][idx_ex]
+                    high = quotes[StockQuotes.High][idx_ex]
+                    low = quotes[StockQuotes.Low][idx_ex]
+                    closed = quotes[StockQuotes.Close][idx_ex]
 
-                        opened = quotes[StockQuotes.Open][idx_ex]
-                        high = quotes[StockQuotes.High][idx_ex]
-                        low = quotes[StockQuotes.Low][idx_ex]
-                        closed = quotes[StockQuotes.Close][idx_ex]
+                    o_ratio = 1
+                    h_ratio = 1
+                    l_ratio = 1
+                    c_ratio = 1
 
-                        o_ratio = 1
-                        h_ratio = 1
-                        l_ratio = 1
-                        c_ratio = 1
+                    # In some cases the values may be 0. Need to skip such cases.
+                    if opened:
+                        o_ratio -= amount / opened
 
-                        # In some cases the values may be 0. Need to skip such cases.
-                        if opened:
-                            o_ratio -= amount / opened
+                    if high:
+                        h_ratio -= amount / high
 
-                        if high:
-                            h_ratio -= amount / high
+                    if low:
+                        l_ratio -= amount / low
 
-                        if low:
-                            l_ratio -= amount / low
+                    if closed:
+                        c_ratio -= amount / closed
 
-                        if closed:
-                            c_ratio -= amount / closed
+                    quotes[StockQuotes.AdjOpen][:idx_ex] = quotes[StockQuotes.AdjOpen][:idx_ex] * o_ratio
+                    quotes[StockQuotes.AdjHigh][:idx_ex] = quotes[StockQuotes.AdjHigh][:idx_ex] * h_ratio
+                    quotes[StockQuotes.AdjLow][:idx_ex] = quotes[StockQuotes.AdjLow][:idx_ex] * l_ratio
+                    quotes[StockQuotes.AdjClose][:idx_ex] = quotes[StockQuotes.AdjClose][:idx_ex] * c_ratio
+                except IndexError:
+                    pass
+                    # No need to do anything - just requested quote data is shorter than available dividend data
 
-                        quotes[StockQuotes.AdjOpen][:idx_ex] = quotes[StockQuotes.AdjOpen][:idx_ex] * o_ratio
-                        quotes[StockQuotes.AdjHigh][:idx_ex] = quotes[StockQuotes.AdjHigh][:idx_ex] * h_ratio
-                        quotes[StockQuotes.AdjLow][:idx_ex] = quotes[StockQuotes.AdjLow][:idx_ex] * l_ratio
-                        quotes[StockQuotes.AdjClose][:idx_ex] = quotes[StockQuotes.AdjClose][:idx_ex] * c_ratio
-                    except IndexError:
-                        pass
-                        # No need to do anything - just requested quote data is shorter than available dividend data
+                idx_pay = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.PaymentDate][i], ], side='right')[0]
 
-                    idx_pay = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.PaymentDate][i], ], side='right')[0]
+                try:
+                    quotes[StockQuotes.PayDividends][idx_pay] = amount
+                except IndexError:
+                    pass
+                    # No need to do anything as just payment haven't happened in the current stock history
+        else:
+            self._log(f"Warning: No dividend data for {self._symbol} in the requested period.")
 
-                    try:
-                        quotes[StockQuotes.PayDividends][idx_pay] = amount
-                    except IndexError:
-                        pass
-                        # No need to do anything as just payment haven't happened in the current stock history
-            else:
-                self._log(f"Warning: No dividend data for {self._symbol} in the requested period.")
+        # Adjust the price to stock splits
+        if splits is not None:
+            for i in range(len(splits)):
+                idx_split = np.searchsorted(quotes[StockQuotes.TimeStamp], [splits[StockSplits.Date][i], ], side='right')[0]
 
-            # Adjust the price to stock splits
-            if splits is not None:
-                for i in range(len(splits)):
-                    idx_split = np.searchsorted(quotes[StockQuotes.TimeStamp], [splits[StockSplits.Date][i], ], side='right')[0]
+                try:
+                    ratio = splits[StockSplits.Ratio][i]
+                    quotes[StockQuotes.Splits][idx_split] = ratio
 
-                    try:
-                        ratio = splits[StockSplits.Ratio][i]
-                        quotes[StockQuotes.Splits][idx_split] = ratio
+                    if ratio != 1:
+                        # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
+                        quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.AdjOpen][:idx_split] / ratio
+                        quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.AdjHigh][:idx_split] / ratio
+                        quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.AdjLow][:idx_split] / ratio
+                        quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / ratio
+                        quotes[StockQuotes.AdjVolume][:idx_split] = quotes[StockQuotes.AdjVolume][:idx_split] * ratio
+                except IndexError:
+                    # No need to do anything - just requested quote data is shorter than available split data
+                    pass
+        else:
+            self._log(f"Warning: No split data for {self._symbol} in the requested period.")
 
-                        if ratio != 1:
-                            # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
-                            quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.AdjOpen][:idx_split] / ratio
-                            quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.AdjHigh][:idx_split] / ratio
-                            quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.AdjLow][:idx_split] / ratio
-                            quotes[StockQuotes.AdjClose][:idx_split] = quotes[StockQuotes.AdjClose][:idx_split] / ratio
-                            quotes[StockQuotes.AdjVolume][:idx_split] = quotes[StockQuotes.AdjVolume][:idx_split] * ratio
-                    except IndexError:
-                        # No need to do anything - just requested quote data is shorter than available split data
-                        pass
-            else:
-                self._log(f"Warning: No split data for {self._symbol} in the requested period.")
+        last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
 
-            last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
+        idx = np.where(quotes[StockQuotes.TimeStamp] <= last_date_ts)[0]
 
-            idx = np.where(quotes[StockQuotes.TimeStamp] <= last_date_ts)[0]
+        if len(idx):
+            max_idx = min(len(quotes), max(idx) + 1)
+        else:
+            max_idx = 0
 
-            if len(idx):
-                max_idx = min(len(quotes), max(idx) + 1)
-            else:
-                max_idx = 0
-
-            return quotes[:max_idx]
-        finally:
-            if initially_connected is False:
-                self._db_close()
+        return quotes[:max_idx]
 
 
     def get_income_statement_num(self):
@@ -975,23 +956,15 @@ class StockData(SecData, StockFetcher):
             self._log(f"Data entry is not configured. Skipping fetch for {self._symbol}.")
             return 0
 
-        initially_connected = self._is_connected()
+        self._check_if_connected()
 
-        if self._is_connected() is False:
-            self._db_connect()
+        current_num = num_method()
+        num = current_num
 
-        # TODO LOW Think if such try..finally blocks (without catching a particular exception) are suitable
-        try:
-            current_num = num_method()
-            num = current_num
-
-            # Check if we need to fetch the data
-            if self._need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
-                add_method(fetch_method())
-                num = num_method()
-        finally:
-            if initially_connected is False:
-                self._db_close()
+        # Check if we need to fetch the data
+        if self._need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
+            add_method(fetch_method())
+            num = num_method()
 
         return num - current_num
 

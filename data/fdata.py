@@ -1170,21 +1170,15 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        self._check_if_connected()
 
-        if self._is_connected() is False:
-            self._db_connect()
+        source_exists = f"SELECT title FROM sources WHERE title = '{self._source_title}';"
 
         try:
-            source_exists = f"SELECT title FROM sources WHERE title = '{self._source_title}';"
-
             self._cur.execute(source_exists)
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{source_exists}") from e
-        finally:
-            if initially_connected is False:
-                self._db_close()
 
         # Check if sources table has the required row
         return len(rows)
@@ -1257,10 +1251,7 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
-
-        if self._is_connected() is False:
-            self._db_connect()
+        self._check_if_connected()
 
         # Timespan subquery
         timespan_query = ""
@@ -1367,9 +1358,6 @@ class SecData(SecFetcher):
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
-        finally:
-            if initially_connected is False:
-                self._db_close()
 
         if len(rows) == 0:
             self._log("No data obtained.")
@@ -1542,16 +1530,9 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        initially_connected = self._is_connected()
+        self._check_if_connected()
 
-        if self._is_connected() is False:
-            self._db_connect()
-
-        try:
-            return self._get_interval_ts(self.timespan.value, is_max=False)
-        finally:
-            if initially_connected is False:
-                self._db_close()
+        return self._get_interval_ts(self.timespan.value, is_max=False)
 
     def _get_max_request_ts(self):
         """
@@ -1561,16 +1542,9 @@ class SecData(SecFetcher):
             Return:
                 int: the earliest request timestamp.
         """
-        initially_connected = self._is_connected()
+        self._check_if_connected()
 
-        if self._is_connected() is False:
-            self._db_connect()
-
-        try:
-            return self._get_interval_ts(self.timespan.value, is_max=True)
-        finally:
-            if initially_connected is False:
-                self._db_close()
+        return self._get_interval_ts(self.timespan.value, is_max=True)
 
     # TODO High think how to make it protected and if it should be united with get_max_request_ts()
     def get_max_ts(self):

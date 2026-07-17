@@ -1546,7 +1546,7 @@ class SecData(SecFetcher):
 
         return self._get_interval_ts(self.timespan.value, is_max=True)
 
-    # TODO High think how to make it protected and if it should be united with get_max_request_ts()
+    # TODO High think how to make it protected
     def get_max_ts(self):
         """
             Get maximum timestamp for a particular symbol, source, timespan.
@@ -1565,7 +1565,6 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    # TODO HIGH check if may be united with _get_min_request_ts()
     def get_min_ts(self):
         """
             Get minimum timestamp for a particular symbol, source, timespan.
@@ -1767,6 +1766,33 @@ class SecData(SecFetcher):
         else:
             raise FdataError("Unknown update value.")
 
+    @property
+    def symbol_exists(self):
+        """
+            Return True if the current symbol is present in the 'symbols' table.
+
+            Returns:
+                bool: True if the symbol exists, False otherwise.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        initially_connected = self._is_connected()
+
+        if self._is_connected() is False:
+            self._db_connect()
+
+        query = "SELECT 1 FROM symbols WHERE ticker = ? LIMIT 1"
+
+        try:
+            self._cur.execute(query, (self._symbol,))
+            return self._cur.fetchone() is not None
+        except self._error as e:
+            raise FdataError(f"Can't check symbol existence: {e}\n{query}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
+
     def _add_symbol(self):
         """
             Add new symbol to the database.
@@ -1776,12 +1802,12 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        insert_symbol = f"""INSERT OR IGNORE INTO symbols (ticker) VALUES (
-                                '{self._symbol}');"""
+        insert_symbol = "INSERT OR IGNORE INTO symbols (ticker) VALUES (?);"
 
         try:
-            self._cur.execute(insert_symbol)
-            self._conn.commit()
+            self._cur.execute(insert_symbol, (self._symbol,))
+            if self._cur.rowcount == 1:
+                self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{insert_symbol}") from e
 
@@ -1870,7 +1896,7 @@ class SecData(SecFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_quotes_num(timespan=False, dt=False) == 0:
+        if not self.symbol_exists:
             self._add_symbol()
 
         num_before = self.get_quotes_num()
@@ -1957,7 +1983,7 @@ class SecData(SecFetcher):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_quotes_num(timespan=False, dt=False) == 0:
+        if not self.symbol_exists:
             self._add_symbol()
 
         try:

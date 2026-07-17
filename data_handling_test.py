@@ -398,10 +398,7 @@ def test_remove_symbol(i):
     print("SECTION RMS1: Pre-delete presence")
     print("_________________________________")
 
-    symbols = i.get_all_symbols()
-    tickers = [row['ticker'] for row in symbols]
-
-    if 'IBM' not in tickers:
+    if not i.symbol_exists:
         failure("IBM should be present in symbols before deletion", i)
 
     quotes_num = i.get_quotes_num(dt=False)
@@ -433,10 +430,7 @@ def test_remove_symbol(i):
     print("\nSECTION RMS3: Post-delete absence (cascade verification via get_*_num())")
     print("____________________________________________________________________________")
 
-    symbols = i.get_all_symbols()
-    tickers = [row['ticker'] for row in symbols]
-
-    if 'IBM' in tickers:
+    if i.symbol_exists:
         failure("IBM should be absent from symbols after deletion", i)
 
     quotes_num = i.get_quotes_num(dt=False)

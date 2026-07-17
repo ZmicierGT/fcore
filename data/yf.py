@@ -475,7 +475,7 @@ class YF(stock.StockData):
         self._check_if_connected()
 
         # Insert new symbols to 'symbols' table (if the symbol does not exist)
-        if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
+        if not self.symbol_exists:
             self._add_symbol()
 
         num_before = self.get_earnings_history_num()

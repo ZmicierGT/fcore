@@ -380,6 +380,89 @@ def test_subqueries(i, source_eh):
 
     print(colored('All subquery data is as expected.', 'green'))
 
+def test_remove_symbol(i):
+    """
+        Test remove_symbol().
+
+        Verifies that the symbol itself and all cascade-linked data (quotes,
+        dividends, splits, earnings history) are deleted.
+        Also checks idempotency: a second call on an already-removed symbol
+        must not raise.
+
+        Args:
+            i(YF): the data source instance (already populated with quotes,
+                   dividends, splits and earnings history data via prior tests).
+    """
+    print(colored("\nTesting remove_symbol():\n", "yellow"))
+
+    print("SECTION RMS1: Pre-delete presence")
+    print("_________________________________")
+
+    symbols = i.get_all_symbols()
+    tickers = [row['ticker'] for row in symbols]
+
+    if 'IBM' not in tickers:
+        failure("IBM should be present in symbols before deletion", i)
+
+    quotes_num = i.get_quotes_num(dt=False)
+    dividends_num = i.get_dividends_num()
+    splits_num = i.get_split_num()
+    eh_num = i.get_earnings_history_num()
+
+    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, Earnings history: {eh_num}")
+
+    if quotes_num == 0 or dividends_num == 0 or splits_num == 0 or eh_num == 0:
+        failure("All categories should have data before deletion", i)
+
+    print(colored("Pre-delete presence confirmed", "green"))
+
+    #######################################################
+
+    print("\nSECTION RMS2: Invoke remove_symbol()")
+    print("__________________________________")
+
+    # NOTE: A close-then-reopen would discard the in-memory DB (every new
+    # connection to ":memory:" starts empty). So remove_symbol() is invoked
+    # while connected, consistent with the other in-memory tests in this file.
+    i.remove_symbol()
+
+    print(colored("remove_symbol() succeeded", "green"))
+
+    #######################################################
+
+    print("\nSECTION RMS3: Post-delete absence (cascade verification via get_*_num())")
+    print("____________________________________________________________________________")
+
+    symbols = i.get_all_symbols()
+    tickers = [row['ticker'] for row in symbols]
+
+    if 'IBM' in tickers:
+        failure("IBM should be absent from symbols after deletion", i)
+
+    quotes_num = i.get_quotes_num(dt=False)
+    dividends_num = i.get_dividends_num()
+    splits_num = i.get_split_num()
+    eh_num = i.get_earnings_history_num()
+
+    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, Earnings history: {eh_num}")
+
+    if quotes_num != 0 or dividends_num != 0 or splits_num != 0 or eh_num != 0:
+        failure("All categories should have 0 rows after cascade deletion", i)
+
+    print(colored("Symbol and all linked data removed (cascade verified)", "green"))
+
+    #######################################################
+
+    print("\nSECTION RMS4: Idempotency - second remove_symbol() must not raise")
+    print("__________________________________________________________________")
+
+    try:
+        i.remove_symbol()
+    except Exception as e:
+        failure(f"Second remove_symbol() should not raise: {e}", i)
+
+    print(colored("Idempotency verified: second remove_symbol() did not raise", "green"))
+
 def test_get_delisted():
     """
         Test get() for a delisted/non-existent symbol (WBA). Both first and second
@@ -577,7 +660,7 @@ if __name__ == "__main__":
 
     test_subqueries(yfi, source_eh)
 
-    yfi._db_close()
+    test_remove_symbol(yfi)
 
     # get() behavior for delisted vs. existing symbols (fresh in-memory DBs)
     test_get_delisted()

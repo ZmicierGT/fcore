@@ -1790,11 +1790,11 @@ class SecData(SecFetcher):
             Remove a symbol completely.
 
             All corresponding records in quotes table will be deleted because of foreign key linking (cascade deletion).
-
-            Raises:
-                FdataError: sql error happened.
         """
-        self._check_if_connected()
+        initially_connected = self._is_connected()
+
+        if self._is_connected() is False:
+            self._db_connect()
 
         # Cascade delete will remove the corresponding entries in tables related to specific security data
         # like fundamentals for stock
@@ -1805,6 +1805,9 @@ class SecData(SecFetcher):
             self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{delete_symbol}") from e
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     def _add_base_quote_data(self, quote):
         """

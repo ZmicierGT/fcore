@@ -666,6 +666,7 @@ class StockData(SecData, StockFetcher):
 
         modified = get_dt(modified_ts)
 
+        # TODO MID Think if we can just rely on max_ts which is timespan adjusted now.
         # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
         if (current - modified).days < 1:
             return False
@@ -764,7 +765,7 @@ class StockData(SecData, StockFetcher):
 
         self._commit()
 
-        self._update_fetch_marker(DataEntries.Dividends)
+        self._update_data_interval(DataEntries.Dividends)
 
         return(num_before, self.get_dividends_num())
 
@@ -807,7 +808,7 @@ class StockData(SecData, StockFetcher):
 
         self._commit()
 
-        self._update_fetch_marker(DataEntries.Splits)
+        self._update_data_interval(DataEntries.Splits)
 
         return(num_before, self.get_split_num())
 

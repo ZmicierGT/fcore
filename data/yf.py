@@ -504,7 +504,7 @@ class YF(stock.StockData):
 
         self._commit()
 
-        self._update_fetch_marker(DataEntries.EarningsHistory)
+        self._update_data_interval(DataEntries.EarningsHistory)
 
         return (num_before, self.get_earnings_history_num())
 

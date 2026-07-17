@@ -407,7 +407,7 @@ class SecData(SecFetcher):
                 # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
                 # known-empty ranges. A fetch failure (e.g. connection error) raises before
                 # reaching here, so intervals are not updated and the range is retried next time.
-                self._update_quote_intervals()
+                self._update_data_interval()
 
             rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
@@ -1884,72 +1884,55 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
-    def _update_quote_intervals(self):
+    def _update_data_interval(self, data_entry=None):
         """
-            Update the earliest requested quote (if needed).
-        """
-        now = self._current_ts(adjusted=True)
-        ts = min(now, self.last_date_ts)
+            Update the data_intervals row for a quote timespan (when data_entry is None)
+            or a dataset (when data_entry is a DataEntries value).
 
-        # TODO LOW Write it in a more rational way (if it is ever possible on sqlite)
-        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
-                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                      (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}'),
-                                      (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                      (SELECT ifnull(
-                                                      (SELECT min(min_ts, {self.first_date_ts})
-                                                      FROM data_intervals
-                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
-                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
-                                      ), {self.first_date_ts})),
-                                      (SELECT ifnull(
-                                                      (SELECT max(max_ts, {ts})
-                                                       FROM data_intervals
-                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
-                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{self.timespan}')
-                                               ), {ts}))
-                           );"""
-
-        try:
-            self._cur.execute(update_fetched)
-            self._conn.commit()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{update_fetched}") from e
-
-    # TODO High Should it be merged with update_quote_intervals()? Also should it use 'now' as the max_ts?
-    def _update_fetch_marker(self, data_entry):
-        """
-            Update (if needed) the fetch marker for a dataset interval.
-
-            Writes/updates a data_intervals row for the given dataset with
-            max_ts = max(existing, now) and min_ts left as NULL.
+            For data_entry=None (quote interval): min_ts is extended with first_date_ts,
+            max_ts is capped at last_date_ts (timespan-adjusted).
+            For data_entry set (fetch marker): min_ts stays NULL, max_ts is uncapped (timespan-adjusted).
 
             Args:
-                data_entry(DataEntries): the data entry to update.
+                data_entry(DataEntries or None): the data entry to update, or None to
+                    update the quote interval for self.timespan.
 
             Raises:
                 FdataError: sql error happened.
         """
         self._check_if_connected()
 
-        now = self._current_ts(adjusted=False)
-        title = data_entry.value
+        now = self._current_ts(adjusted=True)
 
-        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, source_id, data_entry_id, min_ts, max_ts)
-                              VALUES (
-                                    (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                    (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                    (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
-                                    NULL,
-                                    (SELECT ifnull(
-                                                    (SELECT max(max_ts, {now})
-                                                     FROM data_intervals
-                                                     WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                     AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
-                                                     AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
-                                            ), {now}))
+        if data_entry is None:
+            title = self.timespan.value
+            min_ts_val = self.first_date_ts
+            max_ts_val = min(now, self.last_date_ts)
+        else:
+            title = data_entry.value
+            min_ts_val = None
+            max_ts_val = now
+
+        min_ts_sql = "NULL" if min_ts_val is None else str(min_ts_val)
+
+        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
+                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
+                                      (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
+                                      (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
+                                      (SELECT ifnull(
+                                                      (SELECT min(min_ts, {min_ts_sql})
+                                                      FROM data_intervals
+                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
+                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
+                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
+                                      ), {min_ts_sql})),
+                                      (SELECT ifnull(
+                                                      (SELECT max(max_ts, {max_ts_val})
+                                                       FROM data_intervals
+                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
+                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
+                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
+                                               ), {max_ts_val}))
                            );"""
 
         try:

@@ -23,10 +23,10 @@ from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
 
-# TODO MID Use sql-formatter on SQL code
+# TODO High Shorten the sqlite queries involving subqueries
 
 # Current database compatibility version
-_DB_VERSION = 26
+_DB_VERSION = 27
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -599,10 +599,11 @@ class SecData(SecFetcher):
             Raise an exception if db is not connected.
         """
         if self._is_connected() is False:
-            raise FdataError("The database is not connected. Invoke db_connect() at first.")
+            raise FdataError("The database is not connected. Invoke _db_connect() at first.")
 
     # TODO HIGH We may switch auto connect logic to use a decorator:
     # Introduce a small private @_auto_connect decorator in fdata.py and apply it to ALL public DB-reading
+    # TODO MID Maybe these methods still should be public so we can avoid multiple automatic re-connections in some scenarios then?
     def _db_connect(self):
         """
             Connect to the databse.
@@ -682,11 +683,10 @@ class SecData(SecFetcher):
             raise FdataError(f"The environment table is broken. Please, delete the database file {self._db_name} or change db patch in settings.py")
         elif len(rows) == 0:
             # Insert the environment data to the table
-            insert_environment = f"""INSERT INTO environment (version)
-                                    VALUES ({_DB_VERSION});"""
+            insert_environment = "INSERT INTO environment (version) VALUES (?);"
 
             try:
-                self._cur.execute(insert_environment)
+                self._cur.execute(insert_environment, (_DB_VERSION,))
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{insert_environment}") from e
         else:  # One row present in the table so it is expected
@@ -740,20 +740,12 @@ class SecData(SecFetcher):
 
         # Check if currency table has data
         if len(rows) < len(Currency) - 1:
-            # Prepare the query with all supported currencies
-            currencies = ""
+            currencies = [(currency.value,) for currency in Currency if currency != Currency.All]
 
-            for currency in Currency:
-                if currency != Currency.All:
-                    currencies += f"('{currency.value}'),"
-
-            currencies = currencies[:len(currencies) - 2]
-
-            insert_currency = f"""INSERT OR IGNORE INTO currency (title)
-                                    VALUES {currencies});"""
+            insert_currency = "INSERT OR IGNORE INTO currency (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_currency)
+                self._cur.executemany(insert_currency, currencies)
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
 
@@ -796,20 +788,12 @@ class SecData(SecFetcher):
 
         # Check if sectypes table has data
         if len(rows) < len(SecType) - 1:
-            # Prepare the query with all supported sectypes
-            sec_types = ""
+            sec_types = [(sectype.value,) for sectype in SecType if sectype != SecType.All]
 
-            for sectype in SecType:
-                if sectype != SecType.All:
-                    sec_types += f"('{sectype.value}'),"
-
-            sec_types = sec_types[:len(sec_types) - 2]
-
-            insert_sectypes = f"""INSERT OR IGNORE INTO sectypes (title)
-                                    VALUES {sec_types});"""
+            insert_sectypes = "INSERT OR IGNORE INTO sectypes (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_sectypes)
+                self._cur.executemany(insert_sectypes, sec_types)
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
 
@@ -912,20 +896,12 @@ class SecData(SecFetcher):
 
         # Check if timespans table has data
         if len(rows) < len(Timespans) - 1:
-            # Prepare the query with all supported timespans
-            timespans = ""
+            timespans = [(timespan.value,) for timespan in Timespans if timespan != Timespans.All]
 
-            for timespan in Timespans:
-                if timespan != Timespans.All:
-                    timespans += f"('{timespan.value}'),"
-
-            timespans = timespans[:len(timespans) - 2]
-
-            insert_timespans = f"""INSERT OR IGNORE INTO timespans (title)
-                                    VALUES {timespans});"""
+            insert_timespans = "INSERT OR IGNORE INTO timespans (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_timespans)
+                self._cur.executemany(insert_timespans, timespans)
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
 
@@ -970,23 +946,19 @@ class SecData(SecFetcher):
         expected_entries_num = (len(Timespans) - 2) + len(DataEntries)
 
         if len(rows) < expected_entries_num:
-            # Prepare the query with all supported data entries
-            entries = ""
+            entries = []
 
             for timespan in Timespans:
                 if timespan not in (Timespans.All, Timespans.Unknown):
-                    entries += f"('{timespan.value}'),"
+                    entries.append((timespan.value,))
 
             for entry in DataEntries:
-                entries += f"('{entry.value}'),"
+                entries.append((entry.value,))
 
-            entries = entries[:len(entries) - 2]
-
-            insert_data_entries = f"""INSERT OR IGNORE INTO data_entries (title)
-                                        VALUES {entries});"""
+            insert_data_entries = "INSERT OR IGNORE INTO data_entries (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_data_entries)
+                self._cur.executemany(insert_data_entries, entries)
             except self._error as e:
                 raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_data_entries}") from e
 
@@ -1172,10 +1144,10 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        source_exists = f"SELECT title FROM sources WHERE title = '{self._source_title}';"
+        source_exists = "SELECT title FROM sources WHERE title = ?;"
 
         try:
-            self._cur.execute(source_exists)
+            self._cur.execute(source_exists, (self._source_title,))
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{source_exists}") from e
@@ -1192,10 +1164,10 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        insert_source = f"INSERT OR IGNORE INTO sources (title) VALUES ('{self._source_title}')"
+        insert_source = "INSERT OR IGNORE INTO sources (title) VALUES (?);"
 
         try:
-            self._cur.execute(insert_source)
+            self._cur.execute(insert_source, (self._source_title,))
             self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{insert_source}") from e
@@ -1274,9 +1246,11 @@ class SecData(SecFetcher):
 
         # Quotes number subquery
         num_query = ""
+        select_params = []
 
         if num > 0:
-            num_query = f"LIMIT {num}"
+            num_query = "LIMIT ?"
+            select_params.append(num)
 
         additional_columns = ""
 
@@ -1304,9 +1278,11 @@ class SecData(SecFetcher):
             last_date_ts = def_last_date
 
         source_query = ''
+        source_param = None
 
         if ignore_source is False:
-            source_query = f"AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')"
+            source_query = "AND source_id = (SELECT source_id FROM sources WHERE title = ?)"
+            source_param = self._source_title
 
         # select_quotes = f"""SELECT time_stamp,
         #                         datetime(time_stamp, 'unixepoch') AS date_time,
@@ -1345,16 +1321,18 @@ class SecData(SecFetcher):
                             FROM quotes INNER JOIN symbols ON quotes.symbol_id = symbols.symbol_id
                             INNER JOIN timespans ON quotes.time_span_id = timespans.time_span_id
                             {additional_joins}
-                            WHERE symbols.ticker = '{self._symbol}'
+                            WHERE symbols.ticker = ?
                             {timespan_query}
-                            AND time_stamp >= {self.first_date_ts}
-                            AND time_stamp <= {last_date_ts}
+                            AND time_stamp >= ?
+                            AND time_stamp <= ?
                             {source_query}
                             ORDER BY time_stamp
                             {num_query};"""
 
+        select_params = [self._symbol, self.first_date_ts, last_date_ts] + ([source_param] if source_param is not None else []) + select_params
+
         try:
-            self._cur.execute(select_quotes)
+            self._cur.execute(select_quotes, select_params)
             rows = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
@@ -1599,13 +1577,13 @@ class SecData(SecFetcher):
                 self._add_info(self._fetch_info())
 
             # Just time zone is used from info for now
-            info_query = f"""SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
+            info_query = """SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
                                 INNER JOIN sectypes s ON si.sec_type_id = s.sec_type_id
                                 INNER JOIN currency c ON si.currency_id = c.currency_id
-                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}')"""
+                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)"""
 
             try:
-                self._cur.execute(info_query)
+                self._cur.execute(info_query, (self._symbol,))
                 rows = self._cur.fetchall()
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
@@ -1824,10 +1802,10 @@ class SecData(SecFetcher):
 
         # Cascade delete will remove the corresponding entries in tables related to specific security data
         # like fundamentals for stock
-        delete_symbol = f"DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}');"
+        delete_symbol = "DELETE FROM symbols WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?);"
 
         try:
-            self._cur.execute(delete_symbol)
+            self._cur.execute(delete_symbol, (self._symbol,))
             self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{delete_symbol}") from e
@@ -1861,20 +1839,30 @@ class SecData(SecFetcher):
                                                                     volume,
                                                                     transactions)
                             VALUES (
-                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                            ({quote['ts']}),
-                            (SELECT time_span_id FROM timespans WHERE title = '{self.timespan.value}' COLLATE NOCASE),
-                            ({quote['open']}),
-                            ({quote['high']}),
-                            ({quote['low']}),
-                            ({quote['close']}),
-                            ({quote['volume']}),
-                            ({quote['transactions']})
+                            (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                            (SELECT source_id FROM sources WHERE title = ?),
+                            ?,  -- ts
+                            (SELECT time_span_id FROM timespans WHERE title = ? COLLATE NOCASE),
+                            ?,  -- open
+                            ?,  -- high
+                            ?,  -- low
+                            ?,  -- close
+                            ?,  -- volume
+                            ?  -- transactions
                         );"""
 
         try:
-            self._cur.execute(insert_quote)
+            self._cur.execute(insert_quote,
+                              (self._symbol,
+                               self._source_title,
+                               int(quote['ts']),
+                               self.timespan.value,
+                               quote['open'],
+                               quote['high'],
+                               quote['low'],
+                               quote['close'],
+                               int(quote['volume']) if quote['volume'] is not None else None,
+                               quote['transactions']))
         except self._error as e:
             raise FdataError(f"Can't add quotes data to a table 'quotes': {e}\n\nThe query is\n{insert_quote}") from e
 
@@ -1945,27 +1933,38 @@ class SecData(SecFetcher):
         min_ts_sql = "NULL" if min_ts_val is None else str(min_ts_val)
 
         update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
-                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                      (SELECT data_entry_id FROM data_entries WHERE title = '{title}'),
-                                      (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
+                              VALUES ((SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                      (SELECT data_entry_id FROM data_entries WHERE title = ?),
+                                      (SELECT source_id FROM sources WHERE title = ?),
                                       (SELECT ifnull(
                                                       (SELECT min(min_ts, {min_ts_sql})
                                                       FROM data_intervals
-                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                      AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
-                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
+                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
+                                                      AND source_id = (SELECT source_id FROM sources WHERE title = ?)
+                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = ?)
                                       ), {min_ts_sql})),
                                       (SELECT ifnull(
-                                                      (SELECT max(max_ts, {max_ts_val})
+                                                      (SELECT max(max_ts, ?)  -- max_ts_val
                                                        FROM data_intervals
-                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}')
-                                                       AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
-                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = '{title}')
-                                               ), {max_ts_val}))
+                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
+                                                       AND source_id = (SELECT source_id FROM sources WHERE title = ?)
+                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = ?)
+                                               ), ?))  -- max_ts_val (fallback)
                            );"""
 
         try:
-            self._cur.execute(update_fetched)
+            self._cur.execute(update_fetched,
+                              (self._symbol,
+                               title,
+                               self._source_title,
+                               self._symbol,
+                               self._source_title,
+                               title,
+                               max_ts_val,
+                               self._symbol,
+                               self._source_title,
+                               title,
+                               max_ts_val))
             self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
@@ -1995,20 +1994,25 @@ class SecData(SecFetcher):
         currency = info.get('fc_currency', Currency.Unknown)
 
         insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
-                                    source_id,
-                                    time_zone,
-                                    sec_type_id,
-                                    currency_id)
-                                VALUES (
-                                        (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                        (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                        ('{time_zone}'),
-                                        (SELECT sec_type_id FROM sectypes WHERE title = '{sec_type}'),
-                                        (SELECT currency_id FROM currency WHERE title = '{currency}')
+                                        source_id,
+                                        time_zone,
+                                        sec_type_id,
+                                        currency_id)
+                                    VALUES (
+                                        (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                        (SELECT source_id FROM sources WHERE title = ?),
+                                        ?,  -- time_zone
+                                        (SELECT sec_type_id FROM sectypes WHERE title = ?),
+                                        (SELECT currency_id FROM currency WHERE title = ?)
                                     );"""
 
         try:
-            self._cur.execute(insert_info)
+            self._cur.execute(insert_info,
+                              (self._symbol,
+                               self._source_title,
+                               time_zone,
+                               sec_type,
+                               currency))
         except self._error as e:
             raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
 

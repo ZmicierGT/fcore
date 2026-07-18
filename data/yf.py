@@ -171,7 +171,7 @@ class YF(stock.StockData):
                 'close': close_val,
                 'high': high_val,
                 'low': low_val,
-                'transactions': 'NULL',
+                'transactions': None,
                 'ts': data.iloc[[ind]]['ts'].values[0]
             }
 
@@ -295,9 +295,9 @@ class YF(stock.StockData):
 
         # Not used in this data source
         df_result['currency'] = self._get_currency()
-        df_result['decl_ts'] = 'NULL'
-        df_result['record_ts'] = 'NULL'
-        df_result['pay_ts'] = 'NULL'
+        df_result['decl_ts'] = None
+        df_result['record_ts'] = None
+        df_result['pay_ts'] = None
 
         # Reverse-adjust the dividends
         for i in range(len(splits)):
@@ -375,7 +375,7 @@ class YF(stock.StockData):
             raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{check_earnings_history}") from e
 
         if len(rows) == 0:
-            create_earnings_history = f"""CREATE TABLE yf_earnings_history(
+            create_earnings_history = """CREATE TABLE yf_earnings_history(
                                     yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     source_id INTEGER NOT NULL,
                                     symbol_id INTEGER NOT NULL,
@@ -444,15 +444,15 @@ class YF(stock.StockData):
             eps_difference = row.get('epsDifference')
             surprise_percent = row.get('surprisePercent')
 
-            def val_or_null(v):
-                return 'NULL' if pd.isna(v) else v
+            def val_or_none(v):
+                return None if pd.isna(v) else v
 
             eh_dict = {
                 'time_stamp': ts,
-                'epsActual': val_or_null(eps_actual),
-                'epsEstimate': val_or_null(eps_estimate),
-                'epsDifference': val_or_null(eps_difference),
-                'surprisePercent': val_or_null(surprise_percent),
+                'epsActual': val_or_none(eps_actual),
+                'epsEstimate': val_or_none(eps_estimate),
+                'epsDifference': val_or_none(eps_difference),
+                'surprisePercent': val_or_none(surprise_percent),
             }
 
             eh_data.append(eh_dict)
@@ -489,16 +489,23 @@ class YF(stock.StockData):
                                         epsDifference,
                                         surprisePercent)
                                     VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                            {result['time_stamp']},
-                                            {result['epsActual']},
-                                            {result['epsEstimate']},
-                                            {result['epsDifference']},
-                                            {result['surprisePercent']});"""
+                                            (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                            (SELECT source_id FROM sources WHERE title = ?),
+                                            ?,  -- time_stamp
+                                            ?,  -- epsActual
+                                            ?,  -- epsEstimate
+                                            ?,  -- epsDifference
+                                            ?  -- surprisePercent
+                                        );"""
 
             try:
-                self._cur.execute(insert_eh)
+                self._cur.execute(insert_eh, (self._symbol,
+                                              self._source_title,
+                                              int(result['time_stamp']),
+                                              result['epsActual'],
+                                              result['epsEstimate'],
+                                              result['epsDifference'],
+                                              result['surprisePercent']))
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 

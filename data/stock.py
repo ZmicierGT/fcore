@@ -131,20 +131,12 @@ class StockData(SecData, StockFetcher):
 
         # Check if reports_periods table has data
         if len(rows) < len(ReportPeriod) - 1:
-            # Prepare the query with all supported report periods
-            report_periods = ""
+            report_periods = [(report_period.value,) for report_period in ReportPeriod if report_period != ReportPeriod.All]
 
-            for report_period in ReportPeriod:
-                if report_period != ReportPeriod.All:
-                    report_periods += f"('{report_period.value}'),"
-
-            report_periods = report_periods[:len(report_periods) - 2]
-
-            insert_report_periods = f"""INSERT OR IGNORE INTO report_periods (title)
-                                    VALUES {report_periods});"""
+            insert_report_periods = "INSERT OR IGNORE INTO report_periods (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_report_periods)
+                self._cur.executemany(insert_report_periods, report_periods)
             except self._error as e:
                 raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
 
@@ -274,20 +266,12 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{all_sectors}") from e
 
         if sectors_length != len(Sector):
-            # Insert data into stock sectors
+            sectors = [(sector.value,) for sector in Sector]
 
-            # Prepare the query with all supported report periods
-            sectors = ""
-
-            for sector in Sector:
-                sectors += f"('{sector.value}'),"
-
-            sectors = sectors[:len(sectors) - 2]
-
-            insert_sectors = f"INSERT INTO stock_sectors ('title') VALUES {sectors});"
+            insert_sectors = "INSERT OR IGNORE INTO stock_sectors (title) VALUES (?);"
 
             try:
-                self._cur.execute(insert_sectors)
+                self._cur.executemany(insert_sectors, sectors)
                 self._commit()
             except self._error as e:
                 raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{insert_sectors}") from e
@@ -364,7 +348,7 @@ class StockData(SecData, StockFetcher):
         """
         self._check_if_connected()
 
-        get_divs = f"""SELECT	declaration_date,
+        get_divs = """SELECT	declaration_date,
                                 ex_date,
                                 record_date,
                                 payment_date,
@@ -372,14 +356,14 @@ class StockData(SecData, StockFetcher):
                                 (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
                                 (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
                             FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
-                            WHERE s.ticker = '{self._symbol}'
-                            AND ex_date >= {self.first_date_ts}
-                            AND ex_date <= {last_ts}
-                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
+                            WHERE s.ticker = ?
+                            AND ex_date >= ?
+                            AND ex_date <= ?
+                            AND source_id = (SELECT source_id FROM sources WHERE title = ?)
                             ORDER BY ex_date;"""
 
         try:
-            self._cur.execute(get_divs)
+            self._cur.execute(get_divs, (self._symbol, self.first_date_ts, last_ts, self._source_title))
             divs = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't obtain cash dividends: {e}\n\nThe query is\n{get_divs}") from e
@@ -403,18 +387,18 @@ class StockData(SecData, StockFetcher):
         """
         self._check_if_connected()
 
-        get_splits = f"""SELECT	split_date,
+        get_splits = """SELECT	split_date,
 	                        split_ratio,
 	                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
                         FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
-                        WHERE s.ticker = '{self._symbol}'
-                            AND split_date >= {self.first_date_ts}
-                            AND split_date <= {last_ts}
-                            AND source_id = (SELECT source_id FROM sources WHERE title = '{self._source_title}')
+                        WHERE s.ticker = ?
+                            AND split_date >= ?
+                            AND split_date <= ?
+                            AND source_id = (SELECT source_id FROM sources WHERE title = ?)
                             ORDER BY split_date;"""
 
         try:
-            self._cur.execute(get_splits)
+            self._cur.execute(get_splits, (self._symbol, self.first_date_ts, last_ts, self._source_title))
             splits = self._cur.fetchall()
         except self._error as e:
             raise FdataError(f"Can't obtain split data: {e}\n\nThe query is\n{get_splits}") from e
@@ -748,17 +732,26 @@ class StockData(SecData, StockFetcher):
 										payment_date,
                                         amount)
 									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                            (SELECT currency_id FROM currency WHERE title = '{div['currency']}'),
-											{div['decl_ts']},
-											{div['ex_ts']},
-											{div['record_ts']},
-											{div['pay_ts']},
-                                            {div['amount']});"""
+											(SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                            (SELECT source_id FROM sources WHERE title = ?),
+                                            (SELECT currency_id FROM currency WHERE title = ?),
+											?,  -- decl_ts
+											?,  -- ex_ts
+											?,  -- record_ts
+											?,  -- pay_ts
+                                            ?  -- amount
+										);"""
 
             try:
-                self._cur.execute(insert_dividends)
+                self._cur.execute(insert_dividends,
+                                  (self._symbol,
+                                   self._source_title,
+                                   div['currency'],
+                                   int(div['decl_ts']) if div['decl_ts'] is not None else None,
+                                   int(div['ex_ts']) if div['ex_ts'] is not None else None,
+                                   int(div['record_ts']) if div['record_ts'] is not None else None,
+                                   int(div['pay_ts']) if div['pay_ts'] is not None else None,
+                                   float(div['amount'])))
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
@@ -795,13 +788,18 @@ class StockData(SecData, StockFetcher):
 										split_date,
                                         split_ratio)
 									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-											{split['ts']},
-											{split['split_ratio']});"""
+											(SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                            (SELECT source_id FROM sources WHERE title = ?),
+											?,  -- ts
+											?  -- split_ratio
+										);"""
 
             try:
-                self._cur.execute(insert_splits)
+                self._cur.execute(insert_splits,
+                                  (self._symbol,
+                                   self._source_title,
+                                   int(split['ts']),
+                                   float(split['split_ratio'])))
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
@@ -840,13 +838,13 @@ class StockData(SecData, StockFetcher):
                                         source_id,
                                         stock_sector_id)
                                     VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'),
-                                            (SELECT source_id FROM sources WHERE title = '{self._source_title}'),
-                                            (SELECT stock_sector_id FROM stock_sectors WHERE title = '{sector}')
+                                            (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                            (SELECT source_id FROM sources WHERE title = ?),
+                                            (SELECT stock_sector_id FROM stock_sectors WHERE title = ?)
                                         );"""
 
             try:
-                self._cur.execute(insert_info)
+                self._cur.execute(insert_info, (self._symbol, self._source_title, sector))
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
 
@@ -911,12 +909,12 @@ class StockData(SecData, StockFetcher):
                     self._add_info(self._fetch_info())
 
                 # Just sector title is used from info for now
-                info_query = f"""SELECT title FROM stock_sectors WHERE stock_sector_id =
+                info_query = """SELECT title FROM stock_sectors WHERE stock_sector_id =
                                     (SELECT stock_sector_id FROM stock_info WHERE symbol_id =
-                                        (SELECT symbol_id FROM symbols WHERE ticker='{self._symbol}'))"""
+                                        (SELECT symbol_id FROM symbols WHERE ticker=?))"""
 
                 try:
-                    self._cur.execute(info_query)
+                    self._cur.execute(info_query, (self._symbol,))
                     row = self._cur.fetchone()[0]
                 except (self._error, TypeError) as e:
                     raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e

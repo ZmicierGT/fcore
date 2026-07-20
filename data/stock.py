@@ -864,14 +864,23 @@ class StockData(SecData, StockFetcher):
             Returns:
                 array: the fetched quote entries.
         """
-        # Get also divs and splits for stock and etf as theoretically the instance may be used for other sec types
-        if self._get_sectype() in (SecType.Stock, SecType.ETF):
-            self._get_dividends()
-            self._get_splits()
-        else:
-            self._log(f"Warning! Security type is not stock or ETF ({self._get_sectype()}) so split/dividend data is not obtained.")
+        # Establish the connection up front so all nested DB queries share a single connection.
+        initially_connected = self._is_connected()
 
-        return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+        if self._is_connected() is False:
+            self._db_connect()
+
+        try:
+            if self._get_sectype() in (SecType.Stock, SecType.ETF):
+                self._get_dividends()
+                self._get_splits()
+            else:
+                self._log(f"Warning! Security type is not stock or ETF ({self._get_sectype()}) so split/dividend data is not obtained.")
+
+            return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+        finally:
+            if initially_connected is False:
+                self._db_close()
 
     # TODO HIGH Likely it is more rational just to add an argument to get unadjusted quotes in get()
     def _get_quotes_only(self):

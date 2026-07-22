@@ -722,38 +722,41 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_dividends_num()
 
-        for div in divs:
-            insert_dividends = f"""INSERT OR {self._update} INTO cash_dividends (symbol_id,
-                                        source_id,
-                                        currency_id,
-										declaration_date,
-										ex_date,
-										record_date,
-										payment_date,
-                                        amount)
-									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = ?),
-                                            (SELECT source_id FROM sources WHERE title = ?),
-                                            (SELECT currency_id FROM currency WHERE title = ?),
-											?,  -- decl_ts
-											?,  -- ex_ts
-											?,  -- record_ts
-											?,  -- pay_ts
-                                            ?  -- amount
-										);"""
+        insert_dividends = f"""INSERT OR {self._update} INTO cash_dividends (symbol_id,
+                                    source_id,
+                                    currency_id,
+                                    declaration_date,
+                                    ex_date,
+                                    record_date,
+                                    payment_date,
+                                    amount)
+                                VALUES (
+                                    (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                    (SELECT source_id FROM sources WHERE title = ?),
+                                    (SELECT currency_id FROM currency WHERE title = ?),
+                                    ?,  -- decl_ts
+                                    ?,  -- ex_ts
+                                    ?,  -- record_ts
+                                    ?,  -- pay_ts
+                                    ?  -- amount
+                                );"""
 
-            try:
-                self._cur.execute(insert_dividends,
-                                  (self._symbol,
-                                   self._source_title,
-                                   div['currency'],
-                                   int(div['decl_ts']) if div['decl_ts'] is not None else None,
-                                   int(div['ex_ts']) if div['ex_ts'] is not None else None,
-                                   int(div['record_ts']) if div['record_ts'] is not None else None,
-                                   int(div['pay_ts']) if div['pay_ts'] is not None else None,
-                                   float(div['amount'])))
-            except self._error as e:
-                raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
+        rows = (
+            (self._symbol,
+             self._source_title,
+             div['currency'],
+             int(div['decl_ts']) if div['decl_ts'] is not None else None,
+             int(div['ex_ts']) if div['ex_ts'] is not None else None,
+             int(div['record_ts']) if div['record_ts'] is not None else None,
+             int(div['pay_ts']) if div['pay_ts'] is not None else None,
+             float(div['amount']))
+            for div in divs
+        )
+
+        try:
+            self._cur.executemany(insert_dividends, rows)
+        except self._error as e:
+            raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
         self._commit()
 
@@ -782,26 +785,29 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_split_num()
 
-        for split in splits:
-            insert_splits = f"""INSERT OR {self._update} INTO stock_splits (symbol_id,
-                                        source_id,
-										split_date,
-                                        split_ratio)
-									VALUES (
-											(SELECT symbol_id FROM symbols WHERE ticker = ?),
-                                            (SELECT source_id FROM sources WHERE title = ?),
-											?,  -- ts
-											?  -- split_ratio
-										);"""
+        insert_splits = f"""INSERT OR {self._update} INTO stock_splits (symbol_id,
+                                    source_id,
+                                    split_date,
+                                    split_ratio)
+                                VALUES (
+                                    (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                    (SELECT source_id FROM sources WHERE title = ?),
+                                    ?,  -- ts
+                                    ?  -- split_ratio
+                                );"""
 
-            try:
-                self._cur.execute(insert_splits,
-                                  (self._symbol,
-                                   self._source_title,
-                                   int(split['ts']),
-                                   float(split['split_ratio'])))
-            except self._error as e:
-                raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
+        rows = (
+            (self._symbol,
+             self._source_title,
+             int(split['ts']),
+             float(split['split_ratio']))
+            for split in splits
+        )
+
+        try:
+            self._cur.executemany(insert_splits, rows)
+        except self._error as e:
+            raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self._commit()
 

@@ -480,34 +480,38 @@ class YF(stock.StockData):
 
         num_before = self.get_earnings_history_num()
 
-        for result in results:
-            insert_eh = f"""INSERT OR {self._update} INTO yf_earnings_history (symbol_id,
-                                        source_id,
-                                        time_stamp,
-                                        epsActual,
-                                        epsEstimate,
-                                        epsDifference,
-                                        surprisePercent)
-                                    VALUES (
-                                            (SELECT symbol_id FROM symbols WHERE ticker = ?),
-                                            (SELECT source_id FROM sources WHERE title = ?),
-                                            ?,  -- time_stamp
-                                            ?,  -- epsActual
-                                            ?,  -- epsEstimate
-                                            ?,  -- epsDifference
-                                            ?  -- surprisePercent
-                                        );"""
+        insert_eh = f"""INSERT OR {self._update} INTO yf_earnings_history (symbol_id,
+                                    source_id,
+                                    time_stamp,
+                                    epsActual,
+                                    epsEstimate,
+                                    epsDifference,
+                                    surprisePercent)
+                                VALUES (
+                                    (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                    (SELECT source_id FROM sources WHERE title = ?),
+                                    ?,  -- time_stamp
+                                    ?,  -- epsActual
+                                    ?,  -- epsEstimate
+                                    ?,  -- epsDifference
+                                    ?  -- surprisePercent
+                                );"""
 
-            try:
-                self._cur.execute(insert_eh, (self._symbol,
-                                              self._source_title,
-                                              int(result['time_stamp']),
-                                              result['epsActual'],
-                                              result['epsEstimate'],
-                                              result['epsDifference'],
-                                              result['surprisePercent']))
-            except self._error as e:
-                raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
+        rows = (
+            (self._symbol,
+             self._source_title,
+             int(result['time_stamp']),
+             result['epsActual'],
+             result['epsEstimate'],
+             result['epsDifference'],
+             result['surprisePercent'])
+            for result in results
+        )
+
+        try:
+            self._cur.executemany(insert_eh, rows)
+        except self._error as e:
+            raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 
         self._commit()
 

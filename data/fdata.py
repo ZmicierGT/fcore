@@ -33,6 +33,9 @@ _DB_VERSION = 27
 class Subquery():
     """
         Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
+
+        Note that this class is not really sql-injection proof so it should be used internally only -
+        meaning not exposing it through web-interface or whatever.
     """
     def __init__(self, table, column, condition='', title=None, fill=True):
         """
@@ -1374,6 +1377,9 @@ class SecData(SecFetcher):
     def _get_data_num(self, table, symbol=True, source=True, timespan=True, dt=False):
         """Get the number of entries for the symbol in the specified table.
 
+            Note that this method is not really sql-injection proof so it should be used internally only -
+            meaning not exposing it through web-interface or whatever.
+
             Args:
                 table(string): the table to query.
                 symbol(bool): filter by the symbol configured on the instance.
@@ -1429,6 +1435,9 @@ class SecData(SecFetcher):
         """
             Get Min/Max timestamp for a particular symbol, source, timespan from the specified table.
 
+            Note that this method is not really sql-injection proof so it should be used internally only -
+            meaning not exposing it through web-interface or whatever.
+
             Args:
                 is_max(bool): indicates if Min or Max timestamp should be obtained.
                 table(str): table to request.
@@ -1467,6 +1476,9 @@ class SecData(SecFetcher):
             Get Min/Max timestamp for a particular symbol, source and data entry
             (a Timespans value for quote intervals or a DataEntries value for datasets)
             from the 'data_intervals' table.
+
+            Note that this method is not really sql-injection proof so it should be used internally only -
+            meaning not exposing it through web-interface or whatever.
 
             Args:
                 data_entry(str): data entry title.
@@ -1813,61 +1825,6 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    def _add_base_quote_data(self, quote):
-        """
-            Add base quote data (similar for all security types) to the database but do not perform commit.
-
-            Args:
-                quotes_dict(list of dictionaries): quotes obtained from an API wrapper.
-
-            Returns:
-                int: last row id of the operation.
-
-            Raises:
-                FdataError: sql error happened.
-        """
-        self._check_if_connected()
-
-        insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
-                                                                    source_id,
-                                                                    time_stamp,
-                                                                    time_span_id,
-                                                                    opened,
-                                                                    high,
-                                                                    low,
-                                                                    closed,
-                                                                    volume,
-                                                                    transactions)
-                            VALUES (
-                            (SELECT symbol_id FROM symbols WHERE ticker = ?),
-                            (SELECT source_id FROM sources WHERE title = ?),
-                            ?,  -- ts
-                            (SELECT time_span_id FROM timespans WHERE title = ? COLLATE NOCASE),
-                            ?,  -- open
-                            ?,  -- high
-                            ?,  -- low
-                            ?,  -- close
-                            ?,  -- volume
-                            ?  -- transactions
-                        );"""
-
-        try:
-            self._cur.execute(insert_quote,
-                              (self._symbol,
-                               self._source_title,
-                               int(quote['ts']),
-                               self.timespan.value,
-                               quote['open'],
-                               quote['high'],
-                               quote['low'],
-                               quote['close'],
-                               int(quote['volume']) if quote['volume'] is not None else None,
-                               quote['transactions']))
-        except self._error as e:
-            raise FdataError(f"Can't add quotes data to a table 'quotes': {e}\n\nThe query is\n{insert_quote}") from e
-
-        return self._cur.lastrowid
-
     def _add_quotes(self, quotes_dict):
         """
             Add quotes to the database.
@@ -1890,8 +1847,47 @@ class SecData(SecFetcher):
         num_before = self.get_quotes_num()
 
         if quotes_dict is not None:
-            for quote in quotes_dict:
-                self._add_base_quote_data(quote)
+            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
+                                                              source_id,
+                                                              time_stamp,
+                                                              time_span_id,
+                                                              opened,
+                                                              high,
+                                                              low,
+                                                              closed,
+                                                              volume,
+                                                              transactions)
+                                          VALUES (
+                                          (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                          (SELECT source_id FROM sources WHERE title = ?),
+                                          ?,  -- ts
+                                          (SELECT time_span_id FROM timespans WHERE title = ? COLLATE NOCASE),
+                                          ?,  -- open
+                                          ?,  -- high
+                                          ?,  -- low
+                                          ?,  -- close
+                                          ?,  -- volume
+                                          ?  -- transactions
+                                      );"""
+
+            rows = (
+                (self._symbol,
+                 self._source_title,
+                 int(quote['ts']),
+                 self.timespan.value,
+                 quote['open'],
+                 quote['high'],
+                 quote['low'],
+                 quote['close'],
+                 int(quote['volume']) if quote['volume'] is not None else None,
+                 quote['transactions'])
+                for quote in quotes_dict
+            )
+
+            try:
+                self._cur.executemany(insert_quote, rows)
+            except self._error as e:
+                raise FdataError(f"Can't add quotes data to a table 'quotes': {e}\n\nThe query is\n{insert_quote}") from e
 
             self._commit()
 

@@ -366,15 +366,7 @@ class YF(stock.StockData):
         super()._check_database()
 
         # Check if we need to create table 'yf_earnings_history'
-        try:
-            check_earnings_history = "SELECT name FROM sqlite_master WHERE type='table' AND name='yf_earnings_history';"
-
-            self._cur.execute(check_earnings_history)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{check_earnings_history}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('yf_earnings_history'):
             create_earnings_history = """CREATE TABLE yf_earnings_history(
                                     yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     source_id INTEGER NOT NULL,

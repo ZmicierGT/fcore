@@ -93,15 +93,7 @@ class StockData(SecData, StockFetcher):
         #############################
 
         # Check if we need to create table 'report_periods'
-        try:
-            check_report_periods = "SELECT name FROM sqlite_master WHERE type='table' AND name='report_periods';"
-
-            self._cur.execute(check_report_periods)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{check_report_periods}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('report_periods'):
             create_report_periods = """CREATE TABLE report_periods(
                                     period_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     title TEXT NOT NULL UNIQUE
@@ -120,36 +112,11 @@ class StockData(SecData, StockFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for report_periods(title): {e}") from e
 
-        # Check if report_periods table is empty
-        try:
-            all_report_periods = "SELECT * FROM report_periods;"
-
-            self._cur.execute(all_report_periods)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{all_report_periods}") from e
-
-        # Check if reports_periods table has data
-        if len(rows) < len(ReportPeriod) - 1:
-            report_periods = [(report_period.value,) for report_period in ReportPeriod if report_period != ReportPeriod.All]
-
-            insert_report_periods = "INSERT OR IGNORE INTO report_periods (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_report_periods, report_periods)
-            except self._error as e:
-                raise FdataError(f"Can't insert data to a table 'report_periods': {e}\n{insert_report_periods}") from e
+        # Populate report_periods table if not yet fully populated
+        self._populate_lookup('report_periods', [r.value for r in ReportPeriod if r != ReportPeriod.All])
 
         # Check if we need a separate table for cash dividends
-        try:
-            check_cash_divs = "SELECT name FROM sqlite_master WHERE type='table' AND name='cash_dividends';"
-
-            self._cur.execute(check_cash_divs)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{check_cash_divs}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('cash_dividends'):
             create_cash_divs = """CREATE TABLE cash_dividends(
                                 cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
@@ -189,15 +156,7 @@ class StockData(SecData, StockFetcher):
                 raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
 
         # Check if we need a separate table for stock splits
-        try:
-            check_stock_splits = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_splits';"
-
-            self._cur.execute(check_stock_splits)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{check_stock_splits}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('stock_splits'):
             create_stock_splits = """CREATE TABLE stock_splits(
                                     stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     source_id INTEGER NOT NULL,
@@ -229,15 +188,7 @@ class StockData(SecData, StockFetcher):
                 raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
 
         # Check if we need to create table 'stock_sectors'
-        try:
-            check_stock_sectors = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_sectors';"
-
-            self._cur.execute(check_stock_sectors)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{check_stock_sectors}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('stock_sectors'):
             create_stock_sectors = """CREATE TABLE stock_sectors (
                                                 stock_sector_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                 title TEXT NOT NULL UNIQUE
@@ -256,36 +207,12 @@ class StockData(SecData, StockFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
 
-        # Check if stock_sectors table is empty
-        try:
-            all_sectors = "SELECT COUNT(*) FROM stock_sectors;"
-
-            self._cur.execute(all_sectors)
-            sectors_length = self._cur.fetchone()[0]
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{all_sectors}") from e
-
-        if sectors_length != len(Sector):
-            sectors = [(sector.value,) for sector in Sector]
-
-            insert_sectors = "INSERT OR IGNORE INTO stock_sectors (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_sectors, sectors)
-                self._commit()
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'stock_sectors': {e}\n{insert_sectors}") from e
+        # Populate stock_sectors table if not yet fully populated
+        self._populate_lookup('stock_sectors', [s.value for s in Sector])
+        self._commit()
 
         # Check if we need to create table 'stock_info'
-        try:
-            check_stock_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='stock_info';"
-
-            self._cur.execute(check_stock_info)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{check_stock_info}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('stock_info'):
 
             create_stock_info = """CREATE TABLE stock_info (
                                                 stock_info_id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -7,6 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 import abc
 
 from time import sleep, perf_counter
+from itertools import chain
 
 import http.client
 import urllib.error
@@ -26,7 +27,7 @@ import calendar
 # TODO High Shorten the sqlite queries involving subqueries
 
 # Current database compatibility version
-_DB_VERSION = 27
+_DB_VERSION = 28
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -643,6 +644,53 @@ class SecData(SecFetcher):
         self._cur = None
         self._error = None
 
+    def _table_exists(self, table):
+        """
+            Check if a table exists in the database.
+
+        Args:
+            table(str): the table name.
+
+        Returns:
+            bool: True if the table exists, False otherwise.
+
+        Raises:
+            FdataError: sql error happened.
+        """
+        check_query = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}';"
+
+        try:
+            self._cur.execute(check_query)
+            rows = self._cur.fetchall()
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{check_query}") from e
+
+        return len(rows) > 0
+
+    def _populate_lookup(self, table, values):
+        """
+            Populate a lookup table with the given titles if not yet fully populated.
+
+            Existing entries are kept (INSERT OR IGNORE). Does not commit — the caller
+            is expected to commit once the surrounding initialization is complete.
+
+        Args:
+            table(str): the lookup table name.
+            values(list of str): the titles to insert.
+
+        Raises:
+            FdataError: sql error happened.
+        """
+        count = self._get_data_num(table, symbol=False, source=False)
+
+        if count < len(values):
+            insert_query = f"INSERT OR IGNORE INTO {table} (title) VALUES (?);"
+
+            try:
+                self._cur.executemany(insert_query, [(v,) for v in values])
+            except self._error as e:
+                raise FdataError(f"Can't insert data to a table '{table}': {e}\n{insert_query}") from e
+
     def _check_database(self):
         """
             Database create/integrity check method.
@@ -654,15 +702,7 @@ class SecData(SecFetcher):
         self._check_if_connected()
 
         # Check if we need to create table 'environment'
-        try:
-            check_environment = "SELECT name FROM sqlite_master WHERE type='table' AND name='environment';"
-
-            self._cur.execute(check_environment)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{check_environment}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('environment'):
             create_environment = """CREATE TABLE environment(
                                     version INTEGER NOT NULL UNIQUE
                                 );"""
@@ -706,15 +746,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"DB Version is unexpected. Please, delete the database file {self._db_name} or change db patch in settings.py")
 
         # Check if we need to create table 'currency'
-        try:
-            check_currency = "SELECT name FROM sqlite_master WHERE type='table' AND name='currency';"
-
-            self._cur.execute(check_currency)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{check_currency}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('currency'):
             create_currency = """CREATE TABLE currency(
                                     currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     title TEXT NOT NULL UNIQUE
@@ -733,35 +765,11 @@ class SecData(SecFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for currency(title): {e}") from e
 
-        # Check if currency table is empty
-        try:
-            all_currency = "SELECT * FROM currency;"
-            self._cur.execute(all_currency)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{all_currency}") from e
-
-        # Check if currency table has data
-        if len(rows) < len(Currency) - 1:
-            currencies = [(currency.value,) for currency in Currency if currency != Currency.All]
-
-            insert_currency = "INSERT OR IGNORE INTO currency (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_currency, currencies)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{insert_currency}") from e
+        # Populate currency table if not yet fully populated
+        self._populate_lookup('currency', [c.value for c in Currency if c != Currency.All])
 
         # Check if we need to create table 'sectypes'
-        try:
-            check_sectypes = "SELECT name FROM sqlite_master WHERE type='table' AND name='sectypes';"
-
-            self._cur.execute(check_sectypes)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{check_sectypes}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('sectypes'):
             create_sectypes = """CREATE TABLE sectypes(
                                     sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     title TEXT NOT NULL UNIQUE
@@ -780,36 +788,11 @@ class SecData(SecFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for sectypes(title): {e}") from e
 
-        # Check if sectypes table is empty
-        try:
-            all_sectypes = "SELECT * FROM sectypes;"
-
-            self._cur.execute(all_sectypes)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{all_sectypes}") from e
-
-        # Check if sectypes table has data
-        if len(rows) < len(SecType) - 1:
-            sec_types = [(sectype.value,) for sectype in SecType if sectype != SecType.All]
-
-            insert_sectypes = "INSERT OR IGNORE INTO sectypes (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_sectypes, sec_types)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{insert_sectypes}") from e
+        # Populate sectypes table if not yet fully populated
+        self._populate_lookup('sectypes', [s.value for s in SecType if s != SecType.All])
 
         # Check if we need to create table 'symbols'
-        try:
-            check_symbols = "SELECT name FROM sqlite_master WHERE type='table' AND name='symbols';"
-
-            self._cur.execute(check_symbols)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{check_symbols}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('symbols'):
             create_symbols = """CREATE TABLE symbols(
                                 symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ticker TEXT NOT NULL UNIQUE,
@@ -832,15 +815,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't create index for symbols(ticker): {e}") from e
 
         # Check if we need to create table 'sources'
-        try:
-            check_sources = "SELECT name FROM sqlite_master WHERE type='table' AND name='sources';"
-
-            self._cur.execute(check_sources)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{check_sources}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('sources'):
             create_sources = """CREATE TABLE sources(
                                 source_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 title TEXT NOT NULL UNIQUE,
@@ -861,15 +836,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't create index for sources(title): {e}") from e
 
         # Check if we need to create table 'timespans'
-        try:
-            check_timespans = "SELECT name FROM sqlite_master WHERE type='table' AND name='timespans';"
-
-            self._cur.execute(check_timespans)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{check_timespans}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('timespans'):
             create_timespans = """CREATE TABLE timespans(
                                     time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                     title TEXT NOT NULL UNIQUE
@@ -888,36 +855,11 @@ class SecData(SecFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for timespans(title): {e}") from e
 
-        # Check if timespans table is empty
-        try:
-            all_timespans = "SELECT * FROM timespans;"
-
-            self._cur.execute(all_timespans)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{all_timespans}") from e
-
-        # Check if timespans table has data
-        if len(rows) < len(Timespans) - 1:
-            timespans = [(timespan.value,) for timespan in Timespans if timespan != Timespans.All]
-
-            insert_timespans = "INSERT OR IGNORE INTO timespans (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_timespans, timespans)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{insert_timespans}") from e
+        # Populate timespans table if not yet fully populated
+        self._populate_lookup('timespans', [t.value for t in Timespans if t != Timespans.All])
 
         # Check if we need to create table 'data_entries'
-        try:
-            check_data_entries = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_entries';"
-
-            self._cur.execute(check_data_entries)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{check_data_entries}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('data_entries'):
             create_data_entries = """CREATE TABLE data_entries(
                                         data_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                         title TEXT NOT NULL UNIQUE
@@ -936,45 +878,13 @@ class SecData(SecFetcher):
             except self._error as e:
                 raise FdataError(f"Can't create index for data_entries(title): {e}") from e
 
-        # Check if data_entries table is populated with the expected entries.
-        # The expected rows are all Timespans (excluding All/Unknown) plus all DataEntries.
-        try:
-            all_data_entries = "SELECT * FROM data_entries;"
-
-            self._cur.execute(all_data_entries)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{all_data_entries}") from e
-
-        expected_entries_num = (len(Timespans) - 2) + len(DataEntries)
-
-        if len(rows) < expected_entries_num:
-            entries = []
-
-            for timespan in Timespans:
-                if timespan not in (Timespans.All, Timespans.Unknown):
-                    entries.append((timespan.value,))
-
-            for entry in DataEntries:
-                entries.append((entry.value,))
-
-            insert_data_entries = "INSERT OR IGNORE INTO data_entries (title) VALUES (?);"
-
-            try:
-                self._cur.executemany(insert_data_entries, entries)
-            except self._error as e:
-                raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_data_entries}") from e
+        # Populate data_entries table with Timespans (excluding All/Unknown) plus all DataEntries
+        entries = [e.value for e in chain(Timespans, DataEntries)
+                   if e not in (Timespans.All, Timespans.Unknown)]
+        self._populate_lookup('data_entries', entries)
 
         # Check if we need to create table 'data_intervals'
-        try:
-            check_data_intervals = "SELECT name FROM sqlite_master WHERE type='table' AND name='data_intervals';"
-
-            self._cur.execute(check_data_intervals)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'data_intervals': {e}\n{check_data_intervals}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('data_intervals'):
             create_data_intervals = """CREATE TABLE data_intervals (
                                             interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             symbol_id INTEGER NOT NULL,
@@ -1012,15 +922,7 @@ class SecData(SecFetcher):
 
         # TODO Mid need to think of a better way how to combine data from various sources
         # Check if we need to create table 'quotes'
-        try:
-            check_quotes = "SELECT name FROM sqlite_master WHERE type='table' AND name='quotes';"
-
-            self._cur.execute(check_quotes)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{check_quotes}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('quotes'):
             create_quotes = """CREATE TABLE quotes (
                             quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             symbol_id INTEGER NOT NULL,
@@ -1063,15 +965,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't create indexes for quotes table: {e}") from e
 
         # Check if we need to create table 'sec_info'
-        try:
-            check_sec_info = "SELECT name FROM sqlite_master WHERE type='table' AND name='sec_info';"
-
-            self._cur.execute(check_sec_info)
-            rows = self._cur.fetchall()
-        except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{check_sec_info}") from e
-
-        if len(rows) == 0:
+        if not self._table_exists('sec_info'):
 
             create_sec_info = """CREATE TABLE sec_info (
                                                 sec_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1107,14 +1001,10 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't create table sec_info: {e}") from e
 
             # Create indexes for sec_info
-            create_sec_info_idx_symbol = "CREATE INDEX idx_sec_info_symbol ON sec_info(symbol_id);"
-            create_sec_info_idx_sectype = "CREATE INDEX idx_sec_info_sectype ON sec_info(sec_type_id);"
-            create_sec_info_idx_currency = "CREATE INDEX idx_sec_info_currency ON sec_info(currency_id);"
+            create_sec_info_idx_symbol = "CREATE INDEX idx_sec_info ON sec_info(symbol_id);"
 
             try:
                 self._cur.execute(create_sec_info_idx_symbol)
-                self._cur.execute(create_sec_info_idx_sectype)
-                self._cur.execute(create_sec_info_idx_currency)
             except self._error as e:
                 raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 

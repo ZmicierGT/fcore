@@ -29,8 +29,6 @@ import calendar
 # Current database compatibility version
 _DB_VERSION = 29
 
-# TODO LOW Consider checking of sqlite version as well
-
 class Subquery():
     """
         Class which represents additional subqueries for optional data (fundamentals, global economic, customer data and so on).
@@ -275,7 +273,6 @@ class SecData(SecFetcher):
         Base class for SQL data operations and database integrity check.
     """
     def __init__(self,
-                 update=True,
                  symbol="",
                  first_date=def_first_date,
                  last_date=def_last_date,
@@ -287,7 +284,6 @@ class SecData(SecFetcher):
             Initialize the base database class.
 
             Args:
-                update(bool): indicates if existing quotes should be updated.
                 symbol(str): the symbol to use.
                 first_date(datetime, str, int): the first date for queries.
                 last_date(datetime, str, int): the last date for queries.
@@ -337,9 +333,6 @@ class SecData(SecFetcher):
         self._time_zone = None  # Cached time zone to avoid too many db queries
         self._sec_type = None  # Cached security type to avoid too many db queries
         self._currency = None  # Cached security type to avoid too many db queries
-
-        # Underlying variable for the update getter (merged from ReadWriteData)
-        self._update = 'REPLACE' if update else 'IGNORE'
 
         # Cached security info
         self._info = None
@@ -1631,19 +1624,6 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
-    # TODO MID Likely here a migration to INSERT ... ON CONFLICT(...) DO UPDATE SET is justified (SQLite ≥ 3.24)
-    @property
-    def update(self):
-        """
-            Getter for update.
-        """
-        if self._update == 'IGNORE':
-            return False
-        elif self._update == 'REPLACE':
-            return True
-        else:
-            raise FdataError("Unknown update value.")
-
     @property
     def symbol_exists(self):
         """
@@ -1680,12 +1660,12 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        insert_symbol = "INSERT OR IGNORE INTO symbols (ticker) VALUES (?);"
+        insert_symbol = "INSERT INTO symbols (ticker) VALUES (?) ON CONFLICT(ticker) DO NOTHING;"
 
         try:
             self._cur.execute(insert_symbol, (self._symbol,))
             if self._cur.rowcount == 1:
-                self._conn.commit()
+                self._commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{insert_symbol}") from e
 
@@ -1713,7 +1693,6 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    # TODO HIGH Think how to implement it more race-condition proof
     def _add_quotes(self, quotes_dict):
         """
             Add quotes to the database.
@@ -1736,7 +1715,7 @@ class SecData(SecFetcher):
         num_before = self.get_quotes_num()
 
         if quotes_dict is not None:
-            insert_quote = f"""INSERT OR {self._update} INTO quotes (symbol_id,
+            insert_quote = """INSERT INTO quotes (symbol_id,
                                                               source_id,
                                                               time_stamp,
                                                               time_span_id,
@@ -1757,7 +1736,14 @@ class SecData(SecFetcher):
                                           ?,  -- close
                                           ?,  -- volume
                                           ?  -- transactions
-                                      );"""
+                                      )
+                                      ON CONFLICT(symbol_id, time_stamp, time_span_id, source_id)
+                                      DO UPDATE SET opened = excluded.opened,
+                                                    high = excluded.high,
+                                                    low = excluded.low,
+                                                    closed = excluded.closed,
+                                                    volume = excluded.volume,
+                                                    transactions = excluded.transactions;"""
 
             rows = (
                 (self._symbol,
@@ -1786,6 +1772,7 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
+    # TODO HIGH Add an argument to refetch data (somehow a replacement of the removed .update)
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)
@@ -1815,42 +1802,29 @@ class SecData(SecFetcher):
             min_ts_val = None
             max_ts_val = now
 
-        min_ts_sql = "NULL" if min_ts_val is None else str(min_ts_val)
-
-        update_fetched = f"""INSERT OR REPLACE INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
+        update_fetched = """INSERT INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = ?),
                                       (SELECT data_entry_id FROM data_entries WHERE title = ?),
                                       (SELECT source_id FROM sources WHERE title = ?),
-                                      (SELECT ifnull(
-                                                      (SELECT min(min_ts, {min_ts_sql})
-                                                      FROM data_intervals
-                                                      WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
-                                                      AND source_id = (SELECT source_id FROM sources WHERE title = ?)
-                                                      AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = ?)
-                                      ), {min_ts_sql})),
-                                      (SELECT ifnull(
-                                                      (SELECT max(max_ts, ?)  -- max_ts_val
-                                                       FROM data_intervals
-                                                       WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
-                                                       AND source_id = (SELECT source_id FROM sources WHERE title = ?)
-                                                       AND data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = ?)
-                                               ), ?))  -- max_ts_val (fallback)
-                           );"""
+                                      ?,  -- min_ts_val
+                                      ?)  -- max_ts_val
+                              ON CONFLICT(symbol_id, source_id, data_entry_id)
+                              DO UPDATE SET
+                                  min_ts = COALESCE(MIN(data_intervals.min_ts, excluded.min_ts),
+                                                    excluded.min_ts,
+                                                    data_intervals.min_ts),
+                                  max_ts = COALESCE(MAX(data_intervals.max_ts, excluded.max_ts),
+                                                    excluded.max_ts,
+                                                    data_intervals.max_ts);"""
 
         try:
             self._cur.execute(update_fetched,
                               (self._symbol,
                                title,
                                self._source_title,
-                               self._symbol,
-                               self._source_title,
-                               title,
-                               max_ts_val,
-                               self._symbol,
-                               self._source_title,
-                               title,
+                               min_ts_val,
                                max_ts_val))
-            self._conn.commit()
+            self._commit()
         except self._error as e:
             raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
 
@@ -1878,7 +1852,7 @@ class SecData(SecFetcher):
 
         currency = info.get('fc_currency', Currency.Unknown)
 
-        insert_info = f"""INSERT OR {self._update} INTO sec_info (symbol_id,
+        insert_info = """INSERT INTO sec_info (symbol_id,
                                         source_id,
                                         time_zone,
                                         sec_type_id,
@@ -1889,7 +1863,11 @@ class SecData(SecFetcher):
                                         ?,  -- time_zone
                                         (SELECT sec_type_id FROM sectypes WHERE title = ?),
                                         (SELECT currency_id FROM currency WHERE title = ?)
-                                    );"""
+                                    )
+                                    ON CONFLICT(symbol_id, source_id)
+                                    DO UPDATE SET time_zone = excluded.time_zone,
+                                                  sec_type_id = excluded.sec_type_id,
+                                                  currency_id = excluded.currency_id;"""
 
         try:
             self._cur.execute(insert_info,
@@ -1898,8 +1876,7 @@ class SecData(SecFetcher):
                                time_zone,
                                sec_type,
                                currency))
+            self._commit()
         except self._error as e:
             raise FdataError(f"Can't add a record to a table 'sec_info': {e}\n\nThe query is\n{insert_info}") from e
-
-        self._commit()
 

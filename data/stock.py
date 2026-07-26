@@ -645,7 +645,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_dividends_num()
 
-        insert_dividends = f"""INSERT OR {self._update} INTO cash_dividends (symbol_id,
+        insert_dividends = """INSERT INTO cash_dividends (symbol_id,
                                     source_id,
                                     currency_id,
                                     declaration_date,
@@ -662,7 +662,13 @@ class StockData(SecData, StockFetcher):
                                     ?,  -- record_ts
                                     ?,  -- pay_ts
                                     ?  -- amount
-                                );"""
+                                )
+                                ON CONFLICT(symbol_id, ex_date, source_id)
+                                DO UPDATE SET currency_id = excluded.currency_id,
+                                              declaration_date = excluded.declaration_date,
+                                              record_date = excluded.record_date,
+                                              payment_date = excluded.payment_date,
+                                              amount = excluded.amount;"""
 
         rows = (
             (self._symbol,
@@ -682,7 +688,6 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
         self._commit()
-
         self._update_data_interval(DataEntries.Dividends)
 
         return(num_before, self.get_dividends_num())
@@ -708,7 +713,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_split_num()
 
-        insert_splits = f"""INSERT OR {self._update} INTO stock_splits (symbol_id,
+        insert_splits = """INSERT INTO stock_splits (symbol_id,
                                     source_id,
                                     split_date,
                                     split_ratio)
@@ -717,7 +722,9 @@ class StockData(SecData, StockFetcher):
                                     (SELECT source_id FROM sources WHERE title = ?),
                                     ?,  -- ts
                                     ?  -- split_ratio
-                                );"""
+                                )
+                                ON CONFLICT(symbol_id, split_date, source_id)
+                                DO UPDATE SET split_ratio = excluded.split_ratio;"""
 
         rows = (
             (self._symbol,
@@ -733,7 +740,6 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self._commit()
-
         self._update_data_interval(DataEntries.Splits)
 
         return(num_before, self.get_split_num())
@@ -763,14 +769,16 @@ class StockData(SecData, StockFetcher):
                 sector = Sector.Unknown
                 self._log(f"Sector data not found. Likely incomplete data is obtained (due to data source issues): {e}")
 
-            insert_info = f"""INSERT OR {self._update} INTO stock_info (symbol_id,
+            insert_info = """INSERT INTO stock_info (symbol_id,
                                         source_id,
                                         stock_sector_id)
                                     VALUES (
                                             (SELECT symbol_id FROM symbols WHERE ticker = ?),
                                             (SELECT source_id FROM sources WHERE title = ?),
                                             (SELECT stock_sector_id FROM stock_sectors WHERE title = ?)
-                                        );"""
+                                        )
+                                        ON CONFLICT(symbol_id, source_id)
+                                        DO UPDATE SET stock_sector_id = excluded.stock_sector_id;"""
 
             try:
                 self._cur.execute(insert_info, (self._symbol, self._source_title, sector))

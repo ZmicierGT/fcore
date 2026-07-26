@@ -474,7 +474,7 @@ class YF(stock.StockData):
 
         num_before = self.get_earnings_history_num()
 
-        insert_eh = f"""INSERT OR {self._update} INTO yf_earnings_history (symbol_id,
+        insert_eh = """INSERT INTO yf_earnings_history (symbol_id,
                                     source_id,
                                     time_stamp,
                                     epsActual,
@@ -489,7 +489,12 @@ class YF(stock.StockData):
                                     ?,  -- epsEstimate
                                     ?,  -- epsDifference
                                     ?  -- surprisePercent
-                                );"""
+                                )
+                                ON CONFLICT(symbol_id, time_stamp, source_id)
+                                DO UPDATE SET epsActual = excluded.epsActual,
+                                              epsEstimate = excluded.epsEstimate,
+                                              epsDifference = excluded.epsDifference,
+                                              surprisePercent = excluded.surprisePercent;"""
 
         rows = (
             (self._symbol,
@@ -508,7 +513,6 @@ class YF(stock.StockData):
             raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 
         self._commit()
-
         self._update_data_interval(DataEntries.EarningsHistory)
 
         return (num_before, self.get_earnings_history_num())

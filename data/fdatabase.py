@@ -9,6 +9,13 @@ from sqlite3 import Error
 
 import abc
 
+# TODO HIGH Analyze and possibly refactor all current logging (by adding log entries of different colors)
+import warnings
+
+# Minimum SQLite version required for ON CONFLICT(...) DO UPDATE (UPSERT),
+# introduced in SQLite 3.24.0 (2018-06-04).
+_MIN_SQLITE_VERSION = (3, 24, 0)
+
 # Exception class for general database errors
 class FdatabaseError(Exception):
     """
@@ -82,6 +89,13 @@ class SQLiteConn(DBConn):
         except Error as e:
             raise FdatabaseError(f"An error has happened when trying to connect to a {self._db_name}: {e}") from e
 
+        # Verify the underlying SQLite library supports the required features
+        if sqlite3.sqlite_version_info < _MIN_SQLITE_VERSION:
+            raise FdatabaseError(
+                f"SQLite version {sqlite3.sqlite_version} is too old. "
+                f"Required SQLite >= {'.'.join(str(v) for v in _MIN_SQLITE_VERSION)}."
+            )
+
         # Set the row factory
         self._conn.row_factory = sqlite3.Row
 
@@ -89,12 +103,22 @@ class SQLiteConn(DBConn):
         self._error = Error
 
         # Use WAL so writers don't block readers (and vice versa) during init.
-        # If WAL cannot be set (e.g. the DB lives on a read-only/network FS),
-        # fall back silently to the default journal mode rather than aborting.
+        # WAL silently falls back to the default journal mode when unsupported
+        # (e.g. in-memory DBs, read-only or network filesystems) — SQLite does
+        # not raise, it just returns the actual mode, so inspect the result.
         try:
-            self._cur.execute("PRAGMA journal_mode=WAL;")
+            row = self._cur.execute("PRAGMA journal_mode=WAL;").fetchone()
+            mode = row[0].lower() if row else None
         except self._error:
-            pass
+            mode = None
+
+        if mode != "wal" and self._db_name != ":memory:":
+            warnings.warn(
+                f"WAL journal mode could not be set on '{self._db_name}' "
+                f"(got '{mode}'). Concurrent readers/writers may block each other.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         # Wait up to 30s for a locked DB instead of failing immediately. This
         # is the safety net that lets concurrent initializations serialize

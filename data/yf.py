@@ -360,45 +360,47 @@ class YF(stock.StockData):
         """
             Database create/integrity check method for YF-specific tables.
 
+            Runs inside the BEGIN IMMEDIATE init transaction opened by
+            _db_connect(); no commits are issued here.
+
             Raises:
                 FdataError: sql error happened.
         """
         super()._check_database()
 
-        # Check if we need to create table 'yf_earnings_history'
-        if not self._table_exists('yf_earnings_history'):
-            create_earnings_history = """CREATE TABLE yf_earnings_history(
-                                    yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    source_id INTEGER NOT NULL,
-                                    symbol_id INTEGER NOT NULL,
-                                    time_stamp INTEGER NOT NULL,
-                                    epsActual REAL,
-                                    epsEstimate REAL,
-                                    epsDifference REAL,
-                                    surprisePercent REAL,
-                                    UNIQUE(symbol_id, time_stamp, source_id)
-                                    CONSTRAINT fk_symbols,
-                                        FOREIGN KEY (symbol_id)
-                                        REFERENCES symbols(symbol_id)
-                                        ON DELETE CASCADE
-                                    CONSTRAINT fk_sources,
-                                        FOREIGN KEY (source_id)
-                                        REFERENCES sources(source_id)
-                                        ON DELETE CASCADE
-                                );"""
+        # Create table 'yf_earnings_history' if needed
+        create_earnings_history = """CREATE TABLE IF NOT EXISTS yf_earnings_history(
+                                yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                time_stamp INTEGER NOT NULL,
+                                epsActual REAL,
+                                epsEstimate REAL,
+                                epsDifference REAL,
+                                surprisePercent REAL,
+                                UNIQUE(symbol_id, time_stamp, source_id)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                            );"""
 
-            try:
-                self._cur.execute(create_earnings_history)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{create_earnings_history}") from e
+        try:
+            self._cur.execute(create_earnings_history)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{create_earnings_history}") from e
 
-            # Create index for symbol_id
-            create_eh_idx = "CREATE INDEX idx_yf_earnings_history ON yf_earnings_history(symbol_id, time_stamp);"
+        # Create index for symbol_id
+        create_eh_idx = "CREATE INDEX IF NOT EXISTS idx_yf_earnings_history ON yf_earnings_history(symbol_id, time_stamp);"
 
-            try:
-                self._cur.execute(create_eh_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
+        try:
+            self._cur.execute(create_eh_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
 
     def _fetch_earnings_history(self):
         """

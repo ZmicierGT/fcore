@@ -83,6 +83,9 @@ class StockData(SecData, StockFetcher):
             Database create/integrity check method for stock data related tables.
             Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
 
+            Runs inside the BEGIN IMMEDIATE init transaction opened by
+            _db_connect(); no commits are issued here.
+
             Raises:
                 FdataError: sql error happened.
         """
@@ -92,176 +95,169 @@ class StockData(SecData, StockFetcher):
         # Fundamental data
         #############################
 
-        # Check if we need to create table 'report_periods'
-        if not self._table_exists('report_periods'):
-            create_report_periods = """CREATE TABLE report_periods(
-                                    period_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
+        # Create table 'report_periods' if needed
+        create_report_periods = """CREATE TABLE IF NOT EXISTS report_periods(
+                                period_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                title TEXT NOT NULL UNIQUE
+                            );"""
 
-            try:
-                self._cur.execute(create_report_periods)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{create_report_periods}") from e
+        try:
+            self._cur.execute(create_report_periods)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'report_periods': {e}\n{create_report_periods}") from e
 
-            # Create index for sectype title
-            create_report_period_title_idx = "CREATE INDEX idx_report_period_title ON report_periods(title);"
+        # Create index for sectype title
+        create_report_period_title_idx = "CREATE INDEX IF NOT EXISTS idx_report_period_title ON report_periods(title);"
 
-            try:
-                self._cur.execute(create_report_period_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for report_periods(title): {e}") from e
+        try:
+            self._cur.execute(create_report_period_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for report_periods(title): {e}") from e
 
         # Populate report_periods table if not yet fully populated
         self._populate_lookup('report_periods', [r.value for r in ReportPeriod if r != ReportPeriod.All])
 
-        # Check if we need a separate table for cash dividends
-        if not self._table_exists('cash_dividends'):
-            create_cash_divs = """CREATE TABLE cash_dividends(
-                                cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        # Create table for cash dividends if needed
+        create_cash_divs = """CREATE TABLE IF NOT EXISTS cash_dividends(
+                            cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            source_id INTEGER NOT NULL,
+                            symbol_id INTEGER NOT NULL,
+                            currency_id INTEGER NOT NULL,
+                            declaration_date INTEGER,
+                            ex_date INTEGER NOT NULL,
+                            record_date INTEGER,
+                            payment_date INTEGER,
+                            amount REAL NOT NULL,
+                            UNIQUE(symbol_id, ex_date, source_id)
+                            CONSTRAINT fk_symbols
+                                FOREIGN KEY (symbol_id)
+                                REFERENCES symbols(symbol_id)
+                                ON DELETE CASCADE
+                            CONSTRAINT fk_sources
+                                FOREIGN KEY (source_id)
+                                REFERENCES sources(source_id)
+                                ON DELETE CASCADE
+                            CONSTRAINT fk_currency
+                                FOREIGN KEY (currency_id)
+                                REFERENCES currency(currency_id)
+                                ON DELETE CASCADE
+                            );"""
+
+        try:
+            self._cur.execute(create_cash_divs)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{create_cash_divs}") from e
+
+        # Create index for symbol_id
+        create_symbol_date_cash_divs_idx = "CREATE INDEX IF NOT EXISTS idx_cash_dividends ON cash_dividends(symbol_id, ex_date);"
+
+        try:
+            self._cur.execute(create_symbol_date_cash_divs_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
+
+        # Create table for stock splits if needed
+        create_stock_splits = """CREATE TABLE IF NOT EXISTS stock_splits(
+                                stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
-                                currency_id INTEGER NOT NULL,
-                                declaration_date INTEGER,
-                                ex_date INTEGER NOT NULL,
-                                record_date INTEGER,
-                                payment_date INTEGER,
-                                amount REAL NOT NULL,
-                                UNIQUE(symbol_id, ex_date, source_id)
-                                CONSTRAINT fk_symbols,
+                                split_date INTEGER NOT NULL,
+                                split_ratio REAL,
+                                UNIQUE(symbol_id, split_date, source_id)
+                                CONSTRAINT fk_symbols
                                     FOREIGN KEY (symbol_id)
                                     REFERENCES symbols(symbol_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_sources,
+                                CONSTRAINT fk_sources
                                     FOREIGN KEY (source_id)
                                     REFERENCES sources(source_id)
                                     ON DELETE CASCADE
-                                CONSTRAINT fk_currency,
-                                    FOREIGN KEY (currency_id)
-                                    REFERENCES currency(currency_id)
-                                    ON DELETE CASCADE
                                 );"""
 
-            try:
-                self._cur.execute(create_cash_divs)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{create_cash_divs}") from e
+        try:
+            self._cur.execute(create_stock_splits)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{create_stock_splits}") from e
 
-            # Create index for symbol_id
-            create_symbol_date_cash_divs_idx = "CREATE INDEX idx_cash_dividends ON cash_dividends(symbol_id, ex_date);"
+        # Create index for symbol_id
+        create_symbol_date_stock_splits_idx = "CREATE INDEX IF NOT EXISTS idx_stock_splits ON stock_splits(symbol_id, split_date);"
 
-            try:
-                self._cur.execute(create_symbol_date_cash_divs_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
+        try:
+            self._cur.execute(create_symbol_date_stock_splits_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
 
-        # Check if we need a separate table for stock splits
-        if not self._table_exists('stock_splits'):
-            create_stock_splits = """CREATE TABLE stock_splits(
-                                    stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    source_id INTEGER NOT NULL,
-                                    symbol_id INTEGER NOT NULL,
-                                    split_date INTEGER NOT NULL,
-                                    split_ratio REAL,
-                                    UNIQUE(symbol_id, split_date, source_id)
-                                    CONSTRAINT fk_symbols,
-                                        FOREIGN KEY (symbol_id)
-                                        REFERENCES symbols(symbol_id)
-                                        ON DELETE CASCADE
-                                    CONSTRAINT fk_sources,
-                                        FOREIGN KEY (source_id)
-                                        REFERENCES sources(source_id)
-                                        ON DELETE CASCADE
-                                    );"""
+        # Create table 'stock_sectors' if needed
+        create_stock_sectors = """CREATE TABLE IF NOT EXISTS stock_sectors (
+                                            stock_sector_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                            title TEXT NOT NULL UNIQUE
+                                        );"""
 
-            try:
-                self._cur.execute(create_stock_splits)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{create_stock_splits}") from e
+        try:
+            self._cur.execute(create_stock_sectors)
+        except self._error as e:
+            raise FdataError(f"Can't create table stock_sectors: {e}") from e
 
-            # Create index for symbol_id
-            create_symbol_date_stock_splits_idx = "CREATE INDEX idx_stock_splits ON stock_splits(symbol_id, split_date);"
+        # Create index for stock_sectors title
+        create_stock_sectors_title_idx = "CREATE INDEX IF NOT EXISTS idx_stock_sectors_title ON stock_sectors(title);"
 
-            try:
-                self._cur.execute(create_symbol_date_stock_splits_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
-
-        # Check if we need to create table 'stock_sectors'
-        if not self._table_exists('stock_sectors'):
-            create_stock_sectors = """CREATE TABLE stock_sectors (
-                                                stock_sector_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                title TEXT NOT NULL UNIQUE
-                                            );"""
-
-            try:
-                self._cur.execute(create_stock_sectors)
-            except self._error as e:
-                raise FdataError(f"Can't create table stock_sectors: {e}") from e
-
-            # Create index for stock_sectors title
-            create_stock_sectors_title_idx = "CREATE INDEX idx_stock_sectors_title ON stock_sectors(title);"
-
-            try:
-                self._cur.execute(create_stock_sectors_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
+        try:
+            self._cur.execute(create_stock_sectors_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
 
         # Populate stock_sectors table if not yet fully populated
         self._populate_lookup('stock_sectors', [s.value for s in Sector])
-        self._commit()
 
-        # Check if we need to create table 'stock_info'
-        if not self._table_exists('stock_info'):
+        # Create table 'stock_info' if needed
+        create_stock_info = """CREATE TABLE IF NOT EXISTS stock_info (
+                                            stock_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                            symbol_id INTEGER NOT NULL,
+                                            source_id INTEGER NOT NULL,
+                                            stock_sector_id INTEGER,
+                                            modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                                                CONSTRAINT fk_source
+                                                    FOREIGN KEY (source_id)
+                                                    REFERENCES sources(source_id)
+                                                    ON DELETE CASCADE
+                                                CONSTRAINT fk_symbols
+                                                    FOREIGN KEY (symbol_id)
+                                                    REFERENCES symbols(symbol_id)
+                                                    ON DELETE CASCADE
+                                                CONSTRAINT fk_stock_sectors
+                                                    FOREIGN KEY (stock_sector_id)
+                                                    REFERENCES stock_sectors(stock_sector_id)
+                                                    ON DELETE CASCADE
+                                            UNIQUE(symbol_id, source_id)
+                                        );"""
 
-            create_stock_info = """CREATE TABLE stock_info (
-                                                stock_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                symbol_id INTEGER NOT NULL,
-                                                source_id INTEGER NOT NULL,
-                                                stock_sector_id INTEGER,
-                                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                                                    CONSTRAINT fk_source
-                                                        FOREIGN KEY (source_id)
-                                                        REFERENCES sources(source_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_symbols
-                                                        FOREIGN KEY (symbol_id)
-                                                        REFERENCES symbols(symbol_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_stock_sectors
-                                                        FOREIGN KEY (stock_sector_id)
-                                                        REFERENCES stock_sectors(stock_sector_id)
-                                                        ON DELETE CASCADE
-                                                UNIQUE(symbol_id, source_id)
-                                            );"""
+        try:
+            self._cur.execute(create_stock_info)
+        except self._error as e:
+            raise FdataError(f"Can't create table stock_info: {e}") from e
 
-            try:
-                self._cur.execute(create_stock_info)
-            except self._error as e:
-                raise FdataError(f"Can't create table stock_info: {e}") from e
+        # Create indexes for stock_info
+        create_stock_info_idx = "CREATE INDEX IF NOT EXISTS idx_stock_info ON stock_info(symbol_id);"
 
-            # Create indexes for stock_info
-            create_stock_info_idx = "CREATE INDEX idx_stock_info ON stock_info(symbol_id);"
+        try:
+            self._cur.execute(create_stock_info_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
 
-            try:
-                self._cur.execute(create_stock_info_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
+        # Create trigger to last modified time on stock_info
+        create_cap_trigger = """CREATE TRIGGER IF NOT EXISTS update_stock_info
+                                            BEFORE UPDATE
+                                                ON stock_info
+                                    BEGIN
+                                        UPDATE stock_info
+                                        SET modified = strftime('%s', 'now')
+                                        WHERE stock_info_id = old.stock_info_id;
+                                    END;"""
 
-            # Create trigger to last modified time on stock_info
-            create_cap_trigger = """CREATE TRIGGER update_stock_info
-                                                BEFORE UPDATE
-                                                    ON stock_info
-                                        BEGIN
-                                            UPDATE stock_info
-                                            SET modified = strftime('%s', 'now')
-                                            WHERE stock_info_id = old.stock_info_id;
-                                        END;"""
-
-            try:
-                self._cur.execute(create_cap_trigger)
-            except self._error as e:
-                raise FdataError(f"Can't create trigger for stock_info: {e}") from e
+        try:
+            self._cur.execute(create_cap_trigger)
+        except self._error as e:
+            raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 
     def _get_db_dividends(self, last_ts=def_last_date):
         """

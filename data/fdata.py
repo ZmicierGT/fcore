@@ -27,7 +27,7 @@ import calendar
 # TODO High Shorten the sqlite queries involving subqueries
 
 # Current database compatibility version
-_DB_VERSION = 28
+_DB_VERSION = 29
 
 # TODO LOW Consider checking of sqlite version as well
 
@@ -624,10 +624,21 @@ class SecData(SecFetcher):
 
             # Check the database integrity and register the source only once per instance
             if self._db_initialized is False:
-                self._check_database()
+                # Run schema bootstrap + source registration as a single transaction.
+                try:
+                    self._cur.execute("BEGIN IMMEDIATE;")
 
-                if self._check_source() == False:
+                    self._check_database()
+
+                    # Register the source idempotently. INSERT OR IGNORE makes
+                    # it race-safe; inserted as the last step of the init tx,
+                    # so its presence certifies the source's tables exist too.
                     self._add_source()
+
+                    self._conn.commit()
+                except Exception:
+                    self._conn.rollback()
+                    raise
 
                 self._db_initialized = True
 
@@ -694,208 +705,274 @@ class SecData(SecFetcher):
     def _check_database(self):
         """
             Database create/integrity check method.
-            Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
+            Checks if the database exists. Otherwise, create it. Checks if the database has required tables/data.
+
+            All DDL is idempotent (CREATE ... IF NOT EXISTS) and all lookup
+            population uses INSERT OR IGNORE, so this method is safe to run
+            concurrently from multiple connections/processes.
+
+            Required invariants for subclasses overriding this method:
+                1. super()._check_database() MUST be called first in every
+                   override, so common tables exist before source-specific
+                   ones are created.
+                2. Source-specific tables may only have FOREIGN KEYs to
+                   base/common tables.
+                3. No mid-method commits.
 
             Raises:
                 FdataError: sql error happened.
         """
         self._check_if_connected()
 
-        # Check if we need to create table 'environment'
-        if not self._table_exists('environment'):
-            create_environment = """CREATE TABLE environment(
-                                    version INTEGER NOT NULL UNIQUE
-                                );"""
+        # Create the environment table if needed
+        create_environment = """CREATE TABLE IF NOT EXISTS environment(
+                                version INTEGER NOT NULL UNIQUE
+                            );"""
 
-            try:
-                self._cur.execute(create_environment)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{create_environment}") from e
-
-        # Check if environment table is empty
         try:
-            all_environment = "SELECT * FROM environment;"
-
-            self._cur.execute(all_environment)
-            rows = self._cur.fetchall()
+            self._cur.execute(create_environment)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{all_environment}") from e
+            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{create_environment}") from e
 
-        # Check if environment table has data
-        if len(rows) > 1:  # This table should have one row only
-            raise FdataError(f"The environment table is broken. Please, delete the database file {self._db_name} or change db patch in settings.py")
-        elif len(rows) == 0:
-            # Insert the environment data to the table
-            insert_environment = "INSERT INTO environment (version) VALUES (?);"
+        # Idempotently seed the version row. INSERT OR IGNORE makes this race-safe.
+        insert_environment = "INSERT OR IGNORE INTO environment (version) VALUES (?);"
 
-            try:
-                self._cur.execute(insert_environment, (_DB_VERSION,))
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{insert_environment}") from e
-        else:  # One row present in the table so it is expected
-            environment_query = "SELECT version FROM environment;"
+        try:
+            self._cur.execute(insert_environment, (_DB_VERSION,))
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{insert_environment}") from e
 
-            try:
-                self._cur.execute(environment_query)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'environment': {e}\n{environment_query}") from e
+        try:
+            self._cur.execute("SELECT version FROM environment;")
+            env_rows = self._cur.fetchall()
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'environment': {e}\nSELECT version FROM environment;") from e
 
-            version = self._cur.fetchone()[0]
+        if len(env_rows) != 1:
+            raise FdataError(f"The environment table is broken. Please, delete the database file {self._db_name} or change db path in settings.py")
 
-            if version != _DB_VERSION:
-                raise FdataError(f"DB Version is unexpected. Please, delete the database file {self._db_name} or change db patch in settings.py")
+        if env_rows[0][0] != _DB_VERSION:
+            raise FdataError(f"DB Version is unexpected. Please, delete the database file {self._db_name} or change db path in settings.py")
 
-        # Check if we need to create table 'currency'
-        if not self._table_exists('currency'):
-            create_currency = """CREATE TABLE currency(
-                                    currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
+        # Create table 'currency' if needed
+        create_currency = """CREATE TABLE IF NOT EXISTS currency(
+                                currency_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                title TEXT NOT NULL UNIQUE
+                            );"""
 
-            try:
-                self._cur.execute(create_currency)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
+        try:
+            self._cur.execute(create_currency)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'currency': {e}\n{create_currency}") from e
 
-            # Create index for sectype title
-            create_currency_title_idx = "CREATE INDEX idx_currency_title ON currency(title);"
+        # Create index for sectype title
+        create_currency_title_idx = "CREATE INDEX IF NOT EXISTS idx_currency_title ON currency(title);"
 
-            try:
-                self._cur.execute(create_currency_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for currency(title): {e}") from e
+        try:
+            self._cur.execute(create_currency_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for currency(title): {e}") from e
 
         # Populate currency table if not yet fully populated
         self._populate_lookup('currency', [c.value for c in Currency if c != Currency.All])
 
-        # Check if we need to create table 'sectypes'
-        if not self._table_exists('sectypes'):
-            create_sectypes = """CREATE TABLE sectypes(
-                                    sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
+        # Create table 'sectypes' if needed
+        create_sectypes = """CREATE TABLE IF NOT EXISTS sectypes(
+                                sec_type_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                title TEXT NOT NULL UNIQUE
+                            );"""
 
-            try:
-                self._cur.execute(create_sectypes)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
+        try:
+            self._cur.execute(create_sectypes)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'sectypes': {e}\n{create_sectypes}") from e
 
-            # Create index for sectype title
-            create_sectype_title_idx = "CREATE INDEX idx_sectype_title ON sectypes(title);"
+        # Create index for sectype title
+        create_sectype_title_idx = "CREATE INDEX IF NOT EXISTS idx_sectype_title ON sectypes(title);"
 
-            try:
-                self._cur.execute(create_sectype_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for sectypes(title): {e}") from e
+        try:
+            self._cur.execute(create_sectype_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for sectypes(title): {e}") from e
 
         # Populate sectypes table if not yet fully populated
         self._populate_lookup('sectypes', [s.value for s in SecType if s != SecType.All])
 
-        # Check if we need to create table 'symbols'
-        if not self._table_exists('symbols'):
-            create_symbols = """CREATE TABLE symbols(
-                                symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                ticker TEXT NOT NULL UNIQUE,
-                                isin TEXT UNIQUE,
-                                description TEXT,
-                                UNIQUE(symbol_id)
-                                );"""
+        # Create table 'symbols' if needed
+        create_symbols = """CREATE TABLE IF NOT EXISTS symbols(
+                            symbol_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            ticker TEXT NOT NULL UNIQUE,
+                            isin TEXT UNIQUE,
+                            description TEXT
+                            );"""
 
-            try:
-                self._cur.execute(create_symbols)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{create_symbols}") from e
+        try:
+            self._cur.execute(create_symbols)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{create_symbols}") from e
 
-            # Create index for ticker
-            create_ticker_idx = "CREATE INDEX idx_ticker ON symbols(ticker);"
+        # Create index for ticker
+        create_ticker_idx = "CREATE INDEX IF NOT EXISTS idx_ticker ON symbols(ticker);"
 
-            try:
-                self._cur.execute(create_ticker_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for symbols(ticker): {e}") from e
+        try:
+            self._cur.execute(create_ticker_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for symbols(ticker): {e}") from e
 
-        # Check if we need to create table 'sources'
-        if not self._table_exists('sources'):
-            create_sources = """CREATE TABLE sources(
-                                source_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                title TEXT NOT NULL UNIQUE,
-                                description TEXT
-                                );"""
+        # Create table 'sources' if needed
+        create_sources = """CREATE TABLE IF NOT EXISTS sources(
+                            source_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            title TEXT NOT NULL UNIQUE,
+                            description TEXT
+                            );"""
 
-            try:
-                self._cur.execute(create_sources)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{create_sources}") from e
+        try:
+            self._cur.execute(create_sources)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{create_sources}") from e
 
-            # Create index for source title
-            create_source_title_idx = "CREATE INDEX idx_source_title ON sources(title);"
+        # Create index for source title
+        create_source_title_idx = "CREATE INDEX IF NOT EXISTS idx_source_title ON sources(title);"
 
-            try:
-                self._cur.execute(create_source_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for sources(title): {e}") from e
+        try:
+            self._cur.execute(create_source_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for sources(title): {e}") from e
 
-        # Check if we need to create table 'timespans'
-        if not self._table_exists('timespans'):
-            create_timespans = """CREATE TABLE timespans(
-                                    time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    title TEXT NOT NULL UNIQUE
-                                );"""
+        # Create table 'timespans' if needed
+        create_timespans = """CREATE TABLE IF NOT EXISTS timespans(
+                                time_span_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                title TEXT NOT NULL UNIQUE
+                            );"""
 
-            try:
-                self._cur.execute(create_timespans)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{create_timespans}") from e
+        try:
+            self._cur.execute(create_timespans)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'timespans': {e}\n{create_timespans}") from e
 
-            # Create index for timespan title
-            create_timespan_title_idx = "CREATE INDEX idx_timespan_title ON timespans(title);"
+        # Create index for timespan title
+        create_timespan_title_idx = "CREATE INDEX IF NOT EXISTS idx_timespan_title ON timespans(title);"
 
-            try:
-                self._cur.execute(create_timespan_title_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for timespans(title): {e}") from e
+        try:
+            self._cur.execute(create_timespan_title_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for timespans(title): {e}") from e
 
         # Populate timespans table if not yet fully populated
         self._populate_lookup('timespans', [t.value for t in Timespans if t != Timespans.All])
 
-        # Check if we need to create table 'data_entries'
-        if not self._table_exists('data_entries'):
-            create_data_entries = """CREATE TABLE data_entries(
-                                        data_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        title TEXT NOT NULL UNIQUE
-                                    );"""
+        # Create table 'data_entries' if needed
+        create_data_entries = """CREATE TABLE IF NOT EXISTS data_entries(
+                                    data_entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    title TEXT NOT NULL UNIQUE
+                                );"""
 
-            try:
-                self._cur.execute(create_data_entries)
-            except self._error as e:
-                raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{create_data_entries}") from e
+        try:
+            self._cur.execute(create_data_entries)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table 'data_entries': {e}\n{create_data_entries}") from e
 
-            # Create index for data_entries title
-            create_data_entries_idx = "CREATE INDEX idx_data_entries_title ON data_entries(title);"
+        # Create index for data_entries title
+        create_data_entries_idx = "CREATE INDEX IF NOT EXISTS idx_data_entries_title ON data_entries(title);"
 
-            try:
-                self._cur.execute(create_data_entries_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create index for data_entries(title): {e}") from e
+        try:
+            self._cur.execute(create_data_entries_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index for data_entries(title): {e}") from e
 
         # Populate data_entries table with Timespans (excluding All/Unknown) plus all DataEntries
         entries = [e.value for e in chain(Timespans, DataEntries)
                    if e not in (Timespans.All, Timespans.Unknown)]
         self._populate_lookup('data_entries', entries)
 
-        # Check if we need to create table 'data_intervals'
-        if not self._table_exists('data_intervals'):
-            create_data_intervals = """CREATE TABLE data_intervals (
-                                            interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        # Create table 'data_intervals' if needed
+        create_data_intervals = """CREATE TABLE IF NOT EXISTS data_intervals (
+                                        interval_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        symbol_id INTEGER NOT NULL,
+                                        source_id INTEGER NOT NULL,
+                                        data_entry_id INTEGER NOT NULL,
+                                        min_ts INTEGER,
+                                        max_ts INTEGER,
+                                            CONSTRAINT fk_data_entries
+                                                FOREIGN KEY (data_entry_id)
+                                                REFERENCES data_entries(data_entry_id)
+                                                ON DELETE CASCADE
+                                            CONSTRAINT fk_source
+                                                FOREIGN KEY (source_id)
+                                                REFERENCES sources(source_id)
+                                                ON DELETE CASCADE
+                                            CONSTRAINT fk_symbols
+                                                FOREIGN KEY (symbol_id)
+                                                REFERENCES symbols(symbol_id)
+                                                ON DELETE CASCADE
+                                        UNIQUE(symbol_id, source_id, data_entry_id)
+                                        );"""
+
+        try:
+            self._cur.execute(create_data_intervals)
+        except self._error as e:
+            raise FdataError(f"Can't create table data_intervals: {e}") from e
+
+        # Create indexes for data_intervals
+        create_data_intervals_idx = "CREATE INDEX IF NOT EXISTS idx_data_intervals ON data_intervals(symbol_id, source_id, data_entry_id);"
+
+        try:
+            self._cur.execute(create_data_intervals_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create indexes for data_intervals table: {e}") from e
+
+        # TODO Mid need to think of a better way how to combine data from various sources
+        # Create table 'quotes' if needed
+        create_quotes = """CREATE TABLE IF NOT EXISTS quotes (
+                        quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        symbol_id INTEGER NOT NULL,
+                        source_id INTEGER NOT NULL,
+                        time_stamp INTEGER NOT NULL,
+                        time_span_id INTEGER NOT NULL,
+                        opened REAL,
+                        high REAL,
+                        low REAL,
+                        closed REAL NOT NULL,
+                        volume INTEGER,
+                        transactions INTEGER,
+                            CONSTRAINT fk_timespans
+                                FOREIGN KEY (time_span_id)
+                                REFERENCES timespans(time_span_id)
+                                ON DELETE CASCADE
+                            CONSTRAINT fk_source
+                                FOREIGN KEY (source_id)
+                                REFERENCES sources(source_id)
+                                ON DELETE CASCADE
+                            CONSTRAINT fk_symbols
+                                FOREIGN KEY (symbol_id)
+                                REFERENCES symbols(symbol_id)
+                                ON DELETE CASCADE
+                        UNIQUE(symbol_id, time_stamp, time_span_id, source_id)
+                        );"""
+
+        try:
+            self._cur.execute(create_quotes)
+        except self._error as e:
+            raise FdataError(f"Can't create table quotes: {e}") from e
+
+        # Create indexes for quotes
+        # TODO LOW Think if index for source_id should be added (covering index-only scans in get_quotes_num).
+        create_quotes_idx = "CREATE INDEX IF NOT EXISTS idx_quotes ON quotes(symbol_id, time_stamp, time_span_id, source_id);"
+
+        try:
+            self._cur.execute(create_quotes_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create indexes for quotes table: {e}") from e
+
+        # Create table 'sec_info' if needed
+        create_sec_info = """CREATE TABLE IF NOT EXISTS sec_info (
+                                            sec_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                             symbol_id INTEGER NOT NULL,
                                             source_id INTEGER NOT NULL,
-                                            data_entry_id INTEGER NOT NULL,
-                                            min_ts INTEGER,
-                                            max_ts INTEGER,
-                                                CONSTRAINT fk_data_entries
-                                                    FOREIGN KEY (data_entry_id)
-                                                    REFERENCES data_entries(data_entry_id)
-                                                    ON DELETE CASCADE
+                                            time_zone TEXT NOT NULL,
+                                            sec_type_id INTEGER NOT NULL,
+                                            currency_id INTEGER NOT NULL,
+                                            modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 CONSTRAINT fk_source
                                                     FOREIGN KEY (source_id)
                                                     REFERENCES sources(source_id)
@@ -904,126 +981,44 @@ class SecData(SecFetcher):
                                                     FOREIGN KEY (symbol_id)
                                                     REFERENCES symbols(symbol_id)
                                                     ON DELETE CASCADE
-                                            UNIQUE(symbol_id, source_id, data_entry_id)
-                                            );"""
+                                                CONSTRAINT fk_sectypes
+                                                    FOREIGN KEY (sec_type_id)
+                                                    REFERENCES sectypes(sec_type_id)
+                                                    ON DELETE CASCADE
+                                                CONSTRAINT fk_currency
+                                                    FOREIGN KEY (currency_id)
+                                                    REFERENCES currency(currency_id)
+                                                    ON DELETE CASCADE
+                                            UNIQUE(symbol_id, source_id)
+                                        );"""
 
-            try:
-                self._cur.execute(create_data_intervals)
-            except self._error as e:
-                raise FdataError(f"Can't create table data_intervals: {e}") from e
+        try:
+            self._cur.execute(create_sec_info)
+        except self._error as e:
+            raise FdataError(f"Can't create table sec_info: {e}") from e
 
-            # Create indexes for data_intervals
-            create_data_intervals_idx = "CREATE INDEX idx_data_intervals ON data_intervals(symbol_id, source_id, data_entry_id);"
+        # Create indexes for sec_info
+        create_sec_info_idx_symbol = "CREATE INDEX IF NOT EXISTS idx_sec_info ON sec_info(symbol_id, source_id);"
 
-            try:
-                self._cur.execute(create_data_intervals_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create indexes for data_intervals table: {e}") from e
+        try:
+            self._cur.execute(create_sec_info_idx_symbol)
+        except self._error as e:
+            raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
-        # TODO Mid need to think of a better way how to combine data from various sources
-        # Check if we need to create table 'quotes'
-        if not self._table_exists('quotes'):
-            create_quotes = """CREATE TABLE quotes (
-                            quote_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            symbol_id INTEGER NOT NULL,
-                            source_id INTEGER NOT NULL,
-                            time_stamp INTEGER NOT NULL,
-                            time_span_id INTEGER NOT NULL,
-                            opened REAL,
-                            high REAL,
-                            low REAL,
-                            closed REAL NOT NULL,
-                            volume INTEGER,
-                            transactions INTEGER,
-                                CONSTRAINT fk_timespans
-                                    FOREIGN KEY (time_span_id)
-                                    REFERENCES timespans(time_span_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_source
-                                    FOREIGN KEY (source_id)
-                                    REFERENCES sources(source_id)
-                                    ON DELETE CASCADE
-                                CONSTRAINT fk_symbols
-                                    FOREIGN KEY (symbol_id)
-                                    REFERENCES symbols(symbol_id)
-                                    ON DELETE CASCADE
-                            UNIQUE(symbol_id, time_stamp, time_span_id, source_id)
-                            );"""
+        # Create trigger to last modified time on sec_info
+        create_cap_trigger = """CREATE TRIGGER IF NOT EXISTS update_sec_info
+                                            BEFORE UPDATE
+                                                ON sec_info
+                                    BEGIN
+                                        UPDATE sec_info
+                                        SET modified = strftime('%s', 'now')
+                                        WHERE sec_info_id = old.sec_info_id;
+                                    END;"""
 
-            try:
-                self._cur.execute(create_quotes)
-            except self._error as e:
-                raise FdataError(f"Can't create table quotes: {e}") from e
-
-            # Create indexes for quotes
-            # TODO LOW Think if index for source_id should be added (covering index-only scans in get_quotes_num).
-            create_quotes_idx = "CREATE INDEX idx_quotes ON quotes(symbol_id, time_stamp, time_span_id);"
-
-            try:
-                self._cur.execute(create_quotes_idx)
-            except self._error as e:
-                raise FdataError(f"Can't create indexes for quotes table: {e}") from e
-
-        # Check if we need to create table 'sec_info'
-        if not self._table_exists('sec_info'):
-
-            create_sec_info = """CREATE TABLE sec_info (
-                                                sec_info_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                symbol_id INTEGER NOT NULL,
-                                                source_id INTEGER NOT NULL,
-                                                time_zone TEXT NOT NULL,
-                                                sec_type_id INTEGER NOT NULL,
-                                                currency_id INTEGER NOT NULL,
-                                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                                                UNIQUE(symbol_id, sec_info_id)
-                                                    CONSTRAINT fk_source
-                                                        FOREIGN KEY (source_id)
-                                                        REFERENCES sources(source_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_symbols
-                                                        FOREIGN KEY (symbol_id)
-                                                        REFERENCES symbols(symbol_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_sectypes
-                                                        FOREIGN KEY (sec_type_id)
-                                                        REFERENCES sectypes(sec_type_id)
-                                                        ON DELETE CASCADE
-                                                    CONSTRAINT fk_currency
-                                                        FOREIGN KEY (currency_id)
-                                                        REFERENCES currency(currency_id)
-                                                        ON DELETE CASCADE
-                                                UNIQUE(symbol_id, source_id)
-                                            );"""
-
-            try:
-                self._cur.execute(create_sec_info)
-            except self._error as e:
-                raise FdataError(f"Can't create table sec_info: {e}") from e
-
-            # Create indexes for sec_info
-            create_sec_info_idx_symbol = "CREATE INDEX idx_sec_info ON sec_info(symbol_id);"
-
-            try:
-                self._cur.execute(create_sec_info_idx_symbol)
-            except self._error as e:
-                raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
-
-            # Create trigger to last modified time on sec_info
-            create_cap_trigger = """CREATE TRIGGER update_sec_info
-                                                BEFORE UPDATE
-                                                    ON sec_info
-                                        BEGIN
-                                            UPDATE sec_info
-                                            SET modified = strftime('%s', 'now')
-                                            WHERE sec_info_id = old.sec_info_id;
-                                        END;"""
-
-            try:
-                self._cur.execute(create_cap_trigger)
-            except self._error as e:
-                raise FdataError(f"Can't create trigger for sec_info: {e}") from e
-
-        self._conn.commit()
+        try:
+            self._cur.execute(create_cap_trigger)
+        except self._error as e:
+            raise FdataError(f"Can't create trigger for sec_info: {e}") from e
 
     def _check_source(self):
         """
@@ -1052,6 +1047,9 @@ class SecData(SecFetcher):
         """
             Add source to the database.
 
+            Note: does not commit. The caller (_db_connect) commits once the
+            surrounding init transaction is complete.
+
             Raises:
                 FdataError: sql error happened.
         """
@@ -1061,7 +1059,6 @@ class SecData(SecFetcher):
 
         try:
             self._cur.execute(insert_source, (self._source_title,))
-            self._conn.commit()
         except self._error as e:
             raise FdataError(f"Can't execute a query on a table 'sources': {e}\n{insert_source}") from e
 
@@ -1634,6 +1631,7 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't commit: {e}") from e
 
+    # TODO MID Likely here a migration to INSERT ... ON CONFLICT(...) DO UPDATE SET is justified (SQLite ≥ 3.24)
     @property
     def update(self):
         """
@@ -1715,6 +1713,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self._db_close()
 
+    # TODO HIGH Think how to implement it more race-condition proof
     def _add_quotes(self, quotes_dict):
         """
             Add quotes to the database.

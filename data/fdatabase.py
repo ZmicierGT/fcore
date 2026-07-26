@@ -78,7 +78,7 @@ class SQLiteConn(DBConn):
                 FdatabaseError: Can't connect to a database.
         """
         try:
-            self._conn = sqlite3.connect(self._db_name)
+            self._conn = sqlite3.connect(self._db_name, timeout=30)
         except Error as e:
             raise FdatabaseError(f"An error has happened when trying to connect to a {self._db_name}: {e}") from e
 
@@ -87,6 +87,22 @@ class SQLiteConn(DBConn):
 
         self._cur = self._conn.cursor()
         self._error = Error
+
+        # Use WAL so writers don't block readers (and vice versa) during init.
+        # If WAL cannot be set (e.g. the DB lives on a read-only/network FS),
+        # fall back silently to the default journal mode rather than aborting.
+        try:
+            self._cur.execute("PRAGMA journal_mode=WAL;")
+        except self._error:
+            pass
+
+        # Wait up to 30s for a locked DB instead of failing immediately. This
+        # is the safety net that lets concurrent initializations serialize
+        # cleanly under BEGIN IMMEDIATE.
+        try:
+            self._cur.execute("PRAGMA busy_timeout=30000;")
+        except self._error as e:
+            raise FdatabaseError(f"Can't set busy_timeout: {e}") from e
 
         # Enable foreign keys
         try:

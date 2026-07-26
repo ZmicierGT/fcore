@@ -12,3 +12,6 @@ debris
 package-lock.json
 serve.sh
 AGENTS.md
+data.sqlite-shm
+data.sqlite-wal
+

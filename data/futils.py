@@ -23,6 +23,7 @@ import platform
 import sys
 import subprocess
 
+# TODO HIGH. Unify logs and make them use colors.
 def logger(verbosity, message):
     """
         Depending on a verbosity flag, display a logging message.

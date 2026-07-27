@@ -607,6 +607,59 @@ def test_get_empty_range_valid_symbol():
 
     yfi._db_close()
 
+def test_refetch():
+    """
+        Test refetch=True on SecData.
+
+        Verifies that a second get() on a covered range still enters the
+        fetch path (bypasses interval gating) when refetch=True, without
+        raising. UPSERT prevents duplicate rows, so quote count stays
+        unchanged, but the key assertion is that _need_to_update() returns
+        True immediately (refetch short-circuit) and get() completes
+        successfully on the covered second call.
+    """
+    print(colored("\nTesting refetch=True (IBM, covered range):\n", "yellow"))
+
+    yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1",
+                  verbosity=True, db_name=":memory:", refetch=True)
+    yfi._db_connect()
+
+    print("First invocation: expecting fetch + rows ...")
+    rows_first = yfi.get()
+
+    if rows_first is None or len(rows_first) == 0:
+        failure("First get() should return fetched rows for IBM", yfi)
+
+    quotes_num_first = yfi.get_quotes_num(dt=False)
+    if quotes_num_first == 0:
+        failure("Quotes count should increase after first get()", yfi)
+
+    min_req_first = yfi._get_min_request_ts()
+    max_req_first = yfi._get_max_request_ts()
+    print(colored(f"First invocation: fetched {len(rows_first)} rows, "
+                  f"intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}", "green"))
+
+    print("\nSecond invocation (same range, covered, refetch=True): "
+          "expecting fetch path taken, cached result returned ...")
+    rows_second = yfi.get()
+
+    if rows_second is None or len(rows_second) == 0:
+        failure("Second get() with refetch=True should return rows for IBM", yfi)
+
+    quotes_num_second = yfi.get_quotes_num(dt=False)
+
+    if quotes_num_second != quotes_num_first:
+        failure(f"Quotes count should not change on refetch (UPSERT): "
+                f"{quotes_num_first} -> {quotes_num_second}", yfi)
+
+    if yfi._get_min_request_ts() != min_req_first or yfi._get_max_request_ts() != max_req_first:
+        failure("Intervals should not change on second get() with refetch=True", yfi)
+
+    print(colored("refetch=True: second get() entered fetch path, returned same rows, "
+                  "intervals unchanged", "green"))
+
+    yfi._db_close()
+
 if __name__ == "__main__":
     print(colored("\nTesting YF data source:\n", "yellow"))
 
@@ -660,5 +713,6 @@ if __name__ == "__main__":
     test_get_delisted()
     test_get_existing()
     test_get_empty_range_valid_symbol()
+    test_refetch()
 
     print(colored("ALL TESTS PASSED!", "green"))

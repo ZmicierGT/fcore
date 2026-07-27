@@ -550,36 +550,6 @@ class StockData(SecData, StockFetcher):
             if initially_connected is False:
                 self._db_close()
 
-    # TODO MID Maybe need to put it to the base class?
-    def _need_to_update(self, modified_ts):
-        """
-            Check if we need to update data based on the last fetch marker.
-
-            Args:
-                modified_ts(int): the timestamp of last data fetch.
-
-            Returns:
-                bool: indicates if update is needed.
-        """
-        current = get_dt(self._current_ts())
-
-        # No data fetched yet
-        if modified_ts is None:
-            return True
-
-        # No need to fetch if the requested last date is less than modified
-        if self.last_date_ts < modified_ts:
-            return False
-
-        modified = get_dt(modified_ts)
-
-        # TODO MID Think if we can just rely on max_ts which is timespan adjusted now.
-        # Due to this condition the data will be checked no more than once a day even if the most recent last_date is requested.
-        if (current - modified).days < 1:
-            return False
-
-        return True
-
     #################################
     # Dividends / splits data methods
     #################################
@@ -906,7 +876,7 @@ class StockData(SecData, StockFetcher):
         num = current_num
 
         # Check if we need to fetch the data
-        if self._need_to_update(modified_ts=self._get_interval_ts(data_entry.value)):
+        if self._need_to_update(data_entry=data_entry):
             add_method(fetch_method())
             num = num_method()
 
@@ -951,6 +921,7 @@ class StockData(SecData, StockFetcher):
                                         add_method=self._add_cash_flow,
                                         fetch_method=self._fetch_cash_flow)
 
+    # TODO MID Maybe these methods should be public like fundamentals getters? Or maybe expose just _get_db_dividends()?
     def _get_dividends(self):
         """
             Fetch all the available cash dividends if needed.

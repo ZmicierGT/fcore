@@ -278,6 +278,7 @@ class SecData(SecFetcher):
                  last_date=def_last_date,
                  timespan=Timespans.Day,
                  verbosity=False,
+                 refetch=False,
                  db_name=None,
                  **kwargs):
         """
@@ -289,6 +290,8 @@ class SecData(SecFetcher):
                 last_date(datetime, str, int): the last date for queries.
                 timespan(Timespans): timespan to use in queries.
                 verbosity(bool): indicates if additional outputs are needed (logging and so on).
+                refetch(bool): if True, bypass interval-based gating and re-fetch data even when
+                               intervals already cover the requested range; existing rows are updated in place.
                 db_name(str): database name. Defaults to settings.Quotes.db_name.
         """
         # Setting the default values
@@ -330,6 +333,8 @@ class SecData(SecFetcher):
 
         self._verbosity = verbosity
 
+        self._refetch = refetch
+
         self._time_zone = None  # Cached time zone to avoid too many db queries
         self._sec_type = None  # Cached security type to avoid too many db queries
         self._currency = None  # Cached security type to avoid too many db queries
@@ -340,7 +345,17 @@ class SecData(SecFetcher):
         # Cooperative MI: forward any remaining kwargs down the MRO.
         super().__init__(**kwargs)
 
-    # TODO LOW Think of adding an argument flag which indicates if quotes should be re-fetched
+    @property
+    def refetch(self):
+        """
+            Getter for refetch flag (read-only).
+
+            Returns:
+                bool: True if this instance was initialized with refetch=True,
+                    bypassing interval-based gating to force re-fetch.
+        """
+        return self._refetch
+
     def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
         """
             Check is the required number of quotes exist in the database and fetch if not.
@@ -373,20 +388,19 @@ class SecData(SecFetcher):
 
             last_ts_adj = min(self.last_date_ts, self._current_ts())
 
-            # We need to check if the earliest and latest dates in database exceed the requested date for specified
-            # source and time span. If not, no need to fetch.
-            min_request_ts = self._get_min_request_ts()
-            max_request_ts = self._get_max_request_ts()
-
-            if min_request_ts is None or max_request_ts is None or self.first_date_ts < min_request_ts or last_ts_adj > max_request_ts:
+            if self._need_to_update():
                 intervals = []
 
-                # Adjust intervals to avoid gaps in quotes database and also to avoid excessive fetching of quotes
-                # if they already present in DB.
-                if total_num and min_request_ts is not None and max_request_ts is not None:
+                min_request_ts = self._get_min_request_ts()
+                max_request_ts = self._get_max_request_ts()
+
+                if self._refetch:
+                    intervals.append([self.first_date_ts, last_ts_adj])
+                elif total_num and min_request_ts is not None and max_request_ts is not None:
                     # Fetch the requested range excluding the part already covered by recorded
                     # intervals. Two independent checks: a request can extend on
                     # one side, both sides, or touch the recorded boundary exactly.
+                    # TODO MID Note that full refetch will be triggered if no quotes in the existing interval. Is it needed?
                     if self.first_date_ts < min_request_ts:
                         intervals.append([self.first_date_ts, min_request_ts])
 
@@ -1416,6 +1430,35 @@ class SecData(SecFetcher):
 
         return self._get_interval_ts(self.timespan.value, is_max=True)
 
+    def _need_to_update(self, data_entry=None):
+        """
+            Check if we need to update data based on the last fetch marker.
+
+            Args:
+                data_entry(DataEntries or None): the data entry to check if we need to update it. None for quotes.
+
+            Returns:
+                bool: indicates if update is needed.
+        """
+        if self._refetch:
+            return True
+
+        self._check_if_connected()
+
+        last_ts_adj = min(self.last_date_ts, self._current_ts())
+
+        if data_entry is None:  # Quotes path
+            title = self.timespan.value
+            min_ts = self._get_interval_ts(title, is_max=False)
+            max_ts = self._get_interval_ts(title, is_max=True)
+
+            return (min_ts is None or max_ts is None or self.first_date_ts < min_ts or last_ts_adj > max_ts)
+        else:  # Entries path
+            max_ts = self._get_interval_ts(data_entry.value)
+
+            # TODO MID Keep a one day gap to prevent too often fundamental updates. Needs to be replaced for a better mechanism.
+            return max_ts is None or (last_ts_adj > max_ts and last_ts_adj - max_ts > 86400)
+
     # TODO High think how to make it protected
     def get_max_ts(self):
         """
@@ -1458,14 +1501,14 @@ class SecData(SecFetcher):
             Fetch (if needed) and return security info data.
         """
         # Use the cached value (if any)
-        if self._info is None:
+        if self._info is None or self._refetch:
             initially_connected = self._is_connected()
 
             if self._is_connected() is False:
                 self._db_connect()
 
-            # Fetch data if no data present
-            if self._get_data_num('sec_info') == 0:
+            # Fetch data if no data present - or re-fetch if refetch flag is set
+            if self._refetch or self._get_data_num('sec_info') == 0:
                 self._add_info(self._fetch_info())
 
             # Just time zone is used from info for now
@@ -1772,7 +1815,6 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
-    # TODO HIGH Add an argument to refetch data (somehow a replacement of the removed .update)
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)

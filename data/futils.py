@@ -19,7 +19,6 @@ import numpy as np
 import threading
 import multiprocessing
 import time
-import platform
 import sys
 import subprocess
 

@@ -29,8 +29,8 @@ cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_rati
 period = 50  # Period for MA calculation
 symbol = 'SPY'  # Symbol to make estimations
 
-first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
-last_date = "2022-11-1"  # The last date to fetch quotes
+first_date = "2019-08-14"  # First date to fetch quotes
+last_date = "2024-08-14"  # The last date to fetch quotes
 
 if __name__ == "__main__":
     warning = "WARNING! Using yfinance data for the demonstration.\n" +\
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         try:
             print(f"Checking if quotes for {symbol_learn} is already fetched...")
 
-            rows = YF(symbol=symbol_learn, last_date=last_date).get()
+            rows = YF(symbol=symbol_learn, first_date=first_date, last_date=last_date).get()
         except FdataError as e:
             sys.exit(e)
 

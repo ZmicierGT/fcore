@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
     # Show the statistics in a text form (along with the image)
     title_cls = 'B&H Performance:'
-    title_sim = 'Index Simulation Performance:'
+    title_sim = 'Grouping Performance:'
     print(results_cls.get_statistics(title=title_cls))
     print(results.get_statistics(title=title_sim))
 
@@ -231,7 +231,7 @@ if __name__ == "__main__":
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)
 
-    # Add index simulation comparison to the portfolio chart
+    # Add grouping comparison to the portfolio chart
     fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results.TotalValue, mode='lines', name=f"Simulation TV"))
     fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results.OtherProfit, mode='lines', name=f"Simulation Yield"))
     fig_portf.add_trace(go.Scatter(x=results.DateTime, y=results.Cash, mode='lines', name=f"Simulation Cash"))

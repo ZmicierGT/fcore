@@ -303,7 +303,7 @@ def test_earnings_history_intervals(i):
     print("\nSECTION EH1: eh_max_ts is None before the first fetch")
     print("__________________________________________________________")
 
-    ts_before = i._get_interval_ts(DataEntries.EarningsHistory.value)
+    ts_before = i._get_interval_ts(DataEntries.YFEarningsHistory.value)
 
     if ts_before is not None:
         failure(f"eh_max_ts should be None before the first fetch, got {ts_before}", i)
@@ -322,7 +322,7 @@ def test_earnings_history_intervals(i):
     if fetched <= 0:
         failure(f"First get_earnings_history() should fetch >0 entries, got {fetched}", i)
 
-    ts_after = i._get_interval_ts(DataEntries.EarningsHistory.value)
+    ts_after = i._get_interval_ts(DataEntries.YFEarningsHistory.value)
 
     if ts_after is None:
         failure("eh_max_ts should be set after the first fetch", i)

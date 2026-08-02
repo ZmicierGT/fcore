@@ -46,10 +46,10 @@ class DataSource():
         """
         return self._queries_per_min
 
-class Massive(DataSource):
+class FMP(DataSource):
     """
-        Default settings for the Massive data source.
+        Default settings for the FMP data source.
     """
     _api_key = None
-    _api_key_var = 'MASSIVE_API_KEY'
-    _queries_per_min = 5  # Free/basic plan default rate
+    _api_key_var = 'FMP_API_KEY'
+    _queries_per_min = 250  # Free/basic plan daily rate. Replace with the actual minute rate when upgraded.

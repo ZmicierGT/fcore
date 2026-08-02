@@ -27,7 +27,7 @@ import calendar
 # TODO High Shorten the sqlite queries involving subqueries
 
 # Current database compatibility version
-_DB_VERSION = 29
+_DB_VERSION = 30
 
 class Subquery():
     """
@@ -128,7 +128,8 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
 
             self._queries = []
 
-        self._log(f"Fetching URL: {url}")
+        # Uncomment for debug purposes
+        #self._log(f"Fetching URL: {url}")
         headers = {'Cache-Control': 'no-cache'}
 
         # Perform the query
@@ -1815,6 +1816,7 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
+    # TODO HIGH Think how to handle if data source limits data because of lower-grade subscription plan
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)

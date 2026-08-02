@@ -577,16 +577,19 @@ class ReportPeriod(StrEnum):
 
 class DataEntries(StrEnum):
     """
-        Enum class for data entries (datasets fetched per symbol/source).
-
-        These titles populate the 'data_entries' lookup table together with
-        the Timespans enum (excluding All/Unknown). Each entry identifies a
-        kind of interval tracked in 'data_intervals'. Fundamental reports are
-        intentionally excluded for now as their tables are per-source.
+        Enum class for data entries (datasets fetched per symbol/source). Used in intervals tracking.
     """
     Dividends = 'Dividends'
     Splits = 'Splits'
-    EarningsHistory = 'EarningsHistory'
+
+    # YF-specific datasets
+    YFEarningsHistory = 'YFEarningsHistory'
+
+    # FMP-specific datasets (fundamental reports + FMP-only features)
+    FMPIncomeStatement = 'FMPIncomeStatement'
+    FMPBalanceSheet = 'FMPBalanceSheet'
+    FMPCashFlow = 'FMPCashFlow'
+    FMPCap = 'FMPCap'
 
 class DbTypes(StrEnum):
     """

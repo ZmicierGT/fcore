@@ -127,8 +127,10 @@ class YF(stock.StockData):
             # TODO LOW For simplicity just set time to 23:59:59 without time zone adjustments.
             # For some markets (non-US) timestamps (which are supposed to be UTC-adjusted) may be incorrect.
             data['ts'] = data['Date'].dt.normalize() + timedelta(hours=23, minutes=59, seconds=59)
-            # Convert datetime to timestamp: pandas datetime64[us] stores microseconds, so divide by 10^6 to get seconds
-            data['ts'] = (data['ts'].astype(np.int64) // 10**6).astype(int)
+
+            # Convert datetime to timestamp (dtype-aware)
+            scale = {'ns': 10**9, 'us': 10**6, 'ms': 10**3}.get(data['ts'].dt.unit, 10**6)
+            data['ts'] = (data['ts'].astype(np.int64) // scale).astype(int)
 
             # Reverse-adjust the quotes
             splits = self.__fetch_splits()
@@ -260,8 +262,10 @@ class YF(stock.StockData):
 
         # Keep splits at 00:00:00
         df_result['ts'] = splits.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
-        # Convert datetime to timestamp: pandas datetime64[ns] stores nanoseconds, so divide by 10^9 to get seconds
-        df_result['ts'] = (df_result['ts'].astype(np.int64) // 10**9).astype(int)
+
+        # Convert datetime to timestamp (dtype-aware)
+        scale = {'ns': 10**9, 'us': 10**6, 'ms': 10**3}.get(df_result['ts'].dt.unit, 10**6)
+        df_result['ts'] = (df_result['ts'].astype(np.int64) // scale).astype(int)
 
         df_result['split_ratio'] = splits.reset_index()['Stock Splits']
 
@@ -288,8 +292,10 @@ class YF(stock.StockData):
 
         # Keep dividends at 00:00:00
         df_result['ex_ts'] = divs.keys().tz_convert('UTC').normalize() + timedelta(hours=00, minutes=00, seconds=00)
-        # Convert datetime to timestamp: pandas datetime64[ns] stores nanoseconds, so divide by 10^9 to get seconds
-        df_result['ex_ts'] = (df_result['ex_ts'].astype(np.int64) // 10**9).astype(int)
+
+        # Convert datetime to timestamp (dtype-aware)
+        scale = {'ns': 10**9, 'us': 10**6, 'ms': 10**3}.get(df_result['ex_ts'].dt.unit, 10**6)
+        df_result['ex_ts'] = (df_result['ex_ts'].astype(np.int64) // scale).astype(int)
 
         df_result['amount'] = divs.reset_index()['Dividends']
 
@@ -513,7 +519,7 @@ class YF(stock.StockData):
             raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
 
         self._commit()
-        self._update_data_interval(DataEntries.EarningsHistory)
+        self._update_data_interval(DataEntries.YFEarningsHistory)
 
         return (num_before, self.get_earnings_history_num())
 
@@ -548,7 +554,7 @@ class YF(stock.StockData):
         if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
             raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
 
-        return self._fetch_data_if_none(data_entry=DataEntries.EarningsHistory,
+        return self._fetch_data_if_none(data_entry=DataEntries.YFEarningsHistory,
                                         num_method=self.get_earnings_history_num,
                                         add_method=self._add_earnings_history,
                                         fetch_method=self._fetch_earnings_history)

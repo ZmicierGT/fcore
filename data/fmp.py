@@ -119,6 +119,7 @@ class FMP(stock.StockData):
                 results = []
 
         if results is not None and (len(results) == 0 or results == ['Error Message']):
+            # TODO MID Hide API keys from the log (here and in other places)
             self._log(f"No data obtained for {self._symbol} using the query {url}")
 
         return results
@@ -385,13 +386,26 @@ class FMP(stock.StockData):
 
         json_data = self._query_and_parse(profile_url)
 
+        # NotExist fallback: no profile returned ([]) or the security is marked as not actively trading.
+        not_exist = {'fc_sec_type': SecType.NotExist, 'fc_time_zone': 'UTC', 'fc_currency': Currency.Unknown}
+
+        # A security is considered delisted/non-existent when the profile is empty ([]) or
+        # the profile explicitly reports that the security is not actively trading.
+        if json_data is None or len(json_data) == 0:
+            self._log(f"Empty profile obtained for {self._symbol}. The security may be delisted or the symbol is incorrect. URL: {profile_url}")
+            return not_exist
+
+        results = json_data[0]
+
+        if results.get('isActivelyTrading') is False:
+            self._log(f"{self._symbol} is returned as not actively trading. The security may be delisted. URL: {profile_url}")
+            return not_exist
+
         try:
-            results = json_data[0]
             tz_str = Exchanges[results['exchange']]
-        except (KeyError, IndexError) as e:
-            results = {'fc_sec_type': SecType.NotExist, 'fc_time_zone': 'UTC', 'fc_currency': Currency.Unknown}
+        except KeyError as e:
             self._log(f"Can't fetch info (API key limit is possible): {e}, url is {profile_url}")
-            return results
+            return not_exist
 
         results['fc_time_zone'] = tz_str
 

@@ -476,7 +476,7 @@ def test_get_delisted():
     try:
         yfi.get()
     except FdataError as e:
-        print(f"  Got expected FdataError: {e}")
+        print(f"Got expected FdataError: {e}")
         raised_first = True
 
     if not raised_first:
@@ -497,7 +497,7 @@ def test_get_delisted():
     try:
         yfi.get_info()
     except FdataError as e:
-        print(f"  Got expected FdataError: {e}")
+        print(f"Got expected FdataError: {e}")
         raised_info = True
 
     if not raised_info:
@@ -512,7 +512,7 @@ def test_get_delisted():
     try:
         yfi.get()
     except FdataError as e:
-        print(f"  Got expected FdataError: {e}")
+        print(f"Got expected FdataError: {e}")
         raised_second = True
 
     if not raised_second:
@@ -592,7 +592,7 @@ def test_get_empty_range_valid_symbol():
     try:
         yfi.get()
     except FdataError as e:
-        print(f"  Got FdataError: {e}")
+        print(f"Got FdataError: {e}")
 
     if yfi.get_quotes_num(dt=False) != 0:
         failure("No quotes should be fetched for an empty range", yfi)

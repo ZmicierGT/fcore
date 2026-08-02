@@ -7,6 +7,8 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import fmp
+from data.fdata import FdataError
+from data.futils import get_dt
 
 from termcolor import colored
 
@@ -191,6 +193,145 @@ def test_recent_data(source):
     print(colored(f"Recent quote obtained for {data[0]['date_time']}: {data[0]['closed']}", "yellow"))
     print(colored("Recent quote endpoint passed", 'green'))
 
+def test_get_delisted():
+    print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
+
+    fmpi = fmp.FMP(symbol='WBA', first_date="2026-1-1", last_date="2026-3-1", verbosity=True, db_name=":memory:")
+    fmpi._db_connect()
+
+    print("First invocation (empty DB): expecting FdataError ...")
+    raised_first = False
+    try:
+        fmpi.get()
+    except FdataError as e:
+        print(f"Got expected FdataError: {e}")
+        raised_first = True
+
+    if not raised_first:
+        failure("First get() should have raised FdataError for a delisted symbol", fmpi)
+
+    if fmpi.get_quotes_num(dt=False) != 0:
+        failure("No quotes should be fetched for a delisted symbol", fmpi)
+
+    if fmpi._get_min_request_ts() is not None or fmpi._get_max_request_ts() is not None:
+        failure("No data_intervals should be marked for a delisted symbol", fmpi)
+
+    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+
+    # Confirm the security is indeed marked as NotExist in sec_info. get_info()
+    # raises FdataError when sec_type == NotExist.
+    print("\nDirect get_info() check: expecting FdataError (sec_info persisted as NotExist) ...")
+    raised_info = False
+    try:
+        fmpi.get_info()
+    except FdataError as e:
+        print(f"  Got expected FdataError: {e}")
+        raised_info = True
+
+    if not raised_info:
+        failure("get_info() should raise FdataError for a symbol marked NotExist", fmpi)
+
+    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+
+    # Second invocation: sec_info persisted as NotExist. get_info() raises before
+    # fetch_info() runs (no API refetch).
+    print("\nSecond invocation (sec_info persisted as NotExist): expecting FdataError ...")
+    raised_second = False
+    try:
+        fmpi.get()
+    except FdataError as e:
+        print(f"Got expected FdataError: {e}")
+        raised_second = True
+
+    if not raised_second:
+        failure("Second get() should also raise FdataError", fmpi)
+
+    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+
+    fmpi._db_close()
+
+def test_get_empty_range_valid_symbol():
+    print(colored("\nTesting get() for a valid symbol with empty range:\n", "yellow"))
+
+    fmpi = fmp.FMP(symbol='HOOD', first_date="2020-01-01", last_date="2020-02-16", verbosity=True, db_name=":memory:")
+    fmpi._db_connect()
+
+    print("First invocation (empty range): expecting intervals recorded ...")
+    try:
+        fmpi.get()
+    except FdataError as e:
+        print(f"  Got FdataError: {e}")
+
+    if fmpi.get_quotes_num(dt=False) != 0:
+        failure("No quotes should be fetched for an empty range", fmpi)
+
+    min_req = fmpi._get_min_request_ts()
+    max_req = fmpi._get_max_request_ts()
+
+    if min_req is None or max_req is None:
+        failure("Intervals should be recorded for an empty valid-symbol range", fmpi)
+
+    print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
+
+    fmpi._db_close()
+
+def test_get_non_existing():
+    print(colored("\nTesting get() for a non-existing symbol (FFFF):\n", "yellow"))
+
+    fmpi = fmp.FMP(symbol='FFFF', first_date="2026-1-1", last_date="2026-3-1", verbosity=True, db_name=":memory:")
+    fmpi._db_connect()
+
+    print("First invocation (empty DB): expecting FdataError ...")
+    raised_first = False
+    try:
+        fmpi.get()
+    except FdataError as e:
+        print(f"Got expected FdataError: {e}")
+        raised_first = True
+
+    if not raised_first:
+        failure("First get() should have raised FdataError for a non-existing symbol", fmpi)
+
+    if fmpi.get_quotes_num(dt=False) != 0:
+        failure("No quotes should be fetched for a non-existing symbol", fmpi)
+
+    if fmpi._get_min_request_ts() is not None or fmpi._get_max_request_ts() is not None:
+        failure("No data_intervals should be marked for a non-existing symbol", fmpi)
+
+    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+
+    # Confirm the security is indeed marked as NotExist in sec_info. get_info()
+    # raises FdataError when sec_type == NotExist.
+    print("\nDirect get_info() check: expecting FdataError (sec_info persisted as NotExist) ...")
+    raised_info = False
+    try:
+        fmpi.get_info()
+    except FdataError as e:
+        print(f"  Got expected FdataError: {e}")
+        raised_info = True
+
+    if not raised_info:
+        failure("get_info() should raise FdataError for a symbol marked NotExist", fmpi)
+
+    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+
+    # Second invocation: sec_info persisted as NotExist. get_info() raises before
+    # fetch_info() runs (no API refetch).
+    print("\nSecond invocation (sec_info persisted as NotExist): expecting FdataError ...")
+    raised_second = False
+    try:
+        fmpi.get()
+    except FdataError as e:
+        print(f"Got expected FdataError: {e}")
+        raised_second = True
+
+    if not raised_second:
+        failure("Second get() should also raise FdataError", fmpi)
+
+    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+
+    fmpi._db_close()
+
 if __name__ == "__main__":
     print(colored("\nTesting FMP data source endpoints:\n", "yellow"))
 
@@ -215,5 +356,10 @@ if __name__ == "__main__":
     test_recent_data(fmpi)
 
     fmpi._db_close()
+
+    # get() behavior for delisted, non-existing and empty-range valid symbols (fresh in-memory DBs)
+    test_get_delisted()
+    test_get_non_existing()
+    test_get_empty_range_valid_symbol()
 
     print(colored("ALL TESTS PASSED!", "green"))

@@ -550,10 +550,6 @@ class YF(stock.StockData):
             Returns:
                 int: the number of fetched entries.
         """
-        # TODO LOW Is it needed?
-        if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
-            raise FdataError("Quotes should be fetched at first before fetching earnings history data.")
-
         return self._fetch_data_if_none(data_entry=DataEntries.YFEarningsHistory,
                                         num_method=self.get_earnings_history_num,
                                         add_method=self._add_earnings_history,

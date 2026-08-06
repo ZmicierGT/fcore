@@ -1182,9 +1182,6 @@ class FMP(stock.StockData):
             self._db_connect()
 
         try:
-            if self.get_quotes_num(source=True, timespan=False, dt=False) == 0:
-                raise FdataError("Quotes should be fetched at first before fetching capitalization data.")
-
             return self._fetch_data_if_none(data_entry=DataEntries.FMPCap,
                                             num_method=self.get_cap_num,
                                             add_method=self._add_cap,

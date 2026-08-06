@@ -23,12 +23,17 @@ Here are some basic examples of how to use Fcore. Please note that all the provi
 
 Fcore obtains data and stores it in a database - no need to re-fetch it again.
 
+Data from different data sources can be combined via subqueries. For example, quotes may be fetched from Yahoo Finance while the capitalization data may be obtained from FMP (no quotes needed to fetch it). Then the cap value can be added to every quote with the help of a subquery:
+
 ```python
-# Fetch quotes if needed. Otherwise just take them from a database.
-yf.YF(symbol='IBM', first_date="2024-1-1", last_date="2025-1-1").get()
+yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date).get()
+fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date).get_cap()
+
+# Get quotes with the FMP cap values added via a subquery
+quotes = yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date).get(queries=[Subquery('fmp_capitalization', 'cap', title='cap')])
 ```
 
-Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: `quotes['annual_cashflow']`
+Fcore uses labelled numpy arrays as the main data containers as they are memory efficient and fast. You can get the obtained columns in a such way: `quotes['cap']`
 
 Invoke **python -m quickstart.min_data_management** to run the full example.
 

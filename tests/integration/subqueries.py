@@ -7,8 +7,12 @@ Distributed under Fcore License 1.1 (see license.md)
 from data import yf, fmp
 from data.fdata import Subquery
 from data.futils import get_dt
+from data.fvalues import def_last_date
 
 from termcolor import colored
+
+from datetime import datetime, timedelta
+from dateutil import tz
 
 import os
 import sys
@@ -44,10 +48,15 @@ def test_cross_source_subqueries():
     fmpi = None
 
     try:
+        # NOTE: The free FMP plan provides only the most recent capitalization
+        # data (~3 months), so the date range must overlap the recent period.
+        first_date = get_dt(datetime.now(tz.UTC)) - timedelta(days=120)
+        last_date = def_last_date
+
         # Instance 1: FMP. Connect at first so that the source-specific tables
         # (like fmp_capitalization) exist in the database before the YF quotes
         # are fetched with the subqueries.
-        fmpi = fmp.FMP(symbol='AAPL', first_date="2020-1-1", last_date="2025-1-1",
+        fmpi = fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date,
                        verbosity=True, db_name=db_path)
         fmpi._db_connect()
 
@@ -56,7 +65,7 @@ def test_cross_source_subqueries():
 
         # Instance 2: YF. A separate connection to the same database file
         # (both connections are open in parallel).
-        yfi = yf.YF(symbol='AAPL', first_date="2020-1-1", last_date="2025-1-1",
+        yfi = yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date,
                     verbosity=True, db_name=db_path)
         yfi._db_connect()
 

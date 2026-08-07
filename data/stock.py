@@ -4,10 +4,10 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fdata import FdataError, SecData, SecFetcher
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, DataEntries, Timespans, def_last_date, Sector
+from data.fdata import FdataError, SecData
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, DataEntries, def_last_date, Sector
 
-from data.futils import get_labelled_ndarray, get_dt
+from data.futils import get_labelled_ndarray
 
 import abc
 
@@ -15,7 +15,7 @@ import numpy as np
 
 import calendar
 
-report_quearter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
+report_quarter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
 
 class StockFetcher(object, metaclass=abc.ABCMeta):

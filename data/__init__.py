@@ -1,0 +1,46 @@
+"""
+fcore Data API — unified data acquisition, caching and storage layer.
+"""
+
+__version__ = "0.1.0"
+
+from data.fdata import FdataError, Subquery, SecData, SecFetcher
+
+from data.stock import StockData, StockFetcher
+
+from data.yf import YF
+from data.fmp import FMP, Exchanges
+
+from data.fvalues import (
+    DbTypes,
+    Quotes, StockQuotes, Weighted, Algorithm,
+    Timespans, SecType, Currency, DataEntries,
+    ReportPeriod, Dividends, StockSplits, Sector,
+    Timezones,
+    def_first_date, def_last_date, trading_days_per_year,
+    djia, djia_combined, djia_dict,
+    sector_titles, sectors_dict, sectors_combined,
+    sw20, ca_big_five, ca_big_six,
+)
+
+from data.futils import (
+    logger, get_dt, add_column, thread_available,
+    show_image, gui_available, update_layout, get_labelled_ndarray,
+)
+
+__all__ = [
+    "FdataError", "Subquery", "SecData", "SecFetcher",
+    "StockData", "StockFetcher",
+    "YF", "FMP", "Exchanges",
+    "DbTypes",
+    "Quotes", "StockQuotes", "Weighted", "Algorithm",
+    "Timespans", "SecType", "Currency", "DataEntries",
+    "ReportPeriod", "Dividends", "StockSplits", "Sector",
+    "Timezones",
+    "def_first_date", "def_last_date", "trading_days_per_year",
+    "djia", "djia_combined", "djia_dict",
+    "sector_titles", "sectors_dict", "sectors_combined",
+    "sw20", "ca_big_five", "ca_big_six",
+    "logger", "get_dt", "add_column", "thread_available",
+    "show_image", "gui_available", "update_layout", "get_labelled_ndarray",
+]

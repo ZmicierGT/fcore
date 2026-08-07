@@ -8,6 +8,8 @@ from data.futils import logger
 
 import abc
 
+# TODO HIGH Do we need tools? If still need to simplify complex calculations, maybe it worth to add appropriate demos?
+
 class BaseTool(metaclass=abc.ABCMeta):
     """
         Base custom data-tool class. For majority of technical indicators calculation you may use pandas_ta

@@ -7,12 +7,19 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data import fmp
-from data.fdata import FdataError
+from data.fdata import FdataError, Subquery
 from data.futils import get_dt
+from data.fvalues import def_last_date
+from data.stock import report_quarter, report_year
 
 from termcolor import colored
 
+from datetime import datetime, timedelta
+from dateutil import tz
+
 import sys
+
+import numpy as np
 
 def failure(text, source):
     """
@@ -125,6 +132,54 @@ def test_income_statement(source):
     if num_after <= num_before:
         failure(f"The number of income statement entries did not increase after get_income_statement() call: {num_before} -> {num_after}", source)
 
+    # Verify both annual and quarterly reports were fetched and stored by
+    # joining the fundamentals table to the cached quotes via subqueries. The
+    # report_quarter / report_year helper conditions filter the same table
+    # (aliased as 'report_tbl' by Subquery.generate()) to the matching period.
+    quarter_subquery = Subquery(source._income_statement_tbl, 'revenue',
+                                condition=report_quarter, title='revenue_quarter')
+    annual_subquery = Subquery(source._income_statement_tbl, 'revenue',
+                               condition=report_year, title='revenue_annual')
+
+    rows = source.get(queries=[quarter_subquery, annual_subquery])
+
+    if rows is None or len(rows) == 0:
+        failure("No quotes returned by get() with the income statement subqueries.", source)
+
+    if 'revenue_quarter' not in rows.dtype.names or 'revenue_annual' not in rows.dtype.names:
+        failure(f"Expected revenue_quarter/revenue_annual columns in subquery result: {rows.dtype.names}", source)
+
+    quarter_mask = rows['revenue_quarter'] != None
+    annual_mask = rows['revenue_annual'] != None
+    quarter_values = rows['revenue_quarter'][quarter_mask]
+    annual_values = rows['revenue_annual'][annual_mask]
+
+    if len(quarter_values) == 0:
+        failure("No quarterly revenue values obtained via the report_quarter subquery.", source)
+    if len(annual_values) == 0:
+        failure("No annual revenue values obtained via the report_year subquery.", source)
+
+    # Both periods returned non-None on the same quote rows: they must differ
+    # somewhere (quarterly revenue != full-year revenue for the same report date).
+    both_mask = quarter_mask & annual_mask
+    if not np.any(rows['revenue_quarter'][both_mask] != rows['revenue_annual'][both_mask]):
+        failure("Quarterly and annual revenue values are identical; conditions did not filter to different periods.", source)
+
+    # quarter_num + annual_num == total: each distinct revenue value corresponds to one report
+    # (AAPL revenues are distinct across reports), so the number of distinct
+    # values per period equals the number of reports of that period.
+    quarter_num = len(np.unique(quarter_values))
+    annual_num = len(np.unique(annual_values))
+
+    if quarter_num == 0:
+        failure("No distinct quarterly revenue values found.", source)
+    if annual_num == 0:
+        failure("No distinct annual revenue values found.", source)
+    if quarter_num + annual_num > num_after:
+        failure(f"Quarter({quarter_num}) + Annual({annual_num}) > total({num_after}) in {source._income_statement_tbl}", source)
+
+    print(colored(f"Income statement periods: quarter={quarter_num} annual={annual_num} total={num_after}", "yellow"))
+
     print(colored(f"Income statement entries obtained: {num_after} (before: {num_before})", "yellow"))
     print(colored("Income statement endpoint passed", 'green'))
 
@@ -196,7 +251,11 @@ def test_recent_data(source):
 def test_get_delisted():
     print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
 
-    fmpi = fmp.FMP(symbol='WBA', first_date="2026-1-1", last_date="2026-3-1", verbosity=True, db_name=":memory:")
+    now = datetime.now(tz.UTC)
+    first_date = now - timedelta(days=60)
+    last_date = now - timedelta(days=30)
+
+    fmpi = fmp.FMP(symbol='WBA', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
     fmpi._db_connect()
 
     print("First invocation (empty DB): expecting FdataError ...")
@@ -278,7 +337,11 @@ def test_get_empty_range_valid_symbol():
 def test_get_non_existing():
     print(colored("\nTesting get() for a non-existing symbol (FFFF):\n", "yellow"))
 
-    fmpi = fmp.FMP(symbol='FFFF', first_date="2026-1-1", last_date="2026-3-1", verbosity=True, db_name=":memory:")
+    now = datetime.now(tz.UTC)
+    first_date = now - timedelta(days=60)
+    last_date = now - timedelta(days=30)
+
+    fmpi = fmp.FMP(symbol='FFFF', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
     fmpi._db_connect()
 
     print("First invocation (empty DB): expecting FdataError ...")
@@ -335,7 +398,10 @@ def test_get_non_existing():
 if __name__ == "__main__":
     print(colored("\nTesting FMP data source endpoints:\n", "yellow"))
 
-    fmpi = fmp.FMP(symbol='AAPL', first_date="2020-2-1", last_date="2024-3-1", verbosity=True, db_name=":memory:")
+    last_date = def_last_date
+    first_date = get_dt(datetime.now(tz.UTC)) - timedelta(days=365*2)
+
+    fmpi = fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
     fmpi._db_connect()
 
     if fmpi._api_key is None:

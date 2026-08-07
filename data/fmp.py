@@ -14,7 +14,7 @@ import pandas as pd
 import settings
 
 from data import stock
-from data.fvalues import SecType, Timespans, Currency, DataEntries
+from data.fvalues import SecType, Timespans, Currency, DataEntries, ReportPeriod
 from data.fdata import FdataError
 from data.futils import get_dt, get_labelled_ndarray
 
@@ -453,6 +453,11 @@ class FMP(stock.StockData):
         if isinstance(json_data, dict) and 'Error Message' in json_data:
             raise FdataError(json_data['Error Message'])
 
+        # Avoid pd.json_normalize on an empty list which yields a columnless DataFrame
+        # and would KeyError on the field access below. Data adding methods will handle the empty return further.
+        if not isinstance(json_data, list) or len(json_data) == 0:
+            return []
+
         reports = pd.json_normalize(json_data)
 
         reports['reported_period'] = reported_period
@@ -471,30 +476,33 @@ class FMP(stock.StockData):
 
     def _fetch_income_statement(self):
         """
-            Fetch the income statement.
+            Fetch the income statement (both annual and quarterly reports).
 
             Returns:
                 list: fundamental data.
         """
-        return self._fetch_fundamentals('income-statement')
+        return (self._fetch_fundamentals('income-statement', ReportPeriod.Year) +
+                self._fetch_fundamentals('income-statement', ReportPeriod.Quarter))
 
     def _fetch_balance_sheet(self):
         """
-            Fetch the balance sheet.
+            Fetch the balance sheet (both annual and quarterly reports).
 
             Returns:
                 list: fundamental data.
         """
-        return self._fetch_fundamentals('balance-sheet-statement')
+        return (self._fetch_fundamentals('balance-sheet-statement', ReportPeriod.Year) +
+                self._fetch_fundamentals('balance-sheet-statement', ReportPeriod.Quarter))
 
     def _fetch_cash_flow(self):
         """
-            Fetch the cash flow.
+            Fetch the cash flow (both annual and quarterly reports).
 
             Returns:
                 list: fundamental data.
         """
-        return self._fetch_fundamentals('cash-flow-statement')
+        return (self._fetch_fundamentals('cash-flow-statement', ReportPeriod.Year) +
+                self._fetch_fundamentals('cash-flow-statement', ReportPeriod.Quarter))
 
     def _add_income_statement(self, reports):
         """
@@ -516,6 +524,11 @@ class FMP(stock.StockData):
             self._add_symbol()
 
         num_before = self.get_income_statement_num()
+
+        if not reports:
+            self._log(f"No income statement data to add for {self._symbol}. Updating data interval only.")
+            self._update_data_interval(DataEntries.FMPIncomeStatement)
+            return (num_before, num_before)
 
         insert_report = f"""INSERT INTO {self._income_statement_tbl} (symbol_id,
                                     source_id,
@@ -681,6 +694,11 @@ class FMP(stock.StockData):
             self._add_symbol()
 
         num_before = self.get_balance_sheet_num()
+
+        if not reports:
+            self._log(f"No balance sheet data to add for {self._symbol}. Updating data interval only.")
+            self._update_data_interval(DataEntries.FMPBalanceSheet)
+            return (num_before, num_before)
 
         insert_report = f"""INSERT INTO {self._balance_sheet_tbl} (symbol_id,
                                     source_id,
@@ -911,6 +929,11 @@ class FMP(stock.StockData):
 
         num_before = self.get_cash_flow_num()
 
+        if not reports:
+            self._log(f"No cash flow data to add for {self._symbol}. Updating data interval only.")
+            self._update_data_interval(DataEntries.FMPCashFlow)
+            return (num_before, num_before)
+
         insert_report = f"""INSERT INTO {self._cash_flow_tbl} (symbol_id,
                                     source_id,
                                     reported_period,
@@ -1131,6 +1154,11 @@ class FMP(stock.StockData):
             self._add_symbol()
 
         num_before = self.get_cap_num()
+
+        if not results:
+            self._log(f"No capitalization data to add for {self._symbol}. Updating data interval only.")
+            self._update_data_interval(DataEntries.FMPCap)
+            return (num_before, num_before)
 
         insert_cap = f"""INSERT INTO {self._cap_tbl} (symbol_id,
                                     source_id,

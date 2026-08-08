@@ -184,7 +184,7 @@ class YF(stock.StockData):
 
         return quotes_data
 
-    # TODI MID For correct screeners work it should correspond the data in the main dataset. Currently the time is not UTC-adjusted.
+    # TODO MID For correct screeners work it should correspond the data in the main dataset. Currently the time is not UTC-adjusted.
     def get_recent_data(self, to_cache=False):
         """
             Get pseudo real time data. Used in screening demonstration.

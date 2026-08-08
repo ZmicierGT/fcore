@@ -14,6 +14,8 @@ def_last_date = 9999999999  # Latest supported timestamp
 
 trading_days_per_year = 252
 
+# TODO MID Think where else except Data API we should add __init__.py
+
 # NOTE: KRFT and UTX Historical quotes (delisted) are not provided by any supported data source yet.
 djia_jun_08_2009 = ['MMM', 'DD', 'MCD', 'AA', 'XOM', 'MRK', 'AXP', 'GE', 'MSFT', 'T', 'HPQ', 'PFE', 'BAC', 'HD', 'PG',\
                     'BA', 'INTC', 'TRV', 'CAT', 'IBM', 'UTX', 'CVX', 'JNJ', 'VZ', 'CSCO', 'JPM', 'WMT', 'KO', 'KRFT', 'DIS']

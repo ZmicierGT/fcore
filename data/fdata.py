@@ -24,8 +24,6 @@ from datetime import datetime, timedelta
 from dateutil import tz
 import calendar
 
-# TODO High Add __init__() here (and possibly other submodules).
-
 # Current database compatibility version
 _DB_VERSION = 30
 

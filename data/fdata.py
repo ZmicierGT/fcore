@@ -34,7 +34,7 @@ class Subquery():
         Note that this class is not really sql-injection proof so it should be used internally only -
         meaning not exposing it through web-interface or whatever.
     """
-    def __init__(self, table, column, condition='', title=None, fill=True):
+    def __init__(self, table, column, condition='', title=None, fill=True, symbol=None):
         """
             Initializes the instance of Subquery class.
 
@@ -45,11 +45,15 @@ class Subquery():
                 title(str): optional title for the output column (the same as column name by default)
                 fill(bool): Indicates if all rows should have the value. False if only a row with the most
                             suitable data (according to time stamp) should have it.
+                symbol(str): optional ticker which symbol_id to bind the subquery to in addition to the
+                             quotes symbol_id. Useful when the target table data is stored under a different
+                             ticker of the same security in another data source.
         """
         self._table = table
         self._column = column
         self._condition = condition
         self._fill = fill
+        self._symbol = symbol
 
         # Use the default column name as the title if the title is not specified
         if title is None:
@@ -70,10 +74,16 @@ class Subquery():
             ts_query = """ AND report_tbl.time_stamp >
                            (SELECT time_stamp FROM quotes qqq WHERE qqq.quote_id > quotes.quote_id ORDER BY qqq.quote_id ASC LIMIT 1)"""
 
+        symbol_query = "symbol_id = quotes.symbol_id"
+
+        if self._symbol is not None:
+            symbol_query = f"""(symbol_id = quotes.symbol_id
+                               OR symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = '{self._symbol}'))"""
+
         subquery = f"""(SELECT {self._column}
                             FROM {self._table} report_tbl
                             WHERE report_tbl.time_stamp <= quotes.time_stamp{ts_query}
-                            AND symbol_id = quotes.symbol_id
+                            AND {symbol_query}
                             {self._condition}
                             ORDER BY report_tbl.time_stamp DESC LIMIT 1) AS {self._title}\n"""
 

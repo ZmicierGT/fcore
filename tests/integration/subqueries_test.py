@@ -32,6 +32,43 @@ def failure(text):
     print(colored(text, "red"))
     sys.exit()
 
+def check_cap_values(rows, expected_ts, expected_cap, test_name):
+    """
+        Check the cap values obtained by a subquery against the expected ones.
+
+        Rows before the first cap timestamp must be None and each cap range
+        must contain the expected values (compare with Section 2 of the test).
+
+        Args:
+            rows: quotes with the cap subquery data.
+            expected_ts(list): timestamps of the cap ranges.
+            expected_cap(list): expected cap values for the ranges.
+            test_name(str): subquery description to use in error messages.
+    """
+    # Check if rows where no data is expected (before the first cap
+    # timestamp) are indeed None.
+    first_ts = expected_ts[0]
+    idx = np.where(rows['time_stamp'] < first_ts)[0]
+    sub = rows[idx]
+
+    if len(sub) > 0 and np.all(sub['cap'] == None) is False:
+        failure(f"{test_name}: unexpected non-None values found before the first cap timestamp.")
+
+    # Iterate through cap ranges and check if the values are expected.
+    for i in range(len(expected_ts)):
+        start_ts = expected_ts[i]
+
+        if i == len(expected_ts) - 1:
+            end_ts = sys.maxsize
+        else:
+            end_ts = expected_ts[i + 1]
+
+        idx = np.where((rows['time_stamp'] >= start_ts) & (rows['time_stamp'] < end_ts))[0]
+        sub = rows[idx]
+
+        if len(sub) > 0 and np.all(sub['cap'] == expected_cap[i]) is False:
+            failure(f"{test_name}: unexpected cap value at ts {get_dt(start_ts)}: expected {expected_cap[i]}")
+
 def test_cross_source_subqueries():
     """
         Test that data from one data source (FMP) can be used with subqueries
@@ -130,33 +167,21 @@ def test_cross_source_subqueries():
         if rows is None or len(rows) == 0:
             failure(f"No quotes returned by get() for AAPL: {rows}")
 
-        # Check if rows where no data is expected (before the first cap
-        # timestamp) are indeed None.
-        first_ts = expected_ts[0]
-        idx = np.where(rows['time_stamp'] < first_ts)[0]
-        sub = rows[idx]
+        check_cap_values(rows, expected_ts, expected_cap, "cap subquery")
 
-        if len(sub) > 0 and np.all(sub['cap'] == None) is False:
-            failure("Unexpected non-None values found in the subquery data before the first cap timestamp.")
+        print(colored("All subquery data is as expected.", 'green'))
 
-        print(colored("Rows before the first cap timestamp are None as expected.", 'green'))
+        print("\nSECTION 4: Checking the cap values obtained with the symbol argument")
+        print("_____________________________________________________________________")
 
-        # Iterate through cap ranges and check if the values are expected.
-        for i in range(len(expected_ts)):
-            start_ts = expected_ts[i]
+        rows = yfi.get(queries=[Subquery('fmp_capitalization', 'cap', title='cap', symbol='AAPL')])
 
-            if i == len(expected_ts) - 1:
-                end_ts = sys.maxsize
-            else:
-                end_ts = expected_ts[i + 1]
+        if rows is None or len(rows) == 0:
+            failure(f"No quotes returned by get() with the symbol argument for AAPL: {rows}")
 
-            idx = np.where((rows['time_stamp'] >= start_ts) & (rows['time_stamp'] < end_ts))[0]
-            sub = rows[idx]
+        check_cap_values(rows, expected_ts, expected_cap, "symbol subquery")
 
-            if len(sub) > 0 and np.all(sub['cap'] == expected_cap[i]) is False:
-                failure(f"Unexpected cap value at ts {get_dt(start_ts)}: expected {expected_cap[i]}")
-
-        print(colored('All subquery data is as expected.', 'green'))
+        print(colored('All symbol-subquery data is as expected.', 'green'))
     finally:
         # Close the database connections and delete the temporary database
         # file including the WAL journal sidecar files (if any).

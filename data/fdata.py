@@ -7,7 +7,6 @@ Distributed under Fcore License 1.1 (see license.md)
 import abc
 
 from time import sleep, perf_counter
-from itertools import chain
 
 import http.client
 import urllib.error
@@ -15,7 +14,7 @@ import requests
 
 from data import fdatabase
 
-from data.fvalues import Timespans, SecType, Currency, DataEntries, def_first_date, def_last_date, DbTypes, Timezones
+from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes, Timezones
 from data.futils import get_dt, get_labelled_ndarray, logger
 
 import settings
@@ -25,7 +24,7 @@ from dateutil import tz
 import calendar
 
 # Current database compatibility version
-_DB_VERSION = 30
+_DB_VERSION = 31
 
 class Subquery():
     """
@@ -718,6 +717,38 @@ class SecData(SecFetcher):
             except self._error as e:
                 raise FdataError(f"Can't insert data to a table '{table}': {e}\n{insert_query}") from e
 
+    def _register_data_entries(self, entries_enum):
+        """
+            Register dataset entries in the data_entries lookup table and verify
+            that each entry has a corresponding table.
+
+        Args:
+            entries_enum(StrEnum): enum whose members' values are the table names
+                to track.
+
+        Raises:
+            FdataError: a table for an entry does not exist or sql error happened.
+        """
+        for entry in entries_enum:
+            check_query = "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;"
+
+            try:
+                self._cur.execute(check_query, (entry,))
+                row = self._cur.fetchone()
+            except self._error as e:
+                raise FdataError(f"Can't check a table '{entry}': {e}\n{check_query}") from e
+
+            if row is None:
+                raise FdataError(f"{type(self).__name__} must create a table '{entry}' in "
+                                 f"_check_database() before registering {entries_enum.__name__}.{entry.name}")
+
+        insert_query = "INSERT OR IGNORE INTO data_entries (title) VALUES (?);"
+
+        try:
+            self._cur.executemany(insert_query, [(e,) for e in entries_enum])
+        except self._error as e:
+            raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_query}") from e
+
     def _check_database(self):
         """
             Database create/integrity check method.
@@ -734,6 +765,11 @@ class SecData(SecFetcher):
                 2. Source-specific tables may only have FOREIGN KEYs to
                    base/common tables.
                 3. No mid-method commits.
+                4. Tables that need intervals tracking must have a matching
+                   member in the class's entries enum (see _register_data_entries)
+                   with entry value == table name, and be registered before this
+                   method returns. Not every table needs an entry (e.g. symbols,
+                   sec_info are not tracked).
 
             Raises:
                 FdataError: sql error happened.
@@ -896,9 +932,8 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't create index for data_entries(title): {e}") from e
 
-        # Populate data_entries table with Timespans (excluding All/Unknown) plus all DataEntries
-        entries = [e.value for e in chain(Timespans, DataEntries)
-                   if e not in (Timespans.All, Timespans.Unknown)]
+        # Populate data_entries table with Timespans (excluding All/Unknown) - needed for interval tracking for each timespan.
+        entries = [e for e in Timespans if e not in (Timespans.All, Timespans.Unknown)]
         self._populate_lookup('data_entries', entries)
 
         # Create table 'data_intervals' if needed
@@ -1377,14 +1412,15 @@ class SecData(SecFetcher):
     def _get_interval_ts(self, data_entry, is_max=True):
         """
             Get Min/Max timestamp for a particular symbol, source and data entry
-            (a Timespans value for quote intervals or a DataEntries value for datasets)
+            (a Timespans value for quote intervals or a per-class data entries
+            enum member value for datasets)
             from the 'data_intervals' table.
 
             Note that this method is not really sql-injection proof so it should be used internally only -
             meaning not exposing it through web-interface or whatever.
 
             Args:
-                data_entry(str): data entry title.
+                data_entry(StrEnum): data entry title.
                 is_max(bool): indicates if Min or Max timestamp should be obtained.
 
             Returns:
@@ -1444,7 +1480,7 @@ class SecData(SecFetcher):
             Check if we need to update data based on the last fetch marker.
 
             Args:
-                data_entry(DataEntries or None): the data entry to check if we need to update it. None for quotes.
+                data_entry(StrEnum or None): the data entry title to check if we need to update it. None for quotes.
 
             Returns:
                 bool: indicates if update is needed.
@@ -1828,14 +1864,14 @@ class SecData(SecFetcher):
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)
-            or a dataset (when data_entry is a DataEntries value).
+            or a dataset (when data_entry is set).
 
             For data_entry=None (quote interval): min_ts is extended with first_date_ts,
             max_ts is capped at last_date_ts (timespan-adjusted).
             For data_entry set (fetch marker): min_ts stays NULL, max_ts is uncapped (timespan-adjusted).
 
             Args:
-                data_entry(DataEntries or None): the data entry to update, or None to
+                data_entry(StrEnum or None): the data entry title to update, or None to
                     update the quote interval for self.timespan.
 
             Raises:
@@ -1854,9 +1890,22 @@ class SecData(SecFetcher):
             min_ts_val = None
             max_ts_val = now
 
+        # Resolve the entry id first so a misconfigured/unregistered entry raises
+        # a clear error instead of an opaque sqlite NOT NULL violation on insert.
+        try:
+            self._cur.execute("SELECT data_entry_id FROM data_entries WHERE title = ?", (title,))
+            row = self._cur.fetchone()
+        except self._error as e:
+            raise FdataError(f"Can't resolve a data entry '{title}': {e}") from e
+
+        if row is None:
+            raise FdataError(f"Data entry '{title}' is not registered in the data_entries table. "
+                             f"Call _register_data_entries() in _check_database() to register it.")
+        entry_id = row[0]
+
         update_fetched = """INSERT INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = ?),
-                                      (SELECT data_entry_id FROM data_entries WHERE title = ?),
+                                      ?,
                                       (SELECT source_id FROM sources WHERE title = ?),
                                       ?,  -- min_ts_val
                                       ?)  -- max_ts_val
@@ -1872,7 +1921,7 @@ class SecData(SecFetcher):
         try:
             self._cur.execute(update_fetched,
                               (self._symbol,
-                               title,
+                               entry_id,
                                self._source_title,
                                min_ts_val,
                                max_ts_val))

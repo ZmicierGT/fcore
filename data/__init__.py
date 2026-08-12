@@ -6,15 +6,15 @@ __version__ = "0.1.0"
 
 from data.fdata import FdataError, Subquery, SecData, SecFetcher
 
-from data.stock import StockData, StockFetcher
+from data.stock import StockData, StockFetcher, StockDataEntries
 
-from data.yf import YF
-from data.fmp import FMP, Exchanges
+from data.yf import YF, YFDataEntries
+from data.fmp import FMP, Exchanges, FMPDataEntries
 
 from data.fvalues import (
     DbTypes,
     Quotes, StockQuotes, Weighted, Algorithm,
-    Timespans, SecType, Currency, DataEntries,
+    Timespans, SecType, Currency,
     ReportPeriod, Dividends, StockSplits, Sector,
     Timezones,
     def_first_date, def_last_date, trading_days_per_year,
@@ -30,11 +30,11 @@ from data.futils import (
 
 __all__ = [
     "FdataError", "Subquery", "SecData", "SecFetcher",
-    "StockData", "StockFetcher",
-    "YF", "FMP", "Exchanges",
+    "StockData", "StockFetcher", "StockDataEntries",
+    "YF", "YFDataEntries", "FMP", "FMPDataEntries", "Exchanges",
     "DbTypes",
     "Quotes", "StockQuotes", "Weighted", "Algorithm",
-    "Timespans", "SecType", "Currency", "DataEntries",
+    "Timespans", "SecType", "Currency",
     "ReportPeriod", "Dividends", "StockSplits", "Sector",
     "Timezones",
     "def_first_date", "def_last_date", "trading_days_per_year",

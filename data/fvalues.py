@@ -577,22 +577,6 @@ class ReportPeriod(StrEnum):
     Quarter = "Quarter"
     Year = "Year"
 
-class DataEntries(StrEnum):
-    """
-        Enum class for data entries (datasets fetched per symbol/source). Used in intervals tracking.
-    """
-    Dividends = 'Dividends'
-    Splits = 'Splits'
-
-    # YF-specific datasets
-    YFEarningsHistory = 'YFEarningsHistory'
-
-    # FMP-specific datasets (fundamental reports + FMP-only features)
-    FMPIncomeStatement = 'FMPIncomeStatement'
-    FMPBalanceSheet = 'FMPBalanceSheet'
-    FMPCashFlow = 'FMPCashFlow'
-    FMPCap = 'FMPCap'
-
 class DbTypes(StrEnum):
     """
         Database types enum. Currently only SQLite is supported.

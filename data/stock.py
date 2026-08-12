@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fdata import FdataError, SecData
-from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, DataEntries, def_last_date, Sector
+from data.fvalues import StrEnum, SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date, Sector
 
 from data.futils import get_labelled_ndarray
 
@@ -17,6 +17,14 @@ import calendar
 
 report_quarter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
+
+class StockDataEntries(StrEnum):
+    """
+        Enum class for stock dataset entries with intervals tracking.
+        The value is the name of the corresponding database table.
+    """
+    Dividends = 'cash_dividends'
+    Splits = 'stock_splits'
 
 class StockFetcher(object, metaclass=abc.ABCMeta):
     """
@@ -55,15 +63,10 @@ class StockData(SecData, StockFetcher):
         """
         super().__init__(**kwargs)
 
-        # Data related to fundamental tables. Need to be overridden in the derived class.
-        self._income_statement_tbl = None
-        self._balance_sheet_tbl = None
-        self._cash_flow_tbl = None
-
-        # Data entries for fundamental datasets (per-source). Need to be overridden
-        # in the derived class together with fetch_*/add_* methods to enable
-        # fundamental data fetching via data_intervals. None means the dataset is
-        # not supported by the source.
+        # Data entries (also used as table names) for fundamental datasets
+        # (per-source). Need to be overridden in the derived class together with
+        # fetch_*/add_* methods to enable fundamental data fetching via
+        # data_intervals. None means the dataset is not supported by the source.
         self._income_statement_entry = None
         self._balance_sheet_entry = None
         self._cash_flow_entry = None
@@ -118,7 +121,7 @@ class StockData(SecData, StockFetcher):
         self._populate_lookup('report_periods', [r.value for r in ReportPeriod if r != ReportPeriod.All])
 
         # Create table for cash dividends if needed
-        create_cash_divs = """CREATE TABLE IF NOT EXISTS cash_dividends(
+        create_cash_divs = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Dividends}(
                             cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             source_id INTEGER NOT NULL,
                             symbol_id INTEGER NOT NULL,
@@ -146,18 +149,19 @@ class StockData(SecData, StockFetcher):
         try:
             self._cur.execute(create_cash_divs)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'cash_dividends': {e}\n{create_cash_divs}") from e
+            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Dividends}': {e}\n{create_cash_divs}") from e
 
         # Create index for symbol_id
-        create_symbol_date_cash_divs_idx = "CREATE INDEX IF NOT EXISTS idx_cash_dividends ON cash_dividends(symbol_id, ex_date);"
+        create_symbol_date_cash_divs_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Dividends}
+                                            ON {StockDataEntries.Dividends}(symbol_id, ex_date);"""
 
         try:
             self._cur.execute(create_symbol_date_cash_divs_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index cash_dividends(symbol_id, symbol_id, ex_date): {e}") from e
+            raise FdataError(f"Can't create index {StockDataEntries.Dividends}(symbol_id, symbol_id, ex_date): {e}") from e
 
         # Create table for stock splits if needed
-        create_stock_splits = """CREATE TABLE IF NOT EXISTS stock_splits(
+        create_stock_splits = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Splits}(
                                 stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
@@ -177,15 +181,16 @@ class StockData(SecData, StockFetcher):
         try:
             self._cur.execute(create_stock_splits)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'stock_splits': {e}\n{create_stock_splits}") from e
+            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Splits}': {e}\n{create_stock_splits}") from e
 
         # Create index for symbol_id
-        create_symbol_date_stock_splits_idx = "CREATE INDEX IF NOT EXISTS idx_stock_splits ON stock_splits(symbol_id, split_date);"
+        create_symbol_date_stock_splits_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Splits}
+                                              ON {StockDataEntries.Splits}(symbol_id, split_date);"""
 
         try:
             self._cur.execute(create_symbol_date_stock_splits_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index stock_splits(symbol_id, symbol_id, split_date): {e}") from e
+            raise FdataError(f"Can't create index {StockDataEntries.Splits}(symbol_id, symbol_id, split_date): {e}") from e
 
         # Create table 'stock_sectors' if needed
         create_stock_sectors = """CREATE TABLE IF NOT EXISTS stock_sectors (
@@ -259,6 +264,9 @@ class StockData(SecData, StockFetcher):
         except self._error as e:
             raise FdataError(f"Can't create trigger for stock_info: {e}") from e
 
+        # Register the stock dataset entries for intervals tracking
+        self._register_data_entries(StockDataEntries)
+
     def _get_db_dividends(self, last_ts=def_last_date):
         """
             Get dividends.
@@ -271,14 +279,14 @@ class StockData(SecData, StockFetcher):
         """
         self._check_if_connected()
 
-        get_divs = """SELECT	declaration_date,
+        get_divs = f"""SELECT	declaration_date,
                                 ex_date,
                                 record_date,
                                 payment_date,
                                 amount,
                                 (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
                                 (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
-                            FROM cash_dividends cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
+                            FROM {StockDataEntries.Dividends} cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
                             WHERE s.ticker = ?
                             AND ex_date >= ?
                             AND ex_date <= ?
@@ -310,10 +318,10 @@ class StockData(SecData, StockFetcher):
         """
         self._check_if_connected()
 
-        get_splits = """SELECT	split_date,
+        get_splits = f"""SELECT	split_date,
 	                        split_ratio,
 	                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
-                        FROM stock_splits ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
+                        FROM {StockDataEntries.Splits} ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
                         WHERE s.ticker = ?
                             AND split_date >= ?
                             AND split_date <= ?
@@ -505,7 +513,7 @@ class StockData(SecData, StockFetcher):
             self._db_connect()
 
         try:
-            return self._get_data_num(self._income_statement_tbl)
+            return self._get_data_num(self._income_statement_entry)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -525,7 +533,7 @@ class StockData(SecData, StockFetcher):
             self._db_connect()
 
         try:
-            return self._get_data_num(self._balance_sheet_tbl)
+            return self._get_data_num(self._balance_sheet_entry)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -545,7 +553,7 @@ class StockData(SecData, StockFetcher):
             self._db_connect()
 
         try:
-            return self._get_data_num(self._cash_flow_tbl)
+            return self._get_data_num(self._cash_flow_entry)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -569,7 +577,7 @@ class StockData(SecData, StockFetcher):
             self._db_connect()
 
         try:
-            return self._get_data_num('cash_dividends')
+            return self._get_data_num(StockDataEntries.Dividends)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -589,7 +597,7 @@ class StockData(SecData, StockFetcher):
             self._db_connect()
 
         try:
-            return self._get_data_num('stock_splits')
+            return self._get_data_num(StockDataEntries.Splits)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -615,7 +623,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_dividends_num()
 
-        insert_dividends = """INSERT INTO cash_dividends (symbol_id,
+        insert_dividends = f"""INSERT INTO {StockDataEntries.Dividends} (symbol_id,
                                     source_id,
                                     currency_id,
                                     declaration_date,
@@ -658,7 +666,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
         self._commit()
-        self._update_data_interval(DataEntries.Dividends)
+        self._update_data_interval(StockDataEntries.Dividends)
 
         return(num_before, self.get_dividends_num())
 
@@ -683,7 +691,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_split_num()
 
-        insert_splits = """INSERT INTO stock_splits (symbol_id,
+        insert_splits = f"""INSERT INTO {StockDataEntries.Splits} (symbol_id,
                                     source_id,
                                     split_date,
                                     split_ratio)
@@ -710,7 +718,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self._commit()
-        self._update_data_interval(DataEntries.Splits)
+        self._update_data_interval(StockDataEntries.Splits)
 
         return(num_before, self.get_split_num())
 
@@ -853,7 +861,7 @@ class StockData(SecData, StockFetcher):
             Fetch all the available additional data if needed.
 
             Args:
-                data_entry(DataEntries): data entry to check the fetch marker.
+                data_entry(StrEnum or None): data entry to check the fetch marker.
                     None means the dataset is not configured for this data source
                     (e.g. fundamentals in a source that doesn't override the
                     corresponding _*_entry instance variable): the method logs
@@ -930,7 +938,7 @@ class StockData(SecData, StockFetcher):
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(data_entry=DataEntries.Dividends,
+        return self._fetch_data_if_none(data_entry=StockDataEntries.Dividends,
                                         num_method=self.get_dividends_num,
                                         add_method=self._add_dividends,
                                         fetch_method=self._fetch_dividends)
@@ -943,7 +951,7 @@ class StockData(SecData, StockFetcher):
                 array: the fetched entries.
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(data_entry=DataEntries.Splits,
+        return self._fetch_data_if_none(data_entry=StockDataEntries.Splits,
                                         num_method=self.get_split_num,
                                         add_method=self._add_splits,
                                         fetch_method=self._fetch_splits)

@@ -14,9 +14,16 @@ import numpy as np
 import yfinance as yfin
 
 from data import stock
-from data.fvalues import Timespans, SecType, Currency, DataEntries
+from data.fvalues import StrEnum, Timespans, SecType, Currency
 from data.fdata import FdataError
 from data.futils import get_labelled_ndarray, get_dt
+
+class YFDataEntries(StrEnum):
+    """
+        Enum class for YF dataset entries with intervals tracking.
+        The value is the name of the corresponding database table.
+    """
+    EarningsHistory = 'yf_earnings_history'
 
 import urllib.error
 import http.client
@@ -38,8 +45,6 @@ class YF(stock.StockData):
         self._data_symbol = self._symbol  # Symbol of cached data
 
         self._stock_info_supported = True
-
-        self._earnings_history_tbl = 'yf_earnings_history'
 
     def _get_timespan_str(self):
         """
@@ -375,7 +380,7 @@ class YF(stock.StockData):
         super()._check_database()
 
         # Create table 'yf_earnings_history' if needed
-        create_earnings_history = """CREATE TABLE IF NOT EXISTS yf_earnings_history(
+        create_earnings_history = f"""CREATE TABLE IF NOT EXISTS {YFDataEntries.EarningsHistory}(
                                 yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
@@ -398,15 +403,18 @@ class YF(stock.StockData):
         try:
             self._cur.execute(create_earnings_history)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table 'yf_earnings_history': {e}\n{create_earnings_history}") from e
+            raise FdataError(f"Can't execute a query on a table '{YFDataEntries.EarningsHistory}': {e}\n{create_earnings_history}") from e
 
         # Create index for symbol_id
-        create_eh_idx = "CREATE INDEX IF NOT EXISTS idx_yf_earnings_history ON yf_earnings_history(symbol_id, time_stamp);"
+        create_eh_idx = f"""CREATE INDEX IF NOT EXISTS idx_{YFDataEntries.EarningsHistory}
+                        ON {YFDataEntries.EarningsHistory}(symbol_id, time_stamp);"""
 
         try:
             self._cur.execute(create_eh_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index yf_earnings_history(symbol_id, time_stamp): {e}") from e
+            raise FdataError(f"Can't create index {YFDataEntries.EarningsHistory}(symbol_id, time_stamp): {e}") from e
+
+        self._register_data_entries(YFDataEntries)
 
     def _fetch_earnings_history(self):
         """
@@ -480,7 +488,7 @@ class YF(stock.StockData):
 
         num_before = self.get_earnings_history_num()
 
-        insert_eh = """INSERT INTO yf_earnings_history (symbol_id,
+        insert_eh = f"""INSERT INTO {YFDataEntries.EarningsHistory} (symbol_id,
                                     source_id,
                                     time_stamp,
                                     epsActual,
@@ -516,10 +524,10 @@ class YF(stock.StockData):
         try:
             self._cur.executemany(insert_eh, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table 'yf_earnings_history': {e}\n\nThe query is\n{insert_eh}") from e
+            raise FdataError(f"Can't add a record to a table '{YFDataEntries.EarningsHistory}': {e}\n\nThe query is\n{insert_eh}") from e
 
         self._commit()
-        self._update_data_interval(DataEntries.YFEarningsHistory)
+        self._update_data_interval(YFDataEntries.EarningsHistory)
 
         return (num_before, self.get_earnings_history_num())
 
@@ -538,7 +546,7 @@ class YF(stock.StockData):
             self._db_connect()
 
         try:
-            return self._get_data_num(self._earnings_history_tbl, source=True)
+            return self._get_data_num(YFDataEntries.EarningsHistory, source=True)
         finally:
             if initially_connected is False:
                 self._db_close()
@@ -550,7 +558,7 @@ class YF(stock.StockData):
             Returns:
                 int: the number of fetched entries.
         """
-        return self._fetch_data_if_none(data_entry=DataEntries.YFEarningsHistory,
+        return self._fetch_data_if_none(data_entry=YFDataEntries.EarningsHistory,
                                         num_method=self.get_earnings_history_num,
                                         add_method=self._add_earnings_history,
                                         fetch_method=self._fetch_earnings_history)

@@ -136,9 +136,9 @@ def test_income_statement(source):
     # joining the fundamentals table to the cached quotes via subqueries. The
     # report_quarter / report_year helper conditions filter the same table
     # (aliased as 'report_tbl' by Subquery.generate()) to the matching period.
-    quarter_subquery = Subquery(source._income_statement_tbl, 'revenue',
+    quarter_subquery = Subquery(source._income_statement_entry, 'revenue',
                                 condition=report_quarter, title='revenue_quarter')
-    annual_subquery = Subquery(source._income_statement_tbl, 'revenue',
+    annual_subquery = Subquery(source._income_statement_entry, 'revenue',
                                condition=report_year, title='revenue_annual')
 
     rows = source.get(queries=[quarter_subquery, annual_subquery])
@@ -176,7 +176,7 @@ def test_income_statement(source):
     if annual_num == 0:
         failure("No distinct annual revenue values found.", source)
     if quarter_num + annual_num > num_after:
-        failure(f"Quarter({quarter_num}) + Annual({annual_num}) > total({num_after}) in {source._income_statement_tbl}", source)
+        failure(f"Quarter({quarter_num}) + Annual({annual_num}) > total({num_after}) in {source._income_statement_entry}", source)
 
     print(colored(f"Income statement periods: quarter={quarter_num} annual={annual_num} total={num_after}", "yellow"))
 

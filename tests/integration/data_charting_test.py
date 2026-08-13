@@ -38,10 +38,10 @@ def get_quotes(data_source_class, source_title):
     print(colored(f"\nFetching data from the {source_title} data source:\n", "yellow"))
 
     source = data_source_class(symbol=symbol, first_date="2020-2-1", last_date="2024-3-1", verbosity=True, db_name=":memory:")
-    source._db_connect()
+    source.db_connect()
     rows = source.get()
     print(f"{source._source_title} splits: {source._get_db_splits()}")
-    source._db_close()
+    source.db_close()
 
     print(f"The total number of quotes used for {symbol} is {len(rows)}.\n")
 

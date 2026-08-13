@@ -1105,16 +1105,16 @@ class FMP(stock.StockData):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(self._cap_entry)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def _fetch_cap(self, num=100000, first_ts=None, last_ts=None):
         """
@@ -1210,10 +1210,10 @@ class FMP(stock.StockData):
             Returns:
                 int: the number of fetched entries.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._fetch_data_if_none(data_entry=self._cap_entry,
@@ -1222,7 +1222,7 @@ class FMP(stock.StockData):
                                             fetch_method=self._fetch_cap)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     ###############################
     # Database integrity check
@@ -1233,7 +1233,7 @@ class FMP(stock.StockData):
             Database create/integrity check method for FMP-specific tables.
 
             Runs inside the BEGIN IMMEDIATE init transaction opened by
-            _db_connect(); no commits are issued here.
+            db_connect(); no commits are issued here.
 
             Raises:
                 FdataError: sql error happened.

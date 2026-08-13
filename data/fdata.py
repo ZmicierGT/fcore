@@ -381,10 +381,10 @@ class SecData(SecFetcher):
                 array: the fetched data.
                 int: the number of fetched quotes.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             # Detect delisted/non-existent tickers before any quote fetch. Fetches/persists
@@ -431,7 +431,7 @@ class SecData(SecFetcher):
             rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
         # TODO MID Think if we should return None here without raising an exception
         if rows is None:
@@ -609,7 +609,8 @@ class SecData(SecFetcher):
         """
         return self._db_type
 
-    def _is_connected(self):
+    @property
+    def is_connected(self):
         """Returns True/False if db is connected."""
         return self._connected
 
@@ -617,16 +618,21 @@ class SecData(SecFetcher):
         """
             Raise an exception if db is not connected.
         """
-        if self._is_connected() is False:
-            raise FdataError("The database is not connected. Invoke _db_connect() at first.")
+        if self.is_connected is False:
+            raise FdataError("The database is not connected. Invoke db_connect() at first.")
 
-    # TODO HIGH We may switch auto connect logic to use a decorator:
+    # TODO MID We may switch auto connect logic to use a decorator:
     # Introduce a small private @_auto_connect decorator in fdata.py and apply it to ALL public DB-reading
-    # TODO MID Maybe these methods still should be public so we can avoid multiple automatic re-connections in some scenarios then?
-    def _db_connect(self):
+    def db_connect(self):
         """
-            Connect to the databse.
+            Connect to the database.
+
+            If the connection is already open, a warning is logged and the call is a no-op.
         """
+        if self.is_connected:
+            self._log("Warning: db_connect() is invoked while the database is already connected. The call is skipped.")
+            return
+
         if self._db_type == DbTypes.SQLite:
             self._database = fdatabase.SQLiteConn(self._db_name)
             self._database.db_connect()
@@ -657,7 +663,7 @@ class SecData(SecFetcher):
 
                 self._db_initialized = True
 
-    def _db_close(self):
+    def db_close(self):
         """
             Close the database connection.
         """
@@ -1098,7 +1104,7 @@ class SecData(SecFetcher):
         """
             Add source to the database.
 
-            Note: does not commit. The caller (_db_connect) commits once the
+            Note: does not commit. The caller (db_connect) commits once the
             surrounding init transaction is complete.
 
             Raises:
@@ -1127,10 +1133,10 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             get_all_symbols = "SELECT ticker, isin, description FROM symbols;"
@@ -1141,7 +1147,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{get_all_symbols}") from e
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
         return rows
 
@@ -1301,16 +1307,16 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num('quotes', symbol=symbol, source=source, timespan=timespan, dt=dt)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def _get_data_num(self, table, symbol=True, source=True, timespan=True, dt=False):
         """Get the number of entries for the symbol in the specified table.
@@ -1512,16 +1518,16 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a maximum timestamp.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_ts(is_max=True)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_min_ts(self):
         """
@@ -1530,16 +1536,16 @@ class SecData(SecFetcher):
             Returns:
                 int: timestamp of a minimum timestamp.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_ts(is_max=False)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_info(self):
         """
@@ -1547,10 +1553,10 @@ class SecData(SecFetcher):
         """
         # Use the cached value (if any)
         if self._info is None or self._refetch:
-            initially_connected = self._is_connected()
+            initially_connected = self.is_connected
 
-            if self._is_connected() is False:
-                self._db_connect()
+            if self.is_connected is False:
+                self.db_connect()
 
             # Fetch data if no data present - or re-fetch if refetch flag is set
             if self._refetch or self._get_data_num('sec_info') == 0:
@@ -1569,7 +1575,7 @@ class SecData(SecFetcher):
                 raise FdataError(f"Can't execute a query on a table 'sec_info': {e}\n{info_query}") from e
             finally:
                 if initially_connected is False:
-                    self._db_close()
+                    self.db_close()
 
             self._info = rows[0]
 
@@ -1723,10 +1729,10 @@ class SecData(SecFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         query = "SELECT 1 FROM symbols WHERE ticker = ? LIMIT 1"
 
@@ -1737,7 +1743,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't check symbol existence: {e}\n{query}") from e
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def _add_symbol(self):
         """
@@ -1763,10 +1769,10 @@ class SecData(SecFetcher):
 
             All corresponding records in quotes table will be deleted because of foreign key linking (cascade deletion).
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         # Cascade delete will remove the corresponding entries in tables related to specific security data
         # like fundamentals for stock
@@ -1779,7 +1785,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't execute a query on a table 'symbols': {e}\n{delete_symbol}") from e
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def _add_quotes(self, quotes_dict):
         """

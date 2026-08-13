@@ -30,7 +30,7 @@ def failure(text, source):
             source(ReadOnlyData): data source instance
     """
     print(colored(text, "red"))
-    source._db_close()
+    source.db_close()
     sys.exit()
 
 def test_info(source):
@@ -256,7 +256,7 @@ def test_get_delisted():
     last_date = now - timedelta(days=30)
 
     fmpi = fmp.FMP(symbol='WBA', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
-    fmpi._db_connect()
+    fmpi.db_connect()
 
     print("First invocation (empty DB): expecting FdataError ...")
     raised_first = False
@@ -307,13 +307,13 @@ def test_get_delisted():
 
     print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
 
-    fmpi._db_close()
+    fmpi.db_close()
 
 def test_get_empty_range_valid_symbol():
     print(colored("\nTesting get() for a valid symbol with empty range:\n", "yellow"))
 
     fmpi = fmp.FMP(symbol='HOOD', first_date="2020-01-01", last_date="2020-02-16", verbosity=True, db_name=":memory:")
-    fmpi._db_connect()
+    fmpi.db_connect()
 
     print("First invocation (empty range): expecting intervals recorded ...")
     try:
@@ -332,7 +332,7 @@ def test_get_empty_range_valid_symbol():
 
     print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
 
-    fmpi._db_close()
+    fmpi.db_close()
 
 def test_get_non_existing():
     print(colored("\nTesting get() for a non-existing symbol (FFFF):\n", "yellow"))
@@ -342,7 +342,7 @@ def test_get_non_existing():
     last_date = now - timedelta(days=30)
 
     fmpi = fmp.FMP(symbol='FFFF', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
-    fmpi._db_connect()
+    fmpi.db_connect()
 
     print("First invocation (empty DB): expecting FdataError ...")
     raised_first = False
@@ -393,7 +393,7 @@ def test_get_non_existing():
 
     print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
 
-    fmpi._db_close()
+    fmpi.db_close()
 
 if __name__ == "__main__":
     print(colored("\nTesting FMP data source endpoints:\n", "yellow"))
@@ -402,7 +402,7 @@ if __name__ == "__main__":
     first_date = get_dt(datetime.now(tz.UTC)) - timedelta(days=365*2)
 
     fmpi = fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date, verbosity=True, db_name=":memory:")
-    fmpi._db_connect()
+    fmpi.db_connect()
 
     if fmpi._api_key is None:
         print(colored("Warning! No FMP API key is configured. Set the FMP_API_KEY environment variable or configure the key in settings.py.", "yellow"))
@@ -421,7 +421,7 @@ if __name__ == "__main__":
 
     test_recent_data(fmpi)
 
-    fmpi._db_close()
+    fmpi.db_close()
 
     # get() behavior for delisted, non-existing and empty-range valid symbols (fresh in-memory DBs)
     test_get_delisted()

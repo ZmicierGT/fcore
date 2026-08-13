@@ -372,7 +372,7 @@ class YF(stock.StockData):
             Database create/integrity check method for YF-specific tables.
 
             Runs inside the BEGIN IMMEDIATE init transaction opened by
-            _db_connect(); no commits are issued here.
+            db_connect(); no commits are issued here.
 
             Raises:
                 FdataError: sql error happened.
@@ -540,16 +540,16 @@ class YF(stock.StockData):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(YFDataEntries.EarningsHistory, source=True)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_earnings_history(self):
         """

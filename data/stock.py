@@ -87,7 +87,7 @@ class StockData(SecData, StockFetcher):
             Checks if the database exists. Otherwise, creates it. Checks if the database has required tables.
 
             Runs inside the BEGIN IMMEDIATE init transaction opened by
-            _db_connect(); no commits are issued here.
+            db_connect(); no commits are issued here.
 
             Raises:
                 FdataError: sql error happened.
@@ -507,16 +507,16 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(self._income_statement_entry)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_balance_sheet_num(self):
         """Get the number of balance sheet reports.
@@ -527,16 +527,16 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(self._balance_sheet_entry)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_cash_flow_num(self):
         """Get the number of cash flow reports.
@@ -547,16 +547,16 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(self._cash_flow_entry)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     #################################
     # Dividends / splits data methods
@@ -571,16 +571,16 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(StockDataEntries.Dividends)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def get_split_num(self):
         """Get the number of stock splits.
@@ -591,16 +591,16 @@ class StockData(SecData, StockFetcher):
             Raises:
                 FdataError: sql error happened.
         """
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             return self._get_data_num(StockDataEntries.Splits)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     def _add_dividends(self, divs):
         """
@@ -780,10 +780,10 @@ class StockData(SecData, StockFetcher):
                 array: the fetched quote entries.
         """
         # Establish the connection up front so all nested DB queries share a single connection.
-        initially_connected = self._is_connected()
+        initially_connected = self.is_connected
 
-        if self._is_connected() is False:
-            self._db_connect()
+        if self.is_connected is False:
+            self.db_connect()
 
         try:
             if self._get_sectype() in (SecType.Stock, SecType.ETF):
@@ -795,7 +795,7 @@ class StockData(SecData, StockFetcher):
             return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
-                self._db_close()
+                self.db_close()
 
     # TODO HIGH Likely it is more rational just to add an argument to get unadjusted quotes in get()
     def _get_quotes_only(self):
@@ -824,10 +824,10 @@ class StockData(SecData, StockFetcher):
         if self._stock_info is None:
             if self._stock_info_supported and sec_type == SecType.Stock:
                 # Fetch data if no data present
-                initially_connected = self._is_connected()
+                initially_connected = self.is_connected
 
-                if self._is_connected() is False:
-                    self._db_connect()
+                if self.is_connected is False:
+                    self.db_connect()
 
                 if self._get_data_num('stock_info') == 0:
                     self._add_info(self._fetch_info())
@@ -844,7 +844,7 @@ class StockData(SecData, StockFetcher):
                     raise FdataError(f"Can't execute a query on a table 'stock_info': {e}\n{info_query}") from e
                 finally:
                     if initially_connected is False:
-                        self._db_close()
+                        self.db_close()
 
                 self._stock_info = {'sector': row}
                 base_info.update(self._stock_info)

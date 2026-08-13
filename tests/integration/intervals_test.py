@@ -26,7 +26,7 @@ def failure(text, source):
             source(ReadOnlyData): data source instance
     """
     print(colored(text, "red"))
-    source._db_close()
+    source.db_close()
     sys.exit()
 
 def test_request_ts(source):
@@ -329,7 +329,7 @@ if __name__ == "__main__":
     print(colored("\nTesting YF data source intervals:\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi._db_connect()
+    yfi.db_connect()
 
     test_request_ts(yfi)
 
@@ -347,6 +347,6 @@ if __name__ == "__main__":
 
     test_earnings_history_intervals(yfi)
 
-    yfi._db_close()
+    yfi.db_close()
 
     print(colored("ALL INTERVAL TESTS PASSED for YF data source!", "green"))

@@ -21,7 +21,7 @@ def failure(text, source):
             source(ReadOnlyData): data source instance
     """
     print(colored(text, "red"))
-    source._db_close()
+    source.db_close()
     sys.exit()
 
 def test_remove_symbol(i):
@@ -111,7 +111,7 @@ def test_get_delisted():
     print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
 
     yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi._db_connect()
+    yfi.db_connect()
 
     # First invocation: empty DB. fetch_info() runs, detects NotExist, persists
     # sec_info; get_info() raises (fdata.py:1271) before any quote fetch.
@@ -164,7 +164,7 @@ def test_get_delisted():
 
     print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
 
-    yfi._db_close()
+    yfi.db_close()
 
 def test_get_existing():
     """
@@ -176,7 +176,7 @@ def test_get_existing():
     print(colored("\nTesting get() for an existing symbol (IBM):\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
-    yfi._db_connect()
+    yfi.db_connect()
 
     # First invocation: empty DB.
     print("First invocation (empty DB): expecting fetch + rows ...")
@@ -215,7 +215,7 @@ def test_get_existing():
 
     print(colored("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged", "green"))
 
-    yfi._db_close()
+    yfi.db_close()
 
 def test_get_empty_range_valid_symbol():
     """
@@ -227,7 +227,7 @@ def test_get_empty_range_valid_symbol():
     print(colored("\nTesting get() for a valid symbol with empty range (INFQ):\n", "yellow"))
 
     yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True, db_name=":memory:")
-    yfi._db_connect()
+    yfi.db_connect()
 
     # First invocation: empty DB, valid symbol, range before first quote.
     # Accept either raise (current YF empty-download contract) or None return —
@@ -249,7 +249,7 @@ def test_get_empty_range_valid_symbol():
 
     print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
 
-    yfi._db_close()
+    yfi.db_close()
 
 def test_refetch():
     """
@@ -266,7 +266,7 @@ def test_refetch():
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1",
                   verbosity=True, db_name=":memory:", refetch=True)
-    yfi._db_connect()
+    yfi.db_connect()
 
     print("First invocation: expecting fetch + rows ...")
     rows_first = yfi.get()
@@ -302,20 +302,20 @@ def test_refetch():
     print(colored("refetch=True: second get() entered fetch path, returned same rows, "
                   "intervals unchanged", "green"))
 
-    yfi._db_close()
+    yfi.db_close()
 
 if __name__ == "__main__":
     print(colored("\nTesting general YF data source behavior:\n", "yellow"))
 
     yfi = yf.YF(symbol='IBM', verbosity=True, db_name=":memory:")
-    yfi._db_connect()
+    yfi.db_connect()
 
     yfi.get()
     yfi.get_earnings_history()
 
     test_remove_symbol(yfi)
 
-    yfi._db_close()
+    yfi.db_close()
 
     # get() behavior for delisted vs. existing symbols (fresh in-memory DBs)
     test_get_delisted()

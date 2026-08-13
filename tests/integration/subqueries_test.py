@@ -95,7 +95,7 @@ def test_cross_source_subqueries():
         # are fetched with the subqueries.
         fmpi = fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date,
                        verbosity=True, db_name=db_path)
-        fmpi._db_connect()
+        fmpi.db_connect()
 
         print("SECTION 1: Fetching YF quotes with a cap subquery (no cap data yet)")
         print("___________________________________________________________________")
@@ -104,9 +104,9 @@ def test_cross_source_subqueries():
         # (both connections are open in parallel).
         yfi = yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date,
                     verbosity=True, db_name=db_path)
-        yfi._db_connect()
+        yfi.db_connect()
 
-        if yfi._is_connected() is False or fmpi._is_connected() is False:
+        if yfi.is_connected is False or fmpi.is_connected is False:
             failure("Both database connections should be open in parallel.")
 
         # The public get() accepts subqueries. Fetch the quotes and obtain the
@@ -186,8 +186,8 @@ def test_cross_source_subqueries():
         # Close the database connections and delete the temporary database
         # file including the WAL journal sidecar files (if any).
         for source in (fmpi, yfi):
-            if source is not None and source._is_connected():
-                source._db_close()
+            if source is not None and source.is_connected:
+                source.db_close()
 
         for path in (db_path, db_path + '-wal', db_path + '-shm'):
             if os.path.exists(path):

@@ -1585,6 +1585,7 @@ class SecData(SecFetcher):
 
         return {'time_zone': self._info['time_zone'], 'sec_type': self._info['sec_type'], 'currency': self._info['curr']}
 
+    # TODO HIGH Public getter would be more suitable here.
     def _get_timezone(self):
         """
             Get the time zone of the specified symbol.

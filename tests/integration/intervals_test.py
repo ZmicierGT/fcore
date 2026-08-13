@@ -58,11 +58,13 @@ def test_request_ts(source):
     #######################################################
 
     quotes_num = source.get_quotes_num()
+    divs_num = source.get_dividends_num()
+    splits_num = source.get_split_num()
 
     if quotes_num != 0:
         failure("There should be no quotes in the db at the beginning.", source)
 
-    rows = source._get_quotes_only()
+    rows = source.get()
 
     min_req = source._get_min_request_ts()
     max_req = source._get_max_request_ts()
@@ -70,21 +72,17 @@ def test_request_ts(source):
     print("\nSECTION1b: check if quotes, dividends and splits number increases")
     print("_________________________________________________________________")
 
-    div_data = source._fetch_dividends()  # Split data may be fetched as it is needed to reverse-adjust the dividends
-    split_data = source._fetch_splits()
+    divs_after = source.get_dividends_num()
+    splits_after = source.get_split_num()
 
-    before, after = source._add_dividends(div_data)
+    print(f"Divs before {divs_num}, divs after {divs_after}.")
 
-    print(f"Divs before {before}, divs after {after}.")
-
-    if before >= after:
+    if divs_num >= divs_after:
         failure("Number of divs did not increase", source)
 
-    before, after = source._add_splits(split_data)
+    print(f"Splits before {splits_num}, splits after {splits_after}.")
 
-    print(f"Splits before {before}, splits after {after}.")
-
-    if before > after:
+    if splits_num > splits_after:
         failure("Unexpected number of splits", source)
 
     after = source.get_quotes_num()
@@ -223,7 +221,7 @@ def test_request_intervals(source, timespans):
 
         source.timespan = value
 
-        quotes = source._get_quotes_only()
+        quotes = source.get()
 
         utc_now = get_dt(datetime.now(tz.UTC))
 
@@ -254,7 +252,7 @@ def test_request_intervals(source, timespans):
 
     source.timespan = Timespans.Day
 
-    quotes = source._get_quotes_only()
+    quotes = source.get()
 
     utc_now = get_dt(datetime.now(tz.UTC))
 

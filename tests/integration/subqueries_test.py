@@ -147,7 +147,7 @@ def test_cross_source_subqueries():
         if len(expected_raw) == 0:
             failure("No cap entries obtained from the FMP API.")
 
-        timezone = fmpi._get_timezone()
+        timezone = tz.gettz(fmpi.get_info()['time_zone'])
 
         expected = []
 

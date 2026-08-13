@@ -154,7 +154,7 @@ class FMP(stock.StockData):
         elif self.timespan == Timespans.Day:
             return '1d'
         else:
-            raise FdataError(f"Requested timespan is not supported by {type(self).__name__}: {self.timespan.value}")
+            raise FdataError(f"Requested timespan is not supported by {type(self).__name__}: {self.timespan}")
 
     ##########################
     # Quotes fetching
@@ -200,7 +200,7 @@ class FMP(stock.StockData):
         quotes = []  # Processed quotes
 
         for quote in json_results:
-            dt = get_dt(quote['date'], self._get_timezone())
+            dt = get_dt(quote['date'], self.timezone)
 
             # No need to add quotes to DB which are outside of the requested interval.
             if dt.date() < first_date:
@@ -308,23 +308,23 @@ class FMP(stock.StockData):
             # Declaration date
             decl_ts = None
             if decl_text != '':
-                decl_date = get_dt(decl_text, self._get_timezone())
+                decl_date = get_dt(decl_text, self.timezone)
                 decl_ts = calendar.timegm(decl_date.utctimetuple())
 
             # Ex-date can't be None
-            ex_date = get_dt(ex_text, self._get_timezone())
+            ex_date = get_dt(ex_text, self.timezone)
             ex_ts = calendar.timegm(ex_date.utctimetuple())
 
             # Record date
             record_ts = None
             if record_text != '':
-                record_date = get_dt(record_text, self._get_timezone())
+                record_date = get_dt(record_text, self.timezone)
                 record_ts = calendar.timegm(record_date.utctimetuple())
 
             # Payment date
             pay_ts = None
             if pay_text != '':
-                pay_date = get_dt(pay_text, self._get_timezone())
+                pay_date = get_dt(pay_text, self.timezone)
                 pay_ts = calendar.timegm(pay_date.utctimetuple())
 
             div_dict = {
@@ -333,7 +333,7 @@ class FMP(stock.StockData):
                 'ex_ts': ex_ts,
                 'record_ts': record_ts,
                 'pay_ts': pay_ts,
-                'currency': self._get_currency()  # TODO LOW For now it is considered that dividend currency is the same as stock currency
+                'currency': self.currency  # TODO LOW For now it is considered that dividend currency is the same as stock currency
             }
 
             divs_data.append(div_dict)
@@ -358,7 +358,7 @@ class FMP(stock.StockData):
         splits_data = []
 
         for split in json_results:
-            dt = get_dt(split['date'], self._get_timezone())
+            dt = get_dt(split['date'], self.timezone)
             ts = calendar.timegm(dt.utctimetuple())
 
             numerator = int(split['numerator'])
@@ -1183,7 +1183,7 @@ class FMP(stock.StockData):
         for result in results:
             # Need to convert date to a timestamp.
             try:
-                dt = get_dt(result['date'], self._get_timezone()).replace(hour=23, minute=59, second=59)
+                dt = get_dt(result['date'], self.timezone).replace(hour=23, minute=59, second=59)
                 ts = calendar.timegm(dt.utctimetuple())
             except TypeError as e:
                 raise FdataError(f"Unexpected data. API key limit is possible. {e}") from e

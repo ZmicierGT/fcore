@@ -94,17 +94,17 @@ class Sector(StrEnum):
     RealEstate = 'Real Estate'
     Utilities = 'Utilities'
 
-sector_titles = [Sector.Technology.value,
-                 Sector.FinancialServices.value,
-                 Sector.Healthcare.value,
-                 Sector.ConsumerCyclical.value,
-                 Sector.Industrials.value,
-                 Sector.CommunicationServices.value,
-                 Sector.ConsumerDefensive.value,
-                 Sector.Energy.value,
-                 Sector.BasicMaterials.value,
-                 Sector.RealEstate.value,
-                 Sector.Utilities.value]
+sector_titles = [Sector.Technology,
+                 Sector.FinancialServices,
+                 Sector.Healthcare,
+                 Sector.ConsumerCyclical,
+                 Sector.Industrials,
+                 Sector.CommunicationServices,
+                 Sector.ConsumerDefensive,
+                 Sector.Energy,
+                 Sector.BasicMaterials,
+                 Sector.RealEstate,
+                 Sector.Utilities]
 
 ########################################
 # SW20 (Swiss Market Index) related data

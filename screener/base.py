@@ -75,8 +75,8 @@ class BaseScr(metaclass=abc.ABCMeta):
             raise ScrError(f"Interval should not be <= 0: {interval}")
         self.__interval = interval
 
-        if timespan not in set(item.value for item in fvalues.Timespans):
-            raise ScrError(f"Unknown timespan: {timespan.value}")
+        if timespan not in fvalues.Timespans:
+            raise ScrError(f"Unknown timespan: {timespan}")
         self.__timespan = timespan
 
         self.__symbols = []
@@ -229,7 +229,7 @@ class ScrData():
             raise ScrError("Title should not be empty.")
         self.__title = title
 
-        source.timespan = caller.get_timespan()
+        source._timespan = caller.get_timespan()
 
         self.__source = source
         self.__caller = caller

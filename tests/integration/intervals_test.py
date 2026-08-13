@@ -15,7 +15,7 @@ from termcolor import colored
 
 import sys
 
-# TODO High This test should be able to use custom intervals for testing. Currently it is pre-defined.
+# TODO MID This test should be able to use custom intervals for testing. Currently it is pre-defined.
 
 def failure(text, source):
     """
@@ -219,7 +219,7 @@ def test_request_intervals(source, timespans):
     for key, value in timespans.items():
         print(f"\nTesting intraday interval: {value}")
 
-        source.timespan = value
+        source._timespan = value
 
         quotes = source.get()
 
@@ -250,7 +250,7 @@ def test_request_intervals(source, timespans):
     print("\nSECTION9: Testing max request timespans for EOD quotes")
     print("______________________________________________________")
 
-    source.timespan = Timespans.Day
+    source._timespan = Timespans.Day
 
     quotes = source.get()
 

@@ -118,7 +118,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't create index for report_periods(title): {e}") from e
 
         # Populate report_periods table if not yet fully populated
-        self._populate_lookup('report_periods', [r.value for r in ReportPeriod if r != ReportPeriod.All])
+        self._populate_lookup('report_periods', [r for r in ReportPeriod if r != ReportPeriod.All])
 
         # Create table for cash dividends if needed
         create_cash_divs = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Dividends}(
@@ -212,7 +212,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't create index for stock_sectors(title): {e}") from e
 
         # Populate stock_sectors table if not yet fully populated
-        self._populate_lookup('stock_sectors', [s.value for s in Sector])
+        self._populate_lookup('stock_sectors', [s for s in Sector])
 
         # Create table 'stock_info' if needed
         create_stock_info = """CREATE TABLE IF NOT EXISTS stock_info (
@@ -765,7 +765,7 @@ class StockData(SecData, StockFetcher):
 
             self._commit()
 
-    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
+    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, quotes_only=False):
         """
             Get stock quotes, divs and splits data if needed.
 
@@ -775,6 +775,7 @@ class StockData(SecData, StockFetcher):
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
                 ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
+                quotes_only(bool): if True, get unadjusted stock quotes only (without dividends and splits data).
 
             Returns:
                 array: the fetched quote entries.
@@ -786,29 +787,16 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            if self._get_sectype() in (SecType.Stock, SecType.ETF):
+            if not quotes_only and self.sectype in (SecType.Stock, SecType.ETF):
                 self._get_dividends()
                 self._get_splits()
-            else:
-                self._log(f"Warning! Security type is not stock or ETF ({self._get_sectype()}) so split/dividend data is not obtained.")
+            elif not quotes_only:
+                self._log(f"Warning! Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
 
             return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
                 self.db_close()
-
-    # TODO HIGH Likely it is more rational just to add an argument to get unadjusted quotes in get()
-    def _get_quotes_only(self):
-        """
-            Get stock quotes only (without dividends and splits data).
-
-            Note that for some datasources getting quotes only (without splits) is not possible as
-            splits are needed for reverse-adjustment.
-
-            Returns:
-                array: the fetched quote entries.
-        """
-        return super().get()
 
     def get_info(self):
         """

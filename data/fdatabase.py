@@ -9,7 +9,6 @@ from sqlite3 import Error
 
 import abc
 
-# TODO HIGH Analyze and possibly refactor all current logging (by adding log entries of different colors)
 import warnings
 
 # Minimum SQLite version required for ON CONFLICT(...) DO UPDATE (UPSERT),

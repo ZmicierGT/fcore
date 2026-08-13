@@ -73,7 +73,7 @@ class YF(stock.StockData):
         elif self.timespan == Timespans.Day:
             return '1d'
         else:
-            raise FdataError(f"Requested timespan is not supported by YF: {self.timespan.value}")
+            raise FdataError(f"Requested timespan is not supported by YF: {self.timespan}")
 
     # TODO MID Think how to handle a situation that YF fetches the current quote even if period is incomplete
     def _fetch_quotes(self, first_ts=None, last_ts=None):
@@ -111,7 +111,7 @@ class YF(stock.StockData):
         if length == 0:
             return []
 
-        pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self._get_timezone()).utctimetuple()))
+        pick_ts = np.vectorize(lambda x: calendar.timegm(get_dt(str(x), self.timezone).utctimetuple()))
 
         data = data.reset_index()
 
@@ -305,7 +305,7 @@ class YF(stock.StockData):
         df_result['amount'] = divs.reset_index()['Dividends']
 
         # Not used in this data source
-        df_result['currency'] = self._get_currency()
+        df_result['currency'] = self.currency
         df_result['decl_ts'] = None
         df_result['record_ts'] = None
         df_result['pay_ts'] = None

@@ -184,8 +184,8 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
         # Convert dates to the symbol's time zome for the request. In DB timestamps are always UTC adjusted,
         # but data source usually expect dates in the timezone of the exchange. When we convert dates
         # consider that the current time is noon to avoid excessive dates shift if time zone difference is not big.
-        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self._get_timezone()).replace(tzinfo=None)
-        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self._get_timezone()).replace(tzinfo=None)
+        first_datetime = first_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.timezone).replace(tzinfo=None)
+        last_datetime = last_dt.replace(tzinfo=tz.UTC, hour=12).astimezone(self.timezone).replace(tzinfo=None)
 
         return (first_datetime, last_datetime)
 
@@ -316,8 +316,7 @@ class SecData(SecFetcher):
         if self.first_date > self.last_date:
             raise FdataError(f"First date can't be bigger than the last date: {self.first_date} > {self.last_date}")
 
-        # TODO High should be made protected (with a public getter) when screeners are revamped
-        self.timespan = timespan
+        self._timespan = timespan
 
         # Source title should be overridden in derived classes for particular data sources
         self._source_title = ''
@@ -352,6 +351,16 @@ class SecData(SecFetcher):
 
         # Cooperative MI: forward any remaining kwargs down the MRO.
         super().__init__(**kwargs)
+
+    @property
+    def timespan(self):
+        """
+            Getter for the timespan used in queries (read-only).
+
+            Returns:
+                Timespans: the timespan to use in queries.
+        """
+        return self._timespan
 
     @property
     def refetch(self):
@@ -832,7 +841,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't create index for currency(title): {e}") from e
 
         # Populate currency table if not yet fully populated
-        self._populate_lookup('currency', [c.value for c in Currency if c != Currency.All])
+        self._populate_lookup('currency', [c for c in Currency if c != Currency.All])
 
         # Create table 'sectypes' if needed
         create_sectypes = """CREATE TABLE IF NOT EXISTS sectypes(
@@ -854,7 +863,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't create index for sectypes(title): {e}") from e
 
         # Populate sectypes table if not yet fully populated
-        self._populate_lookup('sectypes', [s.value for s in SecType if s != SecType.All])
+        self._populate_lookup('sectypes', [s for s in SecType if s != SecType.All])
 
         # Create table 'symbols' if needed
         create_symbols = """CREATE TABLE IF NOT EXISTS symbols(
@@ -917,7 +926,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't create index for timespans(title): {e}") from e
 
         # Populate timespans table if not yet fully populated
-        self._populate_lookup('timespans', [t.value for t in Timespans if t != Timespans.All])
+        self._populate_lookup('timespans', [t for t in Timespans if t != Timespans.All])
 
         # Create table 'data_entries' if needed
         create_data_entries = """CREATE TABLE IF NOT EXISTS data_entries(
@@ -1175,21 +1184,21 @@ class SecData(SecFetcher):
         # Timespan subquery
         timespan_query = ""
 
-        if self.timespan != Timespans.All:
-            timespan_query = "AND timespans.title = '" + self.timespan.value + "'"
+        if self._timespan != Timespans.All:
+            timespan_query = "AND timespans.title = '" + self._timespan + "'"
 
         # TODO LOW Think what to do with sectype and currency. Ignore it for now.
         # # Sectype subquery
         # sectype_query = ""
 
-        # if self._get_sectype() != SecType.All:
-        #     sectype_query = "AND sectypes.title = '" + self._get_sectype() + "'"
+        # if self.sectype != SecType.All:
+        #     sectype_query = "AND sectypes.title = '" + self.sectype + "'"
 
         # # Currency subquery
         # currency_query = ""
 
-        # if self._get_currency() != Currency.All:
-        #     currency_query = "AND currency.title = '" + self._get_currency() + "'"
+        # if self.currency != Currency.All:
+        #     currency_query = "AND currency.title = '" + self.currency + "'"
 
         # Quotes number subquery
         num_query = ""
@@ -1350,7 +1359,7 @@ class SecData(SecFetcher):
         # timespan and dt filters are applicable to the 'quotes' table only.
         if table == 'quotes':
             if timespan:
-                conditions.append(f"time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self.timespan}')")
+                conditions.append(f"time_span_id = (SELECT time_span_id FROM timespans WHERE title = '{self._timespan}')")
 
             if dt:
                 last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
@@ -1406,7 +1415,7 @@ class SecData(SecFetcher):
                                     INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id
                                     WHERE symbols.ticker = '{self._symbol}'
                                     AND sources.title = '{self._source_title}'
-                                    AND timespans.title = '{self.timespan}';"""
+                                    AND timespans.title = '{self._timespan}';"""
 
         try:
             self._cur.execute(timestamp_query)
@@ -1467,7 +1476,7 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        return self._get_interval_ts(self.timespan.value, is_max=False)
+        return self._get_interval_ts(self._timespan, is_max=False)
 
     def _get_max_request_ts(self):
         """
@@ -1479,7 +1488,7 @@ class SecData(SecFetcher):
         """
         self._check_if_connected()
 
-        return self._get_interval_ts(self.timespan.value, is_max=True)
+        return self._get_interval_ts(self._timespan, is_max=True)
 
     def _need_to_update(self, data_entry=None):
         """
@@ -1499,13 +1508,13 @@ class SecData(SecFetcher):
         last_ts_adj = min(self.last_date_ts, self._current_ts())
 
         if data_entry is None:  # Quotes path
-            title = self.timespan.value
+            title = self._timespan
             min_ts = self._get_interval_ts(title, is_max=False)
             max_ts = self._get_interval_ts(title, is_max=True)
 
             return (min_ts is None or max_ts is None or self.first_date_ts < min_ts or last_ts_adj > max_ts)
         else:  # Entries path
-            max_ts = self._get_interval_ts(data_entry.value)
+            max_ts = self._get_interval_ts(data_entry)
 
             # TODO MID Keep a one day gap to prevent too often fundamental updates. Needs to be replaced for a better mechanism.
             return max_ts is None or (last_ts_adj > max_ts and last_ts_adj - max_ts > 86400)
@@ -1580,13 +1589,13 @@ class SecData(SecFetcher):
             self._info = rows[0]
 
         # TODO MID Think if exception here is rational or better to return the corresponding dict (with NotExist sec_type)
-        if self._info['sec_type'] == SecType.NotExist.value:
+        if self._info['sec_type'] == SecType.NotExist:
             raise FdataError(f"Ticker {self._symbol} is likely delisted or incorrect as it is marked as not-existent.")
 
         return {'time_zone': self._info['time_zone'], 'sec_type': self._info['sec_type'], 'currency': self._info['curr']}
 
-    # TODO HIGH Public getter would be more suitable here.
-    def _get_timezone(self):
+    @property
+    def timezone(self):
         """
             Get the time zone of the specified symbol.
 
@@ -1609,7 +1618,8 @@ class SecData(SecFetcher):
 
         return self._time_zone
 
-    def _get_sectype(self):
+    @property
+    def sectype(self):
         """
             Get the security type of the specified symbol.
 
@@ -1624,12 +1634,13 @@ class SecData(SecFetcher):
             else:
                 self._sec_type = SecType.Unknown
 
-                self._log(f"Security type data is not found. Returning {self._sec_type.value}.")
+                self._log(f"Security type data is not found. Returning {self._sec_type}.")
 
         return self._sec_type
 
     # TODO LOW Note that Unknown will be returned each time as currencies are not supported yet.
-    def _get_currency(self):
+    @property
+    def currency(self):
         """
             Get the currency of the specified symbol.
 
@@ -1644,7 +1655,7 @@ class SecData(SecFetcher):
             else:
                 self._currency = Currency.Unknown
 
-                self._log(f"Currency data is not found. Returning {self._currency.value}.")
+                self._log(f"Currency data is not found. Returning {self._currency}.")
 
         return self._currency
 
@@ -1659,7 +1670,7 @@ class SecData(SecFetcher):
                 bool: if current timespan is intraday.
         """
         if timespan is None:
-            timespan = self.timespan
+            timespan = self._timespan
 
         return timespan != Timespans.Day
 
@@ -1677,7 +1688,7 @@ class SecData(SecFetcher):
         now = datetime.now(tz.UTC)
 
         if timespan is None:
-            timespan = self.timespan
+            timespan = self._timespan
 
         if adjusted:
             if self.is_intraday(timespan) is False:
@@ -1844,7 +1855,7 @@ class SecData(SecFetcher):
                 (self._symbol,
                  self._source_title,
                  int(quote['ts']),
-                 self.timespan.value,
+                 self._timespan,
                  quote['open'],
                  quote['high'],
                  quote['low'],
@@ -1879,7 +1890,7 @@ class SecData(SecFetcher):
 
             Args:
                 data_entry(StrEnum or None): the data entry title to update, or None to
-                    update the quote interval for self.timespan.
+                    update the quote interval for self._timespan.
 
             Raises:
                 FdataError: sql error happened.
@@ -1889,11 +1900,11 @@ class SecData(SecFetcher):
         now = self._current_ts(adjusted=True)
 
         if data_entry is None:
-            title = self.timespan.value
+            title = self._timespan
             min_ts_val = self.first_date_ts
             max_ts_val = min(now, self.last_date_ts)
         else:
-            title = data_entry.value
+            title = data_entry
             min_ts_val = None
             max_ts_val = now
 

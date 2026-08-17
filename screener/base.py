@@ -267,7 +267,7 @@ class ScrData():
                 list: list with quotes for the screening.
         """
         if init_status is False:
-            max_ts = self.get_source().get_max_ts()
+            max_ts = self.get_source()._get_max_ts()
 
             if max_ts is not None:
                 self.__max_datetime = get_dt(max_ts)

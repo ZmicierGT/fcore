@@ -342,7 +342,6 @@ class StockData(SecData, StockFetcher):
 
         return splits
 
-    # TODO HIGH Analyze the remaining public getters to make them protected
     # TODO MID Think if ignore last date is needed here
     def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
@@ -496,7 +495,6 @@ class StockData(SecData, StockFetcher):
             max_idx = 0
 
         return quotes[:max_idx]
-
 
     def get_income_statement_num(self):
         """Get the number of income statement reports.

@@ -1519,8 +1519,7 @@ class SecData(SecFetcher):
             # TODO MID Keep a one day gap to prevent too often fundamental updates. Needs to be replaced for a better mechanism.
             return max_ts is None or (last_ts_adj > max_ts and last_ts_adj - max_ts > 86400)
 
-    # TODO High think how to make it protected
-    def get_max_ts(self):
+    def _get_max_ts(self):
         """
             Get maximum timestamp for a particular symbol, source, timespan.
 
@@ -1879,6 +1878,10 @@ class SecData(SecFetcher):
         return (num_before, num_after)
 
     # TODO HIGH Think how to handle if data source limits data because of lower-grade subscription plan
+    # Potential options:
+    # - Add modified_ts to data_intervals so if it passes ttl - the interval will be updated.
+    # - Add methods drop_symbol_intervals() and drop_datasource_intervals() - they'll delete the intervals so refetch
+    #   will happen on the next invocation.
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)

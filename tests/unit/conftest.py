@@ -1,4 +1,10 @@
-"""Fixtures for offline YF unit tests using synthetic data injected at the yf boundary."""
+"""Fixtures for offline YF unit tests using synthetic data injected at the yf boundary.
+
+The author is Zmicier Gotowka
+
+Distributed under Fcore License 1.1 (see license.md)
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -15,8 +21,13 @@ def load_dated_series(path, timezone):
     return df.iloc[:, 0]  # column name comes from the CSV header
 
 def load_earnings_history(path):
-    """Deserialize a synthetic earnings history CSV into a DataFrame."""
-    # TODO HIGH To implement
+    """Deserialize a synthetic earnings history CSV into a DataFrame (empty if path is None)."""
+    if path is None:
+        return pd.DataFrame()
+    df = pd.read_csv(path, index_col=0)
+    df.index = pd.to_datetime(df.index)
+    df.index.name = 'quarter'
+    return df
 
 class FakeTicker:
     """Fake yf Ticker returning synthetic data loaded from files (paths may be None)."""
@@ -30,6 +41,7 @@ class FakeTicker:
 
         self.info_calls = 0
         self.download_calls = 0
+        self.eh_calls = 0
 
     @property
     def info(self):
@@ -61,8 +73,7 @@ class FakeTicker:
 
     @property
     def earnings_history(self):
-        if self._earnings_history_path is None:
-            return None
+        self.eh_calls += 1
         return load_earnings_history(self._earnings_history_path)
 
 @pytest.fixture

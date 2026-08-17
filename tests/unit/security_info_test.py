@@ -1,5 +1,11 @@
 """Unit tests for the security info flow (get_info, _add_info, non-existent marking) using real YF
-instances with synthetic data injected at the yfinance boundary. Fully offline (:memory:/tmp DB)."""
+instances with synthetic data injected at the yf boundary. Fully offline (:memory:/tmp DB).
+
+The author is Zmicier Gotowka
+
+Distributed under Fcore License 1.1 (see license.md)
+"""
+
 import pytest
 
 from data.fdata import FdataError, SecData

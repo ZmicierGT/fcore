@@ -180,6 +180,11 @@ Use the following tool to manage quotes and obtain data.
 
 Note that the tools and backtesting demos create an image with the result of a calculation located in *images* folder and open the image in the default image viewer.
 
+## Testing
+
+To run unit tests, invoke ***python -m pytest tests/unit -v*** (only Data API is tested now).
+To run integration tests, invoke ***python -m tests.integration.test_name*** (only Data API is tested as well).
+
 ## Additional Details
 
 To keep everything working, please keep all the dependencies up to date. Especially the dependencies which are related to data sources (like yfinance).

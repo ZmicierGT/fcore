@@ -128,6 +128,7 @@ class YF(stock.StockData):
             method='linear', limit_direction='both'
         )
 
+        # TODO MID Do we need UT for intraday?
         if self.is_intraday() is False:
             # TODO LOW For simplicity just set time to 23:59:59 without time zone adjustments.
             # For some markets (non-US) timestamps (which are supposed to be UTC-adjusted) may be incorrect.
@@ -190,6 +191,7 @@ class YF(stock.StockData):
         return quotes_data
 
     # TODO MID For correct screeners work it should correspond the data in the main dataset. Currently the time is not UTC-adjusted.
+    # TODO MID Do we need UT for it?
     def get_recent_data(self, to_cache=False):
         """
             Get pseudo real time data. Used in screening demonstration.
@@ -243,7 +245,7 @@ class YF(stock.StockData):
         """
         if self._data is None or self._symbol != self._data_symbol:
             self._data = yfin.Ticker(self._symbol)
-            self._data.history(period='max')
+            self._data.history(period='max')  # TODO MID Check why do we have .history here
 
             self._data_symbol = self._symbol
 

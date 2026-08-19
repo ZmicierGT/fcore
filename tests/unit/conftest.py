@@ -1,9 +1,12 @@
-"""Fixtures for offline YF unit tests using synthetic data injected at the yf boundary.
+"""Fixtures for offline YF/FMP unit tests using synthetic data injected at the data source boundary.
 
 The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
+import calendar
+import json
+from datetime import datetime
 
 from pathlib import Path
 
@@ -11,6 +14,7 @@ import pandas as pd
 import pytest
 
 from data import yf
+from data import fmp as fmp_module
 
 # TODO HIGH Add cases to check intervals.
 
@@ -101,4 +105,85 @@ def make_yf(monkeypatch):
         monkeypatch.setattr(yf.yfin, 'download', fake.download)
 
         return yf.YF(symbol=symbol, db_name=db_name, verbosity=False, **kwargs), fake
+    return _make
+
+
+###############################################################################
+# FMP fixtures (synthetic data injected at the _query_api boundary)
+###############################################################################
+
+FMP_SYNTHETIC_DATA_DIR = Path(__file__).resolve().parent.parent / 'fmp_synthetic_data'
+
+def load_fmp_json(name):
+    """Deserialize a synthetic FMP JSON fixture file."""
+    with open(FMP_SYNTHETIC_DATA_DIR / name, encoding='utf-8') as f:
+        return json.load(f)
+
+def eod_ts(date_str):
+    """EOD (23:59:59 UTC) timestamp of a YYYY-MM-DD date (as FMP quotes are stored)."""
+    dt = datetime.strptime(date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+    return calendar.timegm(dt.utctimetuple())
+
+def fixture_filing_ts(r):
+    """Timestamp used by FMP._fetch_fundamentals for a report's time_stamp (based on filingDate)."""
+    return int(datetime.timestamp(datetime.strptime(r['filingDate'], '%Y-%m-%d')))
+
+class FakeResponse:
+    """Minimal stand-in for requests.Response exposing just json()."""
+    def __init__(self, payload):
+        self._payload = payload
+    def json(self):
+        return self._payload
+
+class FakeQueryApi:
+    """Fake FMP HTTP boundary: routes FMP request URLs to synthetic JSON payloads.
+
+    Every FMP fetch goes through FMP._query_api; routes are matched by URL substrings.
+    All requests are recorded so tests can assert the number/kind of API calls.
+    """
+
+    def __init__(self, profile='profile.json', routes=None):
+        self._profile = profile
+        self._routes = routes or {}
+        self.calls = []
+
+    def query(self, url, timeout=30):
+        self.calls.append(url)
+        return FakeResponse(self._payload(url))
+
+    def _payload(self, url):
+        for token, payload in self._routes.items():
+            if token in url:
+                return payload
+        if 'profile' in url:
+            return load_fmp_json(self._profile)
+        if 'historical-price-eod/non-split-adjusted' in url:
+            return load_fmp_json('quotes_non-split-adjusted.json')
+        if 'historical-market-capitalization' in url:
+            return load_fmp_json('historical-market-capitalization.json')
+        if 'dividends' in url:
+            return load_fmp_json('dividends.json')
+        if 'splits' in url:
+            return load_fmp_json('splits.json')
+        if 'quote' in url:
+            return load_fmp_json('recent_quote.json')
+        for base in ('income-statement', 'balance-sheet-statement', 'cash-flow-statement'):
+            if base in url:
+                period = 'annual' if 'period=year' in url else 'quarterly'
+                return load_fmp_json(f'{base}_{period}.json')
+        raise AssertionError(f'Unexpected FMP URL requested by tests: {url}')
+
+    def count(self, token):
+        """Number of recorded API calls whose URL contains the given token."""
+        return sum(1 for url in self.calls if token in url)
+
+@pytest.fixture
+def make_fmp(monkeypatch):
+    """Create a real FMP (bound to :memory:/tmp DB) with a fake _query_api patched in;
+    return (inst, fake)."""
+    def _make(symbol='FFFF', db_name=':memory:', profile='profile.json', routes=None, **kwargs):
+        fake = FakeQueryApi(profile=profile, routes=routes)
+        monkeypatch.setattr(fmp_module.FMP, '_query_api', fake.query)
+
+        return fmp_module.FMP(symbol=symbol, db_name=db_name, verbosity=False, **kwargs), fake
     return _make

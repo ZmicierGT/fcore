@@ -12,22 +12,23 @@ import datetime
 
 import pytest
 
+from data.fdata import Subquery
+from data.fvalues import StockQuotes
 from data.yf import YFDataEntries
 
-from conftest import SYNTHETIC_DATA_DIR, FakeTicker
+from conftest import SYNTHETIC_DATA_DIR, FakeTicker, load_earnings_history
 
 EQUITY_INFO = {'quoteType': 'EQUITY', 'symbol': 'FFFF', 'exchangeTimezoneName': 'America/New_York'}
 
+QUOTES = SYNTHETIC_DATA_DIR / 'quotes.csv'
 EARNINGS_HISTORY = SYNTHETIC_DATA_DIR / 'earnings_history.csv'
-# Expected row from yf_synthetic_data/earnings_history.csv (quarter 2020-01-20 as UTC timestamp)
-EXPECTED_TS = calendar.timegm(datetime.datetime(2020, 1, 20, tzinfo=datetime.timezone.utc).utctimetuple())
-EXPECTED_ROW = (EXPECTED_TS, 1.85, 1.72, 0.13, 0.0756)
 
-def read_eh_rows(inst):
-    """Read back the persisted earnings history rows ordered by time_stamp."""
-    rows = inst._cur.execute(f"""SELECT time_stamp, epsActual, epsEstimate, epsDifference, surprisePercent
-                                 FROM {YFDataEntries.EarningsHistory} ORDER BY time_stamp""").fetchall()
-    return rows
+# Expected values of the single report in yf_synthetic_data/earnings_history.csv
+EH_FIELDS = ['epsActual', 'epsEstimate', 'epsDifference', 'surprisePercent']
+EH_RECORD = load_earnings_history(EARNINGS_HISTORY).iloc[0]
+# Quarter of the report (2020-01-20) as a UTC timestamp
+EXPECTED_TS = calendar.timegm(EH_RECORD.name.to_pydatetime()
+                              .replace(tzinfo=datetime.timezone.utc).utctimetuple())
 
 ##############################
 # A. Base fetch & persistence
@@ -43,14 +44,26 @@ def test_earnings_history_saved(make_yf):
     inst.db_close()
 
 def test_earnings_history_values(make_yf):
-    inst, _ = make_yf(FakeTicker(info=EQUITY_INFO, earnings_history_path=EARNINGS_HISTORY))
+    inst, _ = make_yf(FakeTicker(info=EQUITY_INFO, quotes_path=QUOTES, earnings_history_path=EARNINGS_HISTORY),
+                      first_date='2020-1-1', last_date='2020-2-1')
     inst.db_connect()
 
     inst.get_earnings_history()
+    rows = inst.get(queries=[Subquery(YFDataEntries.EarningsHistory, f, title=f) for f in EH_FIELDS])
 
-    rows = read_eh_rows(inst)
-    assert len(rows) == 1
-    assert rows[0] == pytest.approx(EXPECTED_ROW)
+    # Count is checked via the data API too
+    assert inst.get_earnings_history_num() == 1
+
+    matched = 0
+    for row in rows:
+        for f in EH_FIELDS:
+            if row[StockQuotes.TimeStamp] >= EXPECTED_TS:
+                assert row[f] == pytest.approx(EH_RECORD[f]), f"{f} mismatch"
+            else:
+                assert row[f] is None, f"{f} must be None before the report"
+        matched += row[StockQuotes.TimeStamp] >= EXPECTED_TS
+
+    assert matched > 0, "the earnings report values were not joined to any quote"
     inst.db_close()
 
 def test_earnings_history_interval_set(make_yf):

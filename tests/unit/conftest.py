@@ -14,7 +14,7 @@ from data import yf
 
 # TODO HIGH Add cases to check intervals.
 
-SYNTHETIC_DATA_DIR = Path(__file__).resolve().parent.parent / 'synthetic_data'
+SYNTHETIC_DATA_DIR = Path(__file__).resolve().parent.parent / 'yf_synthetic_data'
 
 def load_dated_series(path, timezone):
     """Deserialize a synthetic Date,<value> CSV into a Series (index in the exchange timezone)."""

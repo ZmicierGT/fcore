@@ -17,7 +17,7 @@ from data.fvalues import Dividends, StockQuotes, StockSplits
 
 from conftest import SYNTHETIC_DATA_DIR, FakeTicker, load_dated_series, load_quotes
 
-# TODO HIGH To review: particular focus on redundant code/scenarios. Is every data fetching functionality of YF covered by UT?
+# TODO HIGH Add a case to test split/dividends on the same date.
 
 EQUITY_INFO = {'quoteType': 'EQUITY', 'symbol': 'FFFF', 'exchangeTimezoneName': 'America/New_York'}
 EXCHANGE_TIMEZONE = EQUITY_INFO['exchangeTimezoneName']

@@ -1,0 +1,16 @@
+[
+  {
+    "symbol": "FFFF",
+    "date": "2025-03-20",
+    "numerator": 2,
+    "denominator": 1,
+    "splitType": "stock-split"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2026-06-12",
+    "numerator": 3,
+    "denominator": 2,
+    "splitType": "stock-split"
+  }
+]

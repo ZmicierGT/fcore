@@ -19,7 +19,7 @@ from conftest import SYNTHETIC_DATA_DIR, FakeTicker
 EQUITY_INFO = {'quoteType': 'EQUITY', 'symbol': 'FFFF', 'exchangeTimezoneName': 'America/New_York'}
 
 EARNINGS_HISTORY = SYNTHETIC_DATA_DIR / 'earnings_history.csv'
-# Expected row from synthetic_data/earnings_history.csv (quarter 2020-01-20 as UTC timestamp)
+# Expected row from yf_synthetic_data/earnings_history.csv (quarter 2020-01-20 as UTC timestamp)
 EXPECTED_TS = calendar.timegm(datetime.datetime(2020, 1, 20, tzinfo=datetime.timezone.utc).utctimetuple())
 EXPECTED_ROW = (EXPECTED_TS, 1.85, 1.72, 0.13, 0.0756)
 

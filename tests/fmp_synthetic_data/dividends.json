@@ -1,0 +1,90 @@
+[
+  {
+    "symbol": "FFFF",
+    "date": "2026-08-15",
+    "recordDate": "2026-08-15",
+    "paymentDate": "2026-08-22",
+    "declarationDate": "2026-08-01",
+    "adjDividend": 0.25,
+    "dividend": 0.25,
+    "yield": 0.012763,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2026-05-15",
+    "recordDate": "2026-05-15",
+    "paymentDate": "2026-05-22",
+    "declarationDate": "2026-05-01",
+    "adjDividend": 0.25,
+    "dividend": 0.375,
+    "yield": 0.009673,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2026-02-15",
+    "recordDate": "2026-02-15",
+    "paymentDate": "2026-02-22",
+    "declarationDate": "2026-02-01",
+    "adjDividend": 0.25,
+    "dividend": 0.375,
+    "yield": 0.009654,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2025-11-15",
+    "recordDate": "2025-11-15",
+    "paymentDate": "2025-11-22",
+    "declarationDate": "2025-11-01",
+    "adjDividend": 0.25,
+    "dividend": 0.375,
+    "yield": 0.010468,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2025-08-15",
+    "recordDate": "2025-08-15",
+    "paymentDate": "2025-08-22",
+    "declarationDate": "2025-08-01",
+    "adjDividend": 0.25,
+    "dividend": 0.375,
+    "yield": 0.009112,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2025-05-15",
+    "recordDate": "2025-05-15",
+    "paymentDate": "2025-05-22",
+    "declarationDate": "2025-05-01",
+    "adjDividend": 0.25,
+    "dividend": 0.375,
+    "yield": 0.007848,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2025-02-15",
+    "recordDate": "2025-02-15",
+    "paymentDate": "2025-02-22",
+    "declarationDate": "2025-02-01",
+    "adjDividend": 0.25,
+    "dividend": 0.75,
+    "yield": 0.008337,
+    "frequency": "Quarterly"
+  },
+  {
+    "symbol": "FFFF",
+    "date": "2024-11-15",
+    "recordDate": "2024-11-15",
+    "paymentDate": "2024-11-22",
+    "declarationDate": "2024-11-01",
+    "adjDividend": 0.25,
+    "dividend": 0.75,
+    "yield": 0.009523,
+    "frequency": "Quarterly"
+  }
+]

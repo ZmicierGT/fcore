@@ -763,6 +763,8 @@ class StockData(SecData, StockFetcher):
 
             self._commit()
 
+    # TODO HIGH quotes_only processed incorrectly - it just skips fetching splits/divs. Actually it is fine to fetch them but we
+    # need to return unadjusted quotes when it is set to true.
     def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, quotes_only=False):
         """
             Get stock quotes, divs and splits data if needed.

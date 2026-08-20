@@ -66,6 +66,8 @@ SCHEMAS = {
     'splits.json': (['symbol', 'date', 'numerator', 'denominator', 'splitType'], 2),
     'profile.json': (PROFILE_KEYS, 1),
     'profile_delisted.json': (PROFILE_KEYS, 1),
+    'profile_etf.json': (PROFILE_KEYS, 1),
+    'profile_unknown_exchange.json': (PROFILE_KEYS, 1),
     'profile_non_existent.json': (None, 0),
     'historical-market-capitalization.json': (['symbol', 'date', 'marketCap'], 68),
     'income-statement_annual.json': (INCOME_KEYS, 5),

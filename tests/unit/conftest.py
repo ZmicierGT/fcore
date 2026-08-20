@@ -16,7 +16,8 @@ import pytest
 from data import yf
 from data import fmp as fmp_module
 
-# TODO HIGH Add cases to check intervals.
+# TODO HIGH test cases to add:
+# - YF Intraday tests
 
 SYNTHETIC_DATA_DIR = Path(__file__).resolve().parent.parent / 'yf_synthetic_data'
 

@@ -1160,6 +1160,7 @@ class SecData(SecFetcher):
 
         return rows
 
+    # TODO MID Likely we do not need ignore_source and its usage in some cases may be unsafe
     def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables

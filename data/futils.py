@@ -91,7 +91,7 @@ def get_ts_from_str(value):
         Returns:
             int: timestamp.
     """
-    return int(get_dt(value).timestamp())
+    return int(get_dt(value).replace(tzinfo=tz.UTC).timestamp())
 
 def write_image(img):
     """

@@ -409,9 +409,12 @@ class FMP(stock.StockData):
 
         try:
             tz_str = Exchanges[results['exchange']]
-        except KeyError as e:
-            self._log(f"Can't fetch info (API key limit is possible): {e}, url is {profile_url}")
-            return not_exist
+        except KeyError:
+            # Unknown exchange: use New York time zone as a fallback but log a warning
+            self._log(f"WARNING: Unknown exchange '{results.get('exchange')}' for {self._symbol}."
+                      f" Falling back to 'America/New_York' time zone. URL: {profile_url}")
+            # TODO MID Think if we need to have an unknown exchange enum member which is treated as NY time zone
+            tz_str = Exchanges['NYSE']
 
         results['fc_time_zone'] = tz_str
 

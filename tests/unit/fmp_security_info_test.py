@@ -188,3 +188,66 @@ def test_get_early_abort_on_non_existent(make_fmp):
     assert inst.get_quotes_num(dt=False) == 0
     assert inst._get_interval_ts(inst.timespan, is_max=False) is None
     inst.db_close()
+
+##############################
+# D. ETF detection
+##############################
+
+def test_base_info_valid_etf(make_fmp):
+    inst, fake = make_fmp(profile='profile_etf.json')
+    inst.db_connect()
+
+    info = SecData.get_info(inst)
+    assert info['sec_type'] == SecType.ETF
+    assert info['currency'] == Currency.USD
+    assert info['time_zone'] == 'America/New_York'
+    assert fake.count('profile') == 1
+    inst.db_close()
+
+def test_etf_get_fetches_dividends_and_splits(make_fmp):
+    inst, _ = make_fmp(profile='profile_etf.json')
+    inst.db_connect()
+
+    inst.get()
+
+    # ETF type also triggers dividend/split fetching in StockData.get
+    assert inst.sectype == SecType.ETF
+    assert inst.get_dividends_num() > 0
+    assert inst.get_split_num() > 0
+    inst.db_close()
+
+def test_etf_has_no_stock_info(make_fmp):
+    inst, _ = make_fmp(profile='profile_etf.json')
+    inst.db_connect()
+
+    info = inst.get_info()
+
+    # The stock sector block is limited to SecType.Stock only
+    assert info['sec_type'] == SecType.ETF
+    assert 'sector' not in info
+    assert inst._get_data_num('stock_info') == 0
+    inst.db_close()
+
+##############################
+# E. Exchange/currency fallbacks
+##############################
+
+def test_unknown_exchange_falls_back_to_new_york(make_fmp):
+    inst, fake = make_fmp(profile='profile_unknown_exchange.json')
+    inst.db_connect()
+
+    # An unmapped exchange must not mark a valid, actively traded security as NotExist
+    info = SecData.get_info(inst)
+    assert info['sec_type'] == SecType.Stock
+    assert info['time_zone'] == 'America/New_York'
+    assert fake.count('profile') == 1
+    inst.db_close()
+
+def test_unknown_currency_mapped_to_unknown(make_fmp):
+    inst, _ = make_fmp(routes={'profile': [dict(PROFILE, currency='XYZ')]})
+    inst.db_connect()
+
+    info = SecData.get_info(inst)
+    assert info['sec_type'] == SecType.Stock
+    assert info['currency'] == Currency.Unknown
+    inst.db_close()

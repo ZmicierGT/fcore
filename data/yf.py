@@ -166,7 +166,7 @@ class YF(stock.StockData):
             # Skip rows where OHLC is NaN (out-of-scope/future dates with no trading data).
             # Volume NaNs on valid trading days were interpolated above.
             if pd.isna(open_val) or pd.isna(high_val) or pd.isna(low_val) or pd.isna(close_val):
-                self._log(f"Skipping row {ind} (out-of-scope date, no OHLC data)")
+                self._lg.plain(f"Skipping row {ind} (out-of-scope date, no OHLC data)")
                 continue
 
             # Fallback: if volume is still NaN (e.g., entire Volume column was NaN), use 0.
@@ -436,7 +436,7 @@ class YF(stock.StockData):
             raise FdataError(f"Can't fetch earnings history for {self._symbol} from YF: {e}") from e
 
         if eh is None or eh.empty:
-            self._log(f"No earnings history data obtained for {self._symbol}")
+            self._lg.warning(f"No earnings history data obtained for {self._symbol}")
             return []
 
         eh = eh.reset_index()

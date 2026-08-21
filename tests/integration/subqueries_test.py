@@ -9,7 +9,7 @@ from data.fdata import Subquery
 from data.futils import get_dt
 from data.fvalues import def_last_date
 
-from termcolor import colored
+from data import lg
 
 from datetime import datetime, timedelta
 from dateutil import tz
@@ -29,7 +29,7 @@ def failure(text):
         Args:
             text(str): the error message to print.
     """
-    print(colored(text, "red"))
+    lg.error(text)
     sys.exit()
 
 def check_cap_values(rows, expected_ts, expected_cap, test_name):
@@ -76,7 +76,7 @@ def test_cross_source_subqueries():
 
         A temporary database file is used and deleted afterwards.
     """
-    print(colored("\nTesting subqueries support for multiple data sources:\n", "yellow"))
+    lg.highlight("\nTesting subqueries support for multiple data sources:\n")
 
     fd, db_path = tempfile.mkstemp(suffix='.sqlite')
     os.close(fd)
@@ -122,7 +122,7 @@ def test_cross_source_subqueries():
         if np.all(rows['cap'] == None) is False:
             failure("Cap values should be None before the cap data is fetched.")
 
-        print(colored("Cap values are None before the cap data is fetched.", 'green'))
+        lg.success("Cap values are None before the cap data is fetched.")
 
         print("\nSECTION 2: Fetching FMP cap data separately (no quotes fetched)")
         print("_______________________________________________________________")
@@ -136,7 +136,7 @@ def test_cross_source_subqueries():
 
         print(f"Fetched {fetched} cap entries for AAPL without fetching quotes.")
 
-        print(colored("Cap data was fetched separately without quotes.", 'green'))
+        lg.success("Cap data was fetched separately without quotes.")
 
         print("\nSECTION 3: Checking the cap values obtained by the subqueries")
         print("_______________________________________________________________")
@@ -169,7 +169,7 @@ def test_cross_source_subqueries():
 
         check_cap_values(rows, expected_ts, expected_cap, "cap subquery")
 
-        print(colored("All subquery data is as expected.", 'green'))
+        lg.success("All subquery data is as expected.")
 
         print("\nSECTION 4: Checking the cap values obtained with the symbol argument")
         print("_____________________________________________________________________")
@@ -181,7 +181,7 @@ def test_cross_source_subqueries():
 
         check_cap_values(rows, expected_ts, expected_cap, "symbol subquery")
 
-        print(colored('All symbol-subquery data is as expected.', 'green'))
+        lg.success('All symbol-subquery data is as expected.')
     finally:
         # Close the database connections and delete the temporary database
         # file including the WAL journal sidecar files (if any).
@@ -194,8 +194,8 @@ def test_cross_source_subqueries():
                 os.remove(path)
 
 if __name__ == "__main__":
-    print(colored("Testing subqueries support:", "yellow"))
+    lg.highlight("Testing subqueries support:")
 
     test_cross_source_subqueries()
 
-    print(colored("ALL TESTS PASSED!", "green"))
+    lg.success("ALL TESTS PASSED!")

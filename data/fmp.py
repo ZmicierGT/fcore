@@ -73,7 +73,7 @@ class FMP(stock.StockData):
             self._api_key = self._settings.api_key
         except RuntimeError:
             self._api_key = None
-            self._log("Warning! No FMP API-KEY is configured in settings.py")
+            self._lg.warning("No FMP API-KEY is configured in settings.py")
 
         self._stock_info_supported = True
 
@@ -121,12 +121,12 @@ class FMP(stock.StockData):
             try:
                 results = json_data['historical']
             except (KeyError, TypeError) as e:
-                self._log(f"Can't get the historical data when {url} is requested. Likely API key limit is reached: {e}")
+                self._lg.error(f"Can't get the historical data when {url} is requested. Likely API key limit is reached: {e}")
                 results = []
 
         if results is not None and (len(results) == 0 or results == ['Error Message']):
             # TODO MID Hide API keys from the log (here and in other places)
-            self._log(f"No data obtained for {self._symbol} using the query {url}")
+            self._lg.warning(f"No data obtained for {self._symbol} using the query {url}")
 
         return results
 
@@ -194,7 +194,7 @@ class FMP(stock.StockData):
 
         if json_results is not None and (
                 len(json_results) == 0 or json_results == ['Error Message'] or 'Error Message' in json_results):
-            self._log(f"Unexpected data obtained. May be due the lack of API key or API key limit: {json_results}")
+            self._lg.warning(f"Unexpected data obtained. May be due the lack of API key or API key limit: {json_results}")
             return []
 
         quotes = []  # Processed quotes
@@ -398,20 +398,20 @@ class FMP(stock.StockData):
         # A security is considered delisted/non-existent when the profile is empty ([]) or
         # the profile explicitly reports that the security is not actively trading.
         if json_data is None or len(json_data) == 0:
-            self._log(f"Empty profile obtained for {self._symbol}. The security may be delisted or the symbol is incorrect. URL: {profile_url}")
+            self._lg.error(f"Empty profile obtained for {self._symbol}. The security may be delisted or the symbol is incorrect. URL: {profile_url}")
             return not_exist
 
         results = json_data[0]
 
         if results.get('isActivelyTrading') is False:
-            self._log(f"{self._symbol} is returned as not actively trading. The security may be delisted. URL: {profile_url}")
+            self._lg.warning(f"{self._symbol} is returned as not actively trading. The security may be delisted. URL: {profile_url}")
             return not_exist
 
         try:
             tz_str = Exchanges[results['exchange']]
         except KeyError:
             # Unknown exchange: use New York time zone as a fallback but log a warning
-            self._log(f"WARNING: Unknown exchange '{results.get('exchange')}' for {self._symbol}."
+            self._lg.warning(f"Unknown exchange '{results.get('exchange')}' for {self._symbol}."
                       f" Falling back to 'America/New_York' time zone. URL: {profile_url}")
             # TODO MID Think if we need to have an unknown exchange enum member which is treated as NY time zone
             tz_str = Exchanges['NYSE']
@@ -535,7 +535,7 @@ class FMP(stock.StockData):
         num_before = self.get_income_statement_num()
 
         if not reports:
-            self._log(f"No income statement data to add for {self._symbol}. Updating data interval only.")
+            self._lg.warning(f"No income statement data to add for {self._symbol}. Updating data interval only.")
             self._update_data_interval(self._income_statement_entry)
             return (num_before, num_before)
 
@@ -705,7 +705,7 @@ class FMP(stock.StockData):
         num_before = self.get_balance_sheet_num()
 
         if not reports:
-            self._log(f"No balance sheet data to add for {self._symbol}. Updating data interval only.")
+            self._lg.warning(f"No balance sheet data to add for {self._symbol}. Updating data interval only.")
             self._update_data_interval(self._balance_sheet_entry)
             return (num_before, num_before)
 
@@ -939,7 +939,7 @@ class FMP(stock.StockData):
         num_before = self.get_cash_flow_num()
 
         if not reports:
-            self._log(f"No cash flow data to add for {self._symbol}. Updating data interval only.")
+            self._lg.warning(f"No cash flow data to add for {self._symbol}. Updating data interval only.")
             self._update_data_interval(self._cash_flow_entry)
             return (num_before, num_before)
 
@@ -1165,7 +1165,7 @@ class FMP(stock.StockData):
         num_before = self.get_cap_num()
 
         if not results:
-            self._log(f"No capitalization data to add for {self._symbol}. Updating data interval only.")
+            self._lg.warning(f"No capitalization data to add for {self._symbol}. Updating data interval only.")
             self._update_data_interval(self._cap_entry)
             return (num_before, num_before)
 

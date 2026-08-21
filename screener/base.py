@@ -7,7 +7,7 @@ Distributed under Fcore License 1.1 (see license.md)
 from data import fvalues
 from data.fvalues import Quotes
 from data.fdata import FdataError
-from data.futils import logger, get_dt
+from data.futils import Log, get_dt
 
 from datetime import datetime
 from datetime import timedelta
@@ -66,6 +66,7 @@ class BaseScr(metaclass=abc.ABCMeta):
                 ScrError: incorrect arguments provided.
         """
         self._verbosity = verbosity
+        self._lg = Log(verbosity=verbosity)
 
         if period <= 0:
             raise ScrError(f"Period should not be <= 0: {period}")
@@ -187,15 +188,6 @@ class BaseScr(metaclass=abc.ABCMeta):
 
         self.__set_init_status()
 
-    def log(self, message):
-        """
-            Display a logging message depending on verbotisy flag.
-
-            Args:
-                message(str): the message to display.
-        """
-        logger(self._verbosity, message)
-
     @abc.abstractmethod
     def calculate(self):
         """
@@ -271,7 +263,6 @@ class ScrData():
 
             if max_ts is not None:
                 self.__max_datetime = get_dt(max_ts)
-                print(f"{max_ts} {self.__max_datetime}")
             self.__quotes_num = self.get_source().get_quotes_num(timespan=False, dt=False)
         else:
             data = self.get_source().get_recent_data()

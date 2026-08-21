@@ -22,17 +22,84 @@ import time
 import sys
 import subprocess
 
-# TODO HIGH. Unify logs and make them use colors.
-def logger(verbosity, message):
+class Log:
     """
-        Depending on a verbosity flag, display a logging message.
+        Colored console logging.
+    """
+    _RESET = "\033[0m"
 
-        Args:
-            verbosity(bool): verbosity flag.
-            message(str): message.
-    """
-    if verbosity:
-        print(message)
+    _COLORS = {
+        "success": "\033[32m",
+        "warning": "\033[38;5;226m",
+        "error": "\033[31m",
+        "highlight": "\033[38;5;214m",
+    }
+
+    def __init__(self, verbosity=True):
+        """
+            Initialize the logging instance.
+
+            Args:
+                verbosity(bool): indicates if logging messages should be displayed.
+        """
+        self._verbosity = verbosity
+
+    def set_verbosity(self, flag):
+        """
+            Set the verbosity flag.
+
+            Args:
+                flag(bool): indicates if logging messages should be displayed.
+        """
+        self._verbosity = flag
+
+    def _color_enabled(self):
+        """
+            Check if the output supports colors.
+
+            Returns:
+                True if the output goes to an interactive terminal and colors
+                are not disabled with the NO_COLOR environment variable.
+        """
+        return hasattr(sys.stdout, "isatty") and sys.stdout.isatty() and "NO_COLOR" not in os.environ
+
+    def _emit(self, text, color=None):
+        """
+            Display a logging message if verbosity is enabled.
+
+            Args:
+                text(str): the message to display.
+                color(str or None): ANSI color code to use.
+        """
+        if not self._verbosity:
+            return
+
+        if color is not None and self._color_enabled():
+            print(f"{color}{text}{self._RESET}")
+        else:
+            print(text)
+
+    def plain(self, text):
+        """Display a message using the default terminal color."""
+        self._emit(str(text))
+
+    def success(self, text):
+        """Display a success message (green)."""
+        self._emit(str(text), self._COLORS["success"])
+
+    def warning(self, text):
+        """Display a warning message (yellow)."""
+        self._emit(str(text), self._COLORS["warning"])
+
+    def error(self, text):
+        """Display an error message (red)."""
+        self._emit(str(text), self._COLORS["error"])
+
+    def highlight(self, text):
+        """Display a highlighted message (golden)."""
+        self._emit(str(text), self._COLORS["highlight"])
+
+lg = Log()
 
 def get_dt(value, timezone=tz.UTC):
     """
@@ -165,7 +232,7 @@ def open_image(image_path):
     elif 'linux' in sys.platform or 'bsd' in sys.platform:
         subprocess.call(('xdg-open', image_path))
     else:
-        logger(f"Can't open image: unknown platform: {sys.platform}")
+        print(f"Can't open image: unknown platform: {sys.platform}")
 
 def gui_available():
     """

@@ -24,8 +24,9 @@ from data.fvalues import (
 )
 
 from data.futils import (
-    logger, get_dt, add_column, thread_available,
+    get_dt, add_column, thread_available,
     show_image, gui_available, update_layout, get_labelled_ndarray,
+    Log, lg,
 )
 
 __all__ = [
@@ -41,6 +42,7 @@ __all__ = [
     "djia", "djia_combined", "djia_dict",
     "sector_titles", "sectors_dict", "sectors_combined",
     "sw20", "ca_big_five", "ca_big_six",
-    "logger", "get_dt", "add_column", "thread_available",
+    "get_dt", "add_column", "thread_available",
     "show_image", "gui_available", "update_layout", "get_labelled_ndarray",
+    "Log", "lg",
 ]

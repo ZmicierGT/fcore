@@ -15,7 +15,7 @@ import requests
 from data import fdatabase
 
 from data.fvalues import Timespans, SecType, Currency, def_first_date, def_last_date, DbTypes, Timezones
-from data.futils import get_dt, get_labelled_ndarray, logger
+from data.futils import get_dt, get_labelled_ndarray, Log
 
 import settings
 
@@ -129,14 +129,14 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
             # Calculate time to sleep and sleep if needed
             sleep_time = max(0, 60 - (perf_counter() - first_query_time))
 
-            self._log(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
+            self._lg.highlight(f"Sleeping for {round(sleep_time, 2)} seconds to avoid API key queries limit..")
 
             sleep(sleep_time)
 
             self._queries = []
 
         # Uncomment for debug purposes
-        #self._log(f"Fetching URL: {url}")
+        #self._lg.plain(f"Fetching URL: {url}")
         headers = {'Cache-Control': 'no-cache'}
 
         # Perform the query
@@ -340,6 +340,8 @@ class SecData(SecFetcher):
 
         self._verbosity = verbosity
 
+        self._lg = Log(verbosity=verbosity)
+
         self._refetch = refetch
 
         self._time_zone = None  # Cached time zone to avoid too many db queries
@@ -427,7 +429,7 @@ class SecData(SecFetcher):
                     intervals.append([self.first_date_ts, last_ts_adj])
 
                 for first_ts, last_ts in intervals:
-                    self._log(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+                    self._lg.plain(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
                     self._add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
@@ -599,15 +601,6 @@ class SecData(SecFetcher):
     # End of datetime handling methods/properties.
     ##############################################
 
-    def _log(self, message):
-        """
-            Display a logging message depending on verbotisy flag.
-
-            Args:
-                message(str): the message to display.
-        """
-        logger(self._verbosity, message)
-
     @property
     def db_type(self):
         """
@@ -639,7 +632,7 @@ class SecData(SecFetcher):
             If the connection is already open, a warning is logged and the call is a no-op.
         """
         if self.is_connected:
-            self._log("Warning: db_connect() is invoked while the database is already connected. The call is skipped.")
+            self._lg.warning("db_connect() is invoked while the database is already connected. The call is skipped.")
             return
 
         if self._db_type == DbTypes.SQLite:
@@ -1295,7 +1288,7 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't execute a query on a table 'quotes': {e}\n{select_quotes}") from e
 
         if len(rows) == 0:
-            self._log("No data obtained.")
+            self._lg.warning("No data obtained.")
             return None
 
         return get_labelled_ndarray(rows)
@@ -1613,7 +1606,7 @@ class SecData(SecFetcher):
                 else:
                     self._time_zone = timezone
             else:
-                self._log("Time zone data is not found. Returning ET.")
+                self._lg.warning("Time zone data is not found. Returning ET.")
                 self._time_zone = tz.gettz('America/New_York')
 
         return self._time_zone
@@ -1634,7 +1627,7 @@ class SecData(SecFetcher):
             else:
                 self._sec_type = SecType.Unknown
 
-                self._log(f"Security type data is not found. Returning {self._sec_type}.")
+                self._lg.warning(f"Security type data is not found. Returning {self._sec_type}.")
 
         return self._sec_type
 
@@ -1655,7 +1648,7 @@ class SecData(SecFetcher):
             else:
                 self._currency = Currency.Unknown
 
-                self._log(f"Currency data is not found. Returning {self._currency}.")
+                self._lg.warning(f"Currency data not found. Returning {self._currency}.")
 
         return self._currency
 

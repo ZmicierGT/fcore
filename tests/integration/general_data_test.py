@@ -8,7 +8,7 @@ from data import yf
 from data.fdata import FdataError
 from data.futils import get_dt
 
-from termcolor import colored
+from data import lg
 
 import sys
 
@@ -20,7 +20,7 @@ def failure(text, source):
             text(str): the error message to print.
             source(ReadOnlyData): data source instance
     """
-    print(colored(text, "red"))
+    lg.error(text)
     source.db_close()
     sys.exit()
 
@@ -37,7 +37,7 @@ def test_remove_symbol(i):
             i(YF): the data source instance (already populated with quotes,
                    dividends, splits and earnings history data via prior tests).
     """
-    print(colored("\nTesting remove_symbol():\n", "yellow"))
+    lg.highlight("\nTesting remove_symbol():\n")
 
     print("SECTION RMS1: Pre-delete presence")
     print("_________________________________")
@@ -55,7 +55,7 @@ def test_remove_symbol(i):
     if quotes_num == 0 or dividends_num == 0 or splits_num == 0 or eh_num == 0:
         failure("All categories should have data before deletion", i)
 
-    print(colored("Pre-delete presence confirmed", "green"))
+    lg.success("Pre-delete presence confirmed")
 
     #######################################################
 
@@ -67,7 +67,7 @@ def test_remove_symbol(i):
     # while connected, consistent with the other in-memory tests in this file.
     i.remove_symbol()
 
-    print(colored("remove_symbol() succeeded", "green"))
+    lg.success("remove_symbol() succeeded")
 
     #######################################################
 
@@ -87,7 +87,7 @@ def test_remove_symbol(i):
     if quotes_num != 0 or dividends_num != 0 or splits_num != 0 or eh_num != 0:
         failure("All categories should have 0 rows after cascade deletion", i)
 
-    print(colored("Symbol and all linked data removed (cascade verified)", "green"))
+    lg.success("Symbol and all linked data removed (cascade verified)")
 
     #######################################################
 
@@ -99,7 +99,7 @@ def test_remove_symbol(i):
     except Exception as e:
         failure(f"Second remove_symbol() should not raise: {e}", i)
 
-    print(colored("Idempotency verified: second remove_symbol() did not raise", "green"))
+    lg.success("Idempotency verified: second remove_symbol() did not raise")
 
 def test_get_delisted():
     """
@@ -108,7 +108,7 @@ def test_get_delisted():
         intervals. The first invocation persists sec_info as NotExist; the second
         raises early from the cached sec_info (no API refetch of info).
     """
-    print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
+    lg.highlight("\nTesting get() for a delisted symbol (WBA):\n")
 
     yfi = yf.YF(symbol='WBA', first_date="2020-1-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
@@ -132,7 +132,7 @@ def test_get_delisted():
     if yfi._get_min_request_ts() is not None or yfi._get_max_request_ts() is not None:
         failure("No data_intervals should be marked for a delisted symbol", yfi)
 
-    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+    lg.success("First invocation: raised FdataError, fetched nothing, no intervals marked")
 
     # Confirm the security is indeed marked as NotExist in sec_info. get_info()
     # raises FdataError when sec_type == NotExist (fdata.py:1271).
@@ -147,7 +147,7 @@ def test_get_delisted():
     if not raised_info:
         failure("get_info() should raise FdataError for a symbol marked NotExist", yfi)
 
-    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+    lg.success("get_info() confirmed the symbol is marked NotExist")
 
     # Second invocation: sec_info persisted as NotExist. get_info() raises at
     # fdata.py:1271 BEFORE fetch_info() runs (no API refetch).
@@ -162,7 +162,7 @@ def test_get_delisted():
     if not raised_second:
         failure("Second get() should also raise FdataError", yfi)
 
-    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+    lg.success("Second invocation: raised FdataError from cached sec_info")
 
     yfi.db_close()
 
@@ -173,7 +173,7 @@ def test_get_existing():
         refetch) and skips quote fetch (intervals cover the range), returning
         cached rows without error.
     """
-    print(colored("\nTesting get() for an existing symbol (IBM):\n", "yellow"))
+    lg.highlight("\nTesting get() for an existing symbol (IBM):\n")
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
@@ -195,7 +195,7 @@ def test_get_existing():
     if min_req_first is None or max_req_first is None:
         failure("Intervals should be marked after first get()", yfi)
 
-    print(colored(f"First invocation: fetched {len(rows_first)} rows, intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}", "green"))
+    lg.success(f"First invocation: fetched {len(rows_first)} rows, intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}")
 
     # Second invocation: same range, covered. No refetch expected.
     print("\nSecond invocation (same range, covered): expecting cached rows, no error ...")
@@ -213,7 +213,7 @@ def test_get_existing():
     if yfi._get_min_request_ts() != min_req_first or yfi._get_max_request_ts() != max_req_first:
         failure("Intervals should not change on second get() (covered range)", yfi)
 
-    print(colored("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged", "green"))
+    lg.success("Second invocation: returned cached rows, no duplicate fetch, intervals unchanged")
 
     yfi.db_close()
 
@@ -224,7 +224,7 @@ def test_get_empty_range_valid_symbol():
         the symbol is valid (not delisted). Intervals must be recorded so the
         known-empty range is permanently skipped on subsequent calls.
     """
-    print(colored("\nTesting get() for a valid symbol with empty range (INFQ):\n", "yellow"))
+    lg.highlight("\nTesting get() for a valid symbol with empty range (INFQ):\n")
 
     yfi = yf.YF(symbol='INFQ', first_date="2026-01-01", last_date="2026-02-16", verbosity=True, db_name=":memory:")
     yfi.db_connect()
@@ -247,7 +247,7 @@ def test_get_empty_range_valid_symbol():
     if min_req is None or max_req is None:
         failure("Intervals should be recorded for an empty valid-symbol range", yfi)
 
-    print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
+    lg.success(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}")
 
     yfi.db_close()
 
@@ -262,7 +262,7 @@ def test_refetch():
         True immediately (refetch short-circuit) and get() completes
         successfully on the covered second call.
     """
-    print(colored("\nTesting refetch=True (IBM, covered range):\n", "yellow"))
+    lg.highlight("\nTesting refetch=True (IBM, covered range):\n")
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1",
                   verbosity=True, db_name=":memory:", refetch=True)
@@ -280,8 +280,8 @@ def test_refetch():
 
     min_req_first = yfi._get_min_request_ts()
     max_req_first = yfi._get_max_request_ts()
-    print(colored(f"First invocation: fetched {len(rows_first)} rows, "
-                  f"intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}", "green"))
+    lg.success(f"First invocation: fetched {len(rows_first)} rows, "
+                  f"intervals {get_dt(min_req_first)}..{get_dt(max_req_first)}")
 
     print("\nSecond invocation (same range, covered, refetch=True): "
           "expecting fetch path taken, cached result returned ...")
@@ -299,13 +299,13 @@ def test_refetch():
     if yfi._get_min_request_ts() != min_req_first or yfi._get_max_request_ts() != max_req_first:
         failure("Intervals should not change on second get() with refetch=True", yfi)
 
-    print(colored("refetch=True: second get() entered fetch path, returned same rows, "
-                  "intervals unchanged", "green"))
+    lg.success("refetch=True: second get() entered fetch path, returned same rows, "
+                  "intervals unchanged")
 
     yfi.db_close()
 
 if __name__ == "__main__":
-    print(colored("\nTesting general YF data source behavior:\n", "yellow"))
+    lg.highlight("\nTesting general YF data source behavior:\n")
 
     yfi = yf.YF(symbol='IBM', verbosity=True, db_name=":memory:")
     yfi.db_connect()
@@ -323,4 +323,4 @@ if __name__ == "__main__":
     test_get_empty_range_valid_symbol()
     test_refetch()
 
-    print(colored("ALL TESTS PASSED!", "green"))
+    lg.success("ALL TESTS PASSED!")

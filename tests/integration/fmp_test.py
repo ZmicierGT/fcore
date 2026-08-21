@@ -12,7 +12,7 @@ from data.futils import get_dt
 from data.fvalues import def_last_date
 from data.stock import report_quarter, report_year
 
-from termcolor import colored
+from data import lg
 
 from datetime import datetime, timedelta
 from dateutil import tz
@@ -29,7 +29,7 @@ def failure(text, source):
             text(str): the error message to print.
             source(ReadOnlyData): data source instance
     """
-    print(colored(text, "red"))
+    lg.error(text)
     source.db_close()
     sys.exit()
 
@@ -54,8 +54,8 @@ def test_info(source):
     if 'time_zone' not in info or 'sec_type' not in info or 'currency' not in info:
         failure(f"Unexpected info obtained: {info}", source)
 
-    print(colored(f"Info obtained: {info}", "yellow"))
-    print(colored("Info endpoint passed", 'green'))
+    lg.plain(f"Info obtained: {info}")
+    lg.success("Info endpoint passed")
 
 def test_quotes_dividends_splits(source):
     """
@@ -86,10 +86,10 @@ def test_quotes_dividends_splits(source):
     if len(quotes) == 0:
         failure("No quotes returned by get().", source)
 
-    print(colored(f"Quotes obtained: {quotes_after} (before: {quotes_before})", "yellow"))
-    print(colored(f"Dividends obtained: {divs_after} (before: {divs_before})", "yellow"))
-    print(colored(f"Splits obtained: {splits_after} (before: {splits_before})", "yellow"))
-    print(colored("Quotes/dividends/splits endpoints passed", 'green'))
+    lg.plain(f"Quotes obtained: {quotes_after} (before: {quotes_before})")
+    lg.plain(f"Dividends obtained: {divs_after} (before: {divs_before})")
+    lg.plain(f"Splits obtained: {splits_after} (before: {splits_before})")
+    lg.success("Quotes/dividends/splits endpoints passed")
 
 def test_cap(source):
     """
@@ -110,8 +110,8 @@ def test_cap(source):
     if num_after <= num_before:
         failure(f"The number of capitalization entries did not increase after get_cap() call: {num_before} -> {num_after}", source)
 
-    print(colored(f"Capitalization entries obtained: {num_after} (before: {num_before})", "yellow"))
-    print(colored("Capitalization endpoint passed", 'green'))
+    lg.plain(f"Capitalization entries obtained: {num_after} (before: {num_before})")
+    lg.success("Capitalization endpoint passed")
 
 def test_income_statement(source):
     """
@@ -178,10 +178,10 @@ def test_income_statement(source):
     if quarter_num + annual_num > num_after:
         failure(f"Quarter({quarter_num}) + Annual({annual_num}) > total({num_after}) in {fmp.FMPDataEntries.IncomeStatement}", source)
 
-    print(colored(f"Income statement periods: quarter={quarter_num} annual={annual_num} total={num_after}", "yellow"))
+    lg.plain(f"Income statement periods: quarter={quarter_num} annual={annual_num} total={num_after}")
 
-    print(colored(f"Income statement entries obtained: {num_after} (before: {num_before})", "yellow"))
-    print(colored("Income statement endpoint passed", 'green'))
+    lg.plain(f"Income statement entries obtained: {num_after} (before: {num_before})")
+    lg.success("Income statement endpoint passed")
 
 def test_balance_sheet(source):
     """
@@ -202,8 +202,8 @@ def test_balance_sheet(source):
     if num_after <= num_before:
         failure(f"The number of balance sheet entries did not increase after get_balance_sheet() call: {num_before} -> {num_after}", source)
 
-    print(colored(f"Balance sheet entries obtained: {num_after} (before: {num_before})", "yellow"))
-    print(colored("Balance sheet endpoint passed", 'green'))
+    lg.plain(f"Balance sheet entries obtained: {num_after} (before: {num_before})")
+    lg.success("Balance sheet endpoint passed")
 
 def test_cash_flow(source):
     """
@@ -224,8 +224,8 @@ def test_cash_flow(source):
     if num_after <= num_before:
         failure(f"The number of cash flow entries did not increase after get_cash_flow() call: {num_before} -> {num_after}", source)
 
-    print(colored(f"Cash flow entries obtained: {num_after} (before: {num_before})", "yellow"))
-    print(colored("Cash flow statement endpoint passed", 'green'))
+    lg.plain(f"Cash flow entries obtained: {num_after} (before: {num_before})")
+    lg.success("Cash flow statement endpoint passed")
 
 def test_recent_data(source):
     """
@@ -245,11 +245,11 @@ def test_recent_data(source):
     if len(data) == 0:
         failure("No recent quote data obtained.", source)
 
-    print(colored(f"Recent quote obtained for {data[0]['date_time']}: {data[0]['closed']}", "yellow"))
-    print(colored("Recent quote endpoint passed", 'green'))
+    lg.plain(f"Recent quote obtained for {data[0]['date_time']}: {data[0]['closed']}")
+    lg.success("Recent quote endpoint passed")
 
 def test_get_delisted():
-    print(colored("\nTesting get() for a delisted symbol (WBA):\n", "yellow"))
+    lg.highlight("\nTesting get() for a delisted symbol (WBA):\n")
 
     now = datetime.now(tz.UTC)
     first_date = now - timedelta(days=60)
@@ -275,7 +275,7 @@ def test_get_delisted():
     if fmpi._get_min_request_ts() is not None or fmpi._get_max_request_ts() is not None:
         failure("No data_intervals should be marked for a delisted symbol", fmpi)
 
-    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+    lg.success("First invocation: raised FdataError, fetched nothing, no intervals marked")
 
     # Confirm the security is indeed marked as NotExist in sec_info. get_info()
     # raises FdataError when sec_type == NotExist.
@@ -290,7 +290,7 @@ def test_get_delisted():
     if not raised_info:
         failure("get_info() should raise FdataError for a symbol marked NotExist", fmpi)
 
-    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+    lg.success("get_info() confirmed the symbol is marked NotExist")
 
     # Second invocation: sec_info persisted as NotExist. get_info() raises before
     # fetch_info() runs (no API refetch).
@@ -305,12 +305,12 @@ def test_get_delisted():
     if not raised_second:
         failure("Second get() should also raise FdataError", fmpi)
 
-    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+    lg.success("Second invocation: raised FdataError from cached sec_info")
 
     fmpi.db_close()
 
 def test_get_empty_range_valid_symbol():
-    print(colored("\nTesting get() for a valid symbol with empty range:\n", "yellow"))
+    lg.highlight("\nTesting get() for a valid symbol with empty range:\n")
 
     fmpi = fmp.FMP(symbol='HOOD', first_date="2020-01-01", last_date="2020-02-16", verbosity=True, db_name=":memory:")
     fmpi.db_connect()
@@ -330,12 +330,12 @@ def test_get_empty_range_valid_symbol():
     if min_req is None or max_req is None:
         failure("Intervals should be recorded for an empty valid-symbol range", fmpi)
 
-    print(colored(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}", "green"))
+    lg.success(f"Intervals recorded: {get_dt(min_req)}..{get_dt(max_req)}")
 
     fmpi.db_close()
 
 def test_get_non_existing():
-    print(colored("\nTesting get() for a non-existing symbol (FFFF):\n", "yellow"))
+    lg.highlight("\nTesting get() for a non-existing symbol (FFFF):\n")
 
     now = datetime.now(tz.UTC)
     first_date = now - timedelta(days=60)
@@ -361,7 +361,7 @@ def test_get_non_existing():
     if fmpi._get_min_request_ts() is not None or fmpi._get_max_request_ts() is not None:
         failure("No data_intervals should be marked for a non-existing symbol", fmpi)
 
-    print(colored("First invocation: raised FdataError, fetched nothing, no intervals marked", "green"))
+    lg.success("First invocation: raised FdataError, fetched nothing, no intervals marked")
 
     # Confirm the security is indeed marked as NotExist in sec_info. get_info()
     # raises FdataError when sec_type == NotExist.
@@ -376,7 +376,7 @@ def test_get_non_existing():
     if not raised_info:
         failure("get_info() should raise FdataError for a symbol marked NotExist", fmpi)
 
-    print(colored("get_info() confirmed the symbol is marked NotExist", "green"))
+    lg.success("get_info() confirmed the symbol is marked NotExist")
 
     # Second invocation: sec_info persisted as NotExist. get_info() raises before
     # fetch_info() runs (no API refetch).
@@ -391,12 +391,12 @@ def test_get_non_existing():
     if not raised_second:
         failure("Second get() should also raise FdataError", fmpi)
 
-    print(colored("Second invocation: raised FdataError from cached sec_info", "green"))
+    lg.success("Second invocation: raised FdataError from cached sec_info")
 
     fmpi.db_close()
 
 if __name__ == "__main__":
-    print(colored("\nTesting FMP data source endpoints:\n", "yellow"))
+    lg.highlight("\nTesting FMP data source endpoints:\n")
 
     last_date = def_last_date
     first_date = get_dt(datetime.now(tz.UTC)) - timedelta(days=365*2)
@@ -405,7 +405,7 @@ if __name__ == "__main__":
     fmpi.db_connect()
 
     if fmpi._api_key is None:
-        print(colored("Warning! No FMP API key is configured. Set the FMP_API_KEY environment variable or configure the key in settings.py.", "yellow"))
+        lg.warning("No FMP API key is configured. Set the FMP_API_KEY environment variable or configure the key in settings.py.")
 
     test_info(fmpi)
 
@@ -428,4 +428,4 @@ if __name__ == "__main__":
     test_get_non_existing()
     test_get_empty_range_valid_symbol()
 
-    print(colored("ALL TESTS PASSED!", "green"))
+    lg.success("ALL TESTS PASSED!")

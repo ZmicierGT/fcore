@@ -9,7 +9,7 @@ from sqlite3 import Error
 
 import abc
 
-import warnings
+from data.futils import lg
 
 # Minimum SQLite version required for ON CONFLICT(...) DO UPDATE (UPSERT),
 # introduced in SQLite 3.24.0 (2018-06-04).
@@ -112,11 +112,9 @@ class SQLiteConn(DBConn):
             mode = None
 
         if mode != "wal" and self._db_name != ":memory:":
-            warnings.warn(
+            lg.warning(
                 f"WAL journal mode could not be set on '{self._db_name}' "
-                f"(got '{mode}'). Concurrent readers/writers may block each other.",
-                RuntimeWarning,
-                stacklevel=2,
+                f"(got '{mode}'). Concurrent readers/writers may block each other."
             )
 
         # Wait up to 30s for a locked DB instead of failing immediately. This

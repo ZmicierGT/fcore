@@ -82,7 +82,7 @@ class RegScr(BaseScr):
                                         verbosity=self._verbosity)
 
                 # Perform the initial learning
-                self.log(f"\nPerform initial model training for {symbol.get_title()}")
+                self._lg.highlight(f"\nPerform initial model training for {symbol.get_title()}")
                 symbol.reg.calculate()
 
                 symbol.reg.get_model().data.set_epochs(30)  # Set less epochs for appending learning

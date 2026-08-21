@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from data.fvalues import Quotes, trading_days_per_year, Weighted
-from data.futils import thread_available, logger, add_column, get_dt
+from data.futils import thread_available, Log, add_column, get_dt
 
 import abc
 from dataclasses import dataclass
@@ -1236,7 +1236,7 @@ class BackTestOperations():
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
                 log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
-                self.get_caller().log(log)
+                self.get_caller()._lg.highlight(log)
 
             self.cancel_limit_order()
 
@@ -1260,7 +1260,7 @@ class BackTestOperations():
                    f"with the price {round(self._limit_buy, 2)} "
                    f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
-            self.get_caller().log(log)
+            self.get_caller()._lg.highlight(log)
 
         return total_num
 
@@ -1314,7 +1314,7 @@ class BackTestOperations():
                 direction = 'BUY' if self._limit_buy else 'SELL'
 
                 log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
-                self.get_caller().log(log)
+                self.get_caller()._lg.highlight(log)
 
             self.cancel_limit_order()
 
@@ -1338,7 +1338,7 @@ class BackTestOperations():
                    f"with the price {round(self._limit_sell, 2)} "
                    f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
 
-            self.get_caller().log(log)
+            self.get_caller()._lg.highlight(log)
 
         return total_num
 
@@ -1382,7 +1382,7 @@ class BackTestOperations():
             log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
                    f"{limit} (including deviation) wasn't achieved or weighening did now allow to perform the trade. The last price is {price}.")
 
-            self.get_caller().log(log)
+            self.get_caller()._lg.highlight(log)
 
             self.cancel_limit_order()
 
@@ -1438,7 +1438,7 @@ class BackTestOperations():
                     last_close = self.data.rows[Quotes.Close][-1]
                     total_lost = last_close * self._long_positions
 
-                    self.get_caller().log(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
+                    self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
                                         f"total positions of {self.get_long_positions()} of total worth {total_lost} "
                                         f"({last_close} per security) were lost.")
 
@@ -1563,7 +1563,7 @@ class BackTestOperations():
                f"cash was {round(ex_cash, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)}")
 
-        self.get_caller().log(log)
+        self.get_caller()._lg.plain(log)
 
         self._last_total_value = self.get_total_value()
         self._portfolio_cash.extend(repeat(price, num))
@@ -1651,7 +1651,7 @@ class BackTestOperations():
                f"cash was {round(ex_cash, 2)} and currently "
                f"it is {round(self.get_caller().get_cash(), 2)}.")
 
-        self.get_caller().log(log)
+        self.get_caller()._lg.plain(log)
 
     def close_all_long(self):
         """
@@ -1989,6 +1989,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Indicate if we should print log entries to a console
         self._verbosity = verbosity
+        self._lg = Log(verbosity=verbosity)
 
         #############################
         # Now internal variables are listed which are used in a calculation. They are added to the results list
@@ -2452,7 +2453,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 num = current_len
                 target_idx = i
 
-        self.log(f"Using dataset {self.get_data()[target_idx].title} with the index {target_idx} as the main dataset.")
+        self._lg.plain(f"Using dataset {self.get_data()[target_idx].title} with the index {target_idx} as the main dataset.")
 
         return target_idx
 
@@ -2594,7 +2595,7 @@ class BackTest(metaclass=abc.ABCMeta):
             self._deposits += self._periodic_deposit
             self._deposit_counter = 0
 
-            self.log(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.get_cash(), 2)}.")
+            self._lg.highlight(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.get_cash(), 2)}.")
 
 
     def cash_interest(self):
@@ -3128,8 +3129,8 @@ class BackTest(metaclass=abc.ABCMeta):
         #tv = round(self._results.TotalValue[-1], 2)
         length = len(self.get_main_data().rows)
 
-        #self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
-        self.log(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt}")
+        #self._lg.plain(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
+        self._lg.plain(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt}")
 
     def calculate(self):
         """
@@ -3201,15 +3202,6 @@ class BackTest(metaclass=abc.ABCMeta):
         """
 
         return self.signal_buy() or self.signal_sell()
-
-    def log(self, message):
-        """
-            Display a logging message depending on verbotisy flag.
-
-            Args:
-                message(str): the message to display.
-        """
-        logger(self._verbosity, message)
 
     ##########################
     # Abstract methods

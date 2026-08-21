@@ -9,7 +9,7 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import plotly.graph_objects as go
 
-from termcolor import colored
+from data import lg
 
 from data.futils import update_layout
 from data.futils import show_image
@@ -35,7 +35,7 @@ def get_quotes(data_source_class, source_title):
         Returns:
             ndarray: fetched quote entries.
     """
-    print(colored(f"\nFetching data from the {source_title} data source:\n", "yellow"))
+    lg.highlight(f"\nFetching data from the {source_title} data source:\n")
 
     source = data_source_class(symbol=symbol, first_date="2020-2-1", last_date="2024-3-1", verbosity=True, db_name=":memory:")
     source.db_connect()
@@ -59,7 +59,7 @@ def display_chart(rows_yf, rows_fmp):
     len_fmp = len(rows_fmp)
 
     if len_yf != len_fmp:
-        print(colored(f"Warning: Number of rows for each data source does not match: {len_yf} vs {len_fmp}\n", "yellow"))
+        lg.warning(f"Number of rows for each data source does not match: {len_yf} vs {len_fmp}\n")
 
     length = max(len_yf, len_fmp)
 
@@ -97,4 +97,4 @@ if __name__ == "__main__":
     except FdataError as e:
         sys.exit(e)
 
-    print(colored("Data for charting obtained successfully. Check if both charts match.", "green"))
+    lg.success("Data for charting obtained successfully. Check if both charts match.")

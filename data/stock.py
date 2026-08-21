@@ -338,7 +338,7 @@ class StockData(SecData, StockFetcher):
             splits = get_labelled_ndarray(splits)
         else:
             splits = None
-            self._log(f"No split data for {self._symbol}")
+            self._lg.plain(f"No split data for {self._symbol}")
 
         return splits
 
@@ -365,7 +365,7 @@ class StockData(SecData, StockFetcher):
         self._check_if_connected()
 
         if not isinstance(columns, list):
-            self._log('Incorrect columns list provided. Overriding as list with stock-related data.')
+            self._lg.error('Incorrect columns list provided. Overriding as list with stock-related data.')
             columns = []
 
         stock_columns = list(columns)  # Make a copy of columns so the caller's data is not affected
@@ -408,7 +408,7 @@ class StockData(SecData, StockFetcher):
             ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
             if payment_date_num != ex_date_num or payment_date_num == ex_date_num - 1:
-                self._log("Warning: Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
+                self._lg.warning("Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column
                 divs[Dividends.PaymentDate] = np.nan
@@ -461,7 +461,7 @@ class StockData(SecData, StockFetcher):
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history
         else:
-            self._log(f"Warning: No dividend data for {self._symbol} in the requested period.")
+            self._lg.plain(f"No dividend data for {self._symbol} in the requested period.")
 
         # Adjust the price to stock splits
         if splits is not None:
@@ -483,7 +483,7 @@ class StockData(SecData, StockFetcher):
                     # No need to do anything - just requested quote data is shorter than available split data
                     pass
         else:
-            self._log(f"Warning: No split data for {self._symbol} in the requested period.")
+            self._lg.plain(f"No split data for {self._symbol} in the requested period.")
 
         last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
 
@@ -743,7 +743,7 @@ class StockData(SecData, StockFetcher):
                 sector = info['sector']
             except KeyError as e:
                 sector = Sector.Unknown
-                self._log(f"Sector data not found. Likely incomplete data is obtained (due to data source issues): {e}")
+                self._lg.warning(f"Sector data not found. Likely incomplete data is obtained (due to data source issues): {e}")
 
             insert_info = """INSERT INTO stock_info (symbol_id,
                                         source_id,
@@ -791,7 +791,7 @@ class StockData(SecData, StockFetcher):
                 self._get_dividends()
                 self._get_splits()
             elif not quotes_only:
-                self._log(f"Warning! Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
+                self._lg.warning(f"Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
 
             return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
@@ -863,7 +863,7 @@ class StockData(SecData, StockFetcher):
         """
         # Feature not configured for this data source. Skip gracefully.
         if data_entry is None:
-            self._log(f"Data entry is not configured. Skipping fetch for {self._symbol}.")
+            self._lg.warning(f"Data entry is not configured. Skipping fetch for {self._symbol}.")
             return 0
 
         self._check_if_connected()

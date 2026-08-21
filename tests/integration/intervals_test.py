@@ -11,7 +11,7 @@ from data.futils import get_dt
 from datetime import datetime, timedelta
 from dateutil import tz
 
-from termcolor import colored
+from data import lg
 
 import sys
 
@@ -25,7 +25,7 @@ def failure(text, source):
             text(sts): the error message to print.
             source(ReadOnlyData): data source instance
     """
-    print(colored(text, "red"))
+    lg.error(text)
     source.db_close()
     sys.exit()
 
@@ -53,7 +53,7 @@ def test_request_ts(source):
     if info['sector'] != 'Technology':
         failure(f"Unexpected sector: {info['sector']}", source)
 
-    print(colored("Info validation passed", 'green'))
+    lg.success("Info validation passed")
 
     #######################################################
 
@@ -92,7 +92,7 @@ def test_request_ts(source):
     if quotes_num >= after:
         failure("Number of quotes did not increase", source)
 
-    print(colored("Quotes, splits and divs num increased as expected", "green"))
+    lg.success("Quotes, splits and divs num increased as expected")
 
     print(f"\nSECTION2: Check initial request dates")
     print("______________________________________")
@@ -102,7 +102,7 @@ def test_request_ts(source):
     if min_req != 1580515200 or max_req != 1583020800:
         failure(f"Request timestamps are unexpected.", source)
 
-    print(colored("Request timestamps are as expected", "green"))
+    lg.success("Request timestamps are as expected")
 
     #######################################################
 
@@ -116,7 +116,7 @@ def test_request_ts(source):
     if date1 != '2020-02-28 23:59:59' or date2 != '2020-02-03 23:59:59':
         failure(f"Incorrect date ranges returned: {date1} {date2}", source)
 
-    print(colored("Date ranges are as expected.", "green"))
+    lg.success("Date ranges are as expected.")
 
     #######################################################
 
@@ -133,7 +133,7 @@ def test_request_ts(source):
     if new_min_req != 1514764800:
         failure(f"Error: {min_req} should not be less or equal than {new_min_req}", source)
 
-    print(colored(f"Timestamp decreased as expected:: {min_req} > {new_min_req}", "green"))
+    lg.success(f"Timestamp decreased as expected:: {min_req} > {new_min_req}")
 
     #######################################################
 
@@ -150,7 +150,7 @@ def test_request_ts(source):
     if new_max_req != 1672531200:
         failure(f"Error: {max_req} should not be bigger or equal than {new_max_req}", source)
 
-    print(colored(f"Timestamp increased as expected:: {max_req} > {new_max_req}", "green"))
+    lg.success(f"Timestamp increased as expected:: {max_req} > {new_max_req}")
 
     min_req = source._get_min_request_ts()
     max_req = source._get_max_request_ts()
@@ -171,7 +171,7 @@ def test_request_ts(source):
     if new_max_req != 1685577600 or new_min_req != 1483228800:
         failure(f"Error: {max_req} should not be bigger or equal than {new_max_req} and {min_req} should be not less or equal than {new_min_req}", source)
 
-    print(colored(f"Timestamps are as expected: {new_min_req} {new_max_req}", "green"))
+    lg.success(f"Timestamps are as expected: {new_min_req} {new_max_req}")
 
     #######################################################
 
@@ -193,7 +193,7 @@ def test_request_ts(source):
     if source._get_max_request_ts() > ts:
         failure(f"Max request ts is {source._get_max_request_ts()} but it should be less or equal to {ts}", source)
 
-    print(colored(f"Final min/max request dates: {get_dt(source._get_min_request_ts())} {get_dt(source._get_max_request_ts())}", "green"))
+    lg.success(f"Final min/max request dates: {get_dt(source._get_min_request_ts())} {get_dt(source._get_max_request_ts())}")
 
     #######################################################
 
@@ -242,7 +242,7 @@ def test_request_intervals(source, timespans):
         if old_num != 0 and quotes_num >= old_num:
             failure(f"Current quotes num should be less than the previous quotes num! {quotes_num} < {old_num}", source)
 
-        print(colored(f"The delta seconds {delta.seconds} is expected", "green"))
+        lg.success(f"The delta seconds {delta.seconds} is expected")
 
         old_num = quotes_num
         max_minutes = max(max_minutes, key)
@@ -274,7 +274,7 @@ def test_request_intervals(source, timespans):
     if old_num != 0 and ((can_equal and quotes_num > old_num) or (can_equal is False and quotes_num >= old_num)):
         failure(f"Current quotes num value is too big compared to the previous quotes num: {quotes_num} < {old_num}", source)
 
-    print(colored("The max request timestamp for EOD quotes is expected", "green"))
+    lg.success("The max request timestamp for EOD quotes is expected")
 
 def test_earnings_history_intervals(i):
     """
@@ -301,7 +301,7 @@ def test_earnings_history_intervals(i):
     if ts_before is not None:
         failure(f"eh_max_ts should be None before the first fetch, got {ts_before}", i)
 
-    print(colored("eh_max_ts is None as expected.", 'green'))
+    lg.success("eh_max_ts is None as expected.")
 
     #######################################################
 
@@ -320,11 +320,11 @@ def test_earnings_history_intervals(i):
     if ts_after is None:
         failure("eh_max_ts should be set after the first fetch", i)
 
-    print(colored(f"Fetched {fetched} entries. eh_max_ts recorded: {get_dt(ts_after)}", 'green'))
+    lg.success(f"Fetched {fetched} entries. eh_max_ts recorded: {get_dt(ts_after)}")
 
 
 if __name__ == "__main__":
-    print(colored("\nTesting YF data source intervals:\n", "yellow"))
+    lg.highlight("\nTesting YF data source intervals:\n")
 
     yfi = yf.YF(symbol='IBM', first_date="2020-2-1", last_date="2020-3-1", verbosity=True, db_name=":memory:")
     yfi.db_connect()
@@ -347,4 +347,4 @@ if __name__ == "__main__":
 
     yfi.db_close()
 
-    print(colored("ALL INTERVAL TESTS PASSED for YF data source!", "green"))
+    lg.success("ALL INTERVAL TESTS PASSED for YF data source!")

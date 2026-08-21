@@ -127,7 +127,7 @@ class StockOperations(BackTestOperations):
             self._future_yield = 0
 
         if current_yield:
-            self.get_caller().log(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {current_yield}")
+            self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {current_yield}")
 
         return current_yield
 
@@ -159,7 +159,7 @@ class StockOperations(BackTestOperations):
 
                 self._long_positions = int(round(self._long_positions * ratio))
 
-            self.get_caller().log(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
+            self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
                                   f"for {self.data.title}: {self.get_long_positions()} "
                                   f"Positions before split: {long_before}")
 
@@ -171,6 +171,7 @@ class StockOperations(BackTestOperations):
 
         current_yield = self.get_current_yield()
 
+        # TODO HIGH no need to perform yield deducting any more
         if current_yield != 0:
             if current_yield > 0:
                 txt = 'added'
@@ -189,7 +190,7 @@ class StockOperations(BackTestOperations):
                 self.get_caller().add_other_expense(current_yield)
 
             log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
-            self.get_caller().log(log)
+            self.get_caller()._lg.plain(log)
 
     def get_total_value(self):
         """

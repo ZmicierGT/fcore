@@ -186,7 +186,7 @@ class YF(stock.StockData):
             quotes_data.append(quote_dict)
 
         if len(quotes_data) == 0:
-            raise FdataError(f"No valid quotes obtained for {self._symbol}. The security may be delisted or the symbol is incorrect.")
+            raise FdataError(f"Can not parse quote data for {self._symbol}.")
 
         return quotes_data
 

@@ -173,7 +173,7 @@ class FMP(stock.StockData):
 
             Raises:
                 FdataError: incorrect API key(limit reached), http error happened,
-                    invalid timespan or no data obtained.
+                    invalid timespan or broken data obtained.
         """
         # Adjust dates for the exchange time zone for the request.
         first_datetime, last_datetime = self._get_request_datetimes(first_ts, last_ts)
@@ -192,9 +192,10 @@ class FMP(stock.StockData):
 
         json_results = self._query_and_parse(url)
 
-        if json_results is not None and (
-                len(json_results) == 0 or json_results == ['Error Message'] or 'Error Message' in json_results):
-            self._lg.warning(f"Unexpected data obtained. May be due the lack of API key or API key limit: {json_results}")
+        if json_results is None or json_results == ['Error Message'] or 'Error Message' in json_results:
+            raise FdataError(f"Unexpected data obtained. May be due the lack of API key or API key limit: {json_results}")
+
+        if len(json_results) == 0:
             return []
 
         quotes = []  # Processed quotes
@@ -230,7 +231,7 @@ class FMP(stock.StockData):
             quotes.append(quote_dict)
 
         if len(quotes) == 0:
-            raise FdataError(f"No valid quotes obtained for {self._symbol}. The security may be delisted or the symbol is incorrect.")
+            raise FdataError(f"Can not parse quote data for {self._symbol}.")
 
         return quotes
 

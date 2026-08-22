@@ -420,7 +420,6 @@ class SecData(SecFetcher):
                     # Fetch the requested range excluding the part already covered by recorded
                     # intervals. Two independent checks: a request can extend on
                     # one side, both sides, or touch the recorded boundary exactly.
-                    # TODO MID Note that full refetch will be triggered if no quotes in the existing interval. Is it needed?
                     if self.first_date_ts < min_request_ts:
                         intervals.append([self.first_date_ts, min_request_ts])
 

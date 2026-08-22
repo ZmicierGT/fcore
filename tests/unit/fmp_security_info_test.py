@@ -251,3 +251,33 @@ def test_unknown_currency_mapped_to_unknown(make_fmp):
     assert info['sec_type'] == SecType.Stock
     assert info['currency'] == Currency.Unknown
     inst.db_close()
+
+##############################
+# F. isEtf/isFund/isAdr sec-type mapping
+##############################
+
+def test_fund_mapped_to_etf(make_fmp):
+    inst, _ = make_fmp(routes={'profile': [dict(PROFILE, isEtf=False, isFund=True, isAdr=False)]})
+    inst.db_connect()
+
+    info = inst.get_info()
+    assert info['sec_type'] == SecType.ETF
+    assert 'sector' not in info
+    assert inst._get_data_num('stock_info') == 0
+    inst.db_close()
+
+def test_adr_mapped_to_stock(make_fmp):
+    inst, _ = make_fmp(routes={'profile': [dict(PROFILE, isEtf=False, isFund=False, isAdr=True)]})
+    inst.db_connect()
+
+    info = SecData.get_info(inst)
+    assert info['sec_type'] == SecType.Stock
+    inst.db_close()
+
+def test_all_security_flags_false_mapped_to_stock(make_fmp):
+    inst, _ = make_fmp(routes={'profile': [dict(PROFILE, isEtf=False, isFund=False, isAdr=False)]})
+    inst.db_connect()
+
+    info = SecData.get_info(inst)
+    assert info['sec_type'] == SecType.Stock
+    inst.db_close()

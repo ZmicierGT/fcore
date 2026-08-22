@@ -413,13 +413,14 @@ class FMP(stock.StockData):
             # Unknown exchange: use New York time zone as a fallback but log a warning
             self._lg.warning(f"Unknown exchange '{results.get('exchange')}' for {self._symbol}."
                       f" Falling back to 'America/New_York' time zone. URL: {profile_url}")
-            # TODO MID Think if we need to have an unknown exchange enum member which is treated as NY time zone
+            # TODO LOW Think if we need to have an unknown exchange enum member which is treated as NY time zone
             tz_str = Exchanges['NYSE']
 
         results['fc_time_zone'] = tz_str
 
         # Determine the security type. The stable profile exposes isEtf/isFund/isAdr flags.
-        if results.get('isEtf'):
+        if results.get('isEtf') or results.get('isFund'):
+            # TODO Low probably we should distinguish different types of funds
             results['fc_sec_type'] = SecType.ETF
         else:
             results['fc_sec_type'] = SecType.Stock

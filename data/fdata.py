@@ -245,6 +245,7 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
                 str: timespan string.
         """
 
+    # TODO MID Likely we need to add a modified_ts column to trigger re-fetches of non-existent securities
     def _fetch_info(self):
         """
             Fetch security info. Default for sources without a dedicated info API.

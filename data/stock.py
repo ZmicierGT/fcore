@@ -4,8 +4,10 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fdata import FdataError, SecData
-from data.fvalues import StrEnum, SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date, Sector
+import abc
+
+from data.fdata import FdataError, SecData, DataEntriesEnum
+from data.fvalues import SecType, ReportPeriod, StockQuotes, Dividends, StockSplits, def_last_date, Sector
 
 from data.futils import get_labelled_ndarray
 
@@ -18,13 +20,13 @@ import calendar
 report_quarter = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Quarter')"
 report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_periods where title = 'Year')"
 
-class StockDataEntries(StrEnum):
+class StockDataEntries(DataEntriesEnum):
     """
         Enum class for stock dataset entries with intervals tracking.
-        The value is the name of the corresponding database table.
     """
-    Dividends = 'cash_dividends'
-    Splits = 'stock_splits'
+    Dividends = ('cash_dividends', 1, 30)   # may be paid monthly
+    Splits = ('stock_splits', 1, None)      # critical for adjustments - check often
+    StockInfo = ('stock_info', 1, 180)      # changes very rarely
 
 class StockFetcher(object, metaclass=abc.ABCMeta):
     """
@@ -121,7 +123,7 @@ class StockData(SecData, StockFetcher):
         self._populate_lookup('report_periods', [r for r in ReportPeriod if r != ReportPeriod.All])
 
         # Create table for cash dividends if needed
-        create_cash_divs = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Dividends}(
+        create_cash_divs = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Dividends.title}(
                             cash_div_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             source_id INTEGER NOT NULL,
                             symbol_id INTEGER NOT NULL,
@@ -149,19 +151,19 @@ class StockData(SecData, StockFetcher):
         try:
             self._cur.execute(create_cash_divs)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Dividends}': {e}\n{create_cash_divs}") from e
+            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Dividends.title}': {e}\n{create_cash_divs}") from e
 
         # Create index for symbol_id
-        create_symbol_date_cash_divs_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Dividends}
-                                            ON {StockDataEntries.Dividends}(symbol_id, ex_date);"""
+        create_symbol_date_cash_divs_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Dividends.title}
+                                            ON {StockDataEntries.Dividends.title}(symbol_id, ex_date);"""
 
         try:
             self._cur.execute(create_symbol_date_cash_divs_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {StockDataEntries.Dividends}(symbol_id, symbol_id, ex_date): {e}") from e
+            raise FdataError(f"Can't create index {StockDataEntries.Dividends.title}(symbol_id, symbol_id, ex_date): {e}") from e
 
         # Create table for stock splits if needed
-        create_stock_splits = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Splits}(
+        create_stock_splits = f"""CREATE TABLE IF NOT EXISTS {StockDataEntries.Splits.title}(
                                 stock_split_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
@@ -181,16 +183,16 @@ class StockData(SecData, StockFetcher):
         try:
             self._cur.execute(create_stock_splits)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Splits}': {e}\n{create_stock_splits}") from e
+            raise FdataError(f"Can't execute a query on a table '{StockDataEntries.Splits.title}': {e}\n{create_stock_splits}") from e
 
         # Create index for symbol_id
-        create_symbol_date_stock_splits_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Splits}
-                                              ON {StockDataEntries.Splits}(symbol_id, split_date);"""
+        create_symbol_date_stock_splits_idx = f"""CREATE INDEX IF NOT EXISTS idx_{StockDataEntries.Splits.title}
+                                              ON {StockDataEntries.Splits.title}(symbol_id, split_date);"""
 
         try:
             self._cur.execute(create_symbol_date_stock_splits_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {StockDataEntries.Splits}(symbol_id, symbol_id, split_date): {e}") from e
+            raise FdataError(f"Can't create index {StockDataEntries.Splits.title}(symbol_id, symbol_id, split_date): {e}") from e
 
         # Create table 'stock_sectors' if needed
         create_stock_sectors = """CREATE TABLE IF NOT EXISTS stock_sectors (
@@ -220,7 +222,6 @@ class StockData(SecData, StockFetcher):
                                             symbol_id INTEGER NOT NULL,
                                             source_id INTEGER NOT NULL,
                                             stock_sector_id INTEGER,
-                                            modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 CONSTRAINT fk_source
                                                     FOREIGN KEY (source_id)
                                                     REFERENCES sources(source_id)
@@ -249,21 +250,6 @@ class StockData(SecData, StockFetcher):
         except self._error as e:
             raise FdataError(f"Can't create indexes for stock_info table: {e}") from e
 
-        # Create trigger to last modified time on stock_info
-        create_cap_trigger = """CREATE TRIGGER IF NOT EXISTS update_stock_info
-                                            BEFORE UPDATE
-                                                ON stock_info
-                                    BEGIN
-                                        UPDATE stock_info
-                                        SET modified = strftime('%s', 'now')
-                                        WHERE stock_info_id = old.stock_info_id;
-                                    END;"""
-
-        try:
-            self._cur.execute(create_cap_trigger)
-        except self._error as e:
-            raise FdataError(f"Can't create trigger for stock_info: {e}") from e
-
         # Register the stock dataset entries for intervals tracking
         self._register_data_entries(StockDataEntries)
 
@@ -286,7 +272,7 @@ class StockData(SecData, StockFetcher):
                                 amount,
                                 (SELECT title FROM currency c WHERE cd.currency_id = c.currency_id) AS currency,
                                 (SELECT title FROM sources s2 WHERE cd.source_id = s2.source_id) AS source
-                            FROM {StockDataEntries.Dividends} cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
+                            FROM {StockDataEntries.Dividends.title} cd INNER JOIN symbols s ON cd.symbol_id = s.symbol_id
                             WHERE s.ticker = ?
                             AND ex_date >= ?
                             AND ex_date <= ?
@@ -321,7 +307,7 @@ class StockData(SecData, StockFetcher):
         get_splits = f"""SELECT	split_date,
 	                        split_ratio,
 	                        (SELECT title FROM sources s2 WHERE ss.source_id = s2.source_id) AS source
-                        FROM {StockDataEntries.Splits} ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
+                        FROM {StockDataEntries.Splits.title} ss INNER JOIN symbols s ON ss.symbol_id = s.symbol_id
                         WHERE s.ticker = ?
                             AND split_date >= ?
                             AND split_date <= ?
@@ -511,7 +497,7 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            return self._get_data_num(self._income_statement_entry)
+            return self._get_data_num(self._income_statement_entry.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -531,7 +517,7 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            return self._get_data_num(self._balance_sheet_entry)
+            return self._get_data_num(self._balance_sheet_entry.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -551,7 +537,7 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            return self._get_data_num(self._cash_flow_entry)
+            return self._get_data_num(self._cash_flow_entry.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -575,7 +561,7 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            return self._get_data_num(StockDataEntries.Dividends)
+            return self._get_data_num(StockDataEntries.Dividends.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -595,7 +581,7 @@ class StockData(SecData, StockFetcher):
             self.db_connect()
 
         try:
-            return self._get_data_num(StockDataEntries.Splits)
+            return self._get_data_num(StockDataEntries.Splits.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -621,7 +607,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_dividends_num()
 
-        insert_dividends = f"""INSERT INTO {StockDataEntries.Dividends} (symbol_id,
+        insert_dividends = f"""INSERT INTO {StockDataEntries.Dividends.title} (symbol_id,
                                     source_id,
                                     currency_id,
                                     declaration_date,
@@ -664,7 +650,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'dividends': {e}\n\nThe query is\n{insert_dividends}") from e
 
         self._commit()
-        self._update_data_interval(StockDataEntries.Dividends)
+        self._update_data_interval(StockDataEntries.Dividends.title)
 
         return(num_before, self.get_dividends_num())
 
@@ -689,7 +675,7 @@ class StockData(SecData, StockFetcher):
 
         num_before = self.get_split_num()
 
-        insert_splits = f"""INSERT INTO {StockDataEntries.Splits} (symbol_id,
+        insert_splits = f"""INSERT INTO {StockDataEntries.Splits.title} (symbol_id,
                                     source_id,
                                     split_date,
                                     split_ratio)
@@ -716,7 +702,7 @@ class StockData(SecData, StockFetcher):
             raise FdataError(f"Can't add a record to a table 'stock_splits': {e}\n\nThe query is\n{insert_splits}") from e
 
         self._commit()
-        self._update_data_interval(StockDataEntries.Splits)
+        self._update_data_interval(StockDataEntries.Splits.title)
 
         return(num_before, self.get_split_num())
 
@@ -760,6 +746,8 @@ class StockData(SecData, StockFetcher):
                 self._cur.execute(insert_info, (self._symbol, self._source_title, sector))
             except self._error as e:
                 raise FdataError(f"Can't add a record to a table 'stock_info': {e}\n\nThe query is\n{insert_info}") from e
+
+            self._update_data_interval(StockDataEntries.StockInfo.title)
 
             self._commit()
 
@@ -817,7 +805,7 @@ class StockData(SecData, StockFetcher):
                 if self.is_connected is False:
                     self.db_connect()
 
-                if self._get_data_num('stock_info') == 0:
+                if self._need_to_update(StockDataEntries.StockInfo):
                     self._add_info(self._fetch_info())
 
                 # Just sector title is used from info for now
@@ -849,7 +837,7 @@ class StockData(SecData, StockFetcher):
             Fetch all the available additional data if needed.
 
             Args:
-                data_entry(StrEnum or None): data entry to check the fetch marker.
+                data_entry(DataEntriesEnum or None): data entry to check the fetch marker.
                     None means the dataset is not configured for this data source
                     (e.g. fundamentals in a source that doesn't override the
                     corresponding _*_entry instance variable): the method logs

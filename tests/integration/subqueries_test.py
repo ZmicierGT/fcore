@@ -112,7 +112,7 @@ def test_cross_source_subqueries():
         # The public get() accepts subqueries. Fetch the quotes and obtain the
         # cap subquery data in a single call. The cap data is not fetched yet,
         # so all cap values must be None.
-        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization, 'cap', title='cap')])
+        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization.title, 'cap', title='cap')])
 
         if rows is None or len(rows) == 0:
             failure(f"No quotes returned by get() for AAPL: {rows}")
@@ -162,7 +162,7 @@ def test_cross_source_subqueries():
 
         # Get the quotes again with the cap subquery. The cap data is now
         # present so the subquery must return the expected values.
-        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization, 'cap', title='cap')])
+        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization.title, 'cap', title='cap')])
 
         if rows is None or len(rows) == 0:
             failure(f"No quotes returned by get() for AAPL: {rows}")
@@ -174,7 +174,7 @@ def test_cross_source_subqueries():
         print("\nSECTION 4: Checking the cap values obtained with the symbol argument")
         print("_____________________________________________________________________")
 
-        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization, 'cap', title='cap', symbol='AAPL')])
+        rows = yfi.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization.title, 'cap', title='cap', symbol='AAPL')])
 
         if rows is None or len(rows) == 0:
             failure(f"No quotes returned by get() with the symbol argument for AAPL: {rows}")

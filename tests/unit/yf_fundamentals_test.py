@@ -49,7 +49,7 @@ def test_earnings_history_values(make_yf):
     inst.db_connect()
 
     inst.get_earnings_history()
-    rows = inst.get(queries=[Subquery(YFDataEntries.EarningsHistory, f, title=f) for f in EH_FIELDS])
+    rows = inst.get(queries=[Subquery(YFDataEntries.EarningsHistory.title, f, title=f) for f in EH_FIELDS])
 
     # Count is checked via the data API too
     assert inst.get_earnings_history_num() == 1
@@ -70,9 +70,9 @@ def test_earnings_history_interval_set(make_yf):
     inst, _ = make_yf(FakeTicker(info=EQUITY_INFO, earnings_history_path=EARNINGS_HISTORY))
     inst.db_connect()
 
-    assert inst._get_interval_ts(YFDataEntries.EarningsHistory, is_max=True) is None
+    assert inst._get_interval_ts(YFDataEntries.EarningsHistory.title, is_max=True) is None
     inst.get_earnings_history()
-    assert inst._get_interval_ts(YFDataEntries.EarningsHistory, is_max=True) is not None
+    assert inst._get_interval_ts(YFDataEntries.EarningsHistory.title, is_max=True) is not None
     inst.db_close()
 
 #######################

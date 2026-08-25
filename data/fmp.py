@@ -14,19 +14,19 @@ import pandas as pd
 import settings
 
 from data import stock
-from data.fvalues import StrEnum, SecType, Timespans, Currency, ReportPeriod
-from data.fdata import FdataError
+from data.fvalues import SecType, Timespans, Currency, ReportPeriod
+
+from data.fdata import FdataError, DataEntriesEnum
 from data.futils import get_dt, get_labelled_ndarray
 
-class FMPDataEntries(StrEnum):
+class FMPDataEntries(DataEntriesEnum):
     """
         Enum class for FMP dataset entries with intervals tracking.
-        The value is the name of the corresponding database table.
     """
-    IncomeStatement = 'fmp_income_statement'
-    BalanceSheet = 'fmp_balance_sheet'
-    CashFlow = 'fmp_cash_flow'
-    Capitalization = 'fmp_capitalization'
+    IncomeStatement = ('fmp_income_statement', 1, 80)  # quarterly reports may arrive a bit earlier than 91 days
+    BalanceSheet = ('fmp_balance_sheet', 1, 80)
+    CashFlow = ('fmp_cash_flow', 1, 80)
+    Capitalization = ('fmp_capitalization', 1, 80)     # depends on outstanding shares from fundamentals
 
 
 # Time zones of some popular exchanges for FMP data source
@@ -538,10 +538,10 @@ class FMP(stock.StockData):
 
         if not reports:
             self._lg.warning(f"No income statement data to add for {self._symbol}. Updating data interval only.")
-            self._update_data_interval(self._income_statement_entry)
+            self._update_data_interval(self._income_statement_entry.title)
             return (num_before, num_before)
 
-        insert_report = f"""INSERT INTO {self._income_statement_entry} (symbol_id,
+        insert_report = f"""INSERT INTO {self._income_statement_entry.title} (symbol_id,
                                     source_id,
                                     reported_period,
                                     time_stamp,
@@ -678,10 +678,10 @@ class FMP(stock.StockData):
         try:
             self._cur.executemany(insert_report, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table '{self._income_statement_entry}': {e}\n\nThe query is\n{insert_report}") from e
+            raise FdataError(f"Can't add a record to a table '{self._income_statement_entry.title}': {e}\n\nThe query is\n{insert_report}") from e
 
         self._commit()
-        self._update_data_interval(self._income_statement_entry)
+        self._update_data_interval(self._income_statement_entry.title)
 
         return (num_before, self.get_income_statement_num())
 
@@ -708,10 +708,10 @@ class FMP(stock.StockData):
 
         if not reports:
             self._lg.warning(f"No balance sheet data to add for {self._symbol}. Updating data interval only.")
-            self._update_data_interval(self._balance_sheet_entry)
+            self._update_data_interval(self._balance_sheet_entry.title)
             return (num_before, num_before)
 
-        insert_report = f"""INSERT INTO {self._balance_sheet_entry} (symbol_id,
+        insert_report = f"""INSERT INTO {self._balance_sheet_entry.title} (symbol_id,
                                     source_id,
                                     reported_period,
                                     time_stamp,
@@ -912,10 +912,10 @@ class FMP(stock.StockData):
         try:
             self._cur.executemany(insert_report, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table '{self._balance_sheet_entry}': {e}\n\nThe query is\n{insert_report}") from e
+            raise FdataError(f"Can't add a record to a table '{self._balance_sheet_entry.title}': {e}\n\nThe query is\n{insert_report}") from e
 
         self._commit()
-        self._update_data_interval(self._balance_sheet_entry)
+        self._update_data_interval(self._balance_sheet_entry.title)
 
         return (num_before, self.get_balance_sheet_num())
 
@@ -942,10 +942,10 @@ class FMP(stock.StockData):
 
         if not reports:
             self._lg.warning(f"No cash flow data to add for {self._symbol}. Updating data interval only.")
-            self._update_data_interval(self._cash_flow_entry)
+            self._update_data_interval(self._cash_flow_entry.title)
             return (num_before, num_before)
 
-        insert_report = f"""INSERT INTO {self._cash_flow_entry} (symbol_id,
+        insert_report = f"""INSERT INTO {self._cash_flow_entry.title} (symbol_id,
                                     source_id,
                                     reported_period,
                                     time_stamp,
@@ -1090,10 +1090,10 @@ class FMP(stock.StockData):
         try:
             self._cur.executemany(insert_report, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table '{self._cash_flow_entry}': {e}\n\nThe query is\n{insert_report}") from e
+            raise FdataError(f"Can't add a record to a table '{self._cash_flow_entry.title}': {e}\n\nThe query is\n{insert_report}") from e
 
         self._commit()
-        self._update_data_interval(self._cash_flow_entry)
+        self._update_data_interval(self._cash_flow_entry.title)
 
         return (num_before, self.get_cash_flow_num())
 
@@ -1116,7 +1116,7 @@ class FMP(stock.StockData):
             self.db_connect()
 
         try:
-            return self._get_data_num(self._cap_entry)
+            return self._get_data_num(self._cap_entry.title)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -1168,10 +1168,10 @@ class FMP(stock.StockData):
 
         if not results:
             self._lg.warning(f"No capitalization data to add for {self._symbol}. Updating data interval only.")
-            self._update_data_interval(self._cap_entry)
+            self._update_data_interval(self._cap_entry.title)
             return (num_before, num_before)
 
-        insert_cap = f"""INSERT INTO {self._cap_entry} (symbol_id,
+        insert_cap = f"""INSERT INTO {self._cap_entry.title} (symbol_id,
                                     source_id,
                                     time_stamp,
                                     cap)
@@ -1201,10 +1201,10 @@ class FMP(stock.StockData):
         try:
             self._cur.executemany(insert_cap, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table '{self._cap_entry}': {e}\n\nThe query is\n{insert_cap}") from e
+            raise FdataError(f"Can't add a record to a table '{self._cap_entry.title}': {e}\n\nThe query is\n{insert_cap}") from e
 
         self._commit()
-        self._update_data_interval(self._cap_entry)
+        self._update_data_interval(self._cap_entry.title)
 
         return (num_before, self.get_cap_num())
 
@@ -1246,13 +1246,12 @@ class FMP(stock.StockData):
         super()._check_database()
 
         # Create table 'fmp_capitalization' if needed.
-        create_capitalization = f"""CREATE TABLE IF NOT EXISTS {self._cap_entry}(
+        create_capitalization = f"""CREATE TABLE IF NOT EXISTS {self._cap_entry.title}(
                                 fmp_cap_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
                                 time_stamp INTEGER NOT NULL,
                                 cap INTEGER NOT NULL,
-                                modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                 UNIQUE(symbol_id, time_stamp)
                                 CONSTRAINT fk_symbols,
                                     FOREIGN KEY (symbol_id)
@@ -1267,32 +1266,17 @@ class FMP(stock.StockData):
         try:
             self._cur.execute(create_capitalization)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{self._cap_entry}': {e}\n{create_capitalization}") from e
+            raise FdataError(f"Can't execute a query on a table '{self._cap_entry.title}': {e}\n{create_capitalization}") from e
 
-        create_cap_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._cap_entry} ON {self._cap_entry}(symbol_id, time_stamp);"
+        create_cap_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._cap_entry.title} ON {self._cap_entry.title}(symbol_id, time_stamp);"
 
         try:
             self._cur.execute(create_cap_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {self._cap_entry}(symbol_id, time_stamp): {e}") from e
-
-        # Create trigger to track last modified time.
-        create_cap_trigger = f"""CREATE TRIGGER IF NOT EXISTS update_{self._cap_entry}
-                                            BEFORE UPDATE
-                                                ON {self._cap_entry}
-                                        BEGIN
-                                            UPDATE {self._cap_entry}
-                                            SET modified = strftime('%s', 'now')
-                                            WHERE fmp_cap_id = old.fmp_cap_id;
-                                        END;"""
-
-        try:
-            self._cur.execute(create_cap_trigger)
-        except self._error as e:
-            raise FdataError(f"Can't create trigger for '{self._cap_entry}': {e}") from e
+            raise FdataError(f"Can't create index {self._cap_entry.title}(symbol_id, time_stamp): {e}") from e
 
         # Create table 'fmp_income_statement' if needed.
-        create_is = f"""CREATE TABLE IF NOT EXISTS {self._income_statement_entry} (
+        create_is = f"""CREATE TABLE IF NOT EXISTS {self._income_statement_entry.title} (
                             fmp_is_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             source_id INTEGER NOT NULL,
                             symbol_id INTEGER NOT NULL,
@@ -1341,17 +1325,17 @@ class FMP(stock.StockData):
         try:
             self._cur.execute(create_is)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{self._income_statement_entry}': {e}\n{create_is}") from e
+            raise FdataError(f"Can't execute a query on a table '{self._income_statement_entry.title}': {e}\n{create_is}") from e
 
-        create_is_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._income_statement_entry} ON {self._income_statement_entry}(symbol_id, time_stamp);"
+        create_is_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._income_statement_entry.title} ON {self._income_statement_entry.title}(symbol_id, time_stamp);"
 
         try:
             self._cur.execute(create_is_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {self._income_statement_entry}(symbol_id, time_stamp): {e}") from e
+            raise FdataError(f"Can't create index {self._income_statement_entry.title}(symbol_id, time_stamp): {e}") from e
 
         # Create table 'fmp_balance_sheet' if needed.
-        create_bs = f"""CREATE TABLE IF NOT EXISTS {self._balance_sheet_entry} (
+        create_bs = f"""CREATE TABLE IF NOT EXISTS {self._balance_sheet_entry.title} (
                             fmp_bs_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             source_id INTEGER NOT NULL,
                             symbol_id INTEGER NOT NULL,
@@ -1416,17 +1400,17 @@ class FMP(stock.StockData):
         try:
             self._cur.execute(create_bs)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{self._balance_sheet_entry}': {e}\n{create_bs}") from e
+            raise FdataError(f"Can't execute a query on a table '{self._balance_sheet_entry.title}': {e}\n{create_bs}") from e
 
-        create_bs_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._balance_sheet_entry} ON {self._balance_sheet_entry}(symbol_id, time_stamp);"
+        create_bs_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._balance_sheet_entry.title} ON {self._balance_sheet_entry.title}(symbol_id, time_stamp);"
 
         try:
             self._cur.execute(create_bs_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {self._balance_sheet_entry}(symbol_id, time_stamp): {e}") from e
+            raise FdataError(f"Can't create index {self._balance_sheet_entry.title}(symbol_id, time_stamp): {e}") from e
 
         # Create table 'fmp_cash_flow' if needed.
-        create_cf = f"""CREATE TABLE IF NOT EXISTS {self._cash_flow_entry} (
+        create_cf = f"""CREATE TABLE IF NOT EXISTS {self._cash_flow_entry.title} (
                             fmp_cf_report_id INTEGER PRIMARY KEY AUTOINCREMENT,
                             source_id INTEGER NOT NULL,
                             symbol_id INTEGER NOT NULL,
@@ -1477,13 +1461,13 @@ class FMP(stock.StockData):
         try:
             self._cur.execute(create_cf)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{self._cash_flow_entry}': {e}\n{create_cf}") from e
+            raise FdataError(f"Can't execute a query on a table '{self._cash_flow_entry.title}': {e}\n{create_cf}") from e
 
-        create_cf_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._cash_flow_entry} ON {self._cash_flow_entry}(symbol_id, time_stamp);"
+        create_cf_idx = f"CREATE INDEX IF NOT EXISTS idx_{self._cash_flow_entry.title} ON {self._cash_flow_entry.title}(symbol_id, time_stamp);"
 
         try:
             self._cur.execute(create_cf_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {self._cash_flow_entry}(symbol_id, time_stamp): {e}") from e
+            raise FdataError(f"Can't create index {self._cash_flow_entry.title}(symbol_id, time_stamp): {e}") from e
 
         self._register_data_entries(FMPDataEntries)

@@ -6,6 +6,8 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import abc
 
+from enum import Enum
+
 from time import sleep, perf_counter
 
 import http.client
@@ -24,7 +26,41 @@ from dateutil import tz
 import calendar
 
 # Current database compatibility version
-_DB_VERSION = 31
+_DB_VERSION = 32
+
+class DataEntriesEnum(Enum):
+    """
+        Base class for data-entry enums with intervals/freshness tracking.
+
+        Value format: (title, fresh_days, cadence_days):
+            title(str): DB data entry title.
+            fresh_days(int): min days between fetches (poll throttle).
+            cadence_days(int or None): approx period between data events
+                (None = unknown, polling is throttled by fresh_days only).
+    """
+    def __init__(self, title, fresh_days, cadence_days):
+        self._title_ = title
+        self._fresh_days_ = fresh_days
+        self._cadence_days_ = cadence_days
+
+    @property
+    def title(self):
+        """DB data entry title."""
+        return self._title_
+
+    @property
+    def fresh_days(self):
+        """Min days between fetches (poll throttle)."""
+        return self._fresh_days_
+
+    @property
+    def cadence_days(self):
+        """Approx period (days) between data events. None = unknown."""
+        return self._cadence_days_
+
+class CommonDataEntries(DataEntriesEnum):
+    """Data entries registered by the base class (usable by all sources)."""
+    SecurityInfo = ('sec_info', 1, 180)  # changes very rarely
 
 class Subquery():
     """
@@ -245,7 +281,6 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
                 str: timespan string.
         """
 
-    # TODO MID Likely we need to add a modified_ts column to trigger re-fetches of non-existent securities
     def _fetch_info(self):
         """
             Fetch security info. Default for sources without a dedicated info API.
@@ -730,30 +765,29 @@ class SecData(SecFetcher):
             Register dataset entries in the data_entries lookup table and verify
             that each entry has a corresponding table.
 
-        Args:
-            entries_enum(StrEnum): enum whose members' values are the table names
-                to track.
+            Args:
+                entries_enum(DataEntriesEnum class): enum whose members' titles are the table names to track.
 
-        Raises:
-            FdataError: a table for an entry does not exist or sql error happened.
+            Raises:
+                FdataError: a table for an entry does not exist or sql error happened.
         """
         for entry in entries_enum:
             check_query = "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;"
 
             try:
-                self._cur.execute(check_query, (entry,))
+                self._cur.execute(check_query, (entry.title,))
                 row = self._cur.fetchone()
             except self._error as e:
-                raise FdataError(f"Can't check a table '{entry}': {e}\n{check_query}") from e
+                raise FdataError(f"Can't check a table '{entry.title}': {e}\n{check_query}") from e
 
             if row is None:
-                raise FdataError(f"{type(self).__name__} must create a table '{entry}' in "
+                raise FdataError(f"{type(self).__name__} must create a table '{entry.title}' in "
                                  f"_check_database() before registering {entries_enum.__name__}.{entry.name}")
 
         insert_query = "INSERT OR IGNORE INTO data_entries (title) VALUES (?);"
 
         try:
-            self._cur.executemany(insert_query, [(e,) for e in entries_enum])
+            self._cur.executemany(insert_query, [(e.title,) for e in entries_enum])
         except self._error as e:
             raise FdataError(f"Can't insert data to a table 'data_entries': {e}\n{insert_query}") from e
 
@@ -775,9 +809,8 @@ class SecData(SecFetcher):
                 3. No mid-method commits.
                 4. Tables that need intervals tracking must have a matching
                    member in the class's entries enum (see _register_data_entries)
-                   with entry value == table name, and be registered before this
-                   method returns. Not every table needs an entry (e.g. symbols,
-                   sec_info are not tracked).
+                   and be registered before this method returns. sec_info and
+                   stock_info are tracked as well (CommonDataEntries.SecurityInfo).
 
             Raises:
                 FdataError: sql error happened.
@@ -952,6 +985,7 @@ class SecData(SecFetcher):
                                         data_entry_id INTEGER NOT NULL,
                                         min_ts INTEGER,
                                         max_ts INTEGER,
+                                        modified_ts INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                             CONSTRAINT fk_data_entries
                                                 FOREIGN KEY (data_entry_id)
                                                 REFERENCES data_entries(data_entry_id)
@@ -979,6 +1013,21 @@ class SecData(SecFetcher):
             self._cur.execute(create_data_intervals_idx)
         except self._error as e:
             raise FdataError(f"Can't create indexes for data_intervals table: {e}") from e
+
+        # Create trigger to last modified time on data_intervals
+        create_intervals_trigger = """CREATE TRIGGER IF NOT EXISTS update_data_intervals
+                                            BEFORE UPDATE
+                                                ON data_intervals
+                                    BEGIN
+                                        UPDATE data_intervals
+                                        SET modified_ts = strftime('%s', 'now')
+                                        WHERE interval_id = old.interval_id;
+                                    END;"""
+
+        try:
+            self._cur.execute(create_intervals_trigger)
+        except self._error as e:
+            raise FdataError(f"Can't create trigger for data_intervals: {e}") from e
 
         # TODO Mid need to think of a better way how to combine data from various sources
         # Create table 'quotes' if needed
@@ -1031,7 +1080,6 @@ class SecData(SecFetcher):
                                             time_zone TEXT NOT NULL,
                                             sec_type_id INTEGER NOT NULL,
                                             currency_id INTEGER NOT NULL,
-                                            modified INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                                                 CONSTRAINT fk_source
                                                     FOREIGN KEY (source_id)
                                                     REFERENCES sources(source_id)
@@ -1064,20 +1112,8 @@ class SecData(SecFetcher):
         except self._error as e:
             raise FdataError(f"Can't create indexes for sec_info table: {e}") from e
 
-        # Create trigger to last modified time on sec_info
-        create_cap_trigger = """CREATE TRIGGER IF NOT EXISTS update_sec_info
-                                            BEFORE UPDATE
-                                                ON sec_info
-                                    BEGIN
-                                        UPDATE sec_info
-                                        SET modified = strftime('%s', 'now')
-                                        WHERE sec_info_id = old.sec_info_id;
-                                    END;"""
-
-        try:
-            self._cur.execute(create_cap_trigger)
-        except self._error as e:
-            raise FdataError(f"Can't create trigger for sec_info: {e}") from e
+        # Register base data entries (e.g. sec_info) for intervals tracking
+        self._register_data_entries(CommonDataEntries)
 
     def _check_source(self):
         """
@@ -1380,7 +1416,8 @@ class SecData(SecFetcher):
 
     def _get_ts(self, is_max=True, table='quotes', column='time_stamp'):
         """
-            Get Min/Max timestamp for a particular symbol, source, timespan from the specified table.
+            Get Min/Max timestamp for a particular symbol, source (and timespan when
+            the table has a time_span_id column) from the specified table.
 
             Note that this method is not really sql-injection proof so it should be used internally only -
             meaning not exposing it through web-interface or whatever.
@@ -1391,45 +1428,61 @@ class SecData(SecFetcher):
                 column(str): column to request.
 
             Returns:
-                int: timestamp of min/max timestamp.
+                int: timestamp of min/max timestamp (None if the column does not
+                     exist in the table or no rows are present).
 
             Raises:
                 FdataError: sql error happened.
         """
+        self._check_if_connected()
+
+        try:
+            self._cur.execute(f"PRAGMA table_info({table})")
+            columns = [row[1] for row in self._cur.fetchall()]
+        except self._error as e:
+            raise FdataError(f"Can't query table '{table}': {e}") from e
+
+        if column not in columns:
+            return None
+
         minmax = 'MIN'
 
         if is_max:
             minmax = 'MAX'
 
-        self._check_if_connected()
+        join_timespans = ''
+        timespan_clause = ''
+
+        if table == 'quotes':
+            join_timespans = f"INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id"
+            timespan_clause = f"AND timespans.title = '{self._timespan}'"
 
         timestamp_query = f"""SELECT {minmax}({column}) FROM {table}
                                     INNER JOIN symbols ON {table}.symbol_id = symbols.symbol_id
                                     INNER JOIN sources on {table}.source_id = sources.source_id
-                                    INNER JOIN timespans on {table}.time_span_id = timespans.time_span_id
+                                    {join_timespans}
                                     WHERE symbols.ticker = '{self._symbol}'
                                     AND sources.title = '{self._source_title}'
-                                    AND timespans.title = '{self._timespan}';"""
+                                    {timespan_clause};"""
 
         try:
             self._cur.execute(timestamp_query)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{table}': {e}\n{timestamp_query}") from e
+            raise FdataError(f"Can't query table '{table}': {e}\n\nThe query is\n{timestamp_query}") from e
 
         return self._cur.fetchone()[0]
 
     def _get_interval_ts(self, data_entry, is_max=True):
         """
             Get Min/Max timestamp for a particular symbol, source and data entry
-            (a Timespans value for quote intervals or a per-class data entries
-            enum member value for datasets)
+            (a Timespans value for quote intervals or a dataset table title)
             from the 'data_intervals' table.
 
             Note that this method is not really sql-injection proof so it should be used internally only -
             meaning not exposing it through web-interface or whatever.
 
             Args:
-                data_entry(StrEnum): data entry title.
+                data_entry(str): data entry title.
                 is_max(bool): indicates if Min or Max timestamp should be obtained.
 
             Returns:
@@ -1484,12 +1537,51 @@ class SecData(SecFetcher):
 
         return self._get_interval_ts(self._timespan, is_max=True)
 
+    def _get_modified_ts(self, entry=None):
+        """
+            Get the last modification timestamp of the data_intervals row for the
+            given entry - i.e. when the interval record itself was last written.
+
+            Args:
+                entry(str or None): the data entry/timespan title to check.
+                    None resolves to the current timespan.
+
+            Returns:
+                int: modification timestamp, None if no interval record exists
+                     (covers unregistered entries as well).
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self._check_if_connected()
+
+        interval_title = self._timespan if entry is None else entry
+
+        modified_query = """SELECT di.modified_ts FROM data_intervals di
+                                INNER JOIN data_entries ON di.data_entry_id = data_entries.data_entry_id
+                                INNER JOIN symbols ON di.symbol_id = symbols.symbol_id
+                                INNER JOIN sources ON di.source_id = sources.source_id
+                                WHERE data_entries.title = ?
+                                AND symbols.ticker = ?
+                                AND sources.title = ?;"""
+
+        try:
+            self._cur.execute(modified_query, (interval_title, self._symbol, self._source_title))
+            row = self._cur.fetchone()
+        except self._error as e:
+            raise FdataError(f"Can't query data_intervals for '{interval_title}': {e}\n{modified_query}") from e
+
+        if row is None:
+            return None
+
+        return row[0]
+
     def _need_to_update(self, data_entry=None):
         """
             Check if we need to update data based on the last fetch marker.
 
             Args:
-                data_entry(StrEnum or None): the data entry title to check if we need to update it. None for quotes.
+                data_entry(DataEntriesEnum or None): the data entry to check if we need to update it. None for quotes.
 
             Returns:
                 bool: indicates if update is needed.
@@ -1507,18 +1599,40 @@ class SecData(SecFetcher):
             max_ts = self._get_interval_ts(title, is_max=True)
 
             return (min_ts is None or max_ts is None or self.first_date_ts < min_ts or last_ts_adj > max_ts)
-        else:  # Entries path
-            max_ts = self._get_interval_ts(data_entry)
 
-            # TODO MID Keep a one day gap to prevent too often fundamental updates. Needs to be replaced for a better mechanism.
-            return max_ts is None or (last_ts_adj > max_ts and last_ts_adj - max_ts > 86400)
+        # Entries path
+        title = data_entry.title
+        max_ts = self._get_interval_ts(title)
 
-    def _get_max_ts(self):
+        if max_ts is None:
+            return True
+
+        if last_ts_adj <= max_ts:
+            return False
+
+        # If the approximate data cadence is known, skip fetching until the next
+        # data event is due (derived from the stored data itself if the table has
+        # a time_stamp column, otherwise from the fetch marker).
+        if data_entry.cadence_days is not None:
+            base_ts = self._get_max_ts(title) or max_ts
+
+            if last_ts_adj <= base_ts + data_entry.cadence_days * 86400:
+                return False
+
+        # Poll, but not more often than fresh_days
+        return last_ts_adj - max_ts > data_entry.fresh_days * 86400
+
+    def _get_max_ts(self, table='quotes'):
         """
-            Get maximum timestamp for a particular symbol, source, timespan.
+            Get maximum timestamp for a particular symbol, source (timespan) from
+            the specified table.
+
+            Args:
+                table(str): table to request.
 
             Returns:
-                int: timestamp of a maximum timestamp.
+                int: timestamp of a maximum timestamp (None if the table has no
+                     time_stamp column or no rows are present).
         """
         initially_connected = self.is_connected
 
@@ -1526,7 +1640,7 @@ class SecData(SecFetcher):
             self.db_connect()
 
         try:
-            return self._get_ts(is_max=True)
+            return self._get_ts(is_max=True, table=table)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -1560,9 +1674,10 @@ class SecData(SecFetcher):
             if self.is_connected is False:
                 self.db_connect()
 
-            # Fetch data if no data present - or re-fetch if refetch flag is set
-            if self._refetch or self._get_data_num('sec_info') == 0:
+            # Fetch data if the interval marker is missing/stale
+            if self._need_to_update(CommonDataEntries.SecurityInfo):
                 self._add_info(self._fetch_info())
+                self._update_data_interval(CommonDataEntries.SecurityInfo.title)
 
             # Just time zone is used from info for now
             info_query = """SELECT time_zone, s.title as sec_type, c.title as curr FROM sec_info si
@@ -1873,7 +1988,6 @@ class SecData(SecFetcher):
 
     # TODO HIGH Think how to handle if data source limits data because of lower-grade subscription plan
     # Potential options:
-    # - Add modified_ts to data_intervals so if it passes ttl - the interval will be updated.
     # - Add methods drop_symbol_intervals() and drop_datasource_intervals() - they'll delete the intervals so refetch
     #   will happen on the next invocation.
     def _update_data_interval(self, data_entry=None):
@@ -1886,7 +2000,7 @@ class SecData(SecFetcher):
             For data_entry set (fetch marker): min_ts stays NULL, max_ts is uncapped (timespan-adjusted).
 
             Args:
-                data_entry(StrEnum or None): the data entry title to update, or None to
+                data_entry(str or None): the data entry to update, or None to
                     update the quote interval for self._timespan.
 
             Raises:
@@ -1905,22 +2019,9 @@ class SecData(SecFetcher):
             min_ts_val = None
             max_ts_val = now
 
-        # Resolve the entry id first so a misconfigured/unregistered entry raises
-        # a clear error instead of an opaque sqlite NOT NULL violation on insert.
-        try:
-            self._cur.execute("SELECT data_entry_id FROM data_entries WHERE title = ?", (title,))
-            row = self._cur.fetchone()
-        except self._error as e:
-            raise FdataError(f"Can't resolve a data entry '{title}': {e}") from e
-
-        if row is None:
-            raise FdataError(f"Data entry '{title}' is not registered in the data_entries table. "
-                             f"Call _register_data_entries() in _check_database() to register it.")
-        entry_id = row[0]
-
         update_fetched = """INSERT INTO data_intervals (symbol_id, data_entry_id, source_id, min_ts, max_ts)
                               VALUES ((SELECT symbol_id FROM symbols WHERE ticker = ?),
-                                      ?,
+                                      (SELECT data_entry_id FROM data_entries WHERE title = ?),
                                       (SELECT source_id FROM sources WHERE title = ?),
                                       ?,  -- min_ts_val
                                       ?)  -- max_ts_val
@@ -1936,13 +2037,14 @@ class SecData(SecFetcher):
         try:
             self._cur.execute(update_fetched,
                               (self._symbol,
-                               entry_id,
+                               title,
                                self._source_title,
                                min_ts_val,
                                max_ts_val))
             self._commit()
         except self._error as e:
-            raise FdataError(f"Can't update data_intervals: {e}\n{update_fetched}") from e
+            raise FdataError(f"Can't update data_intervals for '{title}' "
+                             f"(is the entry registered?): {e}\n{update_fetched}") from e
 
     def _add_info(self, info):
         """

@@ -60,8 +60,8 @@ def assert_period_columns(inst, quotes, entry, field):
     expected_q = as_of_values(load_fmp_json(f'{base}_quarterly.json'), ts_all, field=field)
     expected_a = as_of_values(load_fmp_json(f'{base}_annual.json'), ts_all, field=field)
 
-    quarter_subquery = Subquery(entry, field, condition=report_quarter, title=f'{field}_quarter')
-    annual_subquery = Subquery(entry, field, condition=report_year, title=f'{field}_annual')
+    quarter_subquery = Subquery(entry.title, field, condition=report_quarter, title=f'{field}_quarter')
+    annual_subquery = Subquery(entry.title, field, condition=report_year, title=f'{field}_annual')
 
     rows = inst.get(queries=[quarter_subquery, annual_subquery])
 
@@ -98,7 +98,7 @@ def test_income_statement_fetched_both_periods(make_fmp):
     assert fake.count('period=year') == 1
     assert fake.count('period=quarter') == 1
     assert inst.get_income_statement_num() == STATEMENT_TOTALS[fmp.FMPDataEntries.IncomeStatement]
-    assert inst._get_interval_ts(fmp.FMPDataEntries.IncomeStatement, is_max=True) is not None
+    assert inst._get_interval_ts(fmp.FMPDataEntries.IncomeStatement.title, is_max=True) is not None
     inst.db_close()
 
 def test_income_statement_cached(make_fmp):
@@ -152,7 +152,7 @@ def test_empty_income_statement(make_fmp):
     assert inst.get_income_statement() == 0
     assert fake.count('income-statement') == 2
     assert inst.get_income_statement_num() == 0
-    assert inst._get_interval_ts(fmp.FMPDataEntries.IncomeStatement, is_max=True) is not None
+    assert inst._get_interval_ts(fmp.FMPDataEntries.IncomeStatement.title, is_max=True) is not None
     inst.db_close()
 
 ##############################
@@ -189,7 +189,7 @@ def test_cap_values(make_fmp):
 
     quotes = inst.get()
     ts_all = [q[StockQuotes.TimeStamp] for q in quotes]
-    rows = inst.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization, 'cap')])
+    rows = inst.get(queries=[Subquery(fmp.FMPDataEntries.Capitalization.title, 'cap')])
 
     # Cap values are joined to the quotes as-of (latest cap <= quote ts)
     expected = as_of_values(CAP_FIXTURE, ts_all, field='marketCap', ts_fn=lambda r: eod_ts(r['date']))

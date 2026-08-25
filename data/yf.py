@@ -14,16 +14,15 @@ import numpy as np
 import yfinance as yfin
 
 from data import stock
-from data.fvalues import StrEnum, Timespans, SecType, Currency
-from data.fdata import FdataError
+from data.fvalues import Timespans, SecType
+from data.fdata import FdataError, DataEntriesEnum
 from data.futils import get_labelled_ndarray, get_dt
 
-class YFDataEntries(StrEnum):
+class YFDataEntries(DataEntriesEnum):
     """
         Enum class for YF dataset entries with intervals tracking.
-        The value is the name of the corresponding database table.
     """
-    EarningsHistory = 'yf_earnings_history'
+    EarningsHistory = ('yf_earnings_history', 1, 80)  # quarterly earnings
 
 import urllib.error
 import http.client
@@ -382,7 +381,7 @@ class YF(stock.StockData):
         super()._check_database()
 
         # Create table 'yf_earnings_history' if needed
-        create_earnings_history = f"""CREATE TABLE IF NOT EXISTS {YFDataEntries.EarningsHistory}(
+        create_earnings_history = f"""CREATE TABLE IF NOT EXISTS {YFDataEntries.EarningsHistory.title}(
                                 yf_eh_id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 source_id INTEGER NOT NULL,
                                 symbol_id INTEGER NOT NULL,
@@ -405,16 +404,16 @@ class YF(stock.StockData):
         try:
             self._cur.execute(create_earnings_history)
         except self._error as e:
-            raise FdataError(f"Can't execute a query on a table '{YFDataEntries.EarningsHistory}': {e}\n{create_earnings_history}") from e
+            raise FdataError(f"Can't execute a query on a table '{YFDataEntries.EarningsHistory.title}': {e}\n{create_earnings_history}") from e
 
         # Create index for symbol_id
-        create_eh_idx = f"""CREATE INDEX IF NOT EXISTS idx_{YFDataEntries.EarningsHistory}
-                        ON {YFDataEntries.EarningsHistory}(symbol_id, time_stamp);"""
+        create_eh_idx = f"""CREATE INDEX IF NOT EXISTS idx_{YFDataEntries.EarningsHistory.title}
+                        ON {YFDataEntries.EarningsHistory.title}(symbol_id, time_stamp);"""
 
         try:
             self._cur.execute(create_eh_idx)
         except self._error as e:
-            raise FdataError(f"Can't create index {YFDataEntries.EarningsHistory}(symbol_id, time_stamp): {e}") from e
+            raise FdataError(f"Can't create index {YFDataEntries.EarningsHistory.title}(symbol_id, time_stamp): {e}") from e
 
         self._register_data_entries(YFDataEntries)
 
@@ -490,7 +489,7 @@ class YF(stock.StockData):
 
         num_before = self.get_earnings_history_num()
 
-        insert_eh = f"""INSERT INTO {YFDataEntries.EarningsHistory} (symbol_id,
+        insert_eh = f"""INSERT INTO {YFDataEntries.EarningsHistory.title} (symbol_id,
                                     source_id,
                                     time_stamp,
                                     epsActual,
@@ -526,10 +525,10 @@ class YF(stock.StockData):
         try:
             self._cur.executemany(insert_eh, rows)
         except self._error as e:
-            raise FdataError(f"Can't add a record to a table '{YFDataEntries.EarningsHistory}': {e}\n\nThe query is\n{insert_eh}") from e
+            raise FdataError(f"Can't add a record to a table '{YFDataEntries.EarningsHistory.title}': {e}\n\nThe query is\n{insert_eh}") from e
 
         self._commit()
-        self._update_data_interval(YFDataEntries.EarningsHistory)
+        self._update_data_interval(YFDataEntries.EarningsHistory.title)
 
         return (num_before, self.get_earnings_history_num())
 
@@ -548,7 +547,7 @@ class YF(stock.StockData):
             self.db_connect()
 
         try:
-            return self._get_data_num(YFDataEntries.EarningsHistory, source=True)
+            return self._get_data_num(YFDataEntries.EarningsHistory.title, source=True)
         finally:
             if initially_connected is False:
                 self.db_close()

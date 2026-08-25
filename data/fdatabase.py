@@ -132,9 +132,9 @@ class SQLiteConn(DBConn):
             raise FdatabaseError(f"Can't enable foreign keys: {e}") from e
 
         # Disable recursive triggers so self-referencing BEFORE UPDATE
-        # triggers (e.g. auto-bumping `modified` columns on sec_info /
-        # stock_info) do not recurse infinitely. This is the SQLite default,
-        # but set it explicitly to make the assumption future-proof.
+        # triggers (e.g. auto-bumping `modified_ts` on data_intervals) do not
+        # recurse infinitely. This is the SQLite default, but set it explicitly
+        # to make the assumption future-proof.
         try:
             self._cur.execute("PRAGMA recursive_triggers=OFF;")
         except self._error as e:

@@ -90,3 +90,33 @@ def test_remove_symbol_cascades_all_sources(both_sources):
 
     assert yf_inst.get_quotes_num(dt=False) == 0
     assert fmp_inst.get_quotes_num(dt=False) == 0
+
+
+def test_drop_symbol_intervals_source_isolated(both_sources):
+    yf_inst, fmp_inst = both_sources
+    yf_inst.db_connect()
+    fmp_inst.db_connect()
+
+    assert fmp_inst._need_to_update() is False
+    assert yf_inst._need_to_update() is False
+
+    assert fmp_inst.drop_symbol_intervals() > 0
+    assert fmp_inst._need_to_update() is True
+    assert yf_inst._need_to_update() is False
+    assert yf_inst.get_quotes_num(dt=False) > 0
+
+    fmp_inst.db_close()
+    yf_inst.db_close()
+
+
+def test_drop_datasource_intervals_source_isolated(both_sources):
+    yf_inst, fmp_inst = both_sources
+    yf_inst.db_connect()
+    fmp_inst.db_connect()
+
+    assert fmp_inst.drop_datasource_intervals() > 0
+    assert fmp_inst._need_to_update() is True
+    assert yf_inst._need_to_update() is False
+
+    fmp_inst.db_close()
+    yf_inst.db_close()

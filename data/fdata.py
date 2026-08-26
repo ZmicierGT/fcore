@@ -1986,10 +1986,87 @@ class SecData(SecFetcher):
         # marking a range as fetched when a temporary failure prevented fetching it.
         return (num_before, num_after)
 
-    # TODO HIGH Think how to handle if data source limits data because of lower-grade subscription plan
-    # Potential options:
-    # - Add methods drop_symbol_intervals() and drop_datasource_intervals() - they'll delete the intervals so refetch
-    #   will happen on the next invocation.
+    def _reset_cached_info(self):
+        """Reset cached security info so the next fetch is not served from memory."""
+        self._info = None
+        self._time_zone = None
+        self._sec_type = None
+        self._currency = None
+
+    def drop_symbol_intervals(self):
+        """
+            Drop intervals for the current symbol and the current data source only.
+
+            Intervals are markers preventing re-fetches of already covered date ranges.
+            Dropping them makes the next fetch pull the data again (useful for manual
+            data refreshes besides the refetch argument).
+
+            Returns:
+                int: the number of dropped interval rows.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        initially_connected = self.is_connected
+
+        if self.is_connected is False:
+            self.db_connect()
+
+        delete_intervals = """DELETE FROM data_intervals
+                                WHERE symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
+                                AND source_id = (SELECT source_id FROM sources WHERE title = ?);"""
+
+        try:
+            self._cur.execute(delete_intervals, (self._symbol, self._source_title))
+            deleted = self._cur.rowcount
+            self._commit()
+        except self._error as e:
+            raise FdataError(f"Can't drop intervals for '{self._symbol}': {e}\n{delete_intervals}") from e
+        finally:
+            if initially_connected is False:
+                self.db_close()
+
+        self._reset_cached_info()
+
+        return deleted
+
+    def drop_datasource_intervals(self):
+        """
+            Drop intervals for the current data source across all symbols.
+
+            Intervals are markers preventing re-fetches of already covered date ranges.
+            Dropping them makes the next fetch pull the data again (useful for manual
+            data refreshes besides the refetch argument).
+
+            Returns:
+                int: the number of dropped interval rows.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        initially_connected = self.is_connected
+
+        if self.is_connected is False:
+            self.db_connect()
+
+        delete_intervals = """DELETE FROM data_intervals
+                                WHERE source_id = (SELECT source_id FROM sources WHERE title = ?);"""
+
+        try:
+            self._cur.execute(delete_intervals, (self._source_title,))
+            deleted = self._cur.rowcount
+            self._commit()
+        except self._error as e:
+            raise FdataError(f"Can't drop intervals for the '{self._source_title}' source: "
+                             f"{e}\n{delete_intervals}") from e
+        finally:
+            if initially_connected is False:
+                self.db_close()
+
+        self._reset_cached_info()
+
+        return deleted
+
     def _update_data_interval(self, data_entry=None):
         """
             Update the data_intervals row for a quote timespan (when data_entry is None)

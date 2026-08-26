@@ -4,6 +4,7 @@
 - _get_modified_ts() reading of markers (quotes TTL)
 - interval-based gating of info/fundamentals fetches
 - adaptive cadence logic (fresh_days/cadence_days of the data entries)
+- drop_symbol_intervals()/drop_datasource_intervals() (manual refetch bypass)
 
 Deterministic marker ages are achieved by patching _current_ts when writing markers
 via _update_data_interval(). Dates derived from the fixture data are computed rather
@@ -67,11 +68,7 @@ def set_marker(inst, entry, when_ts):
     An existing marker is deleted first - the UPSERT keeps the max of the old/new
     max_ts, so overwriting with an older timestamp is not possible otherwise.
     """
-    inst._cur.execute("""DELETE FROM data_intervals
-                         WHERE data_entry_id = (SELECT data_entry_id FROM data_entries WHERE title = ?)
-                         AND symbol_id = (SELECT symbol_id FROM symbols WHERE ticker = ?)
-                         AND source_id = (SELECT source_id FROM sources WHERE title = ?);""",
-                      (entry.title, inst._symbol, inst._source_title))
+    inst.drop_symbol_intervals()
 
     real = inst._current_ts
     inst._current_ts = lambda adjusted=True: when_ts
@@ -324,4 +321,94 @@ def test_income_statement_not_refetched_within_gap(make_fmp):
     inst.get_income_statement()
     assert fake.count('income-statement') == calls_after_first
     assert_recent(inst._get_modified_ts(IS.title))
+    inst.db_close()
+
+#############################
+# H. Dropping intervals
+#############################
+
+def test_drop_symbol_intervals_returns_count(make_fmp):
+    inst = make_inst(make_fmp)
+    before = inst._get_data_num('data_intervals')
+    assert before > 0
+
+    assert inst.drop_symbol_intervals() == before
+    assert inst._get_data_num('data_intervals') == 0
+    assert inst._need_to_update(CommonDataEntries.SecurityInfo) is True
+    inst.db_close()
+
+def test_drop_symbol_intervals_empty_returns_zero(make_fmp):
+    inst, _ = make_fmp(first_date=FIRST_DATE, last_date=LAST_DATE)
+    inst.db_connect()
+    assert inst.drop_symbol_intervals() == 0
+    inst.db_close()
+
+def test_drop_symbol_intervals_triggers_info_refetch(make_fmp):
+    inst, fake = make_fmp()
+    inst.db_connect()
+    inst.get_info()
+    assert fake.count('profile') == 1
+
+    assert inst.drop_symbol_intervals() > 0
+    assert inst._need_to_update(CommonDataEntries.SecurityInfo) is True
+
+    inst.get_info()
+    assert fake.count('profile') == 2
+    inst.db_close()
+
+def test_drop_symbol_intervals_quotes_need_update(make_fmp):
+    inst = make_inst(make_fmp, first_date=Q_FIRST, last_date=Q_LAST)
+    inst.get()
+    assert inst._need_to_update() is False
+    quotes_before = inst.get_quotes_num(dt=False)
+
+    assert inst.drop_symbol_intervals() > 0
+    assert inst._need_to_update() is True
+    assert inst.get_quotes_num(dt=False) == quotes_before
+    inst.db_close()
+
+def test_drop_symbol_intervals_resets_stock_info_cache(make_fmp):
+    """drop_* resets the in-memory _stock_info cache: sector is re-read from the DB
+    (and stays present in the returned info) after the markers are dropped."""
+    inst, _ = make_fmp()
+    inst.db_connect()
+    sector_before = inst.get_info()['sector']
+    assert inst._stock_info is not None
+
+    assert inst.drop_symbol_intervals() > 0
+    assert inst._stock_info is None
+
+    assert inst.get_info()['sector'] == sector_before
+    inst.db_close()
+
+def test_drop_datasource_intervals_count_and_refetch(make_fmp, tmp_db):
+    """The drop spans all symbols of the source (not just the instance's symbol)."""
+    inst, fake = make_fmp(db_name=tmp_db)
+    inst.db_connect()
+    inst.get_info()
+    assert fake.count('profile') == 1
+
+    # Second symbol, same DB and source: make_fmp re-patches _query_api, so the
+    # inst's subsequent fetches go through this fake as well.
+    other, other_fake = make_fmp(symbol='GGGG', db_name=tmp_db)
+    other.db_connect()
+    other.get_info()
+    assert other_fake.count('profile') == 1
+
+    mine = inst._get_data_num('data_intervals')
+    total = inst._get_data_num('data_intervals', symbol=False)
+    assert mine > 0
+    assert total > mine  # the second symbol contributed its markers
+
+    # == total would fail if the DELETE wrongly filtered by symbol_id
+    assert inst.drop_datasource_intervals() == total
+
+    assert inst._get_modified_ts(CommonDataEntries.SecurityInfo.title) is None
+    assert inst._need_to_update(CommonDataEntries.SecurityInfo) is True
+    assert other._need_to_update(CommonDataEntries.SecurityInfo) is True
+
+    inst.get_info()
+    assert other_fake.count('profile') == 2
+
+    other.db_close()
     inst.db_close()

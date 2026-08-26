@@ -786,6 +786,11 @@ class StockData(SecData, StockFetcher):
             if initially_connected is False:
                 self.db_close()
 
+    def _reset_cached_info(self):
+        """Reset cached security/stock info so the next fetch is not served from memory."""
+        super()._reset_cached_info()
+        self._stock_info = None
+
     def get_info(self):
         """
             Fetch (if needed) and return stock info data.

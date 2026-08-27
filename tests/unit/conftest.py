@@ -6,6 +6,7 @@ Distributed under Fcore License 1.1 (see license.md)
 """
 import calendar
 import json
+import uuid
 from datetime import datetime
 
 from pathlib import Path
@@ -96,6 +97,21 @@ class FakeTicker:
     def earnings_history(self):
         self.eh_calls += 1
         return load_earnings_history(self._earnings_history_path)
+
+# Shared-cache in-memory DB for tests that share one DB between several instances.
+# The Data API closes transient connections after each operation and the named cache
+# exists only while at least one connection to it is open, so a test must keep an
+# instance connected (db_connect()/db_close()) whenever a zero-connection gap would
+# lose the DB state.
+#
+# Each test gets a unique name: a failed test can leak its connection (pytest holds
+# the traceback -> the connection -> the in-memory DB alive until process exit),
+# and a shared name would let that leaked DB contaminate later tests. A unique name
+# guarantees another test never connects to the same cache.
+@pytest.fixture
+def shared_mem_db():
+    """Per-test unique shared-cache in-memory DB URI."""
+    return f'file:utdb_{uuid.uuid4().hex}?mode=memory&cache=shared'
 
 @pytest.fixture
 def make_yf(monkeypatch):

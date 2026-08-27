@@ -84,7 +84,10 @@ class SQLiteConn(DBConn):
                 FdatabaseError: Can't connect to a database.
         """
         try:
-            self._conn = sqlite3.connect(self._db_name, timeout=30)
+            # Enable URI parsing explicitly for 'file:' names so shared-cache/memory
+            # URIs work even when the SQLite library is built without SQLITE_USE_URI.
+            self._conn = sqlite3.connect(self._db_name, timeout=30,
+                                         uri=self._db_name.startswith('file:'))
         except Error as e:
             raise FdatabaseError(f"An error has happened when trying to connect to a {self._db_name}: {e}") from e
 
@@ -111,7 +114,7 @@ class SQLiteConn(DBConn):
         except self._error:
             mode = None
 
-        if mode != "wal" and self._db_name != ":memory:":
+        if mode != "wal" and self._db_name != ":memory:" and 'mode=memory' not in self._db_name:
             lg.warning(
                 f"WAL journal mode could not be set on '{self._db_name}' "
                 f"(got '{mode}'). Concurrent readers/writers may block each other."

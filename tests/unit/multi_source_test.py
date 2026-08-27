@@ -1,6 +1,6 @@
 """Unit tests for storing quotes from several data sources for the same symbol (mixed YF/FMP data in one DB).
 
-Fully offline (tmp file DB).
+Fully offline (shared-cache in-memory DB).
 
 The author is Zmicier Gotowka
 
@@ -14,8 +14,6 @@ import pytest
 from data.fvalues import StockQuotes
 
 from yf_quotes_test import csv_quote_rows, build_quotes_inst, QUOTES
-
-# TODO HIGH Can we use multi source in-memory DB (like it was in screeners - 'file:fcdb?mode=memory&cache=shared')?
 
 # TODO HIGH May it be considered as a hardcode (then needs to be removed).
 FIRST_DATE = '2020-1-1'
@@ -35,18 +33,26 @@ def _fmp_routes():
     return {'historical-price-eod/non-split-adjusted': FMP_QUOTES, 'dividends': [], 'splits': []}
 
 @pytest.fixture
-def both_sources(make_yf, make_fmp, tmp_path):
-    """Fetched YF and FMP instances on one shared DB. Returns (yf_inst, fmp_inst)."""
-    db = str(tmp_path / 'test.sqlite')
+def both_sources(make_yf, make_fmp, shared_mem_db):
+    """Fetched YF and FMP instances on one shared DB. Returns (yf_inst, fmp_inst).
 
-    yf_inst, _ = build_quotes_inst(make_yf, db_name=db)
+    yf_inst is kept connected: the shared in-memory cache exists only while at least
+    one connection to it is open (the Data API closes transient connections after
+    each operation, e.g. fmp_inst.get() below).
+    """
+    yf_inst, _ = build_quotes_inst(make_yf, db_name=shared_mem_db)
+    yf_inst.db_connect()
     yf_inst.get()
 
-    fmp_inst, _ = make_fmp(db_name=db, first_date=FIRST_DATE, last_date=LAST_DATE,
+    fmp_inst, _ = make_fmp(db_name=shared_mem_db, first_date=FIRST_DATE, last_date=LAST_DATE,
                            routes=_fmp_routes())
     fmp_inst.get()
 
-    return yf_inst, fmp_inst
+    yield yf_inst, fmp_inst
+
+    for inst in (yf_inst, fmp_inst):
+        if inst.is_connected:
+            inst.db_close()
 
 def test_quotes_stored_for_both_sources(both_sources):
     yf_inst, fmp_inst = both_sources

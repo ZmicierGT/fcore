@@ -81,9 +81,6 @@ def assert_recent(ts):
     assert isinstance(ts, int)
     assert _ts(datetime.now().strftime('%Y-%m-%d')) - SEC <= ts <= _ts(datetime.now().strftime('%Y-%m-%d')) + 2 * SEC
 
-@pytest.fixture
-def tmp_db(tmp_path):
-    return str(tmp_path / 'test.sqlite')
 
 # NOTE: for quotes the marker min_ts is written as first_date_ts by the library, so
 # 'uncovered start/end' cases are expressed from the request side: a wider-window
@@ -93,33 +90,33 @@ def tmp_db(tmp_path):
 # A. Data entries markers gating
 #############################
 
-def test_entry_no_marker_needs_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_entry_no_marker_needs_update(make_fmp):
+    inst = make_inst(make_fmp)
     assert inst._need_to_update(IS) is True
     inst.db_close()
 
-def test_entry_fresh_marker_no_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_entry_fresh_marker_no_update(make_fmp):
+    inst = make_inst(make_fmp)
     set_marker(inst, IS, LAST_TS)  # exactly at the window end: not stale
     assert inst._need_to_update(IS) is False
     inst.db_close()
 
-def test_entry_same_day_gap_no_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_entry_same_day_gap_no_update(make_fmp):
+    inst = make_inst(make_fmp)
     set_marker(inst, IS, LAST_TS - 3600)  # within the grace gap
     assert inst._need_to_update(IS) is False
     inst.db_close()
 
-def test_entry_stale_marker_needs_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_entry_stale_marker_needs_update(make_fmp):
+    inst = make_inst(make_fmp)
     # Stale beyond both cadence (no data rows -> the marker is the due base)
     # and fresh_days: polling fetch is due
     set_marker(inst, IS, LAST_TS - (IS.cadence_days + 1) * SEC)
     assert inst._need_to_update(IS) is True
     inst.db_close()
 
-def test_entry_marker_beyond_window_no_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_entry_marker_beyond_window_no_update(make_fmp):
+    inst = make_inst(make_fmp)
     set_marker(inst, IS, LAST_TS + 10 * SEC)  # fetched later than the window end
     assert inst._need_to_update(IS) is False
     inst.db_close()
@@ -128,16 +125,16 @@ def test_entry_marker_beyond_window_no_update(make_fmp, tmp_db):
 # B. Quotes timespan gating
 #############################
 
-def test_quotes_no_marker_needs_update(make_fmp, tmp_db):
-    inst = make_inst(make_fmp, tmp_db)
+def test_quotes_no_marker_needs_update(make_fmp):
+    inst = make_inst(make_fmp)
     assert inst._need_to_update() is True
     inst.db_close()
 
-def test_quotes_covered_range_no_update(make_fmp, tmp_db):
+def test_quotes_covered_range_no_update(make_fmp, shared_mem_db):
     # Write the marker exactly as a real fetch of [FIRST_DATE, LAST_DATE] would do:
     # _update_data_interval() for quotes caps max_ts at min(now, last_date_ts), so
     # writing it one day short of LAST_TS leaves a day-fresh marker.
-    writer = make_inst(make_fmp, tmp_db)
+    writer = make_inst(make_fmp, shared_mem_db)
     real = writer._current_ts
     writer._current_ts = lambda adjusted=True: LAST_TS + (SEC - 1)
     try:
@@ -150,30 +147,30 @@ def test_quotes_covered_range_no_update(make_fmp, tmp_db):
     assert writer._get_interval_ts(Timespans.Day, is_max=False) == FIRST_TS
 
     # A narrower same-interior window on the same DB is covered as well
-    reader = make_inst(make_fmp, tmp_db,
+    reader = make_inst(make_fmp, shared_mem_db,
                        first_date=_datestr(FIRST_TS + 4 * SEC), last_date=_datestr(LAST_TS - 5 * SEC))
     assert reader._need_to_update() is False
 
     writer.db_close()
     reader.db_close()
 
-def test_quotes_uncovered_start_needs_update(make_fmp, tmp_db):
-    writer = make_inst(make_fmp, tmp_db)
+def test_quotes_uncovered_start_needs_update(make_fmp, shared_mem_db):
+    writer = make_inst(make_fmp, shared_mem_db)
     writer._update_data_interval()  # stored min_ts == FIRST_TS
 
     # A wider window starting before the stored range must trigger a fetch
-    reader = make_inst(make_fmp, tmp_db, first_date=_datestr(FIRST_TS - 31 * SEC))
+    reader = make_inst(make_fmp, shared_mem_db, first_date=_datestr(FIRST_TS - 31 * SEC))
     assert reader._need_to_update() is True
 
     writer.db_close()
     reader.db_close()
 
-def test_quotes_uncovered_end_needs_update(make_fmp, tmp_db):
-    writer = make_inst(make_fmp, tmp_db)
+def test_quotes_uncovered_end_needs_update(make_fmp, shared_mem_db):
+    writer = make_inst(make_fmp, shared_mem_db)
     writer._update_data_interval()  # stored max_ts == LAST_TS (capped by last_date_ts)
 
     # A wider window ending after the stored range must trigger a fetch
-    reader = make_inst(make_fmp, tmp_db, last_date=_datestr(LAST_TS + 5 * SEC))
+    reader = make_inst(make_fmp, shared_mem_db, last_date=_datestr(LAST_TS + 5 * SEC))
     assert reader._need_to_update() is True
 
     writer.db_close()
@@ -184,12 +181,14 @@ def test_quotes_uncovered_end_needs_update(make_fmp, tmp_db):
 #############################
 
 @pytest.mark.parametrize('entry', [None, IS])
-def test_refetch_bypasses_gating(make_fmp, tmp_db, entry):
-    writer = make_inst(make_fmp, tmp_db)
+def test_refetch_bypasses_gating(make_fmp, shared_mem_db, entry):
+    writer = make_inst(make_fmp, shared_mem_db)
     writer._update_data_interval(None if entry is None else entry.title)
-    writer.db_close()
 
-    refetch_inst = make_inst(make_fmp, tmp_db, refetch=True)
+    # refetch_inst must connect before writer disconnects: the shared in-memory
+    # cache exists only while at least one connection to it is open.
+    refetch_inst = make_inst(make_fmp, shared_mem_db, refetch=True)
+    writer.db_close()
     # refetch=True ignores the stored markers entirely
     assert refetch_inst._need_to_update(entry) is True
     refetch_inst.db_close()
@@ -381,16 +380,16 @@ def test_drop_symbol_intervals_resets_stock_info_cache(make_fmp):
     assert inst.get_info()['sector'] == sector_before
     inst.db_close()
 
-def test_drop_datasource_intervals_count_and_refetch(make_fmp, tmp_db):
+def test_drop_datasource_intervals_count_and_refetch(make_fmp, shared_mem_db):
     """The drop spans all symbols of the source (not just the instance's symbol)."""
-    inst, fake = make_fmp(db_name=tmp_db)
+    inst, fake = make_fmp(db_name=shared_mem_db)
     inst.db_connect()
     inst.get_info()
     assert fake.count('profile') == 1
 
     # Second symbol, same DB and source: make_fmp re-patches _query_api, so the
     # inst's subsequent fetches go through this fake as well.
-    other, other_fake = make_fmp(symbol='GGGG', db_name=tmp_db)
+    other, other_fake = make_fmp(symbol='GGGG', db_name=shared_mem_db)
     other.db_connect()
     other.get_info()
     assert other_fake.count('profile') == 1

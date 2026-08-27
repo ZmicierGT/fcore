@@ -14,9 +14,7 @@ from data import lg
 from datetime import datetime, timedelta
 from dateutil import tz
 
-import os
 import sys
-import tempfile
 
 import calendar
 
@@ -74,12 +72,12 @@ def test_cross_source_subqueries():
         Test that data from one data source (FMP) can be used with subqueries
         along with quotes from another data source (YF).
 
-        A temporary database file is used and deleted afterwards.
+        A shared-cache in-memory database is used (both connections are held
+        open, which keeps the named in-memory cache alive).
     """
     lg.highlight("\nTesting subqueries support for multiple data sources:\n")
 
-    fd, db_path = tempfile.mkstemp(suffix='.sqlite')
-    os.close(fd)
+    db_name = 'file:fcdb?mode=memory&cache=shared'
 
     yfi = None
     fmpi = None
@@ -94,16 +92,16 @@ def test_cross_source_subqueries():
         # (like fmp_capitalization) exist in the database before the YF quotes
         # are fetched with the subqueries.
         fmpi = fmp.FMP(symbol='AAPL', first_date=first_date, last_date=last_date,
-                       verbosity=True, db_name=db_path)
+                       verbosity=True, db_name=db_name)
         fmpi.db_connect()
 
         print("SECTION 1: Fetching YF quotes with a cap subquery (no cap data yet)")
         print("___________________________________________________________________")
 
-        # Instance 2: YF. A separate connection to the same database file
+        # Instance 2: YF. A separate connection to the same database
         # (both connections are open in parallel).
         yfi = yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date,
-                    verbosity=True, db_name=db_path)
+                    verbosity=True, db_name=db_name)
         yfi.db_connect()
 
         if yfi.is_connected is False or fmpi.is_connected is False:
@@ -183,15 +181,10 @@ def test_cross_source_subqueries():
 
         lg.success('All symbol-subquery data is as expected.')
     finally:
-        # Close the database connections and delete the temporary database
-        # file including the WAL journal sidecar files (if any).
+        # Closing both connections destroys the shared in-memory database.
         for source in (fmpi, yfi):
             if source is not None and source.is_connected:
                 source.db_close()
-
-        for path in (db_path, db_path + '-wal', db_path + '-shm'):
-            if os.path.exists(path):
-                os.remove(path)
 
 if __name__ == "__main__":
     lg.highlight("Testing subqueries support:")

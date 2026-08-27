@@ -82,38 +82,38 @@ def test_non_existent_not_retried_on_cached_call(make_yf):
     inst.db_close()
 
 
-def test_non_existent_not_retried_across_instances(make_yf, tmp_path):
-    db = str(tmp_path / 'test.sqlite')
-
-    inst1, _ = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=db)
+def test_non_existent_not_retried_across_instances(make_yf, shared_mem_db):
+    inst1, _ = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=shared_mem_db)
     inst1.db_connect()
     with pytest.raises(FdataError):
         SecData.get_info(inst1)
     assert inst1._info['sec_type'] == SecType.NotExist
+
+    # Second instance on the same DB: reads the persisted NotExist record without re-fetching.
+    # It must connect before inst1 disconnects: the shared in-memory cache exists only
+    # while at least one connection to it is open.
+    inst2, fake = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=shared_mem_db)
+    inst2.db_connect()
     inst1.db_close()
 
-    # Second instance on the same DB: reads the persisted NotExist record without re-fetching
-    inst2, fake = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=db)
-    inst2.db_connect()
     with pytest.raises(FdataError):
         SecData.get_info(inst2)
     assert fake.info_calls == 0
     inst2.db_close()
 
 
-def test_non_existent_recovery_with_refetch(make_yf, tmp_path):
-    db = str(tmp_path / 'test.sqlite')
-
-    inst1, _ = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=db)
+def test_non_existent_recovery_with_refetch(make_yf, shared_mem_db):
+    inst1, _ = make_yf(FakeTicker(info=NON_EXISTENT_INFO), db_name=shared_mem_db)
     inst1.db_connect()
     with pytest.raises(FdataError):
         SecData.get_info(inst1)
     assert inst1._info['sec_type'] == SecType.NotExist
-    inst1.db_close()
 
-    # refetch=True + valid injected info repairs the record in place (UPSERT, same row count)
-    inst2, _ = make_yf(FakeTicker(info=EQUITY_INFO), db_name=db, refetch=True)
+    # refetch=True + valid injected info repairs the record in place (UPSERT, same row count).
+    # inst2 connects before inst1 disconnects to keep the shared cache alive.
+    inst2, _ = make_yf(FakeTicker(info=EQUITY_INFO), db_name=shared_mem_db, refetch=True)
     inst2.db_connect()
+    inst1.db_close()
 
     info = SecData.get_info(inst2)
     assert info['sec_type'] == SecType.Stock

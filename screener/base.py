@@ -7,13 +7,10 @@ Distributed under Fcore License 1.1 (see license.md)
 from data import fvalues
 from data.fvalues import Quotes
 from data.fdata import FdataError
-from data.futils import Log, get_dt
+from data.futils import Log
 
 from datetime import datetime
 from datetime import timedelta
-from dateutil import tz
-
-from time import sleep
 
 from enum import IntEnum
 
@@ -43,13 +40,15 @@ class ScrResult(IntEnum):
 class BaseScr(metaclass=abc.ABCMeta):
     """
         Base screener implementation.
+
+        The screening is performed on-demand: a single screen() call fetches the data
+        (including the latest quote) and makes a conclusion.
     """
     def __init__(self,
                  symbols,
                  period,
-                 timespan,
-                 init_days=2,
-                 interval=60,
+                 timespan=fvalues.Timespans.Day,
+                 init_days=120,
                  verbosity=True):
         """
             Initialize screener class instance.
@@ -57,9 +56,8 @@ class BaseScr(metaclass=abc.ABCMeta):
             Args:
                 symbols(list of dictionaries): symbols to use in screening.
                 period(int): minimum period for calculation.
-                init_days(int): the number of days to get the initial data.
-                interval(float): interval in seconds between each iteration.
                 timespan(fvalues.Timespans): timespan used in screening.
+                init_days(int): the number of days of history to get the data.
                 verbosity(bool): verbosity flag.
 
             Raises:
@@ -72,10 +70,6 @@ class BaseScr(metaclass=abc.ABCMeta):
             raise ScrError(f"Period should not be <= 0: {period}")
         self.__period = period
 
-        if interval <= 0:
-            raise ScrError(f"Interval should not be <= 0: {interval}")
-        self.__interval = interval
-
         if timespan not in fvalues.Timespans:
             raise ScrError(f"Unknown timespan: {timespan}")
         self.__timespan = timespan
@@ -86,17 +80,8 @@ class BaseScr(metaclass=abc.ABCMeta):
             data = ScrData(symbol['Title'], symbol['Source'], self, init_days)
             self.__symbols.append(data)
 
-        # Set counter till the next update
-        self.set_datetime()
-
-        # Indicates if initial data is checked
-        self.__init_status = False
-
-        # Results of cycle calculation
+        # Results of the calculation
         self._results = None
-
-        # Datetime of the iteration.
-        self.__dt = datetime.now(tz.UTC)
 
     def get_symbols(self):
         """
@@ -116,30 +101,6 @@ class BaseScr(metaclass=abc.ABCMeta):
         """
         return self.__period
 
-    def get_datetime(self):
-        """
-            Get the datetime of the last iteration.
-
-            Returns:
-                DateTime: datetime of the last iteration.
-        """
-        return self.__dt
-
-    def set_datetime(self):
-        """
-            Set the datetime of the iteration.
-        """
-        self.__dt = datetime.now(tz.UTC)
-
-    def get_interval(self):
-        """
-            Get the interval of the iteration.
-
-            Returns:
-                int: interval of the iteration.
-        """
-        return self.__interval
-
     def get_timespan(self):
         """
             Get the timespan used in screening.
@@ -149,44 +110,25 @@ class BaseScr(metaclass=abc.ABCMeta):
         """
         return self.__timespan
 
-    def get_init_status(self):
+    # TODO LOW Think if nogil multithreading has a sense here
+    def screen(self):
         """
-            Indicates if the initial data was fetched.
+            Fetch the data (including the latest quote for each symbol) and perform the calculation.
 
             Returns:
-                True if the initial data was fetched, false otherwise.
-        """
-        return self.__init_status
-
-    def __set_init_status(self):
-        self.__init_status = True
-
-    # TODO LOW Think of nogil multithreading has a sense here
-    def do_cycle(self):
-        """
-            Fetch the latest quotes and perform the calculation.
+                list: results of the calculation.
 
             Raises:
                 ScrError: can't fetch quotes.
         """
-        # TODO LOW Think if processing time should be taken into account.
-        delta = datetime.now(tz.UTC) - self.get_datetime()
-
-        if delta.seconds < self.get_interval() and self.get_init_status():
-            sleep(self.get_interval() - delta.seconds)
-
-        # Create data source object for each symbol
+        # Fetch the data for each symbol
         for symbol in self.get_symbols():
-            # Check if initial data was initialized
-            if self.get_init_status() == False:
-                symbol.get_initial_data()
-
-        self.set_datetime()
+            symbol.fetch_data()
 
         # Perform the calculation
         self.calculate()
 
-        self.__set_init_status()
+        return self.get_results()
 
     @abc.abstractmethod
     def calculate(self):
@@ -207,7 +149,7 @@ class ScrData():
     """
         Base class for screener data.
     """
-    def __init__(self, title, source, caller=None, init_days=2):
+    def __init__(self, title, source, caller=None, init_days=120):
         """
             Initialize screening data class.
 
@@ -215,13 +157,14 @@ class ScrData():
                 title(str): title of the used symbol.
                 source(str): source of the symbol.
                 caller(BaseScr): instance of the class which creates the current instance.
-                init_days(int): the number of days to get the initial data.
+                init_days(int): the number of days of history to get the data.
         """
         if title == "":
             raise ScrError("Title should not be empty.")
         self.__title = title
 
-        source._timespan = caller.get_timespan()
+        if source.timespan != caller.get_timespan():
+            raise ScrError(f"Timespan of {title} ({source.timespan}) doesn't match the screener timespan ({caller.get_timespan()})")
 
         self.__source = source
         self.__caller = caller
@@ -232,9 +175,9 @@ class ScrData():
         # Data used in calculations
         self._data = None
 
-        # Initial number of days to get data
+        # Number of days of history to get the data
         if init_days <= 0:
-            raise ScrError("The number of initial days to get data can't be <= 0.")
+            raise ScrError("The number of days of history can't be <= 0.")
 
         self.__init_days = init_days
 
@@ -247,31 +190,16 @@ class ScrData():
         """
         return self.__caller
 
-    def get_data(self, period, init_status):
+    def get_data(self, period):
         """
-            Get data for screening.
+            Get the latest data for screening.
 
             Args:
                 period(int): number of entries to get.
-                init_status(bool): indicates if the initial data is initialized.
 
             Returns:
                 list: list with quotes for the screening.
         """
-        if init_status is False:
-            max_ts = self.get_source()._get_max_ts()
-
-            if max_ts is not None:
-                self.__max_datetime = get_dt(max_ts)
-            self.__quotes_num = self.get_source().get_quotes_num(timespan=False, dt=False)
-        else:
-            data = self.get_source().get_recent_data()
-
-            self.__max_datetime = data[-1][Quotes.DateTime]
-            self.__quotes_num += len(data)
-
-            self._data = np.append(self._data, data)
-
         return self._data[len(self._data) - period:]
 
     def get_title(self):
@@ -312,29 +240,39 @@ class ScrData():
 
     def get_init_days(self):
         """
-            Return the number of the initial days to get data at the start of screening.
+            Return the number of days of history to get the data.
 
             Returns:
-                int: the number of initial days to get data.
+                int: the number of days of history to get the data.
         """
         return self.__init_days
 
-    def get_initial_data(self):
+    def fetch_data(self):
         """
-            Get initial data for the calculation.
+            Get historical quotes along with the latest quote (not cached).
 
             Raises:
                 ScrError: can't fetch quotes.
         """
-        # Get yesterday to fetch current quotes
-        yesterday = datetime.now() - timedelta(days=1)
-
-        self.get_source().first_date = yesterday
-        self.get_source().last_date = yesterday + timedelta(days=self.get_init_days())
+        last_date = datetime.now()
+        self.get_source().first_date = last_date - timedelta(days=self.get_init_days())
+        self.get_source().last_date = last_date
 
         try:
             data = self.get_source().get()
         except FdataError as e:
             raise ScrError(e) from e
 
-        self._data = data
+        self.__quotes_num = self.get_source().get_quotes_num(timespan=True, dt=False)
+
+        # Append the latest quote, but only if it is newer than the history
+        # (the recent quote may refer to an already-cached day, e.g. on weekends)
+        recent = self.get_source().get_recent_data()
+
+        if len(data) == 0 or recent[-1][Quotes.TimeStamp] > data[-1][Quotes.TimeStamp]:
+            self.__max_datetime = recent[-1][Quotes.DateTime]
+            self.__quotes_num += len(recent)
+            self._data = np.append(data, recent)
+        else:
+            self.__max_datetime = data[-1][Quotes.DateTime]
+            self._data = data

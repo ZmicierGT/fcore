@@ -11,56 +11,41 @@ from data.fvalues import Timespans
 
 from data import yf
 
-import sqlite3
-
-db_name = 'file:fcdb?mode=memory&cache=shared'
-
 if __name__ == "__main__":
     warning = "WARNING! This screener is just an example and do not treat the obtained signals as an investment advice.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    # Keep in-memory DB connected while screening
-    fcdb = sqlite3.connect(db_name)
+    source_aapl = yf.YF(symbol='AAPL')
+    source_msft = yf.YF(symbol='MSFT')
 
-    source_btc = yf.YF(symbol='BTC-USD', db_name=db_name)
-    source_ltc = yf.YF(symbol='LTC-USD', db_name=db_name)
-
-    btc = {'Title': 'BTC-USD', 'Source': source_btc}
-    ltc = {'Title': 'LTC-USD', 'Source': source_ltc}
+    aapl = {'Title': 'AAPL', 'Source': source_aapl}
+    msft = {'Title': 'MSFT', 'Source': source_msft}
 
     # Minimum period for calculation
     period = 14
-    # Interval to update quotes (in seconds)
-    interval = 60
 
     support = 30
     resistance = 70
 
-    scr = RsiScr(symbols=[btc, ltc],
+    scr = RsiScr(symbols=[aapl, msft],
                  period=period,
-                 interval=interval,
                  support=support,
                  resistance=resistance,
-                 timespan=Timespans.Minute)
+                 timespan=Timespans.Day)
 
     print("Please note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
 
-    print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
+    results = scr.screen()
 
-    while True:
-        scr.do_cycle()
+    print("--------------------------------------------------------------")
 
-        results = scr.get_results()
-
-        print("--------------------------------------------------------------")
-
-        for i in range(2):
-            print(f"Symbol: {results[i][ScrResult.Title]}")
-            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
-            print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
-            print(f"Previous RSI val: {results[i][ScrResult.Values][0]}")
-            print(f"Current RSI val:  {results[i][ScrResult.Values][1]}")
-            print(f"Signal to buy:    {results[i][ScrResult.Signals][0]}")
-            print(f"Signal to sell:   {results[i][ScrResult.Signals][1]}\n")
+    for result in results:
+        print(f"Symbol: {result[ScrResult.Title]}")
+        print(f"Latest update:    {result[ScrResult.LastDatetime]}")
+        print(f"Cached quotes:    {result[ScrResult.QuotesNum]}")
+        print(f"Previous RSI val: {result[ScrResult.Values][0]}")
+        print(f"Current RSI val:  {result[ScrResult.Values][1]}")
+        print(f"Signal to buy:    {result[ScrResult.Signals][0]}")
+        print(f"Signal to sell:   {result[ScrResult.Signals][1]}\n")

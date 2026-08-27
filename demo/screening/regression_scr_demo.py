@@ -11,59 +11,47 @@ from data.fvalues import Timespans
 
 from data import yf
 
-import sqlite3
-
-db_name = 'file:fcdb?mode=memory&cache=shared'
-
 if __name__ == "__main__":
     warning = "WARNING! This screener is just an example and do not treat the obtained signals as an investment advice.\n" +\
                 "Always keep yfinance up to date ( pip install yfinance --upgrade ) and use quotes obtained from this " +\
                 "datasource only for demonstation purposes!\n"
     print(warning)
 
-    # Keep in-memory DB connected while screening
-    fcdb = sqlite3.connect(db_name)
+    source_aapl = yf.YF(symbol='AAPL')
+    source_msft = yf.YF(symbol='MSFT')
 
-    source_btc = yf.YF(symbol='BTC-USD', db_name=db_name)
-    source_ltc = yf.YF(symbol='LTC-USD', db_name=db_name)
+    aapl = {'Title': 'AAPL', 'Source': source_aapl}
+    msft = {'Title': 'MSFT', 'Source': source_msft}
 
-    btc = {'Title': 'BTC-USD', 'Source': source_btc}
-    ltc = {'Title': 'LTC-USD', 'Source': source_ltc}
-
-    # Max rows stored along with Regression instance. Used to prevent too huge dataset in memory due to incoming quotes.
+    # Max rows stored along with Regression instance. Used to prevent too huge dataset in memory.
     max_rows = 1000
-    interval = 60  # Interval to update quotes (in seconds)
 
     window_size = 10  # Sliding window size
     forecast_size = 5  # Number of periods to forecast
     test_length = 100  # Length of data to perform forecasting.
-    epochs=1000
+    epochs = 1000
 
-    scr = RegScr(symbols=[btc, ltc],
+    scr = RegScr(symbols=[aapl, msft],
                  max_rows=max_rows,
-                 interval=interval,
                  window_size=window_size,
                  forecast_size=forecast_size,
                  test_length=test_length,
                  epochs=epochs,
-                 timespan=Timespans.Minute,
+                 timespan=Timespans.Day,
+                 init_days=250,
                  period=test_length)
 
     print("Please note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
-    print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 
-    while True:
-        scr.do_cycle()
+    results = scr.screen()
 
-        results = scr.get_results()
+    print("--------------------------------------------------------------")
 
-        print("--------------------------------------------------------------")
-
-        for i in range(2):
-            print(f"Symbol: {results[i][ScrResult.Title]}")
-            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
-            print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
-            print(f"Current price:    {results[i][ScrResult.Values][0]}")
-            print(f"Forecasted price: {results[i][ScrResult.Values][1]}")
-            print(f"Signal to buy:    {results[i][ScrResult.Signals][0]}")
-            print(f"Signal to sell:   {results[i][ScrResult.Signals][1]}\n")
+    for result in results:
+        print(f"Symbol: {result[ScrResult.Title]}")
+        print(f"Latest update:    {result[ScrResult.LastDatetime]}")
+        print(f"Cached quotes:    {result[ScrResult.QuotesNum]}")
+        print(f"Current price:    {result[ScrResult.Values][0]}")
+        print(f"Forecasted price: {result[ScrResult.Values][1]}")
+        print(f"Signal to buy:    {result[ScrResult.Signals][0]}")
+        print(f"Signal to sell:   {result[ScrResult.Signals][1]}\n")

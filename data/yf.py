@@ -211,7 +211,8 @@ class YF(stock.StockData):
         volume = row['Volume'].astype(int)
 
         result = {'time_stamp': ts,
-                  'date_time': dt.replace(microsecond=0).isoformat(' '),
+                  # Naive UTC string to match the date_time format of the quotes from the database
+                  'date_time': dt.replace(microsecond=0, tzinfo=None).isoformat(' '),
                   'opened': row['Open'],
                   'high': row['High'],
                   'low': row['Low'],

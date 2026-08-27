@@ -18,21 +18,17 @@ from data.fvalues import Algorithm
 
 from tools.base import ToolError
 
-import sqlite3
-
 import sys
 
-db_name = 'file:fcdb?mode=memory&cache=shared'
-
 # Parameters for learning
-true_ratio = 0.004  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
+true_ratio = 0.01  # Ratio of ma/quote change to consider it as a true signal. It should be achieved withing cycles_num to be considered as true.
 cycle_num = 2  # Number of cycles to wait for the true_ratio value. If true_ratio is not reached withing these cycles, the signal is considered as false.
 algorithm = Algorithm.KNC  # The default algorithm to use
 period_long = 50  # Long period for MA calculation
 period_short = 25  # Short period for MA calculation
 
-first_date = "2020-11-1"  # First date to fetch quotes (for testing only)
-last_date = "2022-11-1"  # The last date to fetch quotes
+first_date = "2020-11-1"  # First date to fetch quotes for learning
+last_date = "2022-11-1"  # The last date to fetch quotes for learning
 
 if __name__ == "__main__":
     warning = "WARNING! This screener is just an example and do not treat the obtained signals as an investment advice.\n" +\
@@ -45,9 +41,11 @@ if __name__ == "__main__":
 
     print("Fetchig the required quotes for model training. Press CTRL-C and restart if it stucks.")
 
-    for symbol_learn in ['BTC-USD', 'LTC-USD']:
+    for symbol_learn in ['AAPL', 'MSFT']:
         try:
-            rows = YF(symbol=symbol_learn, last_date=last_date).get()
+            rows = YF(symbol=symbol_learn,
+                      first_date=first_date,
+                      last_date=last_date).get()
         except FdataError as e:
             sys.exit(e)
 
@@ -85,19 +83,13 @@ if __name__ == "__main__":
 
     # Perform screening
 
-    # Keep in-memory DB connected while screening
-    fcdb = sqlite3.connect(db_name)
+    source_aapl = YF(symbol='AAPL')
+    source_msft = YF(symbol='MSFT')
 
-    source_btc = YF(symbol='BTC-USD', db_name=db_name)
-    source_ltc = YF(symbol='LTC-USD', db_name=db_name)
+    aapl = {'Title': 'AAPL', 'Source': source_aapl}
+    msft = {'Title': 'MSFT', 'Source': source_msft}
 
-    # Despite having a model trained using stock quotes, lets use crypto to make estimations as crypto quotes change 24/7
-    btc = {'Title': 'BTC-USD', 'Source': source_btc}
-    ltc = {'Title': 'LTC-USD', 'Source': source_ltc}
-
-    interval = 60
-
-    scr = ClsScr(symbols=[btc, ltc],
+    scr = ClsScr(symbols=[aapl, msft],
                  period=period_long,
                  period_short=period_short,
                  true_ratio=true_ratio,
@@ -105,24 +97,19 @@ if __name__ == "__main__":
                  algorithm=algorithm,
                  model_buy=model_buy,
                  model_sell=model_sell,
-                 interval=interval,
-                 timespan=Timespans.Minute)
+                 timespan=Timespans.Day)
 
     print("\nPlease note that the data is delayed (especially volume) and exceptions due to network errors may happen.\n")
-    print(f"Press CTRL+C to cancel screening. The interval is {interval} seconds.")
 
-    while True:
-        scr.do_cycle()
+    results = scr.screen()
 
-        results = scr.get_results()
+    print("--------------------------------------------------------------")
 
-        print("--------------------------------------------------------------")
-
-        for i in range(2):
-            print(f"Symbol:           {results[i][ScrResult.Title]}")
-            print(f"Latest update:    {results[i][ScrResult.LastDatetime]}")
-            print(f"Cached quotes:    {results[i][ScrResult.QuotesNum]}")
-            print(f"Buy weight:       {results[i][ScrResult.Values][0]}")
-            print(f"Sell weight:      {results[i][ScrResult.Values][1]}")
-            print(f"Signal to buy:    {results[i][ScrResult.Signals][0]}")
-            print(f"Signal to sell:   {results[i][ScrResult.Signals][1]}\n")
+    for result in results:
+        print(f"Symbol:           {result[ScrResult.Title]}")
+        print(f"Latest update:    {result[ScrResult.LastDatetime]}")
+        print(f"Cached quotes:    {result[ScrResult.QuotesNum]}")
+        print(f"Buy weight:       {result[ScrResult.Values][0]}")
+        print(f"Sell weight:      {result[ScrResult.Values][1]}")
+        print(f"Signal to buy:    {result[ScrResult.Signals][0]}")
+        print(f"Signal to sell:   {result[ScrResult.Signals][1]}\n")

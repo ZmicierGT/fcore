@@ -6,7 +6,7 @@
 - Use an API to ease the development of AI-strategies for financial markets analysis.
 - Utilize the power of the 'classical' technical and fundamental analyses combined with the modern AI-approach.
 - Use the own backtesting engine which takes into account a lot of issues related to an actual trade/investment and supports strategies involving multiple securities.
-- Perform a real-time screening of the market using the screening API.
+- Perform on-demand screening of the market (based on the latest stock quotes) using the screening API.
 - Generate reports.
 
 ## Here is a simplified diagram of how Fcore is designed:
@@ -163,6 +163,9 @@ Use the following tool to manage quotes and obtain data.
 - [tools/growth_probability.py](tools/growth_probability.py) - AI trend estimator based on probabilistic classification. (**python -m demo.tools.growth_probability_demo** for demonstration, [source of the demo](demo/tools/growth_probability_demo.py))
 
 ### Screening demos
+
+Screeners make a conclusion on a single invocation by picking the securities which correspond the defined criteria.
+
 - [screener/rsi_scr.py](screener/rsi_scr.py) - RSI strategy screener (**python -m demo.screening.rsi_scr_demo** for a demonstration, [source of the demo](demo/screening/rsi_scr_demo.py))
 - [screener/regression_scr.py](screener/regression_scr.py) - Regression AI screener (**python -m demo.screening.regression_scr_demo** for a demonstration, [source of the demo](demo/screening/regression_scr_demo.py))
 - [screener/classification_scr.py](screener/classification_scr.py) - Classification AI screener (**python -m demo.screening.classification_scr_demo** for a demonstration, [source of the demo](demo/screening/classification_scr_demo.py))

@@ -47,9 +47,6 @@ class RsiScr(BaseScr):
         if support >= resistance:
             raise ScrError(f"Support can't be more or equal than resistance: {support} >= {resistance}")
 
-        # Previous RSI values
-        self.__prevs = []
-
     def calculate(self):
         """
             Perform calculation for RSI strategy.
@@ -60,29 +57,24 @@ class RsiScr(BaseScr):
         self._results = []
 
         for symbol in self.get_symbols():
-            self.__prevs.append(None)
+            rows = symbol.get_data(self.get_period() + 2)
 
-            rows = symbol.get_data(self.get_period() + 1, self.get_init_status())
-
-            if len(rows) <= self.get_period():
-                raise ScrError(f"Quotes length should be more than the period + 2: {len(rows)} <= {self.get_period()}")
+            if len(rows) <= self.get_period() + 1:
+                raise ScrError(f"Quotes length should be more than the period + 1: {len(rows)} <= {self.get_period() + 1}")
 
             df = pd.DataFrame(rows)
             rsi = ta.rsi(df[StockQuotes.AdjClose], length = self.get_period())
 
             current = rsi.iloc[-1]
-
-            # Get previous RSI value (if any)
-            index = self.get_symbols().index(symbol)
-            prev = self.__prevs[index]
+            prev = rsi.iloc[-2]
 
             signal_buy = False
             signal_sell = False
 
-            if prev != None and prev < self.__support and current > self.__support:
+            if prev < self.__support and current > self.__support:
                 signal_buy = True
 
-            if prev != None and prev > self.__resistance and current < self.__resistance:
+            if prev > self.__resistance and current < self.__resistance:
                 signal_sell = True 
 
             result = [symbol.get_title(),
@@ -92,4 +84,3 @@ class RsiScr(BaseScr):
                       [signal_buy, signal_sell]]
 
             self._results.append(result)
-            self.__prevs[index] = current

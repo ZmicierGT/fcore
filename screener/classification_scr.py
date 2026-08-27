@@ -59,29 +59,26 @@ class ClsScr(BaseScr):
         self._results = [] 
 
         for symbol in self.get_symbols():
-            rows = symbol.get_data(self.get_period(), self.get_init_status())
+            rows = symbol.get_data(self.get_period())
 
-            if self.get_init_status() is False:
-                # Need to initialize classification instances for each symbol
-                symbol.prob = Probability(period_long=self.get_period(),
-                                          period_short=self._period_short,
-                                          rows=rows,
-                                          data_to_learn=self._data_to_learn,
-                                          model_buy=self._model_buy,
-                                          model_sell=self._model_sell,
-                                          true_ratio=self._true_ratio,
-                                          cycle_num=self._cycle_num,
-                                          algorithm=self._algorithm,
-                                          use_sell=True)
-            else:
-                symbol.prob.set_data(rows)
+            # Need to initialize classification instances for each symbol
+            prob = Probability(period_long=self.get_period(),
+                               period_short=self._period_short,
+                               rows=rows,
+                               data_to_learn=self._data_to_learn,
+                               model_buy=self._model_buy,
+                               model_sell=self._model_sell,
+                               true_ratio=self._true_ratio,
+                               cycle_num=self._cycle_num,
+                               algorithm=self._algorithm,
+                               use_sell=True)
 
             signal_buy = False
             signal_sell = False
 
             # Perform a classification
-            symbol.prob.calculate()
-            df = symbol.prob.get_results()
+            prob.calculate()
+            df = prob.get_results()
 
             buy_prob = df['buy-prob'].iloc[-1]
             sell_prob = df['sell-prob'].iloc[-1]

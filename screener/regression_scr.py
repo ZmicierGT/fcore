@@ -53,47 +53,41 @@ class RegScr(BaseScr):
         self._results = [] 
 
         for symbol in self.get_symbols():
-            rows = symbol.get_data(self.get_period(), self.get_init_status())
+            rows = symbol.get_data(self.get_period())
 
-            if self.get_init_status() is False:
-                min_len = self._window_size + self._forecast_size
+            min_len = self._window_size + self._forecast_size
 
-                if len(rows) < min_len:
-                    raise ScrError(f"Not enough quotes: {len(rows)} < {min_len}")
+            if len(rows) < min_len:
+                raise ScrError(f"Not enough quotes: {len(rows)} < {min_len}")
 
-                # Need to initialize regression instances for each symbol
-                data = RegressionData(rows=rows,
-                                      window_size=self._window_size,
-                                      epochs=self._epochs,
-                                      forecast_size=self._forecast_size,
-                                      in_features=[StockQuotes.AdjClose, StockQuotes.Volume],
-                                      output_size=1,
-                                      test_length=self._test_length,
-                                      auto_train=True,
-                                      max_rows=self._max_rows)
+            data = RegressionData(rows=rows,
+                                  window_size=self._window_size,
+                                  epochs=self._epochs,
+                                  forecast_size=self._forecast_size,
+                                  in_features=[StockQuotes.AdjClose, StockQuotes.Volume],
+                                  output_size=1,
+                                  test_length=self._test_length,
+                                  auto_train=True,
+                                  max_rows=self._max_rows)
 
-                model = LSTM(data=data)
-                loss = torch.nn.MSELoss()
-                optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+            model = LSTM(data=data)
+            loss = torch.nn.MSELoss()
+            optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
 
-                symbol.reg = Regression(model=model,
-                                        loss=loss,
-                                        optimizer=optimizer,
-                                        verbosity=self._verbosity)
+            reg = Regression(model=model,
+                             loss=loss,
+                             optimizer=optimizer,
+                             verbosity=self._verbosity)
 
-                # Perform the initial learning
-                self._lg.highlight(f"\nPerform initial model training for {symbol.get_title()}")
-                symbol.reg.calculate()
-
-                symbol.reg.get_model().data.set_epochs(30)  # Set less epochs for appending learning
-            else:
-                symbol.reg.get_model().data.append_data(rows=[rows[-1]])  # Need to add the last one row only
+            # Perform the learning
+            self._lg.highlight(f"\nPerform model training for {symbol.get_title()}")
+            reg.calculate()
 
             signal_buy = False
             signal_sell = False
 
             # Perform a forecasting
-            est_data = symbol.reg.get_results()
+            est_data = reg.get_results()
 
             current = rows[StockQuotes.Close][-1]
             forecasted = est_data[-1][0]

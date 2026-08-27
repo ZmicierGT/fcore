@@ -1645,7 +1645,7 @@ class SecData(SecFetcher):
             if initially_connected is False:
                 self.db_close()
 
-    def get_min_ts(self):
+    def _get_min_ts(self):
         """
             Get minimum timestamp for a particular symbol, source, timespan.
 

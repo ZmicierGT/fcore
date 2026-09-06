@@ -177,8 +177,9 @@ def test_stock_info_cached_at_stock_layer(make_yf):
 
     assert first['sec_type'] == SecType.Stock
     assert first['sector'] == Sector.Technology
-    # _stock_info is cached after the first call; the sector block is skipped on the second
-    # call, so the base (sector-less) dict is returned. The fetch itself happens exactly once.
+    # _stock_info is cached after the first call; the sector is still merged into the
+    # returned dict on the second call. The fetch itself happens exactly once.
+    assert second['sector'] == Sector.Technology
     assert fake.info_calls == 1
     assert inst._get_data_num('stock_info') == 1
     inst.db_close()

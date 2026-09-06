@@ -828,7 +828,9 @@ class StockData(SecData, StockFetcher):
                         self.db_close()
 
                 self._stock_info = {'sector': row}
-                base_info.update(self._stock_info)
+
+        if self._stock_info:
+            base_info.update(self._stock_info)
 
         return base_info
 

@@ -117,7 +117,7 @@ class Report():
         """Add a quotes chart with price, trades and dates/time to the chart list.
         
             Args:
-                data(BtData): data to build the chart.
+                data(BTData): data to build the chart.
                 index(int): symbol's index to build the chart.
                 title(str): the title of the chart.
                 chart_type(ChartType): chart type (line, candle, bar)
@@ -186,7 +186,7 @@ class Report():
         """Add an expenses chart to the charts list.
         
             Args:
-                data(BtData): data to build the chart.
+                data(BTData): data to build the chart.
                 title(str): the title of the chart.
                 fig(go.figure): custom figure to use.
                 height(int): the height of the chart image.
@@ -214,7 +214,7 @@ class Report():
         """Add a chart with portfolio performance.
         
             Args:
-                data(BtData): data to build the chart.
+                data(BTData): data to build the chart.
                 title(str): the title of the chart.
                 fig(go.figure): custom figure to use.
                 height(int): the height of the chart image.
@@ -243,7 +243,7 @@ class Report():
             Add a chart with trades statistics.
 
             Args:
-                data(BtData): data to build the chart.
+                data(BTData): data to build the chart.
                 title(str): the title of the chart.
                 fig(go.figure): custom figure to use.
                 height(int): the height of the chart image.
@@ -288,7 +288,7 @@ class Report():
             Add annotation with strategy results to the chart.
 
             Args:
-                data(BtData): data to calculate the results.
+                data(BTData): data to calculate the results.
                 title(str): the title of the strategy.
 
             Returns:

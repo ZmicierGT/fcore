@@ -8,7 +8,7 @@ from data.fvalues import Quotes, trading_days_per_year, Weighted
 from data.futils import thread_available, Log, add_column, get_dt
 
 import abc
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, astuple
 from datetime import datetime
 from enum import IntEnum
 from itertools import repeat
@@ -42,6 +42,34 @@ class BTSymbolEnum(IntEnum):
     PriceCloseLong = 5
     LongPositions = 6
     TradesNo = 7
+
+# Dataclass for one cycle of portfolio results. Order mirrors BTDataEnum.
+@dataclass
+class BTDataRow:
+    """One cycle of portfolio results. Order mirrors BTDataEnum."""
+    date_time: str | None = None
+    total_value: float | None = None
+    deposits: float | None = None
+    cash: float | None = None
+    other_profit: float | None = None
+    commission_expense: float | None = None
+    spread_expense: float | None = None
+    other_expense: float | None = None
+    total_expenses: float | None = None
+    total_trades: int | None = None
+
+# Dataclass for one cycle of per-symbol results. Order mirrors BTSymbolEnum.
+@dataclass
+class BTSymbolRow:
+    """One cycle of per-symbol results. Order mirrors BTSymbolEnum."""
+    open: float | None = None
+    close: float | None = None
+    high: float | None = None
+    low: float | None = None
+    price_open_long: float | None = None
+    price_close_long: float | None = None
+    long_positions: int | None = None
+    trades_no: int | None = None
 
 # Dataclass representing the statistics of a backtest calculation
 @dataclass
@@ -975,27 +1003,26 @@ class BackTestOperations():
 
         return total_value
 
-    def add_symbol_result(self, result=None):
+    def add_symbol_result(self, result: BTSymbolRow | None = None):
         """
             Generate symbol-specific results for the current cycle.
 
             Args:
-                result(list): the result to add. Auto generated otherwise.
+                result(BTSymbolRow): the result to add. Auto generated otherwise.
         """
         if result is None:
             if self.get_avail_index() is not None:
-                result = [
-                    self.get_open(),
-                    self.get_close(adjusted=True),
-                    self.get_high(),
-                    self.get_low(),
-                    self._price_open_long,
-                    self._price_close_long,
-                    self._long_positions,
-                    self._trades_no]
+                result = BTSymbolRow(
+                    open=self.get_open(),
+                    close=self.get_close(adjusted=True),
+                    high=self.get_high(),
+                    low=self.get_low(),
+                    price_open_long=self._price_open_long,
+                    price_close_long=self._price_close_long,
+                    long_positions=self._long_positions,
+                    trades_no=self._trades_no)
             else:
-                # TODO LOW Get rid of the hardcoded value
-                result = [None] * 8
+                result = BTSymbolRow()
 
         self._sym_results.append(result)
 
@@ -1004,7 +1031,7 @@ class BackTestOperations():
             Get results of the current symbol's calculation.
 
             Returns:
-                np.ndarray: symbol calculation results.
+                BTSymbol: symbol calculation results.
         """
         return self._sym_results
 
@@ -1673,22 +1700,24 @@ class BTBaseData():
     """
         Base class to represent backtesting results.
     """
+    _row_type = None
+
     def __init__(self):
         """Initialize the instance of the data class."""
-        # Numpy array for stored data
-        self.Data = None
+        # Per-column storage of the results
+        self._columns = [[] for _ in fields(self._row_type)]
 
     def append(self, row):
         """
             Append row to the results.
 
             Args:
-                row(list): the data to add.
+                row: the row dataclass to add.
         """
-        if self.Data is None:
-            self.Data = np.array(row, dtype='object')
-        else:
-            self.Data = np.vstack([self.Data, np.array(row, dtype='object')])
+        if not isinstance(row, self._row_type):
+            raise BackTestError(f"{self._row_type.__name__} instance is expected, got {type(row).__name__}.")
+        for col, value in zip(self._columns, astuple(row)):
+            col.append(value)
 
     def __getitem__(self, point):
         """
@@ -1698,7 +1727,7 @@ class BTBaseData():
                 point(list): indexes of the item to get.
         """
         x, y = point
-        return self.Data[x][y]
+        return self._columns[y][x]
 
     def __setitem__(self, point, value):
         """
@@ -1709,7 +1738,7 @@ class BTBaseData():
                 value: value to set.
         """
         x, y = point
-        self.Data[x][y] = value
+        self._columns[y][x] = value
 
     def __str__(self):
         """
@@ -1718,12 +1747,14 @@ class BTBaseData():
             Returns:
                 str: the string representation of the underlying data.
         """
-        return self.Data.__str__()
+        return str(self._columns)
 
 class BTData(BTBaseData):
     """
         The class which represents the whole portfolio.
     """
+    _row_type = BTDataRow
+
     def __init__(self):
         """Initialize the instance of the data class."""
         super().__init__()
@@ -1731,59 +1762,43 @@ class BTData(BTBaseData):
 
     @property
     def DateTime(self):
-        return self.Data[:, BTDataEnum.DateTime].astype('str')
+        return self._columns[BTDataEnum.DateTime]
 
     @property
     def TotalValue(self):
-        return self.Data[:, BTDataEnum.TotalValue].astype('float')
+        return self._columns[BTDataEnum.TotalValue]
 
     @property
     def Deposits(self):
-        return self.Data[:, BTDataEnum.Deposits].astype('float')
+        return self._columns[BTDataEnum.Deposits]
 
     @property
     def Cash(self):
-        return self.Data[:, BTDataEnum.Cash].astype('float')
+        return self._columns[BTDataEnum.Cash]
 
     @property
     def OtherProfit(self):
-        return self.Data[:, BTDataEnum.OtherProfit].astype('float')
+        return self._columns[BTDataEnum.OtherProfit]
 
     @property
     def CommissionExpense(self):
-        return self.Data[:, BTDataEnum.CommissionExpense].astype('float')
+        return self._columns[BTDataEnum.CommissionExpense]
 
     @property
     def SpreadExpense(self):
-        return self.Data[:, BTDataEnum.SpreadExpense].astype('float')
+        return self._columns[BTDataEnum.SpreadExpense]
 
     @property
     def OtherExpense(self):
-        return self.Data[:, BTDataEnum.OtherExpense].astype('float')
+        return self._columns[BTDataEnum.OtherExpense]
 
     @property
     def TotalExpenses(self):
-        return self.Data[:, BTDataEnum.TotalExpenses].astype('float')
+        return self._columns[BTDataEnum.TotalExpenses]
 
     @property
     def TotalTrades(self):
-        return self.Data[:, BTDataEnum.TotalTrades].astype('float')
-
-    @TotalTrades.setter
-    def TotalTrades(self, data):
-        """
-            Workaround to prevent the automatic copying of column. Python may make a copy of the column and then
-            changing the value will only change the value in the copy but not in the actual array.
-
-            Args:
-                data(int, float): index and the value to set the actual column.
-        """
-        try:
-            idx, value = data
-        except ValueError as e:
-            raise ValueError("Iterable with two items is required to set the value.") from e
-        else:
-            self.Data[idx][BTDataEnum.TotalTrades] = value
+        return self._columns[BTDataEnum.TotalTrades]
 
     def get_statistics(self, title="Strategy performance:"):
         """Get the statistics of the calculation in both structured and text form.
@@ -1821,6 +1836,8 @@ class BTSymbol(BTBaseData):
     """
         The class which represents the particular symbol used in the strategy. More than one symbols may be used.
     """
+    _row_type = BTSymbolRow
+
     def __init__(self, title=""):
         """Initialize the instance of symbol data class."""
         super().__init__()
@@ -1829,51 +1846,35 @@ class BTSymbol(BTBaseData):
 
     @property
     def Open(self):
-        return self.Data[:, BTSymbolEnum.Open].astype('float')
+        return self._columns[BTSymbolEnum.Open]
 
     @property
     def Close(self):
-        return self.Data[:, BTSymbolEnum.Close].astype('float')
+        return self._columns[BTSymbolEnum.Close]
 
     @property
     def High(self):
-        return self.Data[:, BTSymbolEnum.High].astype('float')
+        return self._columns[BTSymbolEnum.High]
 
     @property
     def Low(self):
-        return self.Data[:, BTSymbolEnum.Low].astype('float')
+        return self._columns[BTSymbolEnum.Low]
 
     @property
     def PriceOpenLong(self):
-        return self.Data[:, BTSymbolEnum.PriceOpenLong].astype('float')
+        return self._columns[BTSymbolEnum.PriceOpenLong]
 
     @property
     def PriceCloseLong(self):
-        return self.Data[:, BTSymbolEnum.PriceCloseLong].astype('float')
+        return self._columns[BTSymbolEnum.PriceCloseLong]
 
     @property
     def LongPositions(self):
-        return self.Data[:, BTSymbolEnum.LongPositions].astype('int')
+        return self._columns[BTSymbolEnum.LongPositions]
 
     @property
     def TradesNo(self):
-        return self.Data[:, BTSymbolEnum.TradesNo].astype('float')
-
-    @TradesNo.setter
-    def TradesNo(self, data):
-        """
-            Workaround to prevent the automatic copying of column. Python may make a copy of the column and then
-            changing the value will only change the value in the copy but not in the actual array.
-
-            Args:
-                data(int, float): index and the value to set the actual column.
-        """
-        try:
-            idx, value = data
-        except ValueError as e:
-            raise ValueError("Iterable with two items is required to set the value.") from e
-        else:
-            self.Data[idx][BTSymbolEnum.TradesNo] = value
+        return self._columns[BTSymbolEnum.TradesNo]
 
 ########################
 # Base backtesting class
@@ -2696,22 +2697,15 @@ class BackTest(metaclass=abc.ABCMeta):
                 True if the cycle was skipped, False otherwise.
         """
         if self.skipped():
-            cycle_result = np.full(len(BTDataEnum), None)
-            cycle_result[BTDataEnum.DateTime] = self.exec().get_datetime_str()
-            cycle_result[BTDataEnum.TotalTrades] = 0
-            self._results.append(cycle_result)
+            self._results.append(BTDataRow(date_time=self.exec().get_datetime_str(), total_trades=0))
 
             for ex in self.all_exec():
                 if ex.get_index() is not None:
-                    symbol_row = []
-
-                    symbol_row.extend(np.full(len(BTSymbolEnum), None))
-                    symbol_row[BTSymbolEnum.Open] = ex.get_open()
-                    symbol_row[BTSymbolEnum.Close] = ex.get_close(adjusted=True)
-                    symbol_row[BTSymbolEnum.High] = ex.get_high()
-                    symbol_row[BTSymbolEnum.Low] = ex.get_low()
-
-                    ex.add_symbol_result(symbol_row)
+                    ex.add_symbol_result(BTSymbolRow(
+                        open=ex.get_open(),
+                        close=ex.get_close(adjusted=True),
+                        high=ex.get_high(),
+                        low=ex.get_low()))
 
             return True
 
@@ -2909,25 +2903,23 @@ class BackTest(metaclass=abc.ABCMeta):
             Get result of the current cycle.
 
             Returns:
-                list: the result of the current cycle.
+                BTDataRow: the result of the current cycle.
         """
         for ex in self.__exec:
             ex.add_symbol_result()
 
-        result = [
-            self.exec().get_datetime_str(),
-            self.get_total_value(),
-            self.get_total_deposits(),
-            self.get_cash(),
-            self.get_other_profit(),
-            self.get_commission_expense(),
-            self.get_spread_expense(),
-            self.get_other_expense(),
-            self.get_total_expenses(),
-            self.get_total_trades()
-        ]
-
-        return result
+        return BTDataRow(
+            date_time=self.exec().get_datetime_str(),
+            total_value=self.get_total_value(),
+            deposits=self.get_total_deposits(),
+            cash=self.get_cash(),
+            other_profit=self.get_other_profit(),
+            commission_expense=self.get_commission_expense(),
+            spread_expense=self.get_spread_expense(),
+            other_expense=self.get_other_expense(),
+            total_expenses=self.get_total_expenses(),
+            total_trades=self.get_total_trades()
+        )
 
     def setup(self):
         """

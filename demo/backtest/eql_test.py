@@ -13,7 +13,8 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.yf import YF
-from data.fvalues import Weighted, sector_titles, sectors_dict, sectors_combined
+from data.fvalues import sector_titles, sectors_dict, sectors_combined
+from backtest.weigher import EqualWeigher
 
 import plotly.graph_objects as go
 import sys
@@ -24,7 +25,7 @@ last_date = "2024-07-10"  # The last date to fetch quotes
 
 etf = 'EQL'  # ETF which follows the index for comparison. Use another one if comparing performance before 2009-07-10
 
-weighted = Weighted.Equal
+weighted = EqualWeigher()
 mult_buy = 1.1  # Opening a position deviation multiplier. 2 means that the weight of a new position may be x2 than average
 mult_sell = 1.2  # Closing position multiplier. Opened position may exceed the mean weight up to this value
 

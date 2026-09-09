@@ -2,8 +2,8 @@
 
 This simulation can assemble a portfolio using periodic deposits which follows an index.
 An index is defined by compositions (see data.fvalues.djia_dict as an example) and
-weightening method (see data.fvalues.Weighted). Also stock grade/sector/whatever grouping
-may be applied (see grouping_attr and grouping_shares attributes of the BackTest class).
+weightening method (see backtest.weigher.Weigher subclasses). Also stock grade/sector/whatever
+grouping may be applied (see grouping_attr and grouping_shares attributes of the BackTest class).
 
 The author is Zmicier Gotowka
 

@@ -13,7 +13,7 @@ from data.fmp import FMP, Exchanges, FMPDataEntries
 
 from data.fvalues import (
     DbTypes,
-    Quotes, StockQuotes, Weighted, Algorithm,
+    Quotes, StockQuotes, Algorithm,
     Timespans, SecType, Currency,
     ReportPeriod, Dividends, StockSplits, Sector,
     Timezones,
@@ -34,7 +34,7 @@ __all__ = [
     "StockData", "StockFetcher", "StockDataEntries",
     "YF", "YFDataEntries", "FMP", "FMPDataEntries", "Exchanges",
     "DbTypes",
-    "Quotes", "StockQuotes", "Weighted", "Algorithm",
+    "Quotes", "StockQuotes", "Algorithm",
     "Timespans", "SecType", "Currency",
     "ReportPeriod", "Dividends", "StockSplits", "Sector",
     "Timezones",

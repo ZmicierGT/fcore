@@ -4,7 +4,8 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fvalues import Quotes, trading_days_per_year, Weighted
+from data.fvalues import Quotes, trading_days_per_year
+from backtest.weigher import Weigher
 from data.futils import thread_available, Log, add_column, get_dt
 
 import abc
@@ -414,8 +415,8 @@ class BackTestOperations():
         # Weight-related
         ################
 
-        if self.get_caller().get_weighted() == Weighted.Cap and 'cap' not in self.data.rows.dtype.names:
-            raise BackTestError(f"No 'cap' column in dataset for {self.data.title} but it is required by the weighting method.")
+        if self.get_caller().weigher is not None:
+            self.get_caller().weigher.validate_data(self.data)
 
         self._weight = 0  # The weight of the current position
 
@@ -1084,18 +1085,11 @@ class BackTestOperations():
         """
             Calculate and set the weight value only for the current security.
         """
-        current_weight = 0
+        self._weight = 0
 
-        if self.get_caller().weighted == Weighted.Price:
-            current_weight = self.get_long_positions()
-        elif self.get_caller().weighted == Weighted.Equal:
-            current_weight = self.get_long_positions() * self.get_close()
-        elif self.get_caller().weighted == Weighted.Cap:
-                if self.get_long_positions():
-                    ratio = self.get_caller().max_cap / self.get_row()['cap']
-                    current_weight = ratio * self.get_total_value()
-
-        self._weight = current_weight
+        weigher = self.get_caller().weigher
+        if weigher is not None:
+            self._weight = weigher.weight(self)
 
     def calc_weight_values(self, had_positions, has_positions, ex_total_value):
         """
@@ -1106,7 +1100,7 @@ class BackTestOperations():
                 has_positions(bool): indicates if the security has positions after the trade
                 ex_total_value(float): total value before making a trade
         """
-        if self.get_caller().weighted == Weighted.Unweighted:
+        if self.get_caller().weigher is None and self.get_caller().grouping_attr is None:
             return
 
         mult_adj_num = 0
@@ -1136,39 +1130,15 @@ class BackTestOperations():
         """
         num = 0
 
-        if self.get_caller().weighted == Weighted.Price:
-            if self.group_mean:
-                num = self.group_mean * deviation - self.weight
-            else:
-                # If opening the first position, then need to avoid the situation when selected security is cheap
-                # as if the maximum possible positions will be opened - then it will be difficult to balance
-                # the portfolio in the future. Need to limit the number of cheap securities.
-                num = self.get_max_trade_size() * (self.get_row()[Quotes.Close] / self.get_caller().max_price) * deviation
-        elif self.get_caller().weighted == Weighted.Equal:
-            if self.group_mean:
-                num = (self.group_mean * deviation - self.weight) / self.get_close()
-            else:
-                num = self.get_max_trade_size()
-        elif self.get_caller().weighted == Weighted.Cap:
-            if self.weight:
-                ratio = (self.group_mean * deviation - self.weight) / self.get_total_value()
-            else:
-                # Limit the number of positions for lower cap companies
-                ratio = self.get_row()['cap'] / self.group_max_cap * deviation
-
-            if ratio:
-                trade_size = self.get_max_trade_size()  # May buy more
-            else:
-                trade_size = self.get_long_positions()  # May sell some
-
-            num = ratio * trade_size
+        weigher = self.get_caller().weigher
+        if weigher is not None:
+            num = weigher.get_trade_num(self, deviation)
 
         # Check if the number of positions is limited by grouping
-        if self.group is not None and self.get_caller().total_weighted_value:
+        if self.group is not None and self.get_caller().grouping_invested:
             # Take cash into account as accumulated cash may prevent to open bigger position sizes otherwise.
-            tv = self.get_caller().total_weighted_value + self.get_caller().get_cash()
+            tv = self.get_caller().grouping_tv
             grouping_num = self.group_capacity * deviation * tv / self.get_close()
-
             num = min(num, grouping_num)
 
         return num
@@ -1241,12 +1211,12 @@ class BackTestOperations():
                 ex_total_value = self.get_total_value()
 
             if num is None:
-                if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
                     num = self.get_buy_num()
                 else:
                     num = self.get_max_trade_size()
             else:
-                if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
                     num = min(num, self.get_buy_num())
 
             if num > 0:
@@ -1317,12 +1287,12 @@ class BackTestOperations():
                 ex_total_value = self.get_total_value()
 
             if num is None:
-                if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
                     num = self.get_sell_num()
                 else:
                     num = self.get_long_positions()
             else:
-                if self.weighted and self.get_caller().weighted != Weighted.Unweighted and exact is False:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
                     num = min(num, self.get_sell_num())
 
             if num > 0 and self.get_long_positions():
@@ -1892,7 +1862,7 @@ class BackTest(metaclass=abc.ABCMeta):
                  deposit_interval=0,
                  cash_interest=0,
                  inflation=0,
-                 weighted=Weighted.Unweighted,
+                 weighted=None,
                  open_deviation=2,
                  close_deviation=3,
                  grouping_attr=None,
@@ -1914,7 +1884,8 @@ class BackTest(metaclass=abc.ABCMeta):
                 deposit_interval(int): interval (in days) to add a periodic deposit to the account.
                 cash_interest(int): interest on cash balance.
                 inflation(float): annual inflation used in the calculation.
-                weighted(Weighted): portfolio weighting method.
+                weighted(Weigher): portfolio weigher instance or None for no
+                                   weighting. Pass an instance of a backtest.weigher.Weigher subclass.
                 open_deviation(float): balance deviation multiplier for opening a position. 1 means that no deviation
                                        is acceptable. 2 means that the 'ideal' weight may be violated up to 2 times.
                 close_deviation(float): balance deviation multiplier for closing a position.
@@ -1975,8 +1946,10 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"inflation can't be less than 0% or more than 100%. Specified value is {inflation}")
         self._inflation = inflation
 
-        # Portfolio weighting method
-        self._weighted = weighted
+        # Portfolio weigher
+        if weighted is not None and not isinstance(weighted, Weigher):
+            raise BackTestError(f"Unsupported weighted argument: {weighted!r}. Expected a Weigher instance or None.")
+        self._weigher = weighted
 
         # Offset for calculation
         if offset < 0:
@@ -2115,14 +2088,14 @@ class BackTest(metaclass=abc.ABCMeta):
         return self._all_symbols
 
     @property
-    def weighted(self):
+    def weigher(self):
         """
-            Returns the weightening method.
+            Returns the portfolio weigher.
 
             Returns:
-                Weighted: the weightening method.
+                Weigher: the portfolio weigher or None.
         """
-        return self._weighted
+        return self._weigher
 
     @property
     def multiplier(self):
@@ -2224,6 +2197,29 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._grouping_values
 
+    # TODO MID Note that these two properties make sense only if it is possible that some positions may be outside of any
+    # group even the grouping is specified. Need to determine if they are needed.
+    @property
+    def grouping_tv(self):
+        """
+            Total value of the groups plus cash.
+
+            Returns:
+                float: the total group value plus cash.
+        """
+        return (sum(self._grouping_values.values()) + self.get_cash()
+                if self._grouping_values else self.get_cash())
+
+    @property
+    def grouping_invested(self):
+        """
+            Total value invested into the groups (without cash).
+
+            Returns:
+                float: the invested group value (0 if grouping is disabled).
+        """
+        return sum(self._grouping_values.values()) if self._grouping_values else 0
+
     @property
     def min_group_capacity(self):
         """
@@ -2312,25 +2308,12 @@ class BackTest(metaclass=abc.ABCMeta):
             Calculate and set the global weight values for the current portfolio.
             The values are used by diversification functions.
         """
-        if self.weighted == Weighted.Unweighted:
+        if self.weigher is None:
             return
 
         self._multiplier = 0
         self._mean_weight = 0
         self._total_weighted_value = 0
-
-        if self.grouping_attr is not None:
-            self._grouping_values = {key: None for key in list(self._grouping_shares.keys())}
-            self._grouping_values = dict.fromkeys(self._grouping_values, 0)
-
-            self._grouping_means = {key: None for key in list(self._grouping_shares.keys())}
-            self._grouping_means = dict.fromkeys(self._grouping_means, 0)
-
-            self._grouping_mult = {key: None for key in list(self._grouping_shares.keys())}
-            self._grouping_mult = dict.fromkeys(self._grouping_mult, 0)
-
-            self._grouping_capacity = {key: None for key in list(self._grouping_shares.keys())}
-            self._grouping_capacity = dict.fromkeys(self._grouping_capacity, 0)
 
         for ex in self.all_exec():
             if ex.weighted and ex.has_positions:
@@ -2339,74 +2322,39 @@ class BackTest(metaclass=abc.ABCMeta):
                 ex.calc_weight()
                 self._mean_weight += ex.weight
 
-                total_value = ex.get_total_value()
-                self._total_weighted_value += total_value
-
-                if self.grouping_attr is not None:
-                    self._grouping_values[ex.group] += total_value
-                    self._grouping_mult[ex.group] += 1
+                self._total_weighted_value += ex.get_total_value()
 
         if self._multiplier:
             self._mean_weight = self._mean_weight / self._multiplier
 
-        if self._grouping_attr:
-            # Take cash into account
-            tv = self.total_weighted_value + self.get_cash()
+    # TODO MID The grouping without weighter should be fully addressed
+    def calc_grouping_values(self):
+        """
+            Calculate and set the grouping values (totals, means, capacities) per group.
+            Driven by position values and cash only — works with any weigher or without one.
+            Note: without a weigher only buy-side group selection works; trade-size capping and
+            sell diversification do not apply (get_trade_num() returns 0, mean_weight stays 0).
+        """
+        if self.grouping_attr is None:
+            return
 
+        self._grouping_values = dict.fromkeys(self._grouping_shares.keys(), 0)
+        self._grouping_means = dict.fromkeys(self._grouping_shares.keys(), 0)
+        self._grouping_mult = dict.fromkeys(self._grouping_shares.keys(), 0)
+        self._grouping_capacity = dict.fromkeys(self._grouping_shares.keys(), 0)
+
+        for ex in self.all_exec():
+            if ex.weighted and ex.has_positions:
+                total_value = ex.get_total_value()
+                self._grouping_values[ex.group] += total_value
+                self._grouping_mult[ex.group] += 1
+
+        if self.grouping_tv:
             for key, value in self._grouping_values.items():
-                self._grouping_capacity[key] = self._grouping_shares[key] - self._grouping_values[key] / tv
+                self._grouping_capacity[key] = self._grouping_shares[key] - value / self.grouping_tv
 
-            if self._grouping_mult:
-                for key, value in self._grouping_mult.items():
-                    if value:
-                        self._grouping_means[key] = self._grouping_values[key] / value
-
-    def calc_global_cap_values(self):
-        """
-            Calculate and set the global capitalization values.
-        """
-        if self.weighted != Weighted.Cap:
-            return
-
-        if self._grouping_attr is not None:
-            self._grouping_max_cap = {key: None for key in list(self._grouping_shares.keys())}
-            self._grouping_max_cap = dict.fromkeys(self._grouping_max_cap, 0)
-
-        max_cap = 0
-
-        for ex in self.all_exec():
-            if ex.weighted and ex.get_index():
-                current_cap = ex.get_row()['cap']
-
-                max_cap = max(max_cap, current_cap)
-
-                if self._grouping_attr is not None:
-                    self._grouping_max_cap[ex.group] = max(self._grouping_max_cap[ex.group], current_cap)
-
-        self._max_cap = max_cap
-
-    def calc_global_price_values(self):
-        """
-            Calculate and set the global price values.
-        """
-        if self.weighted != Weighted.Price:
-            return
-
-        if self.get_long_positions_num():
-            # No need to calculate anything if any position opened
-            self._max_price = 0
-
-            return
-
-        max_price = 0
-
-        for ex in self.all_exec():
-            if ex.weighted and ex.get_index():
-                current_price = ex.get_row()[Quotes.Close]
-
-                max_price = max(max_price, current_price)
-
-        self._max_price = max_price
+                if self._grouping_mult[key]:
+                    self._grouping_means[key] = value / self._grouping_mult[key]
 
     # TODO Adjust everything not just TV and group values
     def adjust_weight_values(self, ex, mult_adj_num, ex_weight, ex_total_value):
@@ -2419,19 +2367,22 @@ class BackTest(metaclass=abc.ABCMeta):
                 ex_weight(float): the previous weight
                 ex_total_value(float): the total value before making a trade
         """
-        if self.weighted == Weighted.Unweighted:
-            return
+        if self.weigher is not None:
+            self._multiplier += mult_adj_num
 
-        self._multiplier += mult_adj_num
+            if self.multiplier:
+                self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
 
-        if self.multiplier:
-            self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
-
-        total_value = ex.get_total_value()
-
-        self._total_weighted_value = self._total_weighted_value - ex_total_value + total_value
+            self._total_weighted_value = self._total_weighted_value - ex_total_value + ex.get_total_value()
 
         if self.grouping_attr is not None:
+            # Grouping values are maintained intracycle even without a weigher (trades adjust them via this method).
+            # Skip if before the first do_cycle() (grouping dicts not initialized yet).
+            if self._grouping_values is None:
+                return
+
+            total_value = ex.get_total_value()
+
             self._grouping_values[ex.group] = self._grouping_values[ex.group] - ex_total_value + total_value
 
     def _get_biggest_data_idx(self):
@@ -2466,15 +2417,6 @@ class BackTest(metaclass=abc.ABCMeta):
                 True if calculation is finished, False otherwise.
         """
         return self.__is_finished
-
-    def get_weighted(self):
-        """
-            Get the portfolio weighting method.
-
-            Returns:
-                Weighted: the portfolio weighting method
-        """
-        return self._weighted
 
     def get_long_positions_num(self):
         """
@@ -3068,10 +3010,11 @@ class BackTest(metaclass=abc.ABCMeta):
         # Set the current compositions depends on the date
         self._current_cmp = self._get_current_cmp()
 
-        # Calculate and set the global capitalization data (if needed)
-        self.calc_global_cap_values()
-        self.calc_global_price_values()
+        # Calculate and set the global weightening data (if needed)
+        if self.weigher is not None:
+            self.weigher.update_globals(self)
         self.calc_global_weight_values()
+        self.calc_grouping_values()
 
         # Calculate days delta between the cycles and check if day counter increased
         self.adjust_days_delta()

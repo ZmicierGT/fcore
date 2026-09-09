@@ -13,7 +13,8 @@ from backtest.reporting import Report
 
 from data.fdata import FdataError
 from data.yf import YF
-from data.fvalues import Weighted, djia_combined, djia_dict, sector_titles
+from data.fvalues import djia_combined, djia_dict, sector_titles
+from backtest.weigher import PriceWeigher
 
 import plotly.graph_objects as go
 import sys
@@ -23,7 +24,7 @@ last_date = "2024-08-14"  # The last date to fetch quotes
 
 etf = 'DIA'  # ETF which follows the index (used for comparison)
 
-weighted = Weighted.Price
+weighted = PriceWeigher()
 mult_buy = 1.1  # Opening a position deviation multiplier. 2 means that the weight of a new position may be x2 than average
 mult_sell = 1.2  # Closing position multiplier. Opened position may exceed the mean weight up to this value
 

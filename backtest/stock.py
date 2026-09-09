@@ -5,7 +5,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from backtest.base import BackTestData, BackTestOperations, BackTestError
-from data.fvalues import StockQuotes, Weighted, sector_titles
+from data.fvalues import StockQuotes, sector_titles
 
 from math import inf
 

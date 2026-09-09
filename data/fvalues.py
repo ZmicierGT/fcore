@@ -591,10 +591,3 @@ class Algorithm(IntEnum):
     GaussianNB = 3
     DTC = 4
     SVC = 5
-
-class Weighted(IntEnum):
-    """Enum with the supported portfolio weighting methods."""
-    Unweighted = 0  # TODO HIGH Should work correctly if grouping is specified
-    Equal = 1
-    Price = 2
-    Cap = 3

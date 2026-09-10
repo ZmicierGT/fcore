@@ -1729,6 +1729,7 @@ class BTData(BTBaseData):
         """Initialize the instance of the data class."""
         super().__init__()
         self.Symbols = []
+        self._elapsed_time = None
 
     @property
     def DateTime(self):
@@ -1769,6 +1770,16 @@ class BTData(BTBaseData):
     @property
     def TotalTrades(self):
         return self._columns[BTDataEnum.TotalTrades]
+
+    @property
+    def ElapsedTime(self):
+        """
+            Get the time in seconds which was spent on the backtesting calculation.
+
+            Returns:
+                float: the elapsed time in seconds.
+        """
+        return self._elapsed_time
 
     def get_statistics(self, title="Strategy performance:"):
         """Get the statistics of the calculation in both structured and text form.
@@ -2029,6 +2040,9 @@ class BackTest(metaclass=abc.ABCMeta):
 
         # Separate thread for calculation
         self.__thread = None
+
+        # Moment of time when the calculation has started (time.perf_counter based)
+        self.__calc_started = None
 
         self._compositions = None  # Index compositions in a moment of time
 
@@ -3073,6 +3087,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self.__event = BackTestEvent(self.__timeout)
 
+        self.__calc_started = time.perf_counter()
+
         if thread_available():
             self.__thread = Thread(target=self.__do_calculation)
             self.__thread.start()
@@ -3086,6 +3102,8 @@ class BackTest(metaclass=abc.ABCMeta):
         except Exception as e:
             raise BackTestError(e) from e
         finally:
+            # Store the time actually spent on the calculation (not affected by a delayed get_results())
+            self._results._elapsed_time = time.perf_counter() - self.__calc_started
             self.__event.set()
 
     def calculate_all_tech(self):

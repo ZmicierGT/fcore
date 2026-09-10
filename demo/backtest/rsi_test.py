@@ -52,7 +52,8 @@ if __name__ == "__main__":
 
     for symbol in symbols:
         try:
-            rows = YF(symbol=symbol, first_date=first_date, last_date=last_date).get()
+            yfi = YF(symbol=symbol, first_date=first_date, last_date=last_date)
+            rows = yfi.get()
         except FdataError as e:
             sys.exit(e)
 
@@ -130,6 +131,9 @@ if __name__ == "__main__":
     title = f"RSI Multi Example Testing for {symbol1} and {symbol2}"
     stats = results.get_statistics(title=title)
     print(stats)
+
+    print(f"\nBacktesting calculation time: {results.ElapsedTime:.2f} seconds.")
+    print(f"Tested period: {yfi.first_date_str} - {yfi.last_date_str}\n")
 
     # TODO LOW Consider adding B&H text statistics at the bottom
     report = Report(data=results, width=max(length, min_width))

@@ -27,7 +27,8 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        rows = YF(symbol=symbol, first_date="2020-10-01", last_date="2023-11-1").get()
+        yfi = YF(symbol=symbol, first_date="2020-10-01", last_date="2023-11-1")
+        rows = yfi.get()
     except FdataError as e:
         sys.exit(e)
 
@@ -64,6 +65,9 @@ if __name__ == "__main__":
     # Show the statistics in a text form (along with the image)
     stats = results.get_statistics(title=title)
     print(stats)
+
+    print(f"\nBacktesting calculation time: {results.ElapsedTime:.2f} seconds.")
+    print(f"Tested period: {yfi.first_date_str} - {yfi.last_date_str}\n")
 
     report = Report(data=results, width=max(length, min_width))
 

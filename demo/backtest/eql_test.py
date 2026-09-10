@@ -222,6 +222,9 @@ if __name__ == "__main__":
     print(results_cls.get_statistics(title=title_cls))
     print(results.get_statistics(title=title_sim))
 
+    print(f"\nBacktesting calculation time: {results.ElapsedTime:.2f} seconds.")
+    print(f"Tested period: {yfi.first_date_str} - {yfi.last_date_str}\n")
+
     # TODO LOW Think of how to get rid of the main chart as it may be useless in multi symbol strategies
     report = Report(data=results_cls, width=max(len(rows), min_width))
 

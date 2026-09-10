@@ -38,7 +38,8 @@ if __name__ == "__main__":
                   "datasource only for demonstation purposes!\n"
         print(warning)
 
-        rows = YF(symbol=symbol, first_date="2015-06-01", last_date="2016-06-1").get()
+        yfi = YF(symbol=symbol, first_date="2015-06-01", last_date="2016-06-1")
+        rows = yfi.get()
     except FdataError as e:
         sys.exit(e)
 
@@ -97,6 +98,9 @@ if __name__ == "__main__":
     title = f"MA/Quote Cross Backtesting Example for {symbol}"
     stats = results.get_statistics(title=title)
     print(stats)
+
+    print(f"\nBacktesting calculation time: {results.ElapsedTime:.2f} seconds.")
+    print(f"Tested period: {yfi.first_date_str} - {yfi.last_date_str}\n")
 
     report = Report(data=results, width=max(length, min_width))
 

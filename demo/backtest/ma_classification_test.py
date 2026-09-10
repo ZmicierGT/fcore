@@ -62,7 +62,8 @@ if __name__ == "__main__":
 
     # Get quotes for testing
     try:
-        rows = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1").get()
+        yfi = YF(symbol=symbol, first_date="2021-1-2", last_date="2023-4-1")
+        rows = yfi.get()
     except FdataError as e:
         sys.exit(e)
 
@@ -161,6 +162,9 @@ if __name__ == "__main__":
 
     stats = results_cmp.get_statistics(title=title_cmp)
     print(stats)
+
+    print(f"\nBacktesting calculation time: {results_cls.ElapsedTime:.2f} seconds.")
+    print(f"Tested period: {yfi.first_date_str} - {yfi.last_date_str}\n")
 
     report = Report(data=results_cls, width=max(length_test, min_width))
 

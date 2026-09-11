@@ -98,7 +98,7 @@ class IndexSim(BackTest):
 
                 # Check if we need to close the position because the security was excluded from the index
                 if ex.data.title not in self.composition and ex.get_long_positions() and ex.is_limit is False:
-                    ex.sell(num=ex.get_long_positions(), limit=ex.get_row()[StockQuotes.Close], limit_deviation=0.01, recalculate=True, exact=True)
+                    ex.sell(num=ex.get_long_positions(), limit=ex.get_row()[StockQuotes.Open], recalculate=True, exact=True)
 
                     continue
 
@@ -115,12 +115,12 @@ class IndexSim(BackTest):
                     target_buy = ex
 
             if target_sell is not None and target_sell.get_sell_num() > 0:
-                target_sell.sell(limit=target_sell.get_row()[StockQuotes.Close], limit_deviation=0.02)
+                target_sell.sell(limit=target_sell.get_row()[StockQuotes.Open])
 
             if target_buy is not None and (\
                 (self.mean_weight and target_buy.get_buy_num() >= 1) or \
                     target_buy.get_max_trade_size_cash()[0] >= 1):
-                target_buy.buy(limit=target_buy.get_row()[StockQuotes.Close], limit_deviation=0.01)
+                target_buy.buy(limit=target_buy.get_row()[StockQuotes.Open])
 
             ##############################
             # Teardown the cycle

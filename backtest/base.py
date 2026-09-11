@@ -409,7 +409,7 @@ class BackTestOperations():
         self._limit_num = -1  # Number of securities for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
-        self._limit_validity = 2  # Limit order validity in days
+        self._limit_validity = 2  # Limit order validity in calendar days (non-trading days count)
 
         ################
         # Weight-related
@@ -1193,7 +1193,8 @@ class BackTestOperations():
                 num(int): the number of securities to buy. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
-                limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                                     (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
@@ -1228,6 +1229,10 @@ class BackTestOperations():
                                         has_positions=self.has_positions,
                                         ex_total_value=ex_total_value)
         else:
+            # Ignore the order with a non-positive number of securities
+            if num is not None and num <= 0:
+                return total_num
+
             # Place a limit order
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
@@ -1237,12 +1242,34 @@ class BackTestOperations():
 
             self.cancel_limit_order()
 
+            # A marketable limit order: the close is within the accepted range so the resting order
+            # was crossed after the placement. A resting limit fills at its own price; the close is used
+            # only if it is above the limit (possible with a deviation only).
+            close_price = self.get_close()
+
+            if close_price <= limit * (1 + limit_deviation):
+                fill_price = max(close_price, limit)
+
+                log = (f"At {self.get_datetime_str()} BUY limit order for {self.data.title} with the price {round(limit, 2)} "
+                       f"is marketable at the bar close and is executed immediately at {round(fill_price, 2)}.")
+
+                self.get_caller()._lg.plain(log)
+
+                total_num = self.buy(num=num, price=fill_price, recalculate=recalculate, exact=exact)
+
+                diff = (fill_price - limit) * total_num
+
+                if diff > 0:
+                    self.get_caller().add_spread_expense(diff)
+
+                return total_num
+
             self._limit_buy = limit
 
             self._limit_num = num
             self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
-            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
             self._limit_recalculate = recalculate
             self._limit_exact = exact
 
@@ -1269,14 +1296,15 @@ class BackTestOperations():
                 num(int): the number of securities to sell. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_deviation(float): acceptable price deviation for a limit order to be executed.
-                limit_validity(int): number of days for a limit order to be valid until it is cancelled.
+                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                                     (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
 
             Returns:
-                int: the number of positions opened
+                int: the number of positions closed
         """
         total_num = 0
 
@@ -1306,6 +1334,10 @@ class BackTestOperations():
                                         has_positions=self.has_positions,
                                         ex_total_value=ex_total_value)
         else:
+            # Ignore the order with a non-positive number of securities
+            if num is not None and num <= 0:
+                return total_num
+
             # Place a limit order
             if self._limit_buy or self._limit_sell:
                 direction = 'BUY' if self._limit_buy else 'SELL'
@@ -1315,12 +1347,34 @@ class BackTestOperations():
 
             self.cancel_limit_order()
 
+            # A marketable limit order: the close is within the accepted range so the resting order
+            # was crossed after the placement. A resting limit fills at its own price; the close is used
+            # only if it is below the limit (possible with a deviation only).
+            close_price = self.get_close()
+
+            if close_price >= limit * (1 - limit_deviation):
+                fill_price = min(close_price, limit)
+
+                log = (f"At {self.get_datetime_str()} SELL limit order for {self.data.title} with the price {round(limit, 2)} "
+                       f"is marketable at the bar close and is executed immediately at {round(fill_price, 2)}.")
+
+                self.get_caller()._lg.plain(log)
+
+                total_num = self.sell(num=num, price=fill_price, recalculate=recalculate, exact=exact)
+
+                diff = (limit - fill_price) * total_num
+
+                if diff > 0:
+                    self.get_caller().add_spread_expense(diff)
+
+                return total_num
+
             self._limit_sell = limit
 
             self._limit_num = num
             self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
-            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp])
+            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
             self._limit_recalculate = recalculate
             self._limit_exact = exact
 
@@ -1353,7 +1407,7 @@ class BackTestOperations():
         self._limit_num = -1  # Number of securities for a limit order. None means max
 
         self._limit_date = None  # Limit order placement date
-        self._limit_validity = 2  # Limit order validity in days
+        self._limit_validity = 2  # Limit order validity in calendar days (non-trading days count)
 
     def process_limit_order(self):
         """
@@ -1362,22 +1416,16 @@ class BackTestOperations():
         if self._limit_num is not None and self._limit_num == -1:
             return
 
-        currrent_date = get_dt(self.get_row()[Quotes.TimeStamp])
-
-        delta = currrent_date - self._limit_date
-        days_delta = delta.days
-
-        # If limit order is valid more than for the current day then ignore the weekends
-        if self._limit_date.weekday() == 4 and self._limit_validity > 1:
-            days_delta -= 2
+        # Calendar days passed since the order placement (non-trading days are counted too)
+        days_delta = (get_dt(self.get_row()[Quotes.TimeStamp]).date() - self._limit_date).days
 
         side = 'BUY' if self._limit_buy else 'SELL'
-        price = self.get_row(-1)[Quotes.Low] if self._limit_buy else self.get_row(-1)[Quotes.High]
+        price = self.get_row()[Quotes.Low] if self._limit_buy else self.get_row()[Quotes.High]
         limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell - self._limit_sell * self._limit_deviation
 
         if days_delta > self._limit_validity:
             log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
-                   f"{limit} (including deviation) wasn't achieved or weighening did now allow to perform the trade. The last price is {price}.")
+                   f"{limit} (including deviation) wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
 
             self.get_caller()._lg.highlight(log)
 
@@ -1388,19 +1436,32 @@ class BackTestOperations():
         num = 0
         diff = 0
 
-        if self._limit_buy:
-            current_low = price
+        # The open price of a subsequent bar is known to be a "passed" price: if the bar gapped
+        # through the limit, the order fills at the open. Otherwise a touch of Low/High fills
+        # the order at the resting limit price.
+        open_price = self.get_row()[Quotes.Open]
 
-            if current_low <= limit:
-                num = self.buy(num=self._limit_num, price=current_low, recalculate=self._limit_recalculate, exact=self._limit_exact)
-                diff = (current_low - self._limit_buy) * num
+        if self._limit_buy:
+            if open_price <= limit:
+                num = self.buy(num=self._limit_num, price=open_price, recalculate=self._limit_recalculate, exact=self._limit_exact)
+                diff = (open_price - self._limit_buy) * num
+
+            else:
+                current_low = price
+
+                if current_low <= limit:
+                    num = self.buy(num=self._limit_num, price=self._limit_buy, recalculate=self._limit_recalculate, exact=self._limit_exact)
 
         if self._limit_sell:
-            current_high = price
+            if open_price >= limit:
+                num = self.sell(num=self._limit_num, price=open_price, recalculate=self._limit_recalculate, exact=self._limit_exact)
+                diff = (self._limit_sell - open_price) * num
 
-            if current_high >= limit:
-                num = self.sell(num=self._limit_num, price=current_high, recalculate=self._limit_recalculate, exact=self._limit_exact)
-                diff = (current_high - self._limit_sell) * num
+            else:
+                current_high = price
+
+                if current_high >= limit:
+                    num = self.sell(num=self._limit_num, price=self._limit_sell, recalculate=self._limit_recalculate, exact=self._limit_exact)
 
         # TODO HIGH Check the spread again
         if diff > 0:

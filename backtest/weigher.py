@@ -116,7 +116,7 @@ class PriceWeigher(Weigher):
 
         max_price = 0
         for ex in bt.all_exec():
-            if ex.weighted and ex.get_index():
+            if ex.weighted and ex.get_index() is not None:
                 max_price = max(max_price, ex.get_row()[Quotes.Close])
         bt._max_price = max_price
 
@@ -143,7 +143,7 @@ class CapWeigher(Weigher):
 
         max_cap = 0
         for ex in bt.all_exec():
-            if ex.weighted and ex.get_index():
+            if ex.weighted and ex.get_index() is not None:
                 current_cap = ex.get_row()['cap']
                 max_cap = max(max_cap, current_cap)
                 if bt.grouping_attr is not None:

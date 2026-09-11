@@ -402,7 +402,6 @@ class BackTestOperations():
 
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
-        self._limit_deviation = 0  # Acceptable price deviation for a limit order
         self._limit_recalculate = True  # Indicates if weightening values should be recalculated
         self._limit_exact = None  # Indicates if weightening should be overridden
 
@@ -1185,14 +1184,13 @@ class BackTestOperations():
     # TODO LOW Implement using a higher resolution for order procesing.
     # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
     #      strategies. Think how to implement it in a safer way.
-    def buy(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=True, price=None):
+    def buy(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
             Perform a buy trade.
 
             Args:
                 num(int): the number of securities to buy. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
-                limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
@@ -1242,60 +1240,47 @@ class BackTestOperations():
 
             self.cancel_limit_order()
 
-            # A marketable limit order: the close is within the accepted range so the resting order
-            # was crossed after the placement. A resting limit fills at its own price; the close is used
-            # only if it is above the limit (possible with a deviation only).
+            # A marketable limit order: the close is within the limit price so the resting
+            # order was crossed after the placement. It fills at the limit price.
             close_price = self.get_close()
 
-            if close_price <= limit * (1 + limit_deviation):
-                fill_price = max(close_price, limit)
-
+            if close_price <= limit:
                 log = (f"At {self.get_datetime_str()} BUY limit order for {self.data.title} with the price {round(limit, 2)} "
-                       f"is marketable at the bar close and is executed immediately at {round(fill_price, 2)}.")
+                       f"is marketable at the bar close and is executed immediately at {round(limit, 2)}.")
 
                 self.get_caller()._lg.plain(log)
 
-                total_num = self.buy(num=num, price=fill_price, recalculate=recalculate, exact=exact)
-
-                diff = (fill_price - limit) * total_num
-
-                if diff > 0:
-                    self.get_caller().add_spread_expense(diff)
+                total_num = self.buy(num=num, price=limit, recalculate=recalculate, exact=exact)
 
                 return total_num
 
             self._limit_buy = limit
 
             self._limit_num = num
-            self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
             self._limit_recalculate = recalculate
             self._limit_exact = exact
-
-            max_price = round(self._limit_buy + self._limit_buy * self._limit_deviation, 2)
 
             if self._limit_num is not None:
                 order_num = self._limit_num
             else:
                 order_num = 'max'
 
-            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.data.title} for the {order_num} number or securities "
-                   f"with the price {round(self._limit_buy, 2)} "
-                   f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
+            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.data.title} for the {order_num} number of securities "
+                   f"with the price {round(self._limit_buy, 2)}.")
 
             self.get_caller()._lg.highlight(log)
 
         return total_num
 
-    def sell(self, num=None, limit=None, limit_deviation=0, limit_validity=2, exact=False, recalculate=True, price=None):
+    def sell(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
             Perform a sell trade.
 
             Args:
                 num(int): the number of securities to sell. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
-                limit_deviation(float): acceptable price deviation for a limit order to be executed.
                 limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
@@ -1347,38 +1332,27 @@ class BackTestOperations():
 
             self.cancel_limit_order()
 
-            # A marketable limit order: the close is within the accepted range so the resting order
-            # was crossed after the placement. A resting limit fills at its own price; the close is used
-            # only if it is below the limit (possible with a deviation only).
+            # A marketable limit order: the close is within the limit price so the resting
+            # order was crossed after the placement. It fills at the limit price.
             close_price = self.get_close()
 
-            if close_price >= limit * (1 - limit_deviation):
-                fill_price = min(close_price, limit)
-
+            if close_price >= limit:
                 log = (f"At {self.get_datetime_str()} SELL limit order for {self.data.title} with the price {round(limit, 2)} "
-                       f"is marketable at the bar close and is executed immediately at {round(fill_price, 2)}.")
+                       f"is marketable at the bar close and is executed immediately at {round(limit, 2)}.")
 
                 self.get_caller()._lg.plain(log)
 
-                total_num = self.sell(num=num, price=fill_price, recalculate=recalculate, exact=exact)
-
-                diff = (limit - fill_price) * total_num
-
-                if diff > 0:
-                    self.get_caller().add_spread_expense(diff)
+                total_num = self.sell(num=num, price=limit, recalculate=recalculate, exact=exact)
 
                 return total_num
 
             self._limit_sell = limit
 
             self._limit_num = num
-            self._limit_deviation = limit_deviation
             self._limit_validity = limit_validity
             self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
             self._limit_recalculate = recalculate
             self._limit_exact = exact
-
-            max_price = round(self._limit_sell - self._limit_sell * self._limit_deviation, 2)
 
             if self._limit_num is not None:
                 order_num = self._limit_num
@@ -1386,8 +1360,7 @@ class BackTestOperations():
                 order_num = 'max'
 
             log = (f"At {self.get_datetime_str()} SELL Limit order is placed for {self.data.title} for {order_num} number of securities "
-                   f"with the price {round(self._limit_sell, 2)} "
-                   f"and max deviation of {self._limit_deviation} resulting in up to {max_price} total price.")
+                   f"with the price {round(self._limit_sell, 2)}.")
 
             self.get_caller()._lg.highlight(log)
 
@@ -1400,7 +1373,6 @@ class BackTestOperations():
         # Setting the values to default
         self._limit_buy = 0  # Price to buy
         self._limit_sell = 0  # Price to sell
-        self._limit_deviation = 0  # Acceptable price deviation for a limit order
         self._limit_recalculate = True  # If weightening values should be recalculated
         self._limit_exact = None  # Indicates if weightening rules should be overriden
 
@@ -1421,11 +1393,11 @@ class BackTestOperations():
 
         side = 'BUY' if self._limit_buy else 'SELL'
         price = self.get_row()[Quotes.Low] if self._limit_buy else self.get_row()[Quotes.High]
-        limit = self._limit_buy + self._limit_buy * self._limit_deviation if self._limit_buy else self._limit_sell - self._limit_sell * self._limit_deviation
+        limit = self._limit_buy if self._limit_buy else self._limit_sell
 
         if days_delta > self._limit_validity:
             log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
-                   f"{limit} (including deviation) wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
+                   f"{limit} wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
 
             self.get_caller()._lg.highlight(log)
 

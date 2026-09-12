@@ -25,6 +25,9 @@ class StockData(BackTestData):
         super().__init__(**kwargs)
 
         # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
+        # TODO LOW: adj_* columns are back-adjusted using dividends/splits from the rest of the window (future data
+        #  for each bar), so indicator signals computed on them deviate from real-time observables.
+        #  Think of using raw prices with dividends-as-cash instead.
         self._close = StockQuotes.AdjClose
 
         if div_tax < 0 or div_tax >= 100:

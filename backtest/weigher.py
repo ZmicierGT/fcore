@@ -93,10 +93,10 @@ class EqualWeigher(Weigher):
     """Equal (value) weighting."""
 
     def weight(self, ex):
-        return ex.get_long_positions() * ex.get_close()
+        return ex.get_long_positions() * ex.get_market_price()
 
     def weight_per_position(self, ex):
-        return ex.get_close()
+        return ex.get_market_price()
 
 
 class PriceWeigher(Weigher):
@@ -117,7 +117,7 @@ class PriceWeigher(Weigher):
         max_price = 0
         for ex in bt.all_exec():
             if ex.weighted and ex.get_index() is not None:
-                max_price = max(max_price, ex.get_row()[Quotes.Close])
+                max_price = max(max_price, ex.get_row()[Quotes.Open])
         bt._max_price = max_price
 
     def get_trade_num(self, ex, deviation):
@@ -126,11 +126,16 @@ class PriceWeigher(Weigher):
         # If opening the first position, then need to avoid the situation when selected security is cheap
         # as if the maximum possible positions will be opened - then it will be difficult to balance
         # the portfolio in the future. Need to limit the number of cheap securities.
-        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Close] / ex.get_caller().max_price) * deviation
+        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Open] / ex.get_caller().max_price) * deviation
 
 
 class CapWeigher(Weigher):
-    """Capitalization weighting. Requires a 'cap' column in quote rows (via Subquery)."""
+    """Capitalization weighting. Requires a 'cap' column in quote rows (via Subquery).
+
+        The cap is used at the current bar's decision time, so it is the user's responsibility to make it
+        known at the bar's Open — e.g., calculate it as Open * outstanding shares. A subquery-sourced cap
+        (e.g. 'fmp_capitalization') is an EOD value and would leak future data into decisions - use for demo purposes only.
+    """
 
     def validate_data(self, data):
         if 'cap' not in data.rows.dtype.names:

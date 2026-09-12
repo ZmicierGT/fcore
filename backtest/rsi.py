@@ -58,12 +58,13 @@ class RSI(BackTest):
         """
             Check if the current cycle should be skipped.
 
-            The cycle should be skipped if the MA is not calculated yet.
+            The cycle should be skipped if the RSI (of the previous bar, compared with the bar
+            before it) is not calculated yet.
 
             Args:
                 index(int): index of the current cycle.
         """
-        return index < self._period
+        return index < self._period + 2
 
     def do_tech_calculation(self, ex):
         """
@@ -119,34 +120,39 @@ class RSI(BackTest):
 
             min_ex = None
             max_ex = None
+            min_val = None
+            max_val = None
 
+            # Rank symbols by the RSI of the latest completed bar (the same bar the crossing
+            # checks use) — the current bar's RSI is not known at execution time (the Open).
             for ex in self.all_exec():
-                if ex.get_index():
-                    ex_val = ex.get_val()['rsi']
-                else:
-                    ex_val = None
+                val_row = ex.get_val(offset=-1)
+                val = val_row['rsi'] if val_row is not None and pd.notna(val_row['rsi']) else None
 
-                if max_ex is None or (ex_val is not None and ex_val > max_ex.get_val()['rsi']):
-                    max_ex = ex
+                if val is None:
+                    continue
 
-                if min_ex is None or (ex_val is not None and ex_val < min_ex.get_val()['rsi']):
-                    min_ex = ex
+                if max_val is None or val > max_val:
+                    max_ex, max_val = ex, val
 
-            if (
-                max_ex.get_val(offset=-1)['rsi'] is not None and max_ex.get_val()['rsi'] is not None and
-                max_ex.get_val(offset=-1)['rsi'] > self.__resistance and
-                max_ex.get_val()['rsi'] < self.__resistance
-               ):
+                if min_val is None or val < min_val:
+                    min_ex, min_val = ex, val
 
-                max_ex.close_all_long()
+            # Check the row for None before subscripting: get_val() returns None for
+            # negative local indexes and for timestamps missing in the symbol's data.
+            if max_ex is not None:
+                prev = max_ex.get_val(offset=-2)
 
-            if (
-                min_ex.get_val(offset=-1)['rsi'] is not None and min_ex.get_val()['rsi'] is not None and
-                min_ex.get_val(offset=-1)['rsi'] < self.__support and
-                min_ex.get_val()['rsi'] > self.__support
-               ):
+                if (prev is not None and pd.notna(prev['rsi']) and
+                    prev['rsi'] > self.__resistance and max_val < self.__resistance):
+                    max_ex.close_all_long()
 
-                min_ex.open_long_max()
+            if min_ex is not None:
+                prev = min_ex.get_val(offset=-2)
+
+                if (prev is not None and pd.notna(prev['rsi']) and
+                    prev['rsi'] < self.__support and min_val > self.__support):
+                    min_ex.open_long_max()
 
             ##############################
             # Teardown the cycle

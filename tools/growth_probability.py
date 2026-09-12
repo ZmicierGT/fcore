@@ -7,6 +7,7 @@ The author is Zmicier Gotowka
 Distributed under Fcore License 1.1 (see license.md)
 """
 from tools.base import ToolError
+from tools.base import causal_fill
 from tools.classifier import Classifier
 
 from data.fvalues import StockQuotes  # TODO Low think if we should make it universal (not just stock-related)
@@ -99,10 +100,9 @@ class Probability(Classifier):
         df = df[self._period_long-1:]
         df = df.reset_index().drop(['index'], axis=1)
 
-        # Fill nan values (if any) with mean values
+        # Fill nan values causally (past-only), without using future data. Keep the row count: fill, never drop.
         if df[self._data_to_est].isnull().values.any():
-            for key in self._data_to_est:
-                df[key] = df[key].fillna(df[key].mean())
+            causal_fill(df, self._data_to_est)
 
         return df
 

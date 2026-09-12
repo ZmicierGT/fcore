@@ -15,6 +15,9 @@ class MA(BackTest):
         Moving average vs. price cross backtesting strategy implementation.
 
         If MA goes above the price, it is a signal to buy. Otherwise, it is a signal to sell.
+
+        The signal is the MA of completed bars (up to the previous bar) compared against the
+        current bar's Open; market orders are executed at the current bar's Open.
     """
     def __init__(self,
                  period,
@@ -67,7 +70,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_val()['ma'] <= self.exec().get_close(True)
+        return self.exec().get_val(offset=-1)['ma'] <= self.exec().get_market_price(adjusted=True)
 
     def do_tech_calculation(self, ex):
         """

@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fvalues import Quotes, trading_days_per_year
+from data.fvalues import Quotes, StockQuotes, trading_days_per_year
 from backtest.weigher import Weigher
 from data.futils import thread_available, Log, add_column, get_dt
 
@@ -628,6 +628,11 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
+
+            # Numpy negative indexing wraps to the last (future) row — guard against it.
+            if local_index < 0:
+                return None
+
             return self._calc[local_index]
 
     def get_avail_val(self, offset=0, ts=None):
@@ -647,6 +652,10 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
+
+            if local_index < 0:
+                return None
+
             return self._calc[local_index]
 
     def get_row(self, offset=0, ts=None):
@@ -666,6 +675,10 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
+
+            if local_index < 0:
+                return None
+
             return self.data.rows[local_index]
 
     def get_index(self, ts=None):
@@ -707,6 +720,9 @@ class BackTestOperations():
             return None
         else:
             local_index += offset
+
+            if local_index < 0:
+                return None
 
             return self.data.rows[local_index]
 
@@ -775,7 +791,7 @@ class BackTestOperations():
             Returns:
                 float: percent fee for the trade for 1 instrument
         """
-        return self.get_close() * self.get_caller().get_commission_percent() / 100
+        return self.get_market_price() * self.get_caller().get_commission_percent() / 100
 
     # Fee for one security
     def get_security_fee(self):
@@ -892,6 +908,31 @@ class BackTestOperations():
         else:
             return self.get_avail_row()[Quotes.Close]
 
+    def get_market_price(self, adjusted=False):
+        """
+            Get the current market price for decisions — the Open of the current bar.
+
+            Decisions, sizing, fees, spread and market-order execution all use this price.
+            Indicators/signals are computed on completed bars and compared against it.
+            Returns None if no row is available.
+
+            Args:
+                adjusted(bool): Indicates if the calculation should be based on adjusted open
+                                (falls back to the raw open if no adjusted columns are present).
+
+            Returns:
+                float: the open price of the current bar.
+        """
+        row = self.get_avail_row()
+
+        if row is None:
+            return None
+
+        if adjusted and StockQuotes.AdjOpen in self.data.rows.dtype.names:
+            return row[StockQuotes.AdjOpen]
+
+        return row[Quotes.Open]
+
     def get_high(self):
         """
             Get the current cycle's highest price.
@@ -912,37 +953,40 @@ class BackTestOperations():
 
     def get_spread_deviation(self):
         """
-            Get the current spread deviation. Buy price is the current quote plus the deviation, sell otherwise.
+            Get the current spread deviation. Buy price is the current market price (the bar's Open) plus the
+            deviation, sell otherwise.
 
             Returns:
                 float: the spread deviation for the corresponding symbol.
         """
-        return self.get_close() * self.data.spread / 100 / 2
+        return self.get_market_price() * self.data.spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
     def get_buy_price(self, adjusted=False):
         """
-            Get the buy price of the current symbol in the current cycle of the calculation.
+            Get the buy price of the current symbol in the current cycle of the calculation. It is based on the
+            current bar's Open (the market price for decisions and execution) plus the spread deviation.
 
             Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
+                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
 
             Returns:
                 float: the buy price of the symbol
         """
-        return self.get_close(adjusted) + self.get_spread_deviation()
+        return self.get_market_price(adjusted) + self.get_spread_deviation()
 
     def get_sell_price(self, adjusted=False):
         """
-            Get the sell price of the current symbol in the current cycle of the calculation.
+            Get the sell price of the current symbol in the current cycle of the calculation. It is based on the
+            current bar's Open (the market price for decisions and execution) minus the spread deviation.
 
             Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
+                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
 
             Returns:
                 float: the sell price of the symbol.
         """
-        return self.get_close(adjusted) - self.get_spread_deviation()
+        return self.get_market_price(adjusted) - self.get_spread_deviation()
 
     def get_long_positions(self):
         """
@@ -1042,7 +1086,7 @@ class BackTestOperations():
             Returns:
                 bool: True if the trend is considered as changed, false otherwise
         """
-        quote = self.get_close()
+        quote = self.get_market_price()
         index = self.get_caller().get_index()
 
         if is_uptrend == self.is_long():
@@ -1137,7 +1181,7 @@ class BackTestOperations():
         if self.group is not None and self.get_caller().grouping_invested:
             # Take cash into account as accumulated cash may prevent to open bigger position sizes otherwise.
             tv = self.get_caller().grouping_tv
-            grouping_num = self.group_capacity * deviation * tv / self.get_close()
+            grouping_num = self.group_capacity * deviation * tv / self.get_market_price()
             num = min(num, grouping_num)
 
         return num
@@ -1186,7 +1230,7 @@ class BackTestOperations():
     #      strategies. Think how to implement it in a safer way.
     def buy(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
-            Perform a buy trade.
+            Perform a buy trade. A market order is executed at the current bar's Open (+/- half spread).
 
             Args:
                 num(int): the number of securities to buy. None if max.
@@ -1276,7 +1320,7 @@ class BackTestOperations():
 
     def sell(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
-            Perform a sell trade.
+            Perform a sell trade. A market order is executed at the current bar's Open (+/- half spread).
 
             Args:
                 num(int): the number of securities to sell. None if max.

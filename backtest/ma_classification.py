@@ -9,6 +9,8 @@ from backtest.base import BackTestError
 
 from data.futils import add_column
 
+from data.fvalues import Quotes
+
 from tools.ma_classifier import MAClassifier
 from tools.base import ToolError
 
@@ -70,6 +72,26 @@ class MAClassification(MA):
 
         self._ma_cls.set_data(self.get_main_data().rows)
 
+        # Warn if the models are not trained: they will be trained during this backtest setup (user decides how to act).
+        if (self._ma_cls.get_buy_model() is None or self._ma_cls.check_if_fitted(self._ma_cls.get_buy_model()) == False) or \
+           (self._ma_cls.get_sell_model() is None or self._ma_cls.check_if_fitted(self._ma_cls.get_sell_model()) == False):
+            self._lg.warning("The classifier model(s) are not trained: they will be trained during the backtest setup on "
+                             "data_to_learn. Make sure the learning data does not overlap the backtest period.")
+
+        # Warn if the learning data overlaps the backtest period (possible forward-looking bias).
+        data_to_learn = self._ma_cls.get_data_to_learn()
+
+        if data_to_learn is not None:
+            rows = self.get_main_data().rows[Quotes.TimeStamp]
+            bt_start, bt_end = rows[0], rows[-1]
+
+            for entry in data_to_learn:
+                ts = entry[Quotes.TimeStamp]
+
+                if max(ts[0], bt_start) <= min(ts[-1], bt_end):
+                    self._lg.warning("Learning data overlaps the backtest period — possible forward-looking bias.")
+                    break
+
         try:
             self._ma_cls.calculate()
         except ToolError as e:
@@ -95,10 +117,17 @@ class MAClassification(MA):
         """
             Determines if a signal to buy is true.
 
+            The estimation for the previous bar (the latest completed bar at decision time) is used.
+
             Returns:
                 True if the buy signal is true, False otherwise.
         """
-        dt_str = self.exec().get_datetime_str()
+        index = self.exec().get_index() - 1
+
+        if index < 0:
+            return False
+
+        dt_str = self.exec().get_datetime_str(index)
         df = self.classifier().get_results()
         row = df.loc[df['dt'] == dt_str]
 
@@ -111,10 +140,17 @@ class MAClassification(MA):
         """
             Determines if a signal to sell is true.
 
+            The estimation for the previous bar (the latest completed bar at decision time) is used.
+
             Returns:
                 True if the sell signal is true, False otherwise.
         """
-        dt_str = self.exec().get_datetime_str()
+        index = self.exec().get_index() - 1
+
+        if index < 0:
+            return False
+
+        dt_str = self.exec().get_datetime_str(index)
         df = self.classifier().get_results()
         row = df.loc[df['dt'] == dt_str]
 

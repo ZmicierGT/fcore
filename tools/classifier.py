@@ -10,6 +10,7 @@ import abc
 
 from tools.base import BaseTool
 from tools.base import ToolError
+from tools.base import causal_fill
 
 from data.fvalues import Algorithm
 
@@ -127,6 +128,15 @@ class Classifier(BaseTool):
         """
         self._data_to_learn = data
 
+    def get_data_to_learn(self):
+        """
+            Get the data used for learning.
+
+            Returns:
+                [array]: data to learn or None if not specified.
+        """
+        return self._data_to_learn
+
     def get_buy_signals_to_compare(self):
         """
             Get actual and estimated buy signals.
@@ -241,6 +251,10 @@ class Classifier(BaseTool):
 
         df = self.prepare()
 
+        # Trim the signal rows with labels derived from data beyond the dataset (same rule as in
+        # combine()): filter the labeled output - its index preserves source positions in df.
+        trim = abs(self._cycle_num)
+
         results_buy_actual = None
         results_buy_est = None
         results_sell_actual = None
@@ -248,6 +262,9 @@ class Classifier(BaseTool):
 
         if self._use_buy:
             df_buy = self.check_buy_signals(df)
+
+            if trim > 0:
+                df_buy = df_buy[df_buy.index < len(df) - trim]
 
             results_buy_actual = self.get_buy_results(df_buy)
             results_buy_est = self._results_buy_est
@@ -257,6 +274,9 @@ class Classifier(BaseTool):
 
         if self._use_sell:
             df_sell = self.check_sell_signals(df)
+
+            if trim > 0:
+                df_sell = df_sell[df_sell.index < len(df) - trim]
 
             results_sell_actual = self.get_sell_results(df_sell)
             results_sell_est = self._results_sell_est
@@ -333,15 +353,45 @@ class Classifier(BaseTool):
         df_buy = pd.DataFrame()
         df_sell = pd.DataFrame()
 
+        trim = abs(self._cycle_num)
+        trimmed = False
+
         for rows in self._data_to_learn:
             # DataFrame for the current symbol
             df = self.prepare(rows)
+            full_len = len(df)
 
+            # Fill NaNs per symbol (before concatenation) so fills never bleed between securities.
+            if df[self._data_to_est].isnull().values.any():
+                causal_fill(df, self._data_to_est)
+
+            # Labels are computed with shift(-cycle_num) inside check_*_signals(), so the unknowable tail
+            # must be trimmed from their output (the output index preserves source positions) - trimming
+            # the input frame would just create a new mislabeled tail at its own last rows.
             if self._use_buy:
-                df_buy = pd.concat([df_buy, self.check_buy_signals(df)], ignore_index=True)
+                df_b = self.check_buy_signals(df)
+
+                if trim > 0:
+                    before = len(df_b)
+                    df_b = df_b[df_b.index < full_len - trim]
+                    trimmed = trimmed or len(df_b) < before
+
+                df_buy = pd.concat([df_buy, df_b], ignore_index=True)
 
             if self._use_sell:
-                df_sell = pd.concat([df_sell, self.check_sell_signals(df)], ignore_index=True)
+                df_s = self.check_sell_signals(df)
+
+                if trim > 0:
+                    before = len(df_s)
+                    df_s = df_s[df_s.index < full_len - trim]
+                    trimmed = trimmed or len(df_s) < before
+
+                df_sell = pd.concat([df_sell, df_s], ignore_index=True)
+
+        if trimmed:
+            self._lg.warning(f"Trimmed the learning signal rows with outcomes lying beyond the dataset "
+                             f"(the last {trim} rows of each symbol's data): they would be mislabeled as "
+                             f"'false' signals.")
 
         return (df_buy, df_sell)
 
@@ -367,10 +417,9 @@ class Classifier(BaseTool):
             # Create a DataFrame without signals for learning
             self._data_buy_learn = df_buy.drop(['buy-true', 'buy-false'], axis=1)
 
-            # Fill nan values with mean values (if any)
+            # Fill nan values causally (past-only), without using future data
             if self._data_buy_learn.isnull().values.any():
-                means_buy = self._data_buy_learn.mean()
-                self._data_buy_learn = self._data_buy_learn.fillna(means_buy)
+                self._data_buy_learn = causal_fill(self._data_buy_learn, self._data_buy_learn.columns)
 
             if self._model_buy is None:
                 self._model_buy = self.get_learning_instance()
@@ -394,10 +443,9 @@ class Classifier(BaseTool):
             # Create a DataFrame without signals for learning
             self._data_sell_learn = df_sell.drop(['sell-true', 'sell-false'], axis=1)
 
-            # Fill nan values with mean values (if any)
+            # Fill nan values causally (past-only), without using future data
             if self._data_sell_learn.isnull().values.any():
-                means_sell = self._data_sell_learn.mean()
-                self._data_sell_learn = self._data_sell_learn.fillna(means_sell)
+                self._data_sell_learn = causal_fill(self._data_sell_learn, self._data_sell_learn.columns)
 
             if self._model_sell is None:
                 self._model_sell = self.get_learning_instance()

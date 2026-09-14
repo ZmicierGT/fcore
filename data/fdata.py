@@ -2076,6 +2076,11 @@ class SecData(SecFetcher):
             max_ts is capped at last_date_ts (timespan-adjusted).
             For data_entry set (fetch marker): min_ts stays NULL, max_ts is uncapped (timespan-adjusted).
 
+            Clarification: intervals should be saved for the requested (requested, not actually obtained) data as the
+            point of having intervals is to avoid multiple fetches of the data which can't be obtained (for example, non-existent).
+            For example: we request the data for 10 years for a stock which was listed 5 years ago - we should mark the interval for
+            the whole 10 years (not the 5 years of data which we actually received) as otherwise we'll request non-existent data again and again.
+
             Args:
                 data_entry(str or None): the data entry to update, or None to
                     update the quote interval for self._timespan.

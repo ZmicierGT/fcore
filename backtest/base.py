@@ -9,8 +9,9 @@ from backtest.weigher import Weigher
 from data.futils import thread_available, Log, add_column, get_dt
 
 import abc
+from collections import namedtuple
 from dataclasses import dataclass, fields, astuple
-from datetime import datetime
+from datetime import datetime, date
 from enum import IntEnum
 from itertools import repeat
 import time
@@ -338,6 +339,38 @@ class BackTestData():
 # Base backtesting operations
 #############################
 
+# Parameters of a trade direction. sign is used in price/cash/positions arithmetic (+1 for buys, -1 for sells),
+# deviation_attr - the caller's attribute with the balance deviation multiplier used for sizing,
+# deviation_floor - its minimum when positions are few (too low values may block the portfolio),
+# ref_field - the quote field which may fill a resting limit order, label - used in logging.
+SideSpec = namedtuple('SideSpec', ['label', 'sign', 'deviation_attr', 'deviation_floor', 'ref_field'])
+
+_SIDE_BUY = SideSpec(label='BUY', sign=1, deviation_attr='open_deviation', deviation_floor=2, ref_field=Quotes.Low)
+_SIDE_SELL = SideSpec(label='SELL', sign=-1, deviation_attr='close_deviation', deviation_floor=3, ref_field=Quotes.High)
+
+
+def _side_spec(buy):
+    """
+        Get the parameters of the specified trade direction.
+
+    Returns:
+        SideSpec: the parameters for buys (True) or sells (False)
+    """
+    return _SIDE_BUY if buy else _SIDE_SELL
+
+
+@dataclass
+class LimitOrder:
+    """ A resting limit order for a symbol. """
+    buy: bool  # Trade direction
+    limit: float  # The limit price
+    num: int | None  # The number of securities. None means max
+    date: date  # The placement date
+    validity: int  # Validity in calendar days (non-trading days count)
+    recalculate: bool  # If weightening values should be recalculated after the trade
+    exact: bool  # If the exact number of requested positions should be opened
+
+
 class BackTestOperations():
     """ Class to repsesent the operations for a particular symbol.
     
@@ -400,15 +433,9 @@ class BackTestOperations():
         # Limit Orders
         ##############
 
-        self._limit_buy = 0  # Price to buy
-        self._limit_sell = 0  # Price to sell
-        self._limit_recalculate = True  # Indicates if weightening values should be recalculated
-        self._limit_exact = None  # Indicates if weightening should be overridden
-
-        self._limit_num = -1  # Number of securities for a limit order. None means max
-
-        self._limit_date = None  # Limit order placement date
-        self._limit_validity = 2  # Limit order validity in calendar days (non-trading days count)
+        # TODO MID Do we need a functionality to have several limit orders for a security?
+        # Also need to distinguish what to do if the order is filled partially.
+        self._limit_order = None  # The active limit order (LimitOrder) if any
 
         ################
         # Weight-related
@@ -568,7 +595,7 @@ class BackTestOperations():
             Returns:
                 bool: indicates if there is a limit order for a security
         """
-        return self._limit_num is None or self._limit_num != -1
+        return self._limit_order is not None
 
     @property
     def data(self):
@@ -813,15 +840,6 @@ class BackTestOperations():
         """
         return self.get_security_fee() + self.get_caller().get_commission()
 
-    def get_max_positions(self):
-        """
-            Get the maximum number of opened positions for the symbol.
-
-            Returns:
-                int: the number of currently opened positions.
-        """
-        return self._long_positions
-
     def is_long(self):
         """
             Indicated if currently opened positions are long.
@@ -962,6 +980,20 @@ class BackTestOperations():
         return self.get_market_price() * self.data.spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
+    def get_trade_price(self, buy, adjusted=False):
+        """
+            Get the market execution price for a trade: the current bar's Open (the market price for decisions
+            and execution) plus/minus the spread deviation for buys/sells.
+
+            Args:
+                buy(bool): True for the buy price, False for the sell price.
+                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
+
+            Returns:
+                float: the execution price of the symbol
+        """
+        return self.get_market_price(adjusted) + _side_spec(buy).sign * self.get_spread_deviation()
+
     def get_buy_price(self, adjusted=False):
         """
             Get the buy price of the current symbol in the current cycle of the calculation. It is based on the
@@ -973,7 +1005,7 @@ class BackTestOperations():
             Returns:
                 float: the buy price of the symbol
         """
-        return self.get_market_price(adjusted) + self.get_spread_deviation()
+        return self.get_trade_price(buy=True, adjusted=adjusted)
 
     def get_sell_price(self, adjusted=False):
         """
@@ -986,7 +1018,7 @@ class BackTestOperations():
             Returns:
                 float: the sell price of the symbol.
         """
-        return self.get_market_price(adjusted) - self.get_spread_deviation()
+        return self.get_trade_price(buy=False, adjusted=adjusted)
 
     def get_long_positions(self):
         """
@@ -1186,6 +1218,33 @@ class BackTestOperations():
 
         return num
 
+    def _get_side_num(self, buy):
+        """
+            The number of securities to trade in the specified direction to keep the portfolio balanced.
+
+            Args:
+                buy(bool): True to get the number of securities to buy, False - to sell.
+
+            Returns:
+                int: the number of securities to trade in the specified direction
+        """
+        p = _side_spec(buy)
+
+        deviation = getattr(self.get_caller(), p.deviation_attr)
+
+        # TODO Mid Think how to handle it better
+        # Too low deviation in the beginning may block the portfolio
+        if self.get_long_positions() < 10:
+            deviation = max(p.deviation_floor, deviation)
+
+        num = self.get_trade_num(deviation)
+
+        # Keep only the trades in the requested direction
+        if p.sign * num < 0:
+            num = 0
+
+        return int(p.sign * num)
+
     def get_buy_num(self):
         """
             The number of securities to buy and keep the portfolio balanced as much as possible.
@@ -1193,18 +1252,7 @@ class BackTestOperations():
             Returns:
                 int: the number of securities to buy
         """
-        deviation = self.get_caller().open_deviation
-
-        # TODO Mid Think how to handle it better
-        if self.get_max_positions() < 10:
-            deviation = max(2, deviation)  # Too low deviation in the beginning may block the portfolio
-
-        num = self.get_trade_num(deviation)
-
-        if num < 0:
-            num = 0
-
-        return int(num)
+        return self._get_side_num(buy=True)
 
     def get_sell_num(self):
         """
@@ -1213,24 +1261,118 @@ class BackTestOperations():
             Returns:
                 int: the number of securities to sell
         """
-        deviation = self.get_caller().close_deviation
-
-        if self.get_max_positions() < 10:
-            deviation = max(3, deviation)  # Too low deviation in the beginning may block the portfolio
-
-        num = self.get_trade_num(deviation)
-
-        if num > 0:
-            num = 0
-
-        return abs(int(num))
+        return self._get_side_num(buy=False)
 
     # TODO LOW Implement using a higher resolution for order procesing.
     # TODO LOW Specifying an exact price (used in limit order exection) may be dangerous for errors in backtesting
     #      strategies. Think how to implement it in a safer way.
+    def _order(self, buy, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
+        """
+            Perform a trade (the shared implementation for buy()/sell()).
+
+            Args:
+                buy(bool): the trade direction: True to buy, False to sell.
+                num(int): the number of securities to trade. None if max.
+                limit(float): price for a limit order. None for a market order (spread will be taken into account then).
+                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                                     (weekends and holidays are counted too).
+                exact(bool): indicates if the exact number of requested positions should be opened.
+                recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
+                                   the trade. Use if in one cycle decision taking may happen after a trade.
+                price(float): force the trade to be executed using this price.
+
+            Returns:
+                int: the number of positions traded
+        """
+        p = _side_spec(buy)
+
+        total_num = 0
+
+        # Process a market order
+        if limit is None:
+            if recalculate:
+                had_positions = self.has_positions
+                ex_total_value = self.get_total_value()
+
+            if num is None:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
+                    num = self._get_side_num(buy)
+                else:
+                    num = self.get_max_trade_size() if buy else self.get_long_positions()
+            else:
+                if self.weighted and self.get_caller().weigher is not None and exact is False:
+                    num = min(num, self._get_side_num(buy))
+
+            if num > 0:
+                if buy:
+                    # open_long() may clamp the number if not enough cash and exact is False
+                    total_num += self.open_long(num, price=price, exact=exact)
+                else:
+                    if self.get_long_positions():
+                        num_close = min(self.get_long_positions(), num)
+                        total_num += self.close_long(num_close, price=price)
+
+            if recalculate:
+                self.calc_weight_values(had_positions=had_positions,
+                                        has_positions=self.has_positions,
+                                        ex_total_value=ex_total_value)
+        else:
+            # Ignore the order with a non-positive number of securities
+            if num is not None and num <= 0:
+                return total_num
+
+            # Place a limit order
+            if self._limit_order is not None:
+                log = (f"Cancelling {_side_spec(self._limit_order.buy).label} limit order for {self.data.title} "
+                       f"as the new order is being placed.")
+                self.get_caller()._lg.highlight(log)
+
+            self.cancel_limit_order()
+
+            # A marketable limit order: the close is within the limit price so the resting
+            # order was crossed after the placement. It fills at the limit price.
+            close_price = self.get_close()
+
+            # BUY is filled when the close is not higher than the limit, SELL - when it is not lower
+            if p.sign * (close_price - limit) <= 0:
+                log = (f"At {self.get_datetime_str()} {p.label} limit order for {self.data.title} with the price {round(limit, 2)} "
+                       f"is marketable at the bar close - executing at {round(limit, 2)}.")
+
+                self.get_caller()._lg.plain(log)
+
+                total_num = self._order(buy, num=num, price=limit, recalculate=recalculate, exact=exact)
+
+                # The order is not working anymore if it was filled (at least partially)
+                if total_num > 0:
+                    return total_num
+
+                # The order could not be filled at all (insufficient cash or weighing did not allow the trade)
+                # so it is kept working as a resting order below
+                log = (f"At {self.get_datetime_str()} {p.label} limit order for {self.data.title} with the price {round(limit, 2)} "
+                       f"could not be filled and is kept working.")
+
+                self.get_caller()._lg.plain(log)
+
+            self._limit_order = LimitOrder(buy=buy,
+                                            limit=limit,
+                                            num=num,
+                                            date=get_dt(self.get_row()[Quotes.TimeStamp]).date(),
+                                            validity=limit_validity,
+                                            recalculate=recalculate,
+                                            exact=exact)
+
+            order_num = num if num is not None else 'max'
+
+            log = (f"At {self.get_datetime_str()} {p.label} Limit order is placed for {self.data.title} for the {order_num} number of securities "
+                   f"with the price {round(limit, 2)}.")
+
+            self.get_caller()._lg.highlight(log)
+
+        return total_num
+
     def buy(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
-            Perform a buy trade. A market order is executed at the current bar's Open (+/- half spread).
+            Perform a buy trade. A market order is executed at the current bar's Open (+ half spread).
 
             Args:
                 num(int): the number of securities to buy. None if max.
@@ -1245,82 +1387,12 @@ class BackTestOperations():
             Returns:
                 int: the number of positions opened
         """
-        total_num = 0
-
-        # Process a market order
-        if limit is None:
-            if recalculate:
-                had_positions = self.has_positions
-                ex_total_value = self.get_total_value()
-
-            if num is None:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
-                    num = self.get_buy_num()
-                else:
-                    num = self.get_max_trade_size()
-            else:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
-                    num = min(num, self.get_buy_num())
-
-            if num > 0:
-                self.open_long(num, price=price, exact=exact)
-                total_num += num
-
-            if recalculate:
-                self.calc_weight_values(had_positions=had_positions,
-                                        has_positions=self.has_positions,
-                                        ex_total_value=ex_total_value)
-        else:
-            # Ignore the order with a non-positive number of securities
-            if num is not None and num <= 0:
-                return total_num
-
-            # Place a limit order
-            if self._limit_buy or self._limit_sell:
-                direction = 'BUY' if self._limit_buy else 'SELL'
-
-                log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
-                self.get_caller()._lg.highlight(log)
-
-            self.cancel_limit_order()
-
-            # A marketable limit order: the close is within the limit price so the resting
-            # order was crossed after the placement. It fills at the limit price.
-            close_price = self.get_close()
-
-            if close_price <= limit:
-                log = (f"At {self.get_datetime_str()} BUY limit order for {self.data.title} with the price {round(limit, 2)} "
-                       f"is marketable at the bar close and is executed immediately at {round(limit, 2)}.")
-
-                self.get_caller()._lg.plain(log)
-
-                total_num = self.buy(num=num, price=limit, recalculate=recalculate, exact=exact)
-
-                return total_num
-
-            self._limit_buy = limit
-
-            self._limit_num = num
-            self._limit_validity = limit_validity
-            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
-            self._limit_recalculate = recalculate
-            self._limit_exact = exact
-
-            if self._limit_num is not None:
-                order_num = self._limit_num
-            else:
-                order_num = 'max'
-
-            log = (f"At {self.get_datetime_str()} BUY Limit order is placed for {self.data.title} for the {order_num} number of securities "
-                   f"with the price {round(self._limit_buy, 2)}.")
-
-            self.get_caller()._lg.highlight(log)
-
-        return total_num
+        return self._order(buy=True, num=num, limit=limit, limit_validity=limit_validity,
+                           exact=exact, recalculate=recalculate, price=price)
 
     def sell(self, num=None, limit=None, limit_validity=2, exact=False, recalculate=True, price=None):
         """
-            Perform a sell trade. A market order is executed at the current bar's Open (+/- half spread).
+            Perform a sell trade. A market order is executed at the current bar's Open (- half spread).
 
             Args:
                 num(int): the number of securities to sell. None if max.
@@ -1335,113 +1407,43 @@ class BackTestOperations():
             Returns:
                 int: the number of positions closed
         """
-        total_num = 0
-
-        # Process a market order
-        if limit is None:
-            if recalculate:
-                had_positions = self.has_positions
-                ex_total_value = self.get_total_value()
-
-            if num is None:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
-                    num = self.get_sell_num()
-                else:
-                    num = self.get_long_positions()
-            else:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
-                    num = min(num, self.get_sell_num())
-
-            if num > 0 and self.get_long_positions():
-                num_close = min(self.get_long_positions(), num)
-                self.close_long(num_close, price=price)
-
-                total_num += num_close
-
-            if recalculate:
-                self.calc_weight_values(had_positions=had_positions,
-                                        has_positions=self.has_positions,
-                                        ex_total_value=ex_total_value)
-        else:
-            # Ignore the order with a non-positive number of securities
-            if num is not None and num <= 0:
-                return total_num
-
-            # Place a limit order
-            if self._limit_buy or self._limit_sell:
-                direction = 'BUY' if self._limit_buy else 'SELL'
-
-                log = (f"Cancelling {direction} limit order for {self.data.title} as the new order is being placed.")
-                self.get_caller()._lg.highlight(log)
-
-            self.cancel_limit_order()
-
-            # A marketable limit order: the close is within the limit price so the resting
-            # order was crossed after the placement. It fills at the limit price.
-            close_price = self.get_close()
-
-            if close_price >= limit:
-                log = (f"At {self.get_datetime_str()} SELL limit order for {self.data.title} with the price {round(limit, 2)} "
-                       f"is marketable at the bar close and is executed immediately at {round(limit, 2)}.")
-
-                self.get_caller()._lg.plain(log)
-
-                total_num = self.sell(num=num, price=limit, recalculate=recalculate, exact=exact)
-
-                return total_num
-
-            self._limit_sell = limit
-
-            self._limit_num = num
-            self._limit_validity = limit_validity
-            self._limit_date = get_dt(self.get_row()[Quotes.TimeStamp]).date()
-            self._limit_recalculate = recalculate
-            self._limit_exact = exact
-
-            if self._limit_num is not None:
-                order_num = self._limit_num
-            else:
-                order_num = 'max'
-
-            log = (f"At {self.get_datetime_str()} SELL Limit order is placed for {self.data.title} for {order_num} number of securities "
-                   f"with the price {round(self._limit_sell, 2)}.")
-
-            self.get_caller()._lg.highlight(log)
-
-        return total_num
+        return self._order(buy=False, num=num, limit=limit, limit_validity=limit_validity,
+                           exact=exact, recalculate=recalculate, price=price)
 
     def cancel_limit_order(self):
         """
             Cancel a limit order.
         """
-        # Setting the values to default
-        self._limit_buy = 0  # Price to buy
-        self._limit_sell = 0  # Price to sell
-        self._limit_recalculate = True  # If weightening values should be recalculated
-        self._limit_exact = None  # Indicates if weightening rules should be overriden
-
-        self._limit_num = -1  # Number of securities for a limit order. None means max
-
-        self._limit_date = None  # Limit order placement date
-        self._limit_validity = 2  # Limit order validity in calendar days (non-trading days count)
+        self._limit_order = None
 
     def process_limit_order(self):
         """
             Execute limit order (if any).
+
+            Some notes: when we process a limit order placed in the scope of a current bar, we consider that only Open
+            price was known at the time or order placement and it had already passed when the order is placed. Also
+            we do not know if the order was placed before or after when High/Low were achieved - so we ignore High/Low as well.
+            The same bar order may be executed only based on the Close price which will for sure happen after the order placement.
+            For example, the OHLC is 100/102/98/99 $, and the order was placed for $100 (note that it is up to user to determine the exact price) -
+            Then that order will be executed at $100 based on the Close price only (as $99 likely wasn't achived instantly and we ignore High/Low).
+            If the order wasn't executed in the scope of the initial (placement bar) - at the next bar we take the whole OHLC into account.
         """
-        if self._limit_num is not None and self._limit_num == -1:
+        order = self._limit_order
+
+        if order is None:
             return
 
+        p = _side_spec(order.buy)
+
         # Calendar days passed since the order placement (non-trading days are counted too)
-        days_delta = (get_dt(self.get_row()[Quotes.TimeStamp]).date() - self._limit_date).days
+        days_delta = (get_dt(self.get_row()[Quotes.TimeStamp]).date() - order.date).days
 
-        side = 'BUY' if self._limit_buy else 'SELL'
-        price = self.get_row()[Quotes.Low] if self._limit_buy else self.get_row()[Quotes.High]
-        limit = self._limit_buy if self._limit_buy else self._limit_sell
+        # The price which may fill the order: Low for buys, High for sells
+        price = self.get_row()[p.ref_field]
 
-        if days_delta > self._limit_validity:
-            log = (f"At {self.get_datetime_str()} {side} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
-                   f"{limit} wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
+        if days_delta > order.validity:
+            log = (f"At {self.get_datetime_str()} {p.label} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
+                   f"{order.limit} wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
 
             self.get_caller()._lg.highlight(log)
 
@@ -1450,38 +1452,23 @@ class BackTestOperations():
             return
 
         num = 0
-        diff = 0
 
         # The open price of a subsequent bar is known to be a "passed" price: if the bar gapped
         # through the limit, the order fills at the open. Otherwise a touch of Low/High fills
         # the order at the resting limit price.
         open_price = self.get_row()[Quotes.Open]
 
-        if self._limit_buy:
-            if open_price <= limit:
-                num = self.buy(num=self._limit_num, price=open_price, recalculate=self._limit_recalculate, exact=self._limit_exact)
-                diff = (open_price - self._limit_buy) * num
+        # The order is filled when the price crosses the limit: BUY - at or below it, SELL - at or above it
+        if p.sign * (open_price - order.limit) <= 0:
+            num = self._order(order.buy, num=order.num, price=open_price,
+                              recalculate=order.recalculate, exact=order.exact)
+        else:
+            if p.sign * (price - order.limit) <= 0:
+                num = self._order(order.buy, num=order.num, price=order.limit,
+                                  recalculate=order.recalculate, exact=order.exact)
 
-            else:
-                current_low = price
-
-                if current_low <= limit:
-                    num = self.buy(num=self._limit_num, price=self._limit_buy, recalculate=self._limit_recalculate, exact=self._limit_exact)
-
-        if self._limit_sell:
-            if open_price >= limit:
-                num = self.sell(num=self._limit_num, price=open_price, recalculate=self._limit_recalculate, exact=self._limit_exact)
-                diff = (self._limit_sell - open_price) * num
-
-            else:
-                current_high = price
-
-                if current_high >= limit:
-                    num = self.sell(num=self._limit_num, price=self._limit_sell, recalculate=self._limit_recalculate, exact=self._limit_exact)
-
-        # TODO HIGH Check the spread again
-        if diff > 0:
-            self.get_caller().add_spread_expense(diff)
+        # Limit order fills are always executed with an explicit price so no spread expense is added
+        # (the spread is applied to market orders only).
 
         if num > 0:
             self.cancel_limit_order()
@@ -1517,7 +1504,7 @@ class BackTestOperations():
                                         f"({last_close} per security) were lost.")
 
                     self.get_caller().add_other_profit(-abs(total_lost))
-                    self.get_caller()._total_proit -= total_lost
+                    self._total_profit -= total_lost
                     self.get_caller().add_other_expense(total_lost)
 
                     self._long_positions = 0
@@ -1579,6 +1566,116 @@ class BackTestOperations():
 
         return round(math.floor(max_num // self.data.lot) * self.data.lot, 6)  # round to avoid precision issues in the future (fractional shares)
 
+    def _execute_trade(self, buy, num, price=None, exact=False):
+        """
+            Open (buy) or close (sell) the specified number of long positions
+            (the shared implementation for open_long()/close_long()).
+
+            Args:
+                buy(bool): the trade direction: True to open, False to close positions.
+                num(int): the number of securities to trade.
+                price(float): force the trade to be executed using this price.
+                exact(bool): indicates if the exact number of requested positions should be opened.
+
+            Returns:
+                int: the number of positions opened/closed
+
+            Raises:
+                BackTestError: can't open the negative number of positions, not enough cash to open positions
+                               (with exact=True), the number of positions to close is bigger than opened.
+        """
+        p = _side_spec(buy)
+
+        if buy:
+            if num < 0:
+                raise BackTestError(f"Can't open negative number of long positions: {num}")
+
+            # Affordability check
+            max_size_price = price if price is not None else self.get_buy_price()
+
+            if num > self.get_max_trade_size(price=max_size_price):
+                if exact:
+                    raise BackTestError(f"Not enough cash to open the position. {num} > {self.get_max_trade_size(price=max_size_price)}")
+                else:
+                    num = min(num, self.get_max_trade_size(price=max_size_price))
+
+            if num == 0:
+                return 0
+        else:
+            if num < 0:
+                # A negative num is not a valid sell request (it is not a 'sell by sign' semantics) so the trade is skipped
+                log = (f"At {self.get_datetime_str()} requested to close a negative number of long positions "
+                       f"of {self.data.title}: {num}. The trade is skipped.")
+
+                self.get_caller()._lg.error(log)
+
+                return 0
+
+            if num > self._long_positions:
+                raise BackTestError(f"Number of long positions to close is bigger than the number of actual positions: {num} > {self._long_positions}")
+
+            if num <= 0 or self._long_positions == 0:
+                return 0
+
+        # Needed for logging
+        ex_cash = self.get_caller().get_cash()
+
+        # Used only in charting
+        if buy:
+            self._price_open_long = self.get_buy_price(adjusted=True)
+        else:
+            self._price_close_long = self.get_sell_price(adjusted=True)
+
+        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
+
+        total_spread_expense = 0
+
+        if price is None:
+            total_spread_expense = self.get_spread_deviation() * num
+            price = self.get_buy_price() if buy else self.get_sell_price()
+
+        if buy:
+            self.get_caller().add_cash(-abs(total_commission + price * num))
+        else:
+            # TODO LOW Think if it is rational (trimming)
+            # Trim cash portfolio (used for total profit calculations)
+            self._portfolio_cash = self._portfolio_cash[:num]
+
+            self.get_caller().add_cash(price * num)
+            self.get_caller().add_cash(-abs(total_commission))
+
+        # Add expenses for this trade
+        self.get_caller().add_commission_expense(total_commission)
+
+        self._long_positions += p.sign * num
+
+        self.get_caller().add_spread_expense(total_spread_expense)
+
+        self._trades_no += 1
+        self.get_caller().add_total_trades(1)
+
+        if buy:
+            log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data.title} with price "
+                   f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
+                   f"cash was {round(ex_cash, 2)} and currently "
+                   f"it is {round(self.get_caller().get_cash(), 2)}")
+
+            self.get_caller()._lg.plain(log)
+
+            self._last_total_value = self.get_total_value()
+            self._portfolio_cash.extend(repeat(price, num))
+        else:
+            self._total_profit += self.get_caller().get_cash() - ex_cash
+
+            log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
+                   f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
+                   f"cash was {round(ex_cash, 2)} and currently "
+                   f"it is {round(self.get_caller().get_cash(), 2)}.")
+
+            self.get_caller()._lg.plain(log)
+
+        return num
+
     def open_long(self, num, price=None, exact=False):
         """
             Open the specified number of long position.
@@ -1588,59 +1685,14 @@ class BackTestOperations():
                 price(float): force the trade to be executed using this price.
                 exact(bool): indicates if the exact number of requested positions should be opened.
 
+            Returns:
+                int: the number of positions opened
+
             Raises:
                 BackTestError: not enough cash to open the position.
                 BackTestError: Can't open the negative number of positions.
         """
-        if num < 0:
-            raise BackTestError(f"Can't open negative number of long positions: {num}")
-
-        max_size_price = price if price is not None else self.get_buy_price()
-
-        if num > self.get_max_trade_size(price=max_size_price):
-            if exact:
-                raise BackTestError(f"Not enough cash to open the position. {num} > {self.get_max_trade_size(price=max_size_price)}")
-            else:
-                num = min(num, self.get_max_trade_size(price=max_size_price))
-
-        if num == 0:
-            return
-
-        # Needed for logging
-        ex_cash = self.get_caller().get_cash()
-
-        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
-
-        if price:
-            total_spread_expense = 0
-        else:
-            total_spread_expense = self.get_spread_deviation() * num
-            price = self.get_buy_price()
-
-        total_cash_price = price * num
-
-        self.get_caller().add_cash(-abs(total_commission + total_cash_price))
-        self._long_positions += num
-
-        # Add expenses for this trade
-        self.get_caller().add_commission_expense(total_commission)
-        self.get_caller().add_spread_expense(total_spread_expense)
-
-        self._trades_no += 1
-        self.get_caller().add_total_trades(1)
-
-        self._price_open_long = self.get_buy_price(adjusted=True)  # Used only for charting
-
-        # Log if requested
-        log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data.title} with price "
-               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
-               f"cash was {round(ex_cash, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)}")
-
-        self.get_caller()._lg.plain(log)
-
-        self._last_total_value = self.get_total_value()
-        self._portfolio_cash.extend(repeat(price, num))
+        return self._execute_trade(buy=True, num=num, price=price, exact=exact)
 
     # Open maxumum possible positions
     def open_long_max(self):
@@ -1681,51 +1733,13 @@ class BackTestOperations():
                 num(int): the number of positions to close.
                 price(float): force the trade to be executed using this price.
 
+            Returns:
+                int: the number of positions closed
+
             Raises:
                 BackTestError: to many positions to close.
         """
-        if num > self._long_positions:
-            raise BackTestError(f"Number of long positions to close is bigger than the number of actual positions: {num} > {self._long_positions}")
-
-        if self._long_positions == 0:
-            return
-
-        # Needed for logging
-        ex_cash = self.get_caller().get_cash()
-
-        # Used only in charting
-        self._price_close_long = self.get_sell_price(adjusted=True)
-
-        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
-
-        # TODO LOW Think if it is rational (trimming)
-        # Trim cash portfolio (used for total profit calculations)
-        self._portfolio_cash = self._portfolio_cash[:num]
-
-        if price is None:
-            price = self.get_sell_price()
-            self.get_caller().add_spread_expense(self.get_spread_deviation() * num)
-
-        # Close cash long positions
-        self.get_caller().add_cash(price * num)
-        self.get_caller().add_cash(-abs(total_commission))
-        
-        self.get_caller().add_commission_expense(total_commission)
-
-        self._long_positions -= num
-
-        self._trades_no += 1
-        self.get_caller().add_total_trades(1)
-
-        self._total_profit += self.get_caller().get_cash() - ex_cash
-
-        # Log if requested
-        log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
-               f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
-               f"cash was {round(ex_cash, 2)} and currently "
-               f"it is {round(self.get_caller().get_cash(), 2)}.")
-
-        self.get_caller()._lg.plain(log)
+        return self._execute_trade(buy=False, num=num, price=price)
 
     def close_all_long(self):
         """
@@ -1737,7 +1751,7 @@ class BackTestOperations():
         """
             Close all positions.
         """
-        self.close_long(self._long_positions)
+        self.close_all_long()
 
 #####################################################
 # Classes for data structures of backtesting results.

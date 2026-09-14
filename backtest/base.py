@@ -799,6 +799,10 @@ class BackTestOperations():
             Returns:
                 float: the total profit since the last trade
         """
+        # Guard against the division by zero (e.g. no position was opened yet so there is no reference value)
+        if self._last_total_value == 0:
+            return 0
+
         return (self.get_total_value() - self._last_total_value) / self._last_total_value * 100
 
     def check_if_finished(self):
@@ -811,34 +815,46 @@ class BackTestOperations():
         return self.get_caller_index() + 1 == len(self.data.rows)
 
     # Fee calculated based on commission in percent of the trade
-    def get_trade_percent_fee(self):
+    def get_trade_percent_fee(self, price=None):
         """
             Get the percent fee for the current trade (1 instrument)
+
+            Args:
+                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
 
             Returns:
                 float: percent fee for the trade for 1 instrument
         """
-        return self.get_market_price() * self.get_caller().get_commission_percent() / 100
+        if price is None:
+            price = self.get_market_price()
+
+        return price * self.get_caller().get_commission_percent() / 100
 
     # Fee for one security
-    def get_security_fee(self):
+    def get_security_fee(self, price=None):
         """
             Get the one security fee for the trade (expect commission for the trade).
+
+            Args:
+                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
 
             Returns:
                 float: one security fee (excluding commission for the whole trade)
         """
-        return self.get_trade_percent_fee() + self.get_caller().get_commission_security()
+        return self.get_trade_percent_fee(price) + self.get_caller().get_commission_security()
 
     # Total fee for a trade (1 security)
-    def get_total_fee(self):
+    def get_total_fee(self, price=None):
         """
             Get the total fee for 1 security trade.
+
+            Args:
+                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
 
             Returns:
                 float: the total fee for 1 security trade.
         """
-        return self.get_security_fee() + self.get_caller().get_commission()
+        return self.get_security_fee(price) + self.get_caller().get_commission()
 
     def is_long(self):
         """
@@ -1508,6 +1524,7 @@ class BackTestOperations():
                     self.get_caller().add_other_expense(total_lost)
 
                     self._long_positions = 0
+                    self._portfolio_cash.clear()  # cost basis is lost together with the positions
 
                 self.cancel_limit_order()
 
@@ -1515,12 +1532,11 @@ class BackTestOperations():
     # Methods related to opening positions.
     #######################################
 
-    def get_max_trade_size_cash(self, ignore_lot=False, price=None):
+    def get_max_trade_size_cash(self, price=None):
         """
             Get the maxumum number of securities which we can buy using the cash balance without going negative.
 
             Args:
-                ignore_lot(bool): indicates if lot size should be ignored if more than 1.
                 price(float): the execution price for the trade. If None, get_buy_price() is used.
 
             Return:
@@ -1529,29 +1545,29 @@ class BackTestOperations():
         """
         lot = self.data.lot
 
-        if ignore_lot and lot >= 1:
-            lot = 1
-
         buy_price = price if price is not None else self.get_buy_price()
 
-        securities_num_estimate = (self.get_caller().get_cash() - \
-                                   self.get_total_fee()) / \
-                                   buy_price
+        # Guard against invalid prices (a bad quote, e.g. zero, negative or NaN price)
+        if buy_price is None or not np.isfinite(buy_price) or buy_price <= 0:
+            log = (f"At {self.get_datetime_str()} can't estimate the maximum trade size of {self.data.title}: "
+                   f"the execution price is invalid ({buy_price}). No positions will be opened.")
 
-        securities_num_estimate = math.floor(securities_num_estimate / lot) * lot
+            self.get_caller()._lg.error(log)
 
-        cash_available = self.get_caller().get_cash() - \
-                         self.get_caller().get_commission() - \
-                         self.get_security_fee() * securities_num_estimate
+            return (0, self.get_caller().get_cash() - self.get_caller().get_commission())
 
-        securities_num = cash_available / buy_price
-        securities_num = round(math.floor(securities_num / lot) * lot, 6)
+        # A single affordability model: the cash should cover the flat commission and, for each security,
+        # the execution price plus the per-share fee. It mirrors the actual trade cost in _execute_trade().
+        per_share_cost = buy_price + self.get_security_fee(buy_price)
+        cash_available = self.get_caller().get_cash() - self.get_caller().get_commission()
 
-        remaining_cash = cash_available - securities_num * buy_price
+        securities_num = math.floor(cash_available / per_share_cost / lot) * lot
+        securities_num = round(max(0, securities_num), 6)
+
+        remaining_cash = cash_available - securities_num * per_share_cost
 
         return (securities_num, remaining_cash)
 
-    # TODO LOW check if this max() is needed.
     def get_max_trade_size(self, price=None):
         """
             Get total number of securities which we may buy.
@@ -1562,9 +1578,7 @@ class BackTestOperations():
             Returns:
                 int: the total number of securities which we can buy using cash.
         """
-        max_num = max(0, self.get_max_trade_size_cash(True, price=price)[0])
-
-        return round(math.floor(max_num // self.data.lot) * self.data.lot, 6)  # round to avoid precision issues in the future (fractional shares)
+        return self.get_max_trade_size_cash(price=price)[0]
 
     def _execute_trade(self, buy, num, price=None, exact=False):
         """
@@ -1626,20 +1640,21 @@ class BackTestOperations():
         else:
             self._price_close_long = self.get_sell_price(adjusted=True)
 
-        total_commission = self.get_security_fee() * num + self.get_caller().get_commission()
-
         total_spread_expense = 0
 
         if price is None:
             total_spread_expense = self.get_spread_deviation() * num
             price = self.get_buy_price() if buy else self.get_sell_price()
 
+        # The percent commission is calculated based on the actual execution price
+        total_commission = self.get_security_fee(price) * num + self.get_caller().get_commission()
+
         if buy:
             self.get_caller().add_cash(-abs(total_commission + price * num))
         else:
-            # TODO LOW Think if it is rational (trimming)
-            # Trim cash portfolio (used for total profit calculations)
-            self._portfolio_cash = self._portfolio_cash[:num]
+            # Remove the sold lots (FIFO) from the cash portfolio (used for total profit calculations)
+            sold_cash = sum(self._portfolio_cash[:num])
+            self._portfolio_cash = self._portfolio_cash[num:]
 
             self.get_caller().add_cash(price * num)
             self.get_caller().add_cash(-abs(total_commission))
@@ -1665,7 +1680,8 @@ class BackTestOperations():
             self._last_total_value = self.get_total_value()
             self._portfolio_cash.extend(repeat(price, num))
         else:
-            self._total_profit += self.get_caller().get_cash() - ex_cash
+            # Realized profit: the cash delta minus the cost basis of the sold shares
+            self._total_profit += self.get_caller().get_cash() - ex_cash - sold_cash
 
             log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
                    f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
@@ -2253,16 +2269,6 @@ class BackTest(metaclass=abc.ABCMeta):
         return self._max_price
 
     @property
-    def mean_weight(self):
-        """
-            The mean weight of the whole portfolio.
-
-            Returns:
-                float: the mean weight of the whole portfolio
-        """
-        return self._mean_weight
-
-    @property
     def open_deviation(self):
         """
             The maximum portfolio balance deviation when opening a position. 1 means no deviation acceptable.
@@ -2568,8 +2574,8 @@ class BackTest(metaclass=abc.ABCMeta):
         if result == False:
             raise BackTestError(f"Timeout ({self.__timeout} sec) has happened. Calculation is not finished.")
 
-        for ex in self.__exec:
-            self._results.Symbols.append(ex.get_sym_results())
+        # Rebuild the symbol results on each call so that repeated calls do not duplicate them
+        self._results.Symbols = [ex.get_sym_results() for ex in self.__exec]
 
         return self._results
 
@@ -2649,11 +2655,18 @@ class BackTest(metaclass=abc.ABCMeta):
     def cash_interest(self):
         """
             Check if we have any interest on the cash balance.
+
+            The interest is accrued once per trading day: at the first cycle of the calculation and at the first
+            cycle of each new day. Intraday cycles within the same day do not accrue the interest again.
         """
         if self._cash_interest:
-            amount = self._cash * (self._cash_interest / 100 / trading_days_per_year)
+            prev_dt = self.get_prev_dt()
 
-            self.add_other_profit(amount)
+            # The first cycle of the calculation or the first cycle of a new day
+            if prev_dt is None or self.get_days_delta() > 0:
+                amount = self._cash * (self._cash_interest / 100 / trading_days_per_year)
+
+                self.add_other_profit(amount)
 
     def is_multi_symbol(self):
         """

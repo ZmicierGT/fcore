@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from backtest.base import BackTestData, BackTestOperations, BackTestError
+from backtest.base import BackTestData, BackTestOperations, BackTestError, ChartingBar
 from data.fvalues import StockQuotes, sector_titles
 
 from math import inf
@@ -24,11 +24,12 @@ class StockData(BackTestData):
         """
         super().__init__(**kwargs)
 
-        # the default close price column to make calculations (StockQuote.AdjClose for the stock security type).
+        # For stocks, the charting bar is based on adjusted quotes (used for reporting/charting
+        # and indicator calculation only - never for order execution or valuation).
         # TODO LOW: adj_* columns are back-adjusted using dividends/splits from the rest of the window (future data
         #  for each bar), so indicator signals computed on them deviate from real-time observables.
         #  Think of using raw prices with dividends-as-cash instead.
-        self._close = StockQuotes.AdjClose
+        self._charting = ChartingBar(StockQuotes.AdjOpen, StockQuotes.AdjHigh, StockQuotes.AdjLow, StockQuotes.AdjClose)
 
         if div_tax < 0 or div_tax >= 100:
             raise BackTestError(f"Dividend tax can't be less than 0 or >= 100. {div_tax} is specified.")

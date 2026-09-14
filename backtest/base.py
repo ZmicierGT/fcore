@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fvalues import Quotes, StockQuotes, trading_days_per_year
+from data.fvalues import Quotes, trading_days_per_year
 from backtest.weigher import Weigher
 from data.futils import thread_available, Log, add_column, get_dt
 
@@ -72,6 +72,9 @@ class BTSymbolRow:
     price_close_long: float | None = None
     long_positions: int | None = None
     trades_no: int | None = None
+
+# Charting bar: either a set of quote columns to build the bar from, or the bar values themselves
+ChartingBar = namedtuple('ChartingBar', ['open', 'high', 'low', 'close'])
 
 # Dataclass representing the statistics of a backtest calculation
 @dataclass
@@ -203,8 +206,8 @@ class BackTestData():
             raise BackTestError(f"trend_change_percent can't be less than 0%. Specified value is {trend_change_percent}")
         self._trend_change_percent = trend_change_percent
 
-        # The price column which we consider as a close price for reporting.
-        self._close = Quotes.Close
+        # Quote columns used to build a charting bar (raw prices for a general security)
+        self._charting = ChartingBar(Quotes.Open, Quotes.High, Quotes.Low, Quotes.Close)
 
         # Title of the financial instrument
         self._title = title
@@ -230,14 +233,18 @@ class BackTestData():
     #####################
 
     @property
-    def close(self):
+    def charting(self):
         """
-            Get the column for close value reporting.
+            Get the quote columns used to build a charting bar.
+
+            The base class returns raw prices. Subclasses for security types with adjusted prices
+            (e.g. stocks) override it to return adjusted columns. Used for reporting/charting and
+            indicator calculation only - never for order execution or valuation.
 
             Returns:
-                int: the column for close value calculations.
+                ChartingBar: the charting quote columns.
         """
-        return self._close
+        return self._charting
 
     @property
     def lot(self):
@@ -926,33 +933,22 @@ class BackTestOperations():
         """
         return self.data.rows[self.get_index()][Quotes.Open]
 
-    def get_close(self, adjusted=False):
+    def get_close(self):
         """
             Get the close price.
-
-            Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted close (used in charting).
 
             Returns:
                 float: the close price at the current index of the calculation.
         """
-        # TODO LOW Think if this adjusted is suitable here
-        if adjusted:
-            return self.get_avail_row()[self.data.close]
-        else:
-            return self.get_avail_row()[Quotes.Close]
+        return self.get_avail_row()[Quotes.Close]
 
-    def get_market_price(self, adjusted=False):
+    def get_market_price(self):
         """
             Get the current market price for decisions — the Open of the current bar.
 
             Decisions, sizing, fees, spread and market-order execution all use this price.
             Indicators/signals are computed on completed bars and compared against it.
             Returns None if no row is available.
-
-            Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted open
-                                (falls back to the raw open if no adjusted columns are present).
 
             Returns:
                 float: the open price of the current bar.
@@ -961,9 +957,6 @@ class BackTestOperations():
 
         if row is None:
             return None
-
-        if adjusted and StockQuotes.AdjOpen in self.data.rows.dtype.names:
-            return row[StockQuotes.AdjOpen]
 
         return row[Quotes.Open]
 
@@ -985,6 +978,27 @@ class BackTestOperations():
         """
         return self.data.rows[self.get_index()][Quotes.Low]
 
+    def get_charting_bar(self):
+        """
+            Get the charting OHLC bar for the current cycle.
+
+            The base class returns raw prices. Subclasses for security types with adjusted prices
+            (e.g. stocks) override the charting columns in the data class to return an adjusted bar.
+            Used for reporting/charting and indicator calculation only - never for order execution
+            or valuation.
+
+            Returns:
+                ChartingBar: the current OHLC bar, None if no row is available.
+        """
+        row = self.get_avail_row()
+
+        if row is None:
+            return None
+
+        cols = self.data.charting
+
+        return ChartingBar(row[cols.open], row[cols.high], row[cols.low], row[cols.close])
+
     def get_spread_deviation(self):
         """
             Get the current spread deviation. Buy price is the current market price (the bar's Open) plus the
@@ -996,45 +1010,38 @@ class BackTestOperations():
         return self.get_market_price() * self.data.spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
-    def get_trade_price(self, buy, adjusted=False):
+    def get_execution_price(self, buy):
         """
             Get the market execution price for a trade: the current bar's Open (the market price for decisions
             and execution) plus/minus the spread deviation for buys/sells.
 
             Args:
                 buy(bool): True for the buy price, False for the sell price.
-                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
 
             Returns:
                 float: the execution price of the symbol
         """
-        return self.get_market_price(adjusted) + _side_spec(buy).sign * self.get_spread_deviation()
+        return self.get_market_price() + _side_spec(buy).sign * self.get_spread_deviation()
 
-    def get_buy_price(self, adjusted=False):
+    def get_buy_price(self):
         """
             Get the buy price of the current symbol in the current cycle of the calculation. It is based on the
             current bar's Open (the market price for decisions and execution) plus the spread deviation.
 
-            Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
-
             Returns:
                 float: the buy price of the symbol
         """
-        return self.get_trade_price(buy=True, adjusted=adjusted)
+        return self.get_execution_price(buy=True)
 
-    def get_sell_price(self, adjusted=False):
+    def get_sell_price(self):
         """
             Get the sell price of the current symbol in the current cycle of the calculation. It is based on the
             current bar's Open (the market price for decisions and execution) minus the spread deviation.
 
-            Args:
-                adjusted(bool): Indicates if the calculation should be based on adjusted open (used in charting).
-
             Returns:
                 float: the sell price of the symbol.
         """
-        return self.get_trade_price(buy=False, adjusted=adjusted)
+        return self.get_execution_price(buy=False)
 
     def get_long_positions(self):
         """
@@ -1103,12 +1110,14 @@ class BackTestOperations():
                 result(BTSymbolRow): the result to add. Auto generated otherwise.
         """
         if result is None:
-            if self.get_avail_index() is not None:
+            bar = self.get_charting_bar()
+
+            if bar is not None:
                 result = BTSymbolRow(
-                    open=self.get_open(),
-                    close=self.get_close(adjusted=True),
-                    high=self.get_high(),
-                    low=self.get_low(),
+                    open=bar.open,
+                    close=bar.close,
+                    high=bar.high,
+                    low=bar.low,
                     price_open_long=self._price_open_long,
                     price_close_long=self._price_close_long,
                     long_positions=self._long_positions,
@@ -1634,11 +1643,15 @@ class BackTestOperations():
         # Needed for logging
         ex_cash = self.get_caller().get_cash()
 
-        # Used only in charting
+        # Used only in charting. The real (non-adjusted) spread is applied to the charting bar
+        # prices, so the markers stay scale-consistent with the chart.
+        bar = self.get_charting_bar()
+        spread_deviation = self.get_spread_deviation()
+
         if buy:
-            self._price_open_long = self.get_buy_price(adjusted=True)
+            self._price_open_long = bar.close + spread_deviation
         else:
-            self._price_close_long = self.get_sell_price(adjusted=True)
+            self._price_close_long = bar.close - spread_deviation
 
         total_spread_expense = 0
 
@@ -2761,11 +2774,13 @@ class BackTest(metaclass=abc.ABCMeta):
 
             for ex in self.all_exec():
                 if ex.get_index() is not None:
+                    bar = ex.get_charting_bar()
+
                     ex.add_symbol_result(BTSymbolRow(
-                        open=ex.get_open(),
-                        close=ex.get_close(adjusted=True),
-                        high=ex.get_high(),
-                        low=ex.get_low()))
+                        open=bar.open,
+                        close=bar.close,
+                        high=bar.high,
+                        low=bar.low))
 
             return True
 

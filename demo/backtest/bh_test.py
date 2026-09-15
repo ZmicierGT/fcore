@@ -54,7 +54,7 @@ if __name__ == "__main__":
     except BackTestError as e:
         sys.exit(f"Can't perform backtesting calculation: {e}")
 
-    results = bh.get_results()
+    results = bh.results
 
     #################
     # Create a report

@@ -107,7 +107,7 @@ class StockOperations(BackTestOperations):
     # General methods with calculations for a particular symbol
     #############################################################
 
-    def get_current_yield(self):
+    def process_yield(self):
         """
             Get the current yield.
 
@@ -119,7 +119,7 @@ class StockOperations(BackTestOperations):
         if idx is None:
             return
 
-        current_yield = 0
+        incoming_yield = 0
 
         # Check if we have opened long positions at ex_date
         if self.data.rows[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
@@ -127,13 +127,13 @@ class StockOperations(BackTestOperations):
 
         # Calculate dividends to pay for long positions which were opened at ex_date
         if self.data.rows[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
-            current_yield = self._future_yield
+            incoming_yield = self._future_yield
             self._future_yield = 0
 
-        if current_yield:
-            self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {current_yield}")
+        if incoming_yield:
+            self.caller._lg.highlight(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {incoming_yield}")
 
-        return current_yield
+        return incoming_yield
 
     def check_for_split(self):
         """
@@ -144,14 +144,14 @@ class StockOperations(BackTestOperations):
         if idx is None:
             return
 
-        if self.get_long_positions() == 0:
+        if self.long_positions == 0:
             return
 
         ratio = self.data.rows[idx][StockQuotes.Splits]
         old_close = self.data.rows[idx - 1][StockQuotes.Close]
 
         if ratio != 1 and idx != 0:
-            long_before = self.get_long_positions()
+            long_before = self.long_positions
 
             if self.is_long():
                 # TODO LOW Think if excessive cash should be treated as profit or loss (depending on the price of opening the position)
@@ -159,12 +159,12 @@ class StockOperations(BackTestOperations):
 
                 # Add excess cash to the cash balance (in case of any decimal parts of share number)
                 if excess != 0:
-                    self.get_caller().add_cash(excess * self.get_close())
+                    self.caller.add_cash(excess * self.close)
 
                 self._long_positions = int(round(self._long_positions * ratio))
 
-            self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
-                                  f"for {self.data.title}: {self.get_long_positions()} "
+            self.caller._lg.highlight(f"At {self.get_datetime_str()} New positions after split of {self.data.title} "
+                                  f"for {self.data.title}: {self.long_positions} "
                                   f"Positions before split: {long_before}")
 
     def apply_other_balance_changes(self):
@@ -173,7 +173,7 @@ class StockOperations(BackTestOperations):
         """
         self.check_for_split()
 
-        current_yield = self.get_current_yield()
+        current_yield = self.process_yield()
 
         # TODO HIGH no need to perform yield deducting any more
         if current_yield != 0:
@@ -182,28 +182,29 @@ class StockOperations(BackTestOperations):
 
                 if self.div_tax:
                     tax = current_yield * self.div_tax / 100
-                    self.get_caller().add_other_expense(tax)
+                    self.caller.add_other_expense(tax)
 
                     current_yield = current_yield - tax
 
-                self.get_caller().add_other_profit(current_yield)
+                self.caller.add_other_profit(current_yield)
                 self._total_profit += current_yield
             else:
                 txt = 'deducted'
 
-                self.get_caller().add_other_expense(current_yield)
+                self.caller.add_other_expense(current_yield)
 
-            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.get_caller().get_cash(), 2)}."
-            self.get_caller()._lg.plain(log)
+            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.caller.cash, 2)}."
+            self.caller._lg.plain(log)
 
-    def get_total_value(self):
+    @property
+    def total_value(self):
         """
             Get the total value of positions opened for the particular symbol.
 
             Returns:
                 float: the total value of the all opened positions.
         """
-        total_value = super().get_total_value()
+        total_value = super().total_value
         total_value += self._future_yield
 
         return total_value

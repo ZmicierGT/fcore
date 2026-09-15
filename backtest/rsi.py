@@ -95,7 +95,7 @@ class RSI(BackTest):
         # Consider any length-related operations to be performed only after setup (including other demos)
         self.setup()
 
-        length = len(self.get_main_data().rows)
+        length = len(self.main_data.rows)
 
         # TODO MID This check may be put to setup
         if length < self._period:
@@ -105,7 +105,7 @@ class RSI(BackTest):
         # Iterate through all rows and calculate the required values
         ############################################################
 
-        for row in self.get_main_data().rows:
+        for row in self.main_data.rows:
 
             ####################################################################################################
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)

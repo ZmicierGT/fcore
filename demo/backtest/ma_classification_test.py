@@ -116,7 +116,7 @@ if __name__ == "__main__":
                                         )
 
         classification.calculate()
-        results_cls = classification.get_results()
+        results_cls = classification.results
         accuracy_buy_est, accuracy_sell_est, total_accuracy_est = classifier.get_est_accuracy()
         f1_buy_est, f1_sell_est, total_f1_est = classifier.get_est_f1()
     except BackTestError as e:
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     try:
         ma.calculate()
-        results_cmp = ma.get_results()
+        results_cmp = ma.results
     except BackTestError as e:
         sys.exit(f"Can't perform backtesting calculation: {e}")
 
@@ -172,13 +172,13 @@ if __name__ == "__main__":
     fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
+    fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().vals['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add strategy comparison to the second chart
     fig_cmp = report.add_quotes_chart(title="Regular MA/Quote cross Example for Comparison", data=results_cmp, height=height)
 
     # Append MA values to the comparison chart
-    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
+    fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().vals['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

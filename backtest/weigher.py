@@ -15,7 +15,7 @@ class Weigher(metaclass=abc.ABCMeta):
         gets within its scope (a group or the whole portfolio) and how trade sizes are
         derived from the weights. Custom weighers subclass this and at minimum implement
         weight(). A weigher instance is simply passed to BackTest's constructor
-        (weighted=...); the engine is reached via ex.get_caller() — no binding step needed.
+        (weighted=...); the engine is reached via ex.caller — no binding step needed.
 
         Note: weight() runs before grouping values are recalculated for the cycle, so
         group state (e.g. ex.group_mean) read there reflects the previous cycle.
@@ -67,7 +67,7 @@ class Weigher(metaclass=abc.ABCMeta):
             Returns:
                 float: weight per one position.
         """
-        num = ex.get_long_positions()
+        num = ex.long_positions
         if num:
             return ex.weight / num
         return 1  # fallback when there is no position to derive from
@@ -93,23 +93,23 @@ class EqualWeigher(Weigher):
     """Equal (value) weighting."""
 
     def weight(self, ex):
-        return ex.get_long_positions() * ex.get_market_price()
+        return ex.long_positions * ex.market_price
 
     def weight_per_position(self, ex):
-        return ex.get_market_price()
+        return ex.market_price
 
 
 class PriceWeigher(Weigher):
     """Price weighting (as in DJIA)."""
 
     def weight(self, ex):
-        return ex.get_long_positions()
+        return ex.long_positions
 
     def weight_per_position(self, ex):
         return 1
 
     def update_globals(self, bt):
-        if bt.get_long_positions_num():
+        if bt.long_positions_num:
             # No need to calculate anything if any position opened
             bt._max_price = 0
             return
@@ -126,7 +126,7 @@ class PriceWeigher(Weigher):
         # If opening the first position, then need to avoid the situation when selected security is cheap
         # as if the maximum possible positions will be opened - then it will be difficult to balance
         # the portfolio in the future. Need to limit the number of cheap securities.
-        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Open] / ex.get_caller().max_price) * deviation
+        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Open] / ex.caller.max_price) * deviation
 
 
 class CapWeigher(Weigher):
@@ -156,13 +156,13 @@ class CapWeigher(Weigher):
         bt._max_cap = max_cap
 
     def weight(self, ex):
-        if ex.get_long_positions():
-            return ex.get_caller().max_cap / ex.get_row()['cap'] * ex.get_total_value()
+        if ex.long_positions:
+            return ex.caller.max_cap / ex.get_row()['cap'] * ex.total_value
         return 0
 
     def get_trade_num(self, ex, deviation):
         if ex.weight:
-            ratio = (ex.group_mean * deviation - ex.weight) / ex.get_total_value()
+            ratio = (ex.group_mean * deviation - ex.weight) / ex.total_value
         else:
             # Limit the number of positions for lower cap companies
             ratio = ex.get_row()['cap'] / ex.group_max_cap * deviation
@@ -170,6 +170,6 @@ class CapWeigher(Weigher):
         if ratio:
             trade_size = ex.get_max_trade_size()  # May buy more
         else:
-            trade_size = ex.get_long_positions()  # May sell some
+            trade_size = ex.long_positions  # May sell some
 
         return ratio * trade_size

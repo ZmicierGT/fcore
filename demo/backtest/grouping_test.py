@@ -119,8 +119,8 @@ if __name__ == "__main__":
     except BackTestError as e:
         sys.exit(f"Can't perform backtesting calculation: {e}")
 
-    results = idx_sim.get_results()
-    results_cls = bh.get_results()
+    results = idx_sim.results
+    results_cls = bh.results
 
     #################################################
     # Create a text report of the resulting portfolio
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     print('\n')
 
-    if idx_sim.get_total_value() == 0:
+    if idx_sim.total_value == 0:
         sys.exit("The portfolio has no value!")
 
     # Display information regarding each holding (shares num, value, % of portfolio, market cap)
@@ -137,8 +137,8 @@ if __name__ == "__main__":
 
     # Need calculate all values at first
     for ex in idx_sim.all_exec():
-        total_value += ex.get_total_value()
-        total_profit += ex.get_total_profit()
+        total_value += ex.total_value
+        total_profit += ex.total_profit
 
     zero_positions = 0
 
@@ -146,16 +146,16 @@ if __name__ == "__main__":
     print("Symbol   Shares Num   Value         Share of Portfilio   Profit $   Group")
     print("------------------------------------------------------------------------------------------")
     for ex in idx_sim.all_exec():
-        shares_num = ex.get_long_positions()
+        shares_num = ex.long_positions
  
         title = ex.data.title
-        value = round(ex.get_total_value(), 2)
+        value = round(ex.total_value, 2)
         if total_value:
             portfolio_share = round(value / total_value * 100, 2)
         else:
             portfolio_share = 0
         group = ex.data.fund_group
-        profit = round(ex.get_total_profit(), 2)
+        profit = round(ex.total_profit, 2)
 
         stat = f"{title:<9}{shares_num:<13}{value:<14}{portfolio_share:<21}{profit:<11}{group}"
         print(stat)
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     for ex in idx_sim.all_exec():
         if ex.data.fund_group:
-            groups[ex.data.fund_group] += ex.get_total_value()
+            groups[ex.data.fund_group] += ex.total_value
 
     print("Group                   Value            Share")
     print("----------------------------------------------")
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     # Calculate stock/cash allocation ratio:
 
     stock_alloc = total_value
-    cash = idx_sim.get_cash()
+    cash = idx_sim.cash
 
     if stock_alloc:
         stock_share = stock_alloc / (total_value + cash) * 100

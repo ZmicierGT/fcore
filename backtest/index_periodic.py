@@ -73,7 +73,7 @@ class IndexSim(BackTest):
         # Iterate through all rows and calculate the required values
         ############################################################
 
-        for row in self.get_main_data().rows:
+        for row in self.main_data.rows:
 
             ####################################################################################################
             # Setup cycle calculations if current cycle shouldn't be skipped (because of offset or lack of data)
@@ -97,8 +97,8 @@ class IndexSim(BackTest):
                     continue  # Skip securities without data in the cycle or unweighted securities (if eventually we have any)
 
                 # Check if we need to close the position because the security was excluded from the index
-                if ex.data.title not in self.composition and ex.get_long_positions() and ex.is_limit is False:
-                    ex.sell(num=ex.get_long_positions(), limit=ex.get_row()[StockQuotes.Open], recalculate=True, exact=True)
+                if ex.data.title not in self.composition and ex.long_positions and ex.is_limit is False:
+                    ex.sell(num=ex.long_positions, limit=ex.get_row()[StockQuotes.Open], recalculate=True, exact=True)
 
                     continue
 
@@ -114,11 +114,11 @@ class IndexSim(BackTest):
                     min_weight = ex.weight
                     target_buy = ex
 
-            if target_sell is not None and target_sell.get_sell_num() > 0:
+            if target_sell is not None and target_sell.sell_num > 0:
                 target_sell.sell(limit=target_sell.get_row()[StockQuotes.Open])
 
             if target_buy is not None and (\
-                (self.mean_weight and target_buy.get_buy_num() >= 1) or \
+                (self.mean_weight and target_buy.buy_num >= 1) or \
                     target_buy.get_max_trade_size_cash()[0] >= 1):
                 target_buy.buy(limit=target_buy.get_row()[StockQuotes.Open])
 

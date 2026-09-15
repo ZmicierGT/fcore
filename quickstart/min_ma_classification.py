@@ -69,17 +69,17 @@ ma = MA(**params)
 
 ma.calculate()
 
-results_cls = classification.get_results()  # Wait till calculation finishes and return the results.
-results_cmp = ma.get_results()
+results_cls = classification.results  # Wait till calculation finishes and return the results.
+results_cmp = ma.results
 
 # Generate a report with performance comparison
 report = Report(data=results_cls, width=max(len(rows_test), min_width))
 
 fig_quotes = report.add_quotes_chart(title="MA/Quote Cross + AI Backtesting Example")
-fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
+fig_quotes.add_trace(go.Scatter(x=results_cls.DateTime, y=classification.exec().vals['ma'], mode='lines', name="MA", line=dict(color="green")))
 
 fig_cmp = report.add_quotes_chart(title="Regular MA/Quote cross Example for Comparison", data=results_cmp, height=height)
-fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
+fig_cmp.add_trace(go.Scatter(x=results_cmp.DateTime, y=ma.exec().vals['ma'], mode='lines', name="MA", line=dict(color="green")))
 
 fig_portf = report.add_portfolio_chart(height=height)
 fig_portf.add_trace(go.Scatter(x=results_cmp.DateTime, y=results_cmp.TotalValue, mode='lines', name="MA Cross Results"))

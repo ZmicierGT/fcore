@@ -71,7 +71,7 @@ class MAClassification(MA):
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
-        if ex.data is not self.get_main_data():
+        if ex.data is not self.main_data:
             super().do_tech_calculation(ex)
             return
 
@@ -80,9 +80,9 @@ class MAClassification(MA):
             self._ma_cls = MAClassifier(period=self._period,
                                         model_buy=self._model_buy,
                                         model_sell=self._model_sell,
-                                        is_simple=self.is_simple())
+                                        is_simple=self.is_simple)
 
-        self._ma_cls.set_data(self.get_main_data().rows)
+        self._ma_cls.set_data(self.main_data.rows)
 
         # Warn if the models are not trained: they will be trained during this backtest setup (user decides how to act).
         if (self._ma_cls.get_buy_model() is None or self._ma_cls.check_if_fitted(self._ma_cls.get_buy_model()) == False) or \
@@ -94,7 +94,7 @@ class MAClassification(MA):
         data_to_learn = self._ma_cls.get_data_to_learn()
 
         if data_to_learn is not None:
-            rows = self.get_main_data().rows[Quotes.TimeStamp]
+            rows = self.main_data.rows[Quotes.TimeStamp]
             bt_start, bt_end = rows[0], rows[-1]
 
             for entry in data_to_learn:
@@ -121,6 +121,7 @@ class MAClassification(MA):
         self._buy_signals = set(results.loc[results['buy-signal'] == True, 'dt'])
         self._sell_signals = set(results.loc[results['sell-signal'] == True, 'dt'])
 
+    @property
     def classifier(self):
         """
             Get the MA Classifier instance.

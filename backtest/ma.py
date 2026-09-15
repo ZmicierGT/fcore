@@ -43,6 +43,7 @@ class MA(BackTest):
             raise BackTestError(f"period can't be less than 0. Specified value is {period}")
         self._period = period
 
+    @property
     def is_simple(self):
         """
             Gets the MA type flag.
@@ -70,7 +71,7 @@ class MA(BackTest):
             Returns:
                 True if uptrend, False otherwise.
         """
-        return self.exec().get_val(offset=-1)['ma'] <= self.exec().get_charting_bar().open
+        return self.exec().get_val(offset=-1)['ma'] <= self.exec().charting_bar.open
 
     def do_tech_calculation(self, ex):
         """
@@ -96,7 +97,7 @@ class MA(BackTest):
             Raises:
                 BackTestError: not enough data for calculation.
         """
-        rows = self.get_main_data().rows
+        rows = self.main_data.rows
         length = len(rows)
 
         if length < self._period:
@@ -123,7 +124,7 @@ class MA(BackTest):
             ############################################################################
             # Check if we need to close the positions because the trend changed recently
             ############################################################################
-            if self.exec().get_long_positions():
+            if self.exec().long_positions:
                 if self.exec().trend_changed(self.is_uptrend()):
                     self.exec().close_all()
                 elif self.is_uptrend() != self.exec().is_long():

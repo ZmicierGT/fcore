@@ -448,8 +448,8 @@ class BackTestOperations():
         # Weight-related
         ################
 
-        if self.get_caller().weigher is not None:
-            self.get_caller().weigher.validate_data(self.data)
+        if self.caller.weigher is not None:
+            self.caller.weigher.validate_data(self.data)
 
         self._weight = 0  # The weight of the current position
 
@@ -486,7 +486,7 @@ class BackTestOperations():
             Returns:
                 bool: indicates if the current security has any positions opened.
         """
-        return self.get_long_positions() > 0
+        return self.long_positions > 0
 
     @property
     def group(self):
@@ -497,7 +497,7 @@ class BackTestOperations():
                 The value of an attributed used to group the weighted securities in the portfolio.
         """
         value = None
-        attr_title = self.get_caller().grouping_attr
+        attr_title = self.caller.grouping_attr
 
         if attr_title is not None and hasattr(self.data, attr_title):
             value = self.data.__getattribute__(attr_title)
@@ -515,7 +515,7 @@ class BackTestOperations():
         share = 1
 
         if self.group:
-            share = self.get_caller().get_grouping_share(self.group)
+            share = self.caller.get_grouping_share(self.group)
 
         return share
 
@@ -530,7 +530,7 @@ class BackTestOperations():
         share = None
 
         if self.group is not None:
-            share = self.get_caller().grouping_values[self.group]
+            share = self.caller.grouping_values[self.group]
 
         return share
 
@@ -543,9 +543,9 @@ class BackTestOperations():
                 float: the mean value for the current group
         """
         if self.group:
-            return self.get_caller().get_group_mean(self.group)
+            return self.caller.get_group_mean(self.group)
         else:
-            return self.get_caller().mean_weight
+            return self.caller.mean_weight
 
     @property
     def group_max_cap(self):
@@ -556,9 +556,9 @@ class BackTestOperations():
                 float: the max cap value for the current group
         """
         if self.group:
-            return self.get_caller().get_group_max_cap(self.group)
+            return self.caller.get_group_max_cap(self.group)
         else:
-            return self.get_caller().max_cap
+            return self.caller.max_cap
 
     @property
     def group_capacity(self):
@@ -572,7 +572,7 @@ class BackTestOperations():
         if self.group is None:
             return 1
         else:
-            return self.get_caller().get_group_capacity(self.group)
+            return self.caller.get_group_capacity(self.group)
 
     @property
     def is_min_capacity_group(self):
@@ -582,7 +582,7 @@ class BackTestOperations():
             Returns:
                 bool: if the current group has a minimum capacity
         """
-        return self.group_capacity == self.get_caller().min_group_capacity
+        return self.group_capacity == self.caller.min_group_capacity
 
     @property
     def is_max_capacity_group(self):
@@ -592,7 +592,7 @@ class BackTestOperations():
             Returns:
                 bool: if the current group has a maximum capacity
         """
-        return self.group_capacity == self.get_caller().max_group_capacity
+        return self.group_capacity == self.caller.max_group_capacity
 
     @property
     def is_limit(self):
@@ -635,7 +635,8 @@ class BackTestOperations():
         if data is not None:
             self._calc[name] = data
 
-    def get_vals(self):
+    @property
+    def vals(self):
         """
             Get the calculated values dataset.
 
@@ -727,8 +728,8 @@ class BackTestOperations():
         """
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
-            index = self.get_caller_index()
-            ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
+            index = self.caller_index
+            ts = self.caller.main_data.rows[index][Quotes.TimeStamp]
 
         idx = np.where(self.data.rows[Quotes.TimeStamp] == ts)[0]
 
@@ -772,8 +773,8 @@ class BackTestOperations():
         """
         # If time stamp is not specified, used the current time stamp from the main dataset.
         if ts is None:
-            index = self.get_caller_index()
-            ts = self.get_caller().get_main_data().rows[index][Quotes.TimeStamp]
+            index = self.caller_index
+            ts = self.caller.main_data.rows[index][Quotes.TimeStamp]
 
         idx = np.where(self.data.rows[Quotes.TimeStamp] <= ts)[-1]
 
@@ -784,7 +785,8 @@ class BackTestOperations():
     # General methods with calculations for a particular symbol
     ###########################################################
 
-    def get_total_profit(self):
+    @property
+    def total_profit(self):
         """
             Get the total profit of the operations with the security.
 
@@ -795,11 +797,12 @@ class BackTestOperations():
 
         if self.is_long():
             for price_cash in self._portfolio_cash:
-                profit += self.get_sell_price() - price_cash
+                profit += self.sell_price - price_cash
 
         return profit
 
-    def get_last_total_profit(self):
+    @property
+    def last_total_profit(self):
         """
             Get the total profit at the moment when the last trade was performed.
 
@@ -810,7 +813,7 @@ class BackTestOperations():
         if self._last_total_value == 0:
             return 0
 
-        return (self.get_total_value() - self._last_total_value) / self._last_total_value * 100
+        return (self.total_value - self._last_total_value) / self._last_total_value * 100
 
     def check_if_finished(self):
         """
@@ -819,7 +822,7 @@ class BackTestOperations():
             Returns:
                 bool: indicate if the calculation is finished
         """
-        return self.get_caller_index() + 1 == len(self.data.rows)
+        return self.caller_index + 1 == len(self.data.rows)
 
     # Fee calculated based on commission in percent of the trade
     def get_trade_percent_fee(self, price=None):
@@ -827,15 +830,15 @@ class BackTestOperations():
             Get the percent fee for the current trade (1 instrument)
 
             Args:
-                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
+                price(float): the execution price to calculate the fee for. market_price is used if None.
 
             Returns:
                 float: percent fee for the trade for 1 instrument
         """
         if price is None:
-            price = self.get_market_price()
+            price = self.market_price
 
-        return price * self.get_caller().get_commission_percent() / 100
+        return price * self.caller.commission_percent / 100
 
     # Fee for one security
     def get_security_fee(self, price=None):
@@ -843,12 +846,12 @@ class BackTestOperations():
             Get the one security fee for the trade (expect commission for the trade).
 
             Args:
-                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
+                price(float): the execution price to calculate the fee for. market_price is used if None.
 
             Returns:
                 float: one security fee (excluding commission for the whole trade)
         """
-        return self.get_trade_percent_fee(price) + self.get_caller().get_commission_security()
+        return self.get_trade_percent_fee(price) + self.caller.commission_security
 
     # Total fee for a trade (1 security)
     def get_total_fee(self, price=None):
@@ -856,12 +859,12 @@ class BackTestOperations():
             Get the total fee for 1 security trade.
 
             Args:
-                price(float): the execution price to calculate the fee for. get_market_price() is used if None.
+                price(float): the execution price to calculate the fee for. market_price is used if None.
 
             Returns:
                 float: the total fee for 1 security trade.
         """
-        return self.get_security_fee(price) + self.get_caller().get_commission()
+        return self.get_security_fee(price) + self.caller.commission
 
     def is_long(self):
         """
@@ -872,7 +875,8 @@ class BackTestOperations():
         """
         return self._long_positions > 0
 
-    def get_last_total_value(self):
+    @property
+    def last_total_value(self):
         """
             Get the total value at the moment of opening the last position.
 
@@ -921,7 +925,8 @@ class BackTestOperations():
 
         return dt
 
-    def get_year(self):
+    @property
+    def year(self):
         """
             Get the current year during the calculation.
 
@@ -930,7 +935,8 @@ class BackTestOperations():
         """
         return self.get_datetime().year
 
-    def get_open(self):
+    @property
+    def open(self):
         """
             Get the open price.
 
@@ -947,7 +953,8 @@ class BackTestOperations():
 
         return self.data.rows[index][Quotes.Open]
 
-    def get_close(self):
+    @property
+    def close(self):
         """
             Get the close price.
 
@@ -964,7 +971,8 @@ class BackTestOperations():
 
         return row[Quotes.Close]
 
-    def get_market_price(self):
+    @property
+    def market_price(self):
         """
             Get the current market price for decisions — the Open of the current bar.
 
@@ -982,7 +990,8 @@ class BackTestOperations():
 
         return row[Quotes.Open]
 
-    def get_high(self):
+    @property
+    def high(self):
         """
             Get the current cycle's highest price.
 
@@ -999,7 +1008,8 @@ class BackTestOperations():
 
         return self.data.rows[index][Quotes.High]
 
-    def get_low(self):
+    @property
+    def low(self):
         """
             Get the current cycle's lowest price.
 
@@ -1016,7 +1026,8 @@ class BackTestOperations():
 
         return self.data.rows[index][Quotes.Low]
 
-    def get_charting_bar(self):
+    @property
+    def charting_bar(self):
         """
             Get the charting OHLC bar for the current cycle.
 
@@ -1037,7 +1048,8 @@ class BackTestOperations():
 
         return ChartingBar(row[cols.open], row[cols.high], row[cols.low], row[cols.close])
 
-    def get_spread_deviation(self):
+    @property
+    def spread_deviation(self):
         """
             Get the current spread deviation. Buy price is the current market price (the bar's Open) plus the
             deviation, sell otherwise.
@@ -1045,7 +1057,7 @@ class BackTestOperations():
             Returns:
                 float: the spread deviation for the corresponding symbol.
         """
-        return self.get_market_price() * self.data.spread / 100 / 2
+        return self.market_price * self.data.spread / 100 / 2
 
     # TODO LOW Think of other ways to calculate a spread
     def get_execution_price(self, buy):
@@ -1059,9 +1071,10 @@ class BackTestOperations():
             Returns:
                 float: the execution price of the symbol
         """
-        return self.get_market_price() + _side_spec(buy).sign * self.get_spread_deviation()
+        return self.market_price + _side_spec(buy).sign * self.spread_deviation
 
-    def get_buy_price(self):
+    @property
+    def buy_price(self):
         """
             Get the buy price of the current symbol in the current cycle of the calculation. It is based on the
             current bar's Open (the market price for decisions and execution) plus the spread deviation.
@@ -1071,7 +1084,8 @@ class BackTestOperations():
         """
         return self.get_execution_price(buy=True)
 
-    def get_sell_price(self):
+    @property
+    def sell_price(self):
         """
             Get the sell price of the current symbol in the current cycle of the calculation. It is based on the
             current bar's Open (the market price for decisions and execution) minus the spread deviation.
@@ -1081,7 +1095,8 @@ class BackTestOperations():
         """
         return self.get_execution_price(buy=False)
 
-    def get_long_positions(self):
+    @property
+    def long_positions(self):
         """
             Get the number of long positions.
 
@@ -1097,7 +1112,8 @@ class BackTestOperations():
         self._price_open_long = None
         self._price_close_long = None
 
-    def get_caller(self):
+    @property
+    def caller(self):
         """
             Get the backtesting class instance which called the data class.
 
@@ -1106,14 +1122,15 @@ class BackTestOperations():
         """
         return self.__caller
 
-    def get_caller_index(self):
+    @property
+    def caller_index(self):
         """
             Get the index of the current calculation.
 
             Returns:
                 int: index of the record in the dataset used for calculation.
         """
-        return self.__caller.get_index()
+        return self.__caller.index
 
     def apply_days_counter(self, days_delta):
         """
@@ -1126,7 +1143,8 @@ class BackTestOperations():
                 days_delta(int): number of days to apply to the counter.
         """
 
-    def get_total_value(self):
+    @property
+    def total_value(self):
         """
             Get the total value of positions opened for the particular symbol.
 
@@ -1136,7 +1154,7 @@ class BackTestOperations():
         total_value = 0
 
         if self.is_long():
-            total_value += self.get_sell_price() * self._long_positions
+            total_value += self.sell_price * self._long_positions
 
         return total_value
 
@@ -1148,7 +1166,7 @@ class BackTestOperations():
                 result(BTSymbolRow): the result to add. Auto generated otherwise.
         """
         if result is None:
-            bar = self.get_charting_bar()
+            bar = self.charting_bar
 
             if bar is not None:
                 result = BTSymbolRow(
@@ -1165,7 +1183,8 @@ class BackTestOperations():
 
         self._sym_results.append(result)
 
-    def get_sym_results(self):
+    @property
+    def sym_results(self):
         """
             Get results of the current symbol's calculation.
 
@@ -1186,8 +1205,8 @@ class BackTestOperations():
             Returns:
                 bool: True if the trend is considered as changed, false otherwise
         """
-        quote = self.get_market_price()
-        index = self.get_caller().get_index()
+        quote = self.market_price
+        index = self.caller.index
 
         if is_uptrend == self.is_long():
             self._signal_quote = None
@@ -1237,7 +1256,7 @@ class BackTestOperations():
         """
         self._weight = 0
 
-        weigher = self.get_caller().weigher
+        weigher = self.caller.weigher
         if weigher is not None:
             self._weight = weigher.weight(self)
 
@@ -1250,7 +1269,7 @@ class BackTestOperations():
                 has_positions(bool): indicates if the security has positions after the trade
                 ex_total_value(float): total value before making a trade
         """
-        if self.get_caller().weigher is None and self.get_caller().grouping_attr is None:
+        if self.caller.weigher is None and self.caller.grouping_attr is None:
             return
 
         mult_adj_num = 0
@@ -1263,7 +1282,7 @@ class BackTestOperations():
         ex_weight = self.weight
 
         self.calc_weight()
-        self.get_caller().adjust_weight_values(ex=self,
+        self.caller.adjust_weight_values(ex=self,
                                                mult_adj_num=mult_adj_num,
                                                ex_weight=ex_weight,
                                                ex_total_value=ex_total_value)
@@ -1280,15 +1299,15 @@ class BackTestOperations():
         """
         num = 0
 
-        weigher = self.get_caller().weigher
+        weigher = self.caller.weigher
         if weigher is not None:
             num = weigher.get_trade_num(self, deviation)
 
         # Check if the number of positions is limited by grouping
-        if self.group is not None and self.get_caller().grouping_invested:
+        if self.group is not None and self.caller.grouping_invested:
             # Take cash into account as accumulated cash may prevent to open bigger position sizes otherwise.
-            tv = self.get_caller().grouping_tv
-            grouping_num = self.group_capacity * deviation * tv / self.get_market_price()
+            tv = self.caller.grouping_tv
+            grouping_num = self.group_capacity * deviation * tv / self.market_price
             num = min(num, grouping_num)
 
         return num
@@ -1305,11 +1324,11 @@ class BackTestOperations():
         """
         p = _side_spec(buy)
 
-        deviation = getattr(self.get_caller(), p.deviation_attr)
+        deviation = getattr(self.caller, p.deviation_attr)
 
         # TODO Mid Think how to handle it better
         # Too low deviation in the beginning may block the portfolio
-        if self.get_long_positions() < 10:
+        if self.long_positions < 10:
             deviation = max(p.deviation_floor, deviation)
 
         num = self.get_trade_num(deviation)
@@ -1320,7 +1339,8 @@ class BackTestOperations():
 
         return int(p.sign * num)
 
-    def get_buy_num(self):
+    @property
+    def buy_num(self):
         """
             The number of securities to buy and keep the portfolio balanced as much as possible.
 
@@ -1329,7 +1349,8 @@ class BackTestOperations():
         """
         return self._get_side_num(buy=True)
 
-    def get_sell_num(self):
+    @property
+    def sell_num(self):
         """
             The number of securities to sell and keep the portfolio balanced as much as possible.
 
@@ -1367,15 +1388,15 @@ class BackTestOperations():
         if limit is None:
             if recalculate:
                 had_positions = self.has_positions
-                ex_total_value = self.get_total_value()
+                ex_total_value = self.total_value
 
             if num is None:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
+                if self.weighted and self.caller.weigher is not None and exact is False:
                     num = self._get_side_num(buy)
                 else:
-                    num = self.get_max_trade_size() if buy else self.get_long_positions()
+                    num = self.get_max_trade_size() if buy else self.long_positions
             else:
-                if self.weighted and self.get_caller().weigher is not None and exact is False:
+                if self.weighted and self.caller.weigher is not None and exact is False:
                     num = min(num, self._get_side_num(buy))
 
             if num > 0:
@@ -1383,8 +1404,8 @@ class BackTestOperations():
                     # open_long() may clamp the number if not enough cash and exact is False
                     total_num += self.open_long(num, price=price, exact=exact)
                 else:
-                    if self.get_long_positions():
-                        num_close = min(self.get_long_positions(), num)
+                    if self.long_positions:
+                        num_close = min(self.long_positions, num)
                         total_num += self.close_long(num_close, price=price)
 
             if recalculate:
@@ -1400,20 +1421,20 @@ class BackTestOperations():
             if self._limit_order is not None:
                 log = (f"Cancelling {_side_spec(self._limit_order.buy).label} limit order for {self.data.title} "
                        f"as the new order is being placed.")
-                self.get_caller()._lg.highlight(log)
+                self.caller._lg.highlight(log)
 
             self.cancel_limit_order()
 
             # A marketable limit order: the close is within the limit price so the resting
             # order was crossed after the placement. It fills at the limit price.
-            close_price = self.get_close()
+            close_price = self.close
 
             # BUY is filled when the close is not higher than the limit, SELL - when it is not lower
             if p.sign * (close_price - limit) <= 0:
                 log = (f"At {self.get_datetime_str()} {p.label} limit order for {self.data.title} with the price {round(limit, 2)} "
                        f"is marketable at the bar close - executing at {round(limit, 2)}.")
 
-                self.get_caller()._lg.plain(log)
+                self.caller._lg.plain(log)
 
                 total_num = self._order(buy, num=num, price=limit, recalculate=recalculate, exact=exact)
 
@@ -1426,7 +1447,7 @@ class BackTestOperations():
                 log = (f"At {self.get_datetime_str()} {p.label} limit order for {self.data.title} with the price {round(limit, 2)} "
                        f"could not be filled and is kept working.")
 
-                self.get_caller()._lg.plain(log)
+                self.caller._lg.plain(log)
 
             self._limit_order = LimitOrder(buy=buy,
                                             limit=limit,
@@ -1441,7 +1462,7 @@ class BackTestOperations():
             log = (f"At {self.get_datetime_str()} {p.label} Limit order is placed for {self.data.title} for the {order_num} number of securities "
                    f"with the price {round(limit, 2)}.")
 
-            self.get_caller()._lg.highlight(log)
+            self.caller._lg.highlight(log)
 
         return total_num
 
@@ -1520,7 +1541,7 @@ class BackTestOperations():
             log = (f"At {self.get_datetime_str()} {p.label} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
                    f"{order.limit} wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
 
-            self.get_caller()._lg.highlight(log)
+            self.caller._lg.highlight(log)
 
             self.cancel_limit_order()
 
@@ -1558,7 +1579,7 @@ class BackTestOperations():
             quotes updates in N number of days (7 by default).
         """
         # Get the current trading timestamp of the base data
-        base_ts = self.get_caller().exec().get_row()[Quotes.TimeStamp]
+        base_ts = self.caller.exec().get_row()[Quotes.TimeStamp]
         # Get the last trading timestamp of the current symbol
         current_ts = self.data.rows[Quotes.TimeStamp][-1]
 
@@ -1570,17 +1591,17 @@ class BackTestOperations():
 
             if delta.days > 7:
                 # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
-                if self.get_long_positions():
+                if self.long_positions:
                     last_close = self.data.rows[Quotes.Close][-1]
                     total_lost = last_close * self._long_positions
 
-                    self.get_caller()._lg.highlight(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
-                                        f"total positions of {self.get_long_positions()} of total worth {total_lost} "
+                    self.caller._lg.highlight(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
+                                        f"total positions of {self.long_positions} of total worth {total_lost} "
                                         f"({last_close} per security) were lost.")
 
-                    self.get_caller().add_other_profit(-abs(total_lost))
+                    self.caller.add_other_profit(-abs(total_lost))
                     self._total_profit -= total_lost
-                    self.get_caller().add_other_expense(total_lost)
+                    self.caller.add_other_expense(total_lost)
 
                     self._long_positions = 0
                     self._portfolio_cash.clear()  # cost basis is lost together with the positions
@@ -1596,7 +1617,7 @@ class BackTestOperations():
             Get the maxumum number of securities which we can buy using the cash balance without going negative.
 
             Args:
-                price(float): the execution price for the trade. If None, get_buy_price() is used.
+                price(float): the execution price for the trade. If None, buy_price is used.
 
             Return:
                 int: the maximum of positions to open using cash only.
@@ -1604,21 +1625,21 @@ class BackTestOperations():
         """
         lot = self.data.lot
 
-        buy_price = price if price is not None else self.get_buy_price()
+        buy_price = price if price is not None else self.buy_price
 
         # Guard against invalid prices (a bad quote, e.g. zero, negative or NaN price)
         if buy_price is None or not np.isfinite(buy_price) or buy_price <= 0:
             log = (f"At {self.get_datetime_str()} can't estimate the maximum trade size of {self.data.title}: "
                    f"the execution price is invalid ({buy_price}). No positions will be opened.")
 
-            self.get_caller()._lg.error(log)
+            self.caller._lg.error(log)
 
-            return (0, self.get_caller().get_cash() - self.get_caller().get_commission())
+            return (0, self.caller.cash - self.caller.commission)
 
         # A single affordability model: the cash should cover the flat commission and, for each security,
         # the execution price plus the per-share fee. It mirrors the actual trade cost in _execute_trade().
         per_share_cost = buy_price + self.get_security_fee(buy_price)
-        cash_available = self.get_caller().get_cash() - self.get_caller().get_commission()
+        cash_available = self.caller.cash - self.caller.commission
 
         securities_num = math.floor(cash_available / per_share_cost / lot) * lot
         securities_num = round(max(0, securities_num), 6)
@@ -1632,7 +1653,7 @@ class BackTestOperations():
             Get total number of securities which we may buy.
 
             Args:
-                price(float): the execution price for the trade. If None, get_buy_price() is used.
+                price(float): the execution price for the trade. If None, buy_price is used.
 
             Returns:
                 int: the total number of securities which we can buy using cash.
@@ -1664,7 +1685,7 @@ class BackTestOperations():
                 raise BackTestError(f"Can't open negative number of long positions: {num}")
 
             # Affordability check
-            max_size_price = price if price is not None else self.get_buy_price()
+            max_size_price = price if price is not None else self.buy_price
 
             if num > self.get_max_trade_size(price=max_size_price):
                 if exact:
@@ -1680,7 +1701,7 @@ class BackTestOperations():
                 log = (f"At {self.get_datetime_str()} requested to close a negative number of long positions "
                        f"of {self.data.title}: {num}. The trade is skipped.")
 
-                self.get_caller()._lg.error(log)
+                self.caller._lg.error(log)
 
                 return 0
 
@@ -1691,14 +1712,14 @@ class BackTestOperations():
                 return 0
 
         # Needed for logging
-        ex_cash = self.get_caller().get_cash()
+        ex_cash = self.caller.cash
 
         # Used only in charting. The real (non-adjusted) spread is applied to the charting bar
         # prices, so the markers stay scale-consistent with the chart.
         # On the other hand, note that the markers are just a visual indication of a trade (not exact price representation)
         # and they should correspond the close price (as the chart is built using the close price).
-        bar = self.get_charting_bar()
-        spread_deviation = self.get_spread_deviation()
+        bar = self.charting_bar
+        spread_deviation = self.spread_deviation
 
         if buy:
             self._price_open_long = bar.close + spread_deviation
@@ -1708,52 +1729,52 @@ class BackTestOperations():
         total_spread_expense = 0
 
         if price is None:
-            total_spread_expense = self.get_spread_deviation() * num
-            price = self.get_buy_price() if buy else self.get_sell_price()
+            total_spread_expense = self.spread_deviation * num
+            price = self.buy_price if buy else self.sell_price
 
         # The percent commission is calculated based on the actual execution price
-        total_commission = self.get_security_fee(price) * num + self.get_caller().get_commission()
+        total_commission = self.get_security_fee(price) * num + self.caller.commission
 
         if buy:
-            self.get_caller().add_cash(-abs(total_commission + price * num))
+            self.caller.add_cash(-abs(total_commission + price * num))
         else:
             # Remove the sold lots (FIFO) from the cash portfolio (used for total profit calculations)
             sold_cash = sum(self._portfolio_cash[:num])
             self._portfolio_cash = self._portfolio_cash[num:]
 
-            self.get_caller().add_cash(price * num)
-            self.get_caller().add_cash(-abs(total_commission))
+            self.caller.add_cash(price * num)
+            self.caller.add_cash(-abs(total_commission))
 
         # Add expenses for this trade
-        self.get_caller().add_commission_expense(total_commission)
+        self.caller.add_commission_expense(total_commission)
 
         self._long_positions += p.sign * num
 
-        self.get_caller().add_spread_expense(total_spread_expense)
+        self.caller.add_spread_expense(total_spread_expense)
 
         self._trades_no += 1
-        self.get_caller().add_total_trades(1)
+        self.caller.add_total_trades(1)
 
         if buy:
             log = (f"At {self.get_datetime_str()} OPENED {num} LONG positions of {self.data.title} with price "
                    f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total when "
                    f"cash was {round(ex_cash, 2)} and currently "
-                   f"it is {round(self.get_caller().get_cash(), 2)}")
+                   f"it is {round(self.caller.cash, 2)}")
 
-            self.get_caller()._lg.plain(log)
+            self.caller._lg.plain(log)
 
-            self._last_total_value = self.get_total_value()
+            self._last_total_value = self.total_value
             self._portfolio_cash.extend(repeat(price, num))
         else:
             # Realized profit: the cash delta minus the cost basis of the sold shares
-            self._total_profit += self.get_caller().get_cash() - ex_cash - sold_cash
+            self._total_profit += self.caller.cash - ex_cash - sold_cash
 
             log = (f"At {self.get_datetime_str()} CLOSED {num} LONG positions of {self.data.title} with price "
                    f"{round(price, 2)} for {round(total_commission + num * price, 2)} in total and "
                    f"cash was {round(ex_cash, 2)} and currently "
-                   f"it is {round(self.get_caller().get_cash(), 2)}.")
+                   f"it is {round(self.caller.cash, 2)}.")
 
-            self.get_caller()._lg.plain(log)
+            self.caller._lg.plain(log)
 
         return num
 
@@ -1785,26 +1806,6 @@ class BackTestOperations():
     #######################################
     # Methods related to closing positions.
     #######################################
-
-    def close(self, num):
-        """
-            Close the number of positions.
-
-            Args:
-                num(int): the number of positions to close.
-
-            Raises:
-                BackTestError: trying to close a negative number of positions.
-        """
-        if num < 0:
-            raise BackTestError(f"Number of positions to close can't be less than 0. {num} is specified.")
-
-        if num == 0:
-            return
-
-        self.close_long(num)
-
-        self._last_total_value = self.get_total_value()
 
     def close_long(self, num, price=None):
         """
@@ -2383,8 +2384,8 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 float: the total group value plus cash.
         """
-        return (sum(self._grouping_values.values()) + self.get_cash()
-                if self._grouping_values else self.get_cash())
+        return (sum(self._grouping_values.values()) + self.cash
+                if self._grouping_values else self.cash)
 
     @property
     def grouping_invested(self):
@@ -2498,7 +2499,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 ex.calc_weight()
                 self._mean_weight += ex.weight
 
-                self._total_weighted_value += ex.get_total_value()
+                self._total_weighted_value += ex.total_value
 
         if self._multiplier:
             self._mean_weight = self._mean_weight / self._multiplier
@@ -2521,7 +2522,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         for ex in self.all_exec():
             if ex.weighted and ex.has_positions:
-                total_value = ex.get_total_value()
+                total_value = ex.total_value
                 self._grouping_values[ex.group] += total_value
                 self._grouping_mult[ex.group] += 1
 
@@ -2549,7 +2550,7 @@ class BackTest(metaclass=abc.ABCMeta):
             if self.multiplier:
                 self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
 
-            self._total_weighted_value = self._total_weighted_value - ex_total_value + ex.get_total_value()
+            self._total_weighted_value = self._total_weighted_value - ex_total_value + ex.total_value
 
         if self.grouping_attr is not None:
             # Grouping values are maintained intracycle even without a weigher (trades adjust them via this method).
@@ -2557,7 +2558,7 @@ class BackTest(metaclass=abc.ABCMeta):
             if self._grouping_values is None:
                 return
 
-            total_value = ex.get_total_value()
+            total_value = ex.total_value
 
             self._grouping_values[ex.group] = self._grouping_values[ex.group] - ex_total_value + total_value
 
@@ -2572,8 +2573,8 @@ class BackTest(metaclass=abc.ABCMeta):
         num = 0
         target_idx = 0
 
-        for i in range(len(self.get_data())):
-            data = self.get_data()[i]
+        for i in range(len(self.data)):
+            data = self.data[i]
 
             current_len = len(data.rows)
 
@@ -2581,7 +2582,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 num = current_len
                 target_idx = i
 
-        self._lg.plain(f"Using dataset {self.get_data()[target_idx].title} with the index {target_idx} as the main dataset.")
+        self._lg.plain(f"Using dataset {self.data[target_idx].title} with the index {target_idx} as the main dataset.")
 
         return target_idx
 
@@ -2594,7 +2595,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self.__is_finished
 
-    def get_long_positions_num(self):
+    @property
+    def long_positions_num(self):
         """
             Return the total number of opened long positions.
 
@@ -2604,11 +2606,12 @@ class BackTest(metaclass=abc.ABCMeta):
         long_positions_num = 0
 
         for ex in self.all_exec():
-            long_positions_num += ex.get_long_positions()
+            long_positions_num += ex.long_positions
 
         return long_positions_num
 
-    def get_initial_deposit(self):
+    @property
+    def initial_deposit(self):
         """
             Get the initial deposit.
 
@@ -2617,7 +2620,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._initial_deposit
 
-    def get_results(self):
+    @property
+    def results(self):
         """
             Get the result list of the calculation.
 
@@ -2640,25 +2644,27 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"Timeout ({self.__timeout} sec) has happened. Calculation is not finished.")
 
         # Rebuild the symbol results on each call so that repeated calls do not duplicate them
-        self._results.Symbols = [ex.get_sym_results() for ex in self.__exec]
+        self._results.Symbols = [ex.sym_results for ex in self.__exec]
 
         return self._results
 
-    def get_prev_dt(self):
+    @property
+    def prev_dt(self):
         """
             Get the DateTime of the previous cycle.
 
             Returns:
                 DateTime: the DateTime of the previous cycle.
         """
-        prev_index = self.get_index() - 1
+        prev_index = self.index - 1
 
         if self.skipped(prev_index) == False:
             return self.exec().get_datetime(prev_index)
 
         return None
 
-    def get_days_delta(self):
+    @property
+    def days_delta(self):
         """
             Get days delta betwen the current and previous cycle.
             For example, days delta between two working days will be 1, days delta between two trading dates with a holiday
@@ -2668,7 +2674,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 int: Days delta between two trading days.
         """
         days_delta = 0
-        prev_dt = self.get_prev_dt()
+        prev_dt = self.prev_dt
 
         if prev_dt != None:
             delta = self.exec().get_datetime() - prev_dt
@@ -2680,7 +2686,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Adjust days delta for counters.
         """
-        days_delta = self.get_days_delta()
+        days_delta = self.days_delta
 
         for ex in self.__exec:
             ex.apply_days_counter(days_delta)
@@ -2695,14 +2701,14 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 True if day has changed, False otherwise.
         """
-        return self.get_days_delta() > 0
+        return self.days_delta > 0
 
     def deposit(self):
         """
             Check if periodic deposit should be added to the balance and adds it if there is a need.
         """
         # Check if the deposit should be inflation adjusted
-        current_year = self.exec().get_year()
+        current_year = self.exec().year
 
         if self._inflation != 0 and self._year != current_year:
             self._year = current_year
@@ -2714,7 +2720,7 @@ class BackTest(metaclass=abc.ABCMeta):
             self._deposits += self._periodic_deposit
             self._deposit_counter = 0
 
-            self._lg.highlight(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.get_cash(), 2)}.")
+            self._lg.highlight(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.cash, 2)}.")
 
 
     def cash_interest(self):
@@ -2725,10 +2731,10 @@ class BackTest(metaclass=abc.ABCMeta):
             cycle of each new day. Intraday cycles within the same day do not accrue the interest again.
         """
         if self._cash_interest:
-            prev_dt = self.get_prev_dt()
+            prev_dt = self.prev_dt
 
             # The first cycle of the calculation or the first cycle of a new day
-            if prev_dt is None or self.get_days_delta() > 0:
+            if prev_dt is None or self.days_delta > 0:
                 amount = self._cash * (self._cash_interest / 100 / trading_days_per_year)
 
                 self.add_other_profit(amount)
@@ -2740,18 +2746,20 @@ class BackTest(metaclass=abc.ABCMeta):
             Returns:
                 True is data for several symbols presents, False otherwise.
         """
-        return len(self.get_data()) > 1
+        return len(self.data) > 1
 
-    def get_main_data(self):
+    @property
+    def main_data(self):
         """
             Get the first BackTestData instance used in the calculation. It is considered as the 'main' one.
 
             Returns:
                 BackTestData: the first instance added during initialization.
         """
-        return self.get_data()[self.__main_data_idx]
+        return self.data[self.__main_data_idx]
 
-    def get_data(self):
+    @property
+    def data(self):
         """
             Get all BackTestData instances used by the calculation.
 
@@ -2760,7 +2768,18 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self.__data
 
-    def set_index(self, index):
+    @property
+    def index(self):
+        """
+            Get current index for a calculations.
+
+            Returns:
+                int: index for calculation.
+        """
+        return self.__index
+
+    @index.setter
+    def index(self, index):
         """
             Set current index for a calculations.
 
@@ -2770,19 +2789,10 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: index not found.
         """
-        if index >= len(self.get_main_data().rows):
+        if index >= len(self.main_data.rows):
             raise BackTestError(f"Provided data does not have index {index}")
 
         self.__index = index
-
-    def get_index(self):
-        """
-            Get current index for a calculations.
-
-            Returns:
-                int: index for calculation.
-        """
-        return self.__index
 
     def get_row_index(self, row):
         """
@@ -2797,7 +2807,7 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: the row is not found in the main dataset.
         """
-        idx = np.where(self.get_main_data().rows[Quotes.TimeStamp] == row[Quotes.TimeStamp])
+        idx = np.where(self.main_data.rows[Quotes.TimeStamp] == row[Quotes.TimeStamp])
 
         if len(idx[0]) == 0:
             raise BackTestError("The row is not found in the main dataset.")
@@ -2813,12 +2823,12 @@ class BackTest(metaclass=abc.ABCMeta):
                 True if the cycle should be skipped, False otherwise.
         """
         if index == None:
-            index = self.get_index()
+            index = self.index
 
         if index < 0:
             return True
 
-        return self.skip_criteria(index) or index < self.get_offset()
+        return self.skip_criteria(index) or index < self.offset
 
     def to_skip(self):
         """
@@ -2832,7 +2842,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
             for ex in self.all_exec():
                 if ex.get_index() is not None:
-                    bar = ex.get_charting_bar()
+                    bar = ex.charting_bar
 
                     ex.add_symbol_result(BTSymbolRow(
                         open=bar.open,
@@ -2844,7 +2854,8 @@ class BackTest(metaclass=abc.ABCMeta):
 
         return False
 
-    def get_offset(self):
+    @property
+    def offset(self):
         """
             Get the offset of the calculation.
 
@@ -2853,16 +2864,18 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._offset
 
-    def set_offset(self, offset):
+    @offset.setter
+    def offset(self, offset):
         """
             Set the offset for the calculation.
 
             Args:
                 offset(int): offset for the calculation.
         """
-        self._offset =  offset
+        self._offset = offset
 
-    def get_commission(self):
+    @property
+    def commission(self):
         """
             Get the commission per trade.
 
@@ -2871,7 +2884,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._commission
 
-    def get_commission_percent(self):
+    @property
+    def commission_percent(self):
         """
             Get the commission in percent of a trade volume.
 
@@ -2880,7 +2894,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._commission_percent
 
-    def get_commission_security(self):
+    @property
+    def commission_security(self):
         """
             Get the commission per security.
 
@@ -2944,7 +2959,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         self._spread_expense += expense
 
-    def get_cash(self):
+    @property
+    def cash(self):
         """
             Get the cash balance.
 
@@ -2953,7 +2969,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._cash
 
-    def get_total_trades(self):
+    @property
+    def total_trades(self):
         """
             Get the total number of simulated trades at the moment.
 
@@ -2962,7 +2979,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._total_trades
 
-    def get_total_deposits(self):
+    @property
+    def total_deposits(self):
         """
             Get the total depositted money (initial deposit plus all periodic).
 
@@ -2972,7 +2990,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._deposits
 
-    def get_other_profit(self):
+    @property
+    def other_profit(self):
         """
             Get the current other profit.
 
@@ -2981,7 +3000,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._other_profit
 
-    def get_commission_expense(self):
+    @property
+    def commission_expense(self):
         """
             Get the current commission expense.
 
@@ -2990,7 +3010,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._commission_expense
 
-    def get_spread_expense(self):
+    @property
+    def spread_expense(self):
         """
             Get the current spread expense.
 
@@ -2999,7 +3020,8 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._spread_expense
 
-    def get_other_expense(self):
+    @property
+    def other_expense(self):
         """
             Get the current other expense. For example, delisting expenses in the case of stocks.
 
@@ -3008,30 +3030,33 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         return self._other_expense
 
-    def get_total_expenses(self):
+    @property
+    def total_expenses(self):
         """
             Get the total expenses.
 
             Returns:
                 float: the current total expenses.
         """
-        return self.get_commission_expense() + self.get_spread_expense() + self.get_other_expense()
+        return self.commission_expense + self.spread_expense + self.other_expense
 
-    def get_total_value(self):
+    @property
+    def total_value(self):
         """
             Get the total value of the portfolio
 
             Returns:
                 float: the total value of the portfolio.
         """
-        total_value = self.get_cash()
+        total_value = self.cash
 
         for ex in self.__exec:
-            total_value += ex.get_total_value()
+            total_value += ex.total_value
 
         return total_value
 
-    def get_result(self):
+    @property
+    def result(self):
         """
             Get result of the current cycle.
 
@@ -3043,15 +3068,15 @@ class BackTest(metaclass=abc.ABCMeta):
 
         return BTDataRow(
             date_time=self.exec().get_datetime_str(),
-            total_value=self.get_total_value(),
-            deposits=self.get_total_deposits(),
-            cash=self.get_cash(),
-            other_profit=self.get_other_profit(),
-            commission_expense=self.get_commission_expense(),
-            spread_expense=self.get_spread_expense(),
-            other_expense=self.get_other_expense(),
-            total_expenses=self.get_total_expenses(),
-            total_trades=self.get_total_trades()
+            total_value=self.total_value,
+            deposits=self.total_deposits,
+            cash=self.cash,
+            other_profit=self.other_profit,
+            commission_expense=self.commission_expense,
+            spread_expense=self.spread_expense,
+            other_expense=self.other_expense,
+            total_expenses=self.total_expenses,
+            total_trades=self.total_trades
         )
 
     def setup(self):
@@ -3067,7 +3092,7 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError("Setup has been already performed.")
 
         # Get the initial year
-        self._year = self.get_main_data().first_year
+        self._year = self.main_data.first_year
 
         for data in self.__data:
             self.__exec.append(data.create_exec(self))
@@ -3107,7 +3132,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         if data != None:
             try:
-                num = self.get_data().index(data)
+                num = self.data.index(data)
             except ValueError as e:
                 raise BackTestError(f"Can't find the specified data insance: {e}") from e
 
@@ -3179,14 +3204,14 @@ class BackTest(metaclass=abc.ABCMeta):
         if isinstance(index, np.ndarray) or isinstance(index, np.void):
             index = self.get_row_index(index)
 
-        if index >= len(self.get_main_data().rows):
+        if index >= len(self.main_data.rows):
             raise BackTestError(f"Provided data does not have index {index}")
 
         # do_cycle() was already called for this cycle.
-        if self.get_index() == index or self.__is_active:
+        if self.index == index or self.__is_active:
             raise BackTestError("do_cycle was already called in this cycle.")
 
-        self.set_index(index)
+        self.index = index
 
         if self.to_skip():
             return False
@@ -3237,7 +3262,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 BackTestError: the cycle is not active.
         """
         if self.__is_active == True:
-            self._results.append(self.get_result())
+            self._results.append(self.result)
             self.__is_active = False
         else:
             raise BackTestError("The current cycle is not active.")
@@ -3253,10 +3278,10 @@ class BackTest(metaclass=abc.ABCMeta):
         dt = self.exec().get_row()[Quotes.DateTime]
         # TODO MID The existing data structures for reporting should be altered (replaced by pandas or np.array)
         #tv = round(self._results.TotalValue[-1], 2)
-        length = len(self.get_main_data().rows)
+        length = len(self.main_data.rows)
 
-        #self._lg.plain(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt} and total value {tv}")
-        self._lg.plain(f"Finished calculating row {self.get_index() + 1} of {length} with datetime {dt}")
+        #self._lg.plain(f"Finished calculating row {self.index + 1} of {length} with datetime {dt} and total value {tv}")
+        self._lg.plain(f"Finished calculating row {self.index + 1} of {length} with datetime {dt}")
 
     def calculate(self):
         """
@@ -3279,7 +3304,7 @@ class BackTest(metaclass=abc.ABCMeta):
         except Exception as e:
             raise BackTestError(e) from e
         finally:
-            # Store the time actually spent on the calculation (not affected by a delayed get_results())
+            # Store the time actually spent on the calculation (not affected by a delayed results access)
             self._results._elapsed_time = time.perf_counter() - self.__calc_started
             self.__event.set()
 

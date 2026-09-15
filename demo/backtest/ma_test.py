@@ -87,8 +87,8 @@ if __name__ == "__main__":
     except BackTestError as e:
         sys.exit(f"Can't perform backtesting calculation: {e}")
 
-    results_bh = bh.get_results()
-    results = ma.get_results()
+    results_bh = bh.results
+    results = ma.results
 
     #################
     # Create a report
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     fig_quotes = report.add_quotes_chart(title=title)
 
     # Append MA values to the quotes chart
-    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=ma.exec().get_vals()['ma'], mode='lines', name="MA", line=dict(color="green")))
+    fig_quotes.add_trace(go.Scatter(x=results.DateTime, y=ma.exec().vals['ma'], mode='lines', name="MA", line=dict(color="green")))
 
     # Add a chart to represent portfolio performance
     fig_portf = report.add_portfolio_chart(height=height)

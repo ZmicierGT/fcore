@@ -290,9 +290,6 @@ class Report():
             Args:
                 data(BTData): data to calculate the results.
                 title(str): the title of the strategy.
-
-            Returns:
-                str: The annotation in string form.
         """
         if data is None:
             data = self._data
@@ -339,14 +336,14 @@ class Report():
 
     def combine_charts(self):
         """
-            Get the combined byteimage (PNG) of all charts.
+            Get the combined image of all charts.
             The custom mechanism of combining charts is preferred over plotly subcharts because it looks better and more flexible.
 
             Raises:
                 ReportsError: no charts are generated yet.
 
             Returns:
-                byteimage(PNG): the combined byte image of all charts.
+                PIL.Image: the combined image of all charts.
         """
         if len(self._charts) == 0:
             raise ReportsError("No charts are generated yet.")
@@ -362,8 +359,8 @@ class Report():
             images.append(fig.to_image(format="png"))
             height += fig.layout.height
 
-        # Add height of annotations
-        img_per_row = int(self._width / self._annotation_width)
+        # Add height of annotations (at least one annotation per row even for narrow charts)
+        img_per_row = max(1, int(self._width / self._annotation_width))
         annotations_height = ceil(len(self._annotations) / img_per_row) * self._annotation_height
 
         height += int(annotations_height)

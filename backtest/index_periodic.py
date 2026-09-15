@@ -110,7 +110,7 @@ class IndexSim(BackTest):
 
                 # Choose the security with minimum weight to open a position
                 if ex.data.title in self.composition and ex.weight < min_weight and ex.is_limit is False \
-                    and ex.is_max_capacity_group and ex.get_max_trade_size_cash():
+                    and ex.is_max_capacity_group and ex.get_max_trade_size_cash()[0] >= 1:
                     min_weight = ex.weight
                     target_buy = ex
 

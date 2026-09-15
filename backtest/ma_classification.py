@@ -56,13 +56,25 @@ class MAClassification(MA):
 
         self._ma_cls = classifier
 
+        # Datetime strings of the confirmed signals (for O(1) per-cycle lookups)
+        self._buy_signals = set()
+        self._sell_signals = set()
+
     def do_tech_calculation(self, ex):
         """
             Perform technical calculation and model training for the strategy.
 
+            The classifier is trained on the main dataset only. For other symbols a plain MA
+            is calculated (like in the parent class) so charting works and no data length
+            mismatch occurs.
+
             Args:
                 ex(BackTestOperations): Operations instance class.
         """
+        if ex.data is not self.get_main_data():
+            super().do_tech_calculation(ex)
+            return
+
         # Initialize classifier if the instance is not provided.
         if self._ma_cls == None:
             self._ma_cls = MAClassifier(period=self._period,
@@ -104,6 +116,11 @@ class MAClassification(MA):
         # Append data to the calculations dataset
         ex.add_col(name='ma', data=ma, dtype=float)
 
+        # Precompute the signal datetimes for O(1) lookups during the backtest
+        results = self._ma_cls.get_results()
+        self._buy_signals = set(results.loc[results['buy-signal'] == True, 'dt'])
+        self._sell_signals = set(results.loc[results['sell-signal'] == True, 'dt'])
+
     def classifier(self):
         """
             Get the MA Classifier instance.
@@ -128,13 +145,8 @@ class MAClassification(MA):
             return False
 
         dt_str = self.exec().get_datetime_str(index)
-        df = self.classifier().get_results()
-        row = df.loc[df['dt'] == dt_str]
 
-        if row.empty == False and row.iloc[0]['buy-signal'] == True:
-            return True
-
-        return False
+        return dt_str in self._buy_signals
 
     def signal_sell(self):
         """
@@ -151,13 +163,8 @@ class MAClassification(MA):
             return False
 
         dt_str = self.exec().get_datetime_str(index)
-        df = self.classifier().get_results()
-        row = df.loc[df['dt'] == dt_str]
 
-        if row.empty == False and row.iloc[0]['sell-signal'] == True:
-            return True
-
-        return False
+        return dt_str in self._sell_signals
 
     def signal_open_long(self):
         """

@@ -887,9 +887,15 @@ class BackTestOperations():
 
             Returns:
                 str: datetime string for the current position or specified offset.
+
+            Raises:
+                BackTestError: no data for the symbol at the current cycle.
         """
         if index == None:
             index = self.get_index()
+
+        if index is None:
+            raise BackTestError(f"No data for {self.data.title} at the current cycle.")
 
         return self.data.rows[index][Quotes.DateTime]
 
@@ -930,8 +936,16 @@ class BackTestOperations():
 
             Returns:
                 float: the open price at the current index of the calculation.
+
+            Raises:
+                BackTestError: no data for the symbol at the current cycle.
         """
-        return self.data.rows[self.get_index()][Quotes.Open]
+        index = self.get_index()
+
+        if index is None:
+            raise BackTestError(f"No data for {self.data.title} at the current cycle.")
+
+        return self.data.rows[index][Quotes.Open]
 
     def get_close(self):
         """
@@ -939,8 +953,16 @@ class BackTestOperations():
 
             Returns:
                 float: the close price at the current index of the calculation.
+
+            Raises:
+                BackTestError: no data for the symbol at or before the current cycle.
         """
-        return self.get_avail_row()[Quotes.Close]
+        row = self.get_avail_row()
+
+        if row is None:
+            raise BackTestError(f"No data for {self.data.title} at the current cycle.")
+
+        return row[Quotes.Close]
 
     def get_market_price(self):
         """
@@ -966,8 +988,16 @@ class BackTestOperations():
 
             Returns:
                 float: the highest price at the current index of the calculation.
+
+            Raises:
+                BackTestError: no data for the symbol at the current cycle.
         """
-        return self.data.rows[self.get_index()][Quotes.High]
+        index = self.get_index()
+
+        if index is None:
+            raise BackTestError(f"No data for {self.data.title} at the current cycle.")
+
+        return self.data.rows[index][Quotes.High]
 
     def get_low(self):
         """
@@ -975,8 +1005,16 @@ class BackTestOperations():
 
             Returns:
                 float: the lowest price at the current index of the calculation.
+
+            Raises:
+                BackTestError: no data for the symbol at the current cycle.
         """
-        return self.data.rows[self.get_index()][Quotes.Low]
+        index = self.get_index()
+
+        if index is None:
+            raise BackTestError(f"No data for {self.data.title} at the current cycle.")
+
+        return self.data.rows[index][Quotes.Low]
 
     def get_charting_bar(self):
         """
@@ -1140,6 +1178,11 @@ class BackTestOperations():
         """
             Checks if we consider that the trend has changed in the current cycle.
 
+            Once the change is confirmed in a cycle, repeated calls in the same cycle
+            return True again (consistently for both the period and the percent check).
+            If the change was confirmed but not traded on, the confirmation persists
+            in subsequent cycles.
+
             Returns:
                 bool: True if the trend is considered as changed, false otherwise
         """
@@ -1149,30 +1192,37 @@ class BackTestOperations():
         if is_uptrend == self.is_long():
             self._signal_quote = None
             self._signal_index = None
-            
-            return False
-        else:
-            if self._signal_quote == None:
-                self._signal_quote = quote
 
-            if self._signal_index == None:
-                self._signal_index = index
+            return False
+
+        # The change was already confirmed earlier and is still not traded on
+        if self._signal_quote is None and self._signal_index is not None:
+            return True
+
+        # No quote for the symbol in this cycle - cannot start or re-check a signal
+        if quote is None:
+            return False
+
+        if self._signal_quote is None:
+            self._signal_quote = quote
+            self._signal_index = index
+
+        changed = False
 
         if index - self._signal_index >= self.data.trend_change_period:
+            changed = True
+        else:
+            max_quote = max(quote, self._signal_quote)
+            min_quote = min(quote, self._signal_quote)
+
+            if min_quote > 0 and max_quote / min_quote >= 1 + (self.data.trend_change_percent / 100):
+                changed = True
+
+        if changed:
+            # Mark the change as confirmed at this cycle so a repeated call returns True again
             self._signal_quote = None
+            self._signal_index = index
 
-            return True
-
-        max_quote = max(quote, self._signal_quote)
-        min_quote = min(quote, self._signal_quote)
-
-        if max_quote / min_quote >= 1 + (self.data.trend_change_percent / 100):
-            self._signal_quote = None
-
-            return True
-
-        # Indicates that the method returned true earlier in this cycle but was called once again
-        if self._signal_quote == None and index == self._signal_index:
             return True
 
         return False
@@ -1516,7 +1566,7 @@ class BackTestOperations():
             base_dt = get_dt(base_ts)
             current_dt = get_dt(current_ts)
 
-            delta = current_dt - base_dt
+            delta = base_dt - current_dt
 
             if delta.days > 7:
                 # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
@@ -1645,6 +1695,8 @@ class BackTestOperations():
 
         # Used only in charting. The real (non-adjusted) spread is applied to the charting bar
         # prices, so the markers stay scale-consistent with the chart.
+        # On the other hand, note that the markers are just a visual indication of a trade (not exact price representation)
+        # and they should correspond the close price (as the chart is built using the close price).
         bar = self.get_charting_bar()
         spread_deviation = self.get_spread_deviation()
 
@@ -2741,8 +2793,14 @@ class BackTest(metaclass=abc.ABCMeta):
 
             Returns:
                 int: index of the row.
+
+            Raises:
+                BackTestError: the row is not found in the main dataset.
         """
         idx = np.where(self.get_main_data().rows[Quotes.TimeStamp] == row[Quotes.TimeStamp])
+
+        if len(idx[0]) == 0:
+            raise BackTestError("The row is not found in the main dataset.")
 
         return idx[0][0]
 
@@ -2760,7 +2818,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if index < 0:
             return True
 
-        return self.skip_criteria(index) or self.get_index() < self.get_offset()
+        return self.skip_criteria(index) or index < self.get_offset()
 
     def to_skip(self):
         """

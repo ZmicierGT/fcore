@@ -4,14 +4,14 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from data.fvalues import Quotes, trading_days_per_year
+from data.fvalues import Quotes
 from backtest.weigher import Weigher
 from data.futils import thread_available, Log, add_column, get_dt
 
 import abc
 from collections import namedtuple
 from dataclasses import dataclass, fields, astuple
-from datetime import datetime, date
+from datetime import datetime
 from enum import IntEnum
 from itertools import repeat
 import time
@@ -372,10 +372,10 @@ class LimitOrder:
     buy: bool  # Trade direction
     limit: float  # The limit price
     num: int | None  # The number of securities. None means max
-    date: date  # The placement date
-    validity: int  # Validity in calendar days (non-trading days count)
+    validity: int  # Validity in elapsed days (non-trading days count)
     recalculate: bool  # If weightening values should be recalculated after the trade
     exact: bool  # If the exact number of requested positions should be opened
+    elapsed: int = 0  # Elapsed days since the placement, advanced by the engine's days_delta
 
 
 class BackTestOperations():
@@ -443,6 +443,9 @@ class BackTestOperations():
         # TODO MID Do we need a functionality to have several limit orders for a security?
         # Also need to distinguish what to do if the order is filled partially.
         self._limit_order = None  # The active limit order (LimitOrder) if any
+
+        # Calendar days since the last available bar for the symbol (used to detect delisting)
+        self._days_since_last_bar = 0
 
         ################
         # Weight-related
@@ -1140,8 +1143,17 @@ class BackTestOperations():
             in a derived class dedicated to a particular security type.
 
             Args:
-                days_delta(int): number of days to apply to the counter.
+                days_delta(int): number of calendar days passed since the previous calculation cycle.
         """
+        # Track staleness to detect a delisting: reset on a fresh bar, accumulate on its absence.
+        if self.get_index() is not None:
+            self._days_since_last_bar = 0
+        else:
+            self._days_since_last_bar += days_delta
+
+        # Advance the age of the resting limit order (if any).
+        if self._limit_order is not None:
+            self._limit_order.elapsed += days_delta
 
     @property
     def total_value(self):
@@ -1370,7 +1382,7 @@ class BackTestOperations():
                 buy(bool): the trade direction: True to buy, False to sell.
                 num(int): the number of securities to trade. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
-                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                limit_validity(int): number of elapsed days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
@@ -1452,7 +1464,6 @@ class BackTestOperations():
             self._limit_order = LimitOrder(buy=buy,
                                             limit=limit,
                                             num=num,
-                                            date=get_dt(self.get_row()[Quotes.TimeStamp]).date(),
                                             validity=limit_validity,
                                             recalculate=recalculate,
                                             exact=exact)
@@ -1473,7 +1484,7 @@ class BackTestOperations():
             Args:
                 num(int): the number of securities to buy. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
-                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                limit_validity(int): number of elapsed days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
@@ -1493,7 +1504,7 @@ class BackTestOperations():
             Args:
                 num(int): the number of securities to sell. None if max.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
-                limit_validity(int): number of calendar days for a limit order to be valid until it is cancelled
+                limit_validity(int): number of elapsed days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
                 exact(bool): indicates if the exact number of requested positions should be opened.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
@@ -1531,14 +1542,11 @@ class BackTestOperations():
 
         p = _side_spec(order.buy)
 
-        # Calendar days passed since the order placement (non-trading days are counted too)
-        days_delta = (get_dt(self.get_row()[Quotes.TimeStamp]).date() - order.date).days
-
         # The price which may fill the order: Low for buys, High for sells
         price = self.get_row()[p.ref_field]
 
-        if days_delta > order.validity:
-            log = (f"At {self.get_datetime_str()} {p.label} limit order expired for {self.data.title} as in the {days_delta} days the desired price "
+        if order.elapsed > order.validity:
+            log = (f"At {self.get_datetime_str()} {p.label} limit order expired for {self.data.title} as in the {order.elapsed} days the desired price "
                    f"{order.limit} wasn't achieved or weighening did not allow to perform the trade. The last price is {price}.")
 
             self.caller._lg.highlight(log)
@@ -1575,38 +1583,30 @@ class BackTestOperations():
 
     def check_delisting(self):
         """
-            Check if s security was delisted. Consider a security to be delisted if the were no consecutive
+            Check if a security was delisted. Consider a security to be delisted if there were no consecutive
             quotes updates in N number of days (7 by default).
+
+            Only calendar days are counted (via the engine's days_delta based counter), so several intraday
+            bars within the same day do not advance the staleness counter.
         """
-        # Get the current trading timestamp of the base data
-        base_ts = self.caller.exec().get_row()[Quotes.TimeStamp]
-        # Get the last trading timestamp of the current symbol
-        current_ts = self.data.rows[Quotes.TimeStamp][-1]
+        if self._days_since_last_bar > 7:
+            # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
+            if self.long_positions:
+                last_close = self.data.rows[Quotes.Close][-1]
+                total_lost = last_close * self._long_positions
 
-        if current_ts < base_ts:
-            base_dt = get_dt(base_ts)
-            current_dt = get_dt(current_ts)
+                self.caller._lg.highlight(f"At {self.caller.exec().get_datetime_str()} {self.data.title} was consdered as delisted and "
+                                    f"total positions of {self.long_positions} of total worth {total_lost} "
+                                    f"({last_close} per security) were lost.")
 
-            delta = base_dt - current_dt
+                self.caller.add_other_profit(-abs(total_lost))
+                self._total_profit -= total_lost
+                self.caller.add_other_expense(total_lost)
 
-            if delta.days > 7:
-                # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
-                if self.long_positions:
-                    last_close = self.data.rows[Quotes.Close][-1]
-                    total_lost = last_close * self._long_positions
+                self._long_positions = 0
+                self._portfolio_cash.clear()  # cost basis is lost together with the positions
 
-                    self.caller._lg.highlight(f"At {self.get_datetime_str()} {self.data.title} was consdered as delisted and "
-                                        f"total positions of {self.long_positions} of total worth {total_lost} "
-                                        f"({last_close} per security) were lost.")
-
-                    self.caller.add_other_profit(-abs(total_lost))
-                    self._total_profit -= total_lost
-                    self.caller.add_other_expense(total_lost)
-
-                    self._long_positions = 0
-                    self._portfolio_cash.clear()  # cost basis is lost together with the positions
-
-                self.cancel_limit_order()
+            self.cancel_limit_order()
 
     #######################################
     # Methods related to opening positions.
@@ -2186,6 +2186,11 @@ class BackTest(metaclass=abc.ABCMeta):
         # Counter till deposit date
         self._deposit_counter = 0
 
+        # Calendar days between the current and the previous calculated cycle (cached once per cycle)
+        self._days_delta = 0
+        # DateTime of the previous calculated cycle (skipped cycles do not advance it)
+        self._prev_dt = None
+
         # Year of the calculations
         self._year = None
 
@@ -2651,57 +2656,38 @@ class BackTest(metaclass=abc.ABCMeta):
     @property
     def prev_dt(self):
         """
-            Get the DateTime of the previous cycle.
+            Get the DateTime of the previous calculated cycle.
+
+            Skipped cycles do not advance it, so the value always points to the last cycle which was
+            actually calculated (None before the first one).
 
             Returns:
-                DateTime: the DateTime of the previous cycle.
+                DateTime: the DateTime of the previous calculated cycle or None.
         """
-        prev_index = self.index - 1
-
-        if self.skipped(prev_index) == False:
-            return self.exec().get_datetime(prev_index)
-
-        return None
+        return self._prev_dt
 
     @property
     def days_delta(self):
         """
-            Get days delta betwen the current and previous cycle.
+            Get days delta betwen the current and previous calculated cycle.
             For example, days delta between two working days will be 1, days delta between two trading dates with a holiday
-            between them may be much bigger.
+            between them may be much bigger. For intraday bars within the same day it is 0.
+
+            The value is calculated once per cycle and cached, so it is safe to use it in any place of the cycle.
 
             Returns:
-                int: Days delta between two trading days.
+                int: Days delta between two calculation cycles (0 before the first calculated cycle).
         """
-        days_delta = 0
-        prev_dt = self.prev_dt
-
-        if prev_dt != None:
-            delta = self.exec().get_datetime() - prev_dt
-            days_delta = delta.days
-
-        return days_delta
+        return self._days_delta
 
     def adjust_days_delta(self):
         """
             Adjust days delta for counters.
         """
-        days_delta = self.days_delta
-
         for ex in self.__exec:
-            ex.apply_days_counter(days_delta)
+            ex.apply_days_counter(self._days_delta)
 
-        self._deposit_counter += days_delta
-
-    def did_day_changed(self):
-        """
-            Indicated if day has changed between two trading cycles.
-            For example, day won't change between two intraday cycles which happened the same day.
-
-            Returns:
-                True if day has changed, False otherwise.
-        """
-        return self.days_delta > 0
+        self._deposit_counter += self._days_delta
 
     def deposit(self):
         """
@@ -2714,28 +2700,30 @@ class BackTest(metaclass=abc.ABCMeta):
             self._year = current_year
             self._periodic_deposit = self._periodic_deposit + self._periodic_deposit * (self._inflation / 100)
 
-        # Check if we make a regular deposit today
-        if self._periodic_deposit != 0 and self._deposit_interval <= self._deposit_counter:
-            self._cash += self._periodic_deposit
-            self._deposits += self._periodic_deposit
-            self._deposit_counter = 0
+        # Add a periodic deposit for each fully passed interval. interval == 0 means no periodic deposit.
+        # The remainder is retained, so a deposit missed because of a day off is compensated later.
+        if self._periodic_deposit != 0 and self._deposit_interval > 0:
+            while self._deposit_interval <= self._deposit_counter:
+                self._cash += self._periodic_deposit
+                self._deposits += self._periodic_deposit
+                self._deposit_counter -= self._deposit_interval
 
-            self._lg.highlight(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.cash, 2)}.")
+                self._lg.highlight(f"Added a periodic deposit of {self._periodic_deposit}. The cash balance is {round(self.cash, 2)}.")
 
 
     def cash_interest(self):
         """
             Check if we have any interest on the cash balance.
 
-            The interest is accrued once per trading day: at the first cycle of the calculation and at the first
-            cycle of each new day. Intraday cycles within the same day do not accrue the interest again.
+            The interest is accrued for each calendar day passed between the calculation cycles (days off included).
+            The first cycle of the calculation accrues for one day. Intraday cycles within the same day accrue nothing.
         """
         if self._cash_interest:
-            prev_dt = self.prev_dt
+            # The first calculated cycle accrues for one day, afterwards the real day delta is used
+            days = 1 if self._prev_dt is None else self._days_delta
 
-            # The first cycle of the calculation or the first cycle of a new day
-            if prev_dt is None or self.days_delta > 0:
-                amount = self._cash * (self._cash_interest / 100 / trading_days_per_year)
+            if days > 0:
+                amount = self._cash * (self._cash_interest / 100 / 365.25) * days
 
                 self.add_other_profit(amount)
 
@@ -3232,7 +3220,13 @@ class BackTest(metaclass=abc.ABCMeta):
         self.calc_global_weight_values()
         self.calc_grouping_values()
 
-        # Calculate days delta between the cycles and check if day counter increased
+        # Calculate days delta between the cycles once and cache it for the whole cycle
+        if self._prev_dt is None:
+            self._days_delta = 0
+        else:
+            self._days_delta = (self.exec().get_datetime() - self._prev_dt).days
+
+        # Apply the cached days delta to per-symbol and deposit counters
         self.adjust_days_delta()
 
         # Check if we need to make a deposit today. Deposit if we need.
@@ -3242,8 +3236,9 @@ class BackTest(metaclass=abc.ABCMeta):
         self.cash_interest()
 
         for ex in self.__exec:
+            ex.check_delisting()  # Check if a security was delisted (runs even without a fresh bar)
+
             if ex.get_index() is not None:
-                ex.check_delisting()  # Check is a security was delisted
                 ex.apply_other_balance_changes()  # Get current other profit/expense and apply it to the cash balance
                 ex.process_limit_order()  # Execute limit order (if any)
 
@@ -3264,6 +3259,10 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.__is_active == True:
             self._results.append(self.result)
             self.__is_active = False
+
+            # Advance the reference point for days_delta. Skipped cycles never get here,
+            # so they do not erase the last calculated cycle.
+            self._prev_dt = self.exec().get_datetime()
         else:
             raise BackTestError("The current cycle is not active.")
 

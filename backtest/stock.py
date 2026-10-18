@@ -4,7 +4,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from backtest.base import BackTestData, BackTestOperations, BackTestError, ChartingBar
+from backtest.base import BackTestData, BackTestOperations, BackTestError, ChartingBar, SecState
 from data.fvalues import StockQuotes, sector_titles
 
 from math import inf
@@ -167,34 +167,59 @@ class StockOperations(BackTestOperations):
                                   f"for {self.data.title}: {self.long_positions} "
                                   f"Positions before split: {long_before}")
 
+    def _book_yield(self, current_yield):
+        """
+            Apply the yield to the cash balance and statistics.
+
+            Args:
+                current_yield(float): the yield to apply.
+        """
+        # TODO HIGH no need to perform yield deducting any more
+        if not current_yield:
+            return
+
+        if current_yield > 0:
+            txt = 'added'
+
+            if self.div_tax:
+                tax = current_yield * self.div_tax / 100
+                self.caller.add_other_expense(tax)
+
+                current_yield = current_yield - tax
+
+            self.caller.add_other_profit(current_yield)
+            self._total_profit += current_yield
+        else:
+            txt = 'deducted'
+
+            self.caller.add_other_expense(current_yield)
+
+        # The main dataset date is used as there may be no fresh bar (e.g. when paying at delisting).
+        log = f"At {self.caller.exec().get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.caller.cash, 2)}."
+        self.caller._lg.plain(log)
+
     def apply_other_balance_changes(self):
         """
             Apply the current yield to the portfolio.
         """
+        # Delisted and skipped securities keep their (worthless) positions: no splits or dividends
+        # of the ticker which may have reappeared are applied to them.
+        if self._state is not SecState.Active:
+            return
+
         self.check_for_split()
 
-        current_yield = self.process_yield()
+        self._book_yield(self.process_yield())
 
-        # TODO HIGH no need to perform yield deducting any more
-        if current_yield != 0:
-            if current_yield > 0:
-                txt = 'added'
+    def _on_delisting(self):
+        """
+            Pay out the yield still owed to the holder at the moment the security disappears.
+        """
+        if self._future_yield:
+            yield_paid = self._future_yield
 
-                if self.div_tax:
-                    tax = current_yield * self.div_tax / 100
-                    self.caller.add_other_expense(tax)
-
-                    current_yield = current_yield - tax
-
-                self.caller.add_other_profit(current_yield)
-                self._total_profit += current_yield
-            else:
-                txt = 'deducted'
-
-                self.caller.add_other_expense(current_yield)
-
-            log = f"At {self.get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.caller.cash, 2)}."
-            self.caller._lg.plain(log)
+            self._future_yield = 0
+            self._book_yield(yield_paid)
 
     @property
     def total_value(self):

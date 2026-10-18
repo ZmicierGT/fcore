@@ -12,7 +12,7 @@ import abc
 from collections import namedtuple
 from dataclasses import dataclass, fields, astuple
 from datetime import datetime
-from enum import IntEnum
+from enum import Enum, IntEnum
 from itertools import repeat
 import time
 import numpy as np
@@ -44,6 +44,13 @@ class BTSymbolEnum(IntEnum):
     PriceCloseLong = 5
     LongPositions = 6
     TradesNo = 7
+
+# Enum class to represent the lifecycle of a security during a simulation.
+class SecState(Enum):
+    """Enum to describe the current state of a security."""
+    Active = 1  # The security is quoted and can be traded
+    Delisted = 2  # The security stopped being quoted and its positions were written off
+    Skipped = 3  # The ticker reappeared after delisting (likely another company) and must not be traded
 
 # Dataclass for one cycle of portfolio results. Order mirrors BTDataEnum.
 @dataclass
@@ -447,6 +454,9 @@ class BackTestOperations():
         # Calendar days since the last available bar for the symbol (used to detect delisting)
         self._days_since_last_bar = 0
 
+        # Lifecycle state of the security (SecState)
+        self._state = SecState.Active
+
         ################
         # Weight-related
         ################
@@ -459,6 +469,16 @@ class BackTestOperations():
     ###################
     # Properties
     ###################
+
+    @property
+    def state(self):
+        """
+            Get the current lifecycle state of the security.
+
+            Returns:
+                SecState: the current state of the security.
+        """
+        return self._state
 
     @property
     def weighted(self):
@@ -799,8 +819,11 @@ class BackTestOperations():
         profit = self._total_profit
 
         if self.is_long():
+            # The positions of delisted and skipped securities are considered worthless (sell_price returns 0).
+            value_price = self.sell_price
+
             for price_cash in self._portfolio_cash:
-                profit += self.sell_price - price_cash
+                profit += value_price - price_cash
 
         return profit
 
@@ -1092,10 +1115,14 @@ class BackTestOperations():
         """
             Get the sell price of the current symbol in the current cycle of the calculation. It is based on the
             current bar's Open (the market price for decisions and execution) minus the spread deviation.
+            The positions of delisted and skipped securities are considered worthless: 0 is returned for them.
 
             Returns:
                 float: the sell price of the symbol.
         """
+        if self._state is not SecState.Active:
+            return 0
+
         return self.get_execution_price(buy=False)
 
     @property
@@ -1146,9 +1173,10 @@ class BackTestOperations():
                 days_delta(int): number of calendar days passed since the previous calculation cycle.
         """
         # Track staleness to detect a delisting: reset on a fresh bar, accumulate on its absence.
+        # Symbols which have never been quoted yet (e.g. data starts later) are not tracked.
         if self.get_index() is not None:
             self._days_since_last_bar = 0
-        else:
+        elif self.get_avail_index() is not None:
             self._days_since_last_bar += days_delta
 
         # Advance the age of the resting limit order (if any).
@@ -1161,7 +1189,8 @@ class BackTestOperations():
             Get the total value of positions opened for the particular symbol.
 
             Returns:
-                float: the total value of the all opened positions.
+                float: the total value of the all opened positions. Delisted and skipped securities are
+                       kept in the portfolio but are considered worthless (0 via sell_price).
         """
         total_value = 0
 
@@ -1392,6 +1421,9 @@ class BackTestOperations():
             Returns:
                 int: the number of positions traded
         """
+        if self._state is not SecState.Active:
+            return 0
+
         p = _side_spec(buy)
 
         total_num = 0
@@ -1535,6 +1567,9 @@ class BackTestOperations():
             Then that order will be executed at $100 based on the Close price only (as $99 likely wasn't achived instantly and we ignore High/Low).
             If the order wasn't executed in the scope of the initial (placement bar) - at the next bar we take the whole OHLC into account.
         """
+        if self._state is not SecState.Active:
+            return
+
         order = self._limit_order
 
         if order is None:
@@ -1583,30 +1618,54 @@ class BackTestOperations():
 
     def check_delisting(self):
         """
-            Check if a security was delisted. Consider a security to be delisted if there were no consecutive
-            quotes updates in N number of days (7 by default).
+            Track the lifecycle of the security and handle its delisting.
 
-            Only calendar days are counted (via the engine's days_delta based counter), so several intraday
-            bars within the same day do not advance the staleness counter.
+            A security is considered to be delisted if there were no consecutive quotes updates in N number of days
+            (7 by default) after it has been quoted at least once. Only calendar days are counted (via the engine's
+            days_delta based counter), so several intraday bars within the same day do not advance the staleness
+            counter.
+
+            On delisting the positions are kept in the portfolio but are considered worthless (valued at 0) and
+            cannot be traded any more. The loss is valued at the last available past bar (no forward-looking data)
+            and counted once - as an other expense.
+
+            If the ticker is quoted again later it is assumed to belong to another company: the security is skipped
+            (SecState.Skipped), a warning is displayed and further trading is disabled.
         """
+        if self._state == SecState.Delisted and self.get_index() is not None:
+            # The ticker has reappeared: treat it as belonging to a different company now.
+            self._state = SecState.Skipped
+            self.caller._lg.warning(f"At {self.caller.exec().get_datetime_str()} quotes for {self.data.title} resumed after "
+                                    f"the security was considered as delisted. The ticker likely belongs to another "
+                                    f"company now and trading is disabled for it.")
+            return
+
+        if self._state != SecState.Active:
+            return
+
         if self._days_since_last_bar > 7:
-            # The symbol is considered to be delisted. Zero the positions and add loses to other expenses.
+            # Pay out everything owed to the holder while the security is still Active.
+            self._on_delisting()
+
             if self.long_positions:
-                last_close = self.data.rows[Quotes.Close][-1]
-                total_lost = last_close * self._long_positions
+                # The value is read while the security is still Active - it becomes worthless on the state change.
+                total_lost = self.total_value
 
-                self.caller._lg.highlight(f"At {self.caller.exec().get_datetime_str()} {self.data.title} was consdered as delisted and "
-                                    f"total positions of {self.long_positions} of total worth {total_lost} "
-                                    f"({last_close} per security) were lost.")
-
-                self.caller.add_other_profit(-abs(total_lost))
-                self._total_profit -= total_lost
                 self.caller.add_other_expense(total_lost)
 
-                self._long_positions = 0
-                self._portfolio_cash.clear()  # cost basis is lost together with the positions
+                self.caller._lg.highlight(f"At {self.caller.exec().get_datetime_str()} {self.data.title} was considered as delisted and "
+                                    f"total positions of {self.long_positions} of total worth {total_lost} "
+                                    f"({self.sell_price} per security) are now considered worthless.")
+
+            self._state = SecState.Delisted
 
             self.cancel_limit_order()
+
+    def _on_delisting(self):
+        """
+            Called right before the security is marked as delisted (while it is still Active).
+            Overridden in subclasses to pay out anything owed to the holder (e.g. a pending yield).
+        """
 
     #######################################
     # Methods related to opening positions.
@@ -1678,6 +1737,9 @@ class BackTestOperations():
                 BackTestError: can't open the negative number of positions, not enough cash to open positions
                                (with exact=True), the number of positions to close is bigger than opened.
         """
+        if self._state is not SecState.Active:
+            return 0
+
         p = _side_spec(buy)
 
         if buy:
@@ -2498,7 +2560,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._total_weighted_value = 0
 
         for ex in self.all_exec():
-            if ex.weighted and ex.has_positions:
+            if ex.weighted and ex.has_positions and ex.state is SecState.Active:
                 self._multiplier += 1
 
                 ex.calc_weight()
@@ -2526,7 +2588,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._grouping_capacity = dict.fromkeys(self._grouping_shares.keys(), 0)
 
         for ex in self.all_exec():
-            if ex.weighted and ex.has_positions:
+            if ex.weighted and ex.has_positions and ex.state is SecState.Active:
                 total_value = ex.total_value
                 self._grouping_values[ex.group] += total_value
                 self._grouping_mult[ex.group] += 1
@@ -2611,7 +2673,8 @@ class BackTest(metaclass=abc.ABCMeta):
         long_positions_num = 0
 
         for ex in self.all_exec():
-            long_positions_num += ex.long_positions
+            if ex.state is SecState.Active:
+                long_positions_num += ex.long_positions
 
         return long_positions_num
 
@@ -2913,7 +2976,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
     def add_other_expense(self, other_expense):
         """
-            Add other expenses to the statistics. For example, delisting expenses in the case of stocks.
+            Add other expenses to the statistics (e.g. dividend tax, delisting losses). Does not affect the cash balance.
 
             Args:
                 other_expenses(float): other expenses
@@ -3011,7 +3074,7 @@ class BackTest(metaclass=abc.ABCMeta):
     @property
     def other_expense(self):
         """
-            Get the current other expense. For example, delisting expenses in the case of stocks.
+            Get the current other expense (e.g. dividend tax, delisting losses).
 
             Returns:
                 float: the current other expense.

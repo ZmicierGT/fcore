@@ -114,9 +114,12 @@ class PriceWeigher(Weigher):
             bt._max_price = 0
             return
 
+        from backtest.base import SecState  # local import to avoid a circular import
+
         max_price = 0
         for ex in bt.all_exec():
-            if ex.weighted and ex.get_index() is not None:
+            # Delisted and skipped securities must not pollute the global values
+            if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
                 max_price = max(max_price, ex.get_row()[Quotes.Open])
         bt._max_price = max_price
 
@@ -143,12 +146,15 @@ class CapWeigher(Weigher):
             raise BackTestError(f"No 'cap' column in dataset for {data.title} but it is required by the weighting method.")
 
     def update_globals(self, bt):
+        from backtest.base import SecState  # local import to avoid a circular import
+
         if bt.grouping_attr is not None:
             bt._grouping_max_cap = dict.fromkeys(bt._grouping_shares.keys(), 0)
 
         max_cap = 0
         for ex in bt.all_exec():
-            if ex.weighted and ex.get_index() is not None:
+            # Delisted and skipped securities must not pollute the global values
+            if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
                 current_cap = ex.get_row()['cap']
                 max_cap = max(max_cap, current_cap)
                 if bt.grouping_attr is not None:

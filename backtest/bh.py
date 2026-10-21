@@ -47,7 +47,7 @@ class BuyAndHold(BackTest):
             ########################
 
             # Open a long position if we have enough cash
-            self.exec().open_long_max()
+            self.exec().buy()
 
             ##############################
             # Teardown the cycle

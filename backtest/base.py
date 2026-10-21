@@ -1452,12 +1452,12 @@ class BackTestOperations():
 
             if num > 0:
                 if buy:
-                    # open_long() may clamp the number if not enough cash and exact is False
-                    total_num += self.open_long(num, price=price, exact=exact)
+                    # _open_long() may clamp the number if not enough cash and exact is False
+                    total_num += self._open_long(num, price=price, exact=exact)
                 else:
                     if self.long_positions:
                         num_close = min(self.long_positions, num)
-                        total_num += self.close_long(num_close, price=price)
+                        total_num += self._close_long(num_close, price=price)
 
             if recalculate:
                 self.calc_weight_values(had_positions=had_positions,
@@ -1523,11 +1523,13 @@ class BackTestOperations():
             Perform a buy trade. A market order is executed at the current bar's Open (+ half spread).
 
             Args:
-                num(int): the number of securities to buy. None if max.
+                num(int): the number of securities to buy. None means the maximum: the weighted target
+                          if a weigher is set, otherwise the maximum affordable using cash.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_validity(int): number of elapsed days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
-                exact(bool): indicates if the exact number of requested positions should be opened.
+                exact(bool): indicates if the requested number should be used as is (no weighting limit).
+                             With num=None it means the maximum affordable using cash.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
@@ -1543,11 +1545,13 @@ class BackTestOperations():
             Perform a sell trade. A market order is executed at the current bar's Open (- half spread).
 
             Args:
-                num(int): the number of securities to sell. None if max.
+                num(int): the number of securities to sell. None means the maximum: the weighted target
+                          if a weigher is set, otherwise all held positions.
                 limit(float): price for a limit order. None for a market order (spread will be taken into account then).
                 limit_validity(int): number of elapsed days for a limit order to be valid until it is cancelled
                                      (weekends and holidays are counted too).
-                exact(bool): indicates if the exact number of requested positions should be opened.
+                exact(bool): indicates if the requested number should be used as is (no weighting limit).
+                             With num=None it means all held positions.
                 recalculate(bool): indicates if weightening values for portfolio should be recalculated after performing
                                    the trade. Use if in one cycle decision taking may happen after a trade.
                 price(float): force the trade to be executed using this price.
@@ -1731,7 +1735,7 @@ class BackTestOperations():
     def _execute_trade(self, buy, num, price=None, exact=False):
         """
             Open (buy) or close (sell) the specified number of long positions
-            (the shared implementation for open_long()/close_long()).
+            (the shared implementation for _open_long()/_close_long()).
 
             Args:
                 buy(bool): the trade direction: True to open, False to close positions.
@@ -1849,7 +1853,7 @@ class BackTestOperations():
 
         return num
 
-    def open_long(self, num, price=None, exact=False):
+    def _open_long(self, num, price=None, exact=False):
         """
             Open the specified number of long position.
 
@@ -1867,18 +1871,11 @@ class BackTestOperations():
         """
         return self._execute_trade(buy=True, num=num, price=price, exact=exact)
 
-    # Open maxumum possible positions
-    def open_long_max(self):
-        """
-            Open maximum possible number of long positions.
-        """
-        self.open_long(self.get_max_trade_size())
-
     #######################################
     # Methods related to closing positions.
     #######################################
 
-    def close_long(self, num, price=None):
+    def _close_long(self, num, price=None):
         """
             Close the number of long positions.
 
@@ -1893,18 +1890,6 @@ class BackTestOperations():
                 BackTestError: to many positions to close.
         """
         return self._execute_trade(buy=False, num=num, price=price)
-
-    def close_all_long(self):
-        """
-            Close all long positions.
-        """
-        self.close_long(self._long_positions)
-
-    def close_all(self):
-        """
-            Close all positions.
-        """
-        self.close_all_long()
 
 #####################################################
 # Classes for data structures of backtesting results.

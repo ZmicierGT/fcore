@@ -145,14 +145,14 @@ class RSI(BackTest):
 
                 if (prev is not None and pd.notna(prev['rsi']) and
                     prev['rsi'] > self.__resistance and max_val < self.__resistance):
-                    max_ex.close_all_long()
+                    max_ex.sell()
 
             if min_ex is not None:
                 prev = min_ex.get_val(offset=-2)
 
                 if (prev is not None and pd.notna(prev['rsi']) and
                     prev['rsi'] < self.__support and min_val > self.__support):
-                    min_ex.open_long_max()
+                    min_ex.buy()
 
             ##############################
             # Teardown the cycle

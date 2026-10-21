@@ -754,10 +754,11 @@ class BackTestOperations():
             index = self.caller_index
             ts = self.caller.main_data.rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data.rows[Quotes.TimeStamp] == ts)[0]
+        timestamps = self.data.rows[Quotes.TimeStamp]
+        idx = np.searchsorted(timestamps, ts, side='left')
 
-        if len(idx):
-            return idx[0]
+        if idx < len(timestamps) and timestamps[idx] == ts:
+            return int(idx)
 
         return None
 
@@ -799,10 +800,12 @@ class BackTestOperations():
             index = self.caller_index
             ts = self.caller.main_data.rows[index][Quotes.TimeStamp]
 
-        idx = np.where(self.data.rows[Quotes.TimeStamp] <= ts)[-1]
+        idx = np.searchsorted(self.data.rows[Quotes.TimeStamp], ts, side='right') - 1
 
-        if len(idx):
-            return idx[-1]
+        if idx >= 0:
+            return int(idx)
+
+        return None
 
     ###########################################################
     # General methods with calculations for a particular symbol
@@ -2861,12 +2864,21 @@ class BackTest(metaclass=abc.ABCMeta):
             Raises:
                 BackTestError: the row is not found in the main dataset.
         """
-        idx = np.where(self.main_data.rows[Quotes.TimeStamp] == row[Quotes.TimeStamp])
+        row_ts = row[Quotes.TimeStamp]
 
-        if len(idx[0]) == 0:
+        if isinstance(row_ts, np.ndarray):
+            if row_ts.size == 0:
+                raise BackTestError("The row is not found in the main dataset.")
+
+            row_ts = row_ts.flat[0]
+
+        timestamps = self.main_data.rows[Quotes.TimeStamp]
+        idx = np.searchsorted(timestamps, row_ts, side='left')
+
+        if idx >= len(timestamps) or timestamps[idx] != row_ts:
             raise BackTestError("The row is not found in the main dataset.")
 
-        return idx[0][0]
+        return int(idx)
 
     def skipped(self, index=None):
         """

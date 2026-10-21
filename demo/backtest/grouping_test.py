@@ -136,7 +136,7 @@ if __name__ == "__main__":
     total_profit = 0
 
     # Need calculate all values at first
-    for ex in idx_sim.all_exec():
+    for ex in idx_sim.all_exec:
         total_value += ex.total_value
         total_profit += ex.total_profit
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # Display information
     print("Symbol   Shares Num   Value         Share of Portfilio   Profit $   Group")
     print("------------------------------------------------------------------------------------------")
-    for ex in idx_sim.all_exec():
+    for ex in idx_sim.all_exec:
         shares_num = ex.long_positions
  
         title = ex.data.title
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     for title in ['US', 'International', 'Bond']:
         groups[title] = 0
 
-    for ex in idx_sim.all_exec():
+    for ex in idx_sim.all_exec:
         if ex.data.fund_group:
             groups[ex.data.fund_group] += ex.total_value
 

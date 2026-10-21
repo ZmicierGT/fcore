@@ -141,6 +141,7 @@ class BackTestEvent(Event):
         self.__timer = time.perf_counter()
         self.__timeout = timeout + self.__timer
 
+    @property
     def time_left(self):
         """
             Get the remaining time before timeout happens.
@@ -821,7 +822,7 @@ class BackTestOperations():
         """
         profit = self._total_profit
 
-        if self.is_long():
+        if self.has_positions:
             # The positions of delisted and skipped securities are considered worthless (sell_price returns 0).
             value_price = self.sell_price
 
@@ -895,9 +896,12 @@ class BackTestOperations():
         """
         return self.get_security_fee(price) + self.caller.commission
 
+    @property
     def is_long(self):
         """
             Indicated if currently opened positions are long.
+
+            Note: currently identical to has_positions, but kept separate for when shorting is reintroduced.
 
             Returns:
                 bool: True if there are at least one long position opened, false otherwise.
@@ -1197,7 +1201,7 @@ class BackTestOperations():
         """
         total_value = 0
 
-        if self.is_long():
+        if self.has_positions:
             total_value += self.sell_price * self._long_positions
 
         return total_value
@@ -1252,7 +1256,7 @@ class BackTestOperations():
         quote = self.market_price
         index = self.caller.index
 
-        if is_uptrend == self.is_long():
+        if is_uptrend == self.is_long:
             self._signal_quote = None
             self._signal_index = None
 
@@ -2565,7 +2569,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._mean_weight = 0
         self._total_weighted_value = 0
 
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             if ex.weighted and ex.has_positions and ex.state is SecState.Active:
                 self._multiplier += 1
 
@@ -2593,7 +2597,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self._grouping_mult = dict.fromkeys(self._grouping_shares.keys(), 0)
         self._grouping_capacity = dict.fromkeys(self._grouping_shares.keys(), 0)
 
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             if ex.weighted and ex.has_positions and ex.state is SecState.Active:
                 total_value = ex.total_value
                 self._grouping_values[ex.group] += total_value
@@ -2662,6 +2666,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         return target_idx
 
+    @property
     def is_finished(self):
         """
             Indicates if the calculation is finished.
@@ -2681,7 +2686,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         long_positions_num = 0
 
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             if ex.state is SecState.Active:
                 long_positions_num += ex.long_positions
 
@@ -2711,7 +2716,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.__event == None:
             raise BackTestError("Calulation was not performed.")
 
-        result = self.__event.wait(self.__event.time_left())
+        result = self.__event.wait(self.__event.time_left)
 
         if self.__thread != None:
             self.__thread.join()
@@ -2799,6 +2804,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
                 self.add_other_profit(amount)
 
+    @property
     def is_multi_symbol(self):
         """
             Check if data for several symbols was added during the initialization.
@@ -2909,7 +2915,7 @@ class BackTest(metaclass=abc.ABCMeta):
         if self.skipped():
             self._results.append(BTDataRow(date_time=self.exec().get_datetime_str(), total_trades=0))
 
-            for ex in self.all_exec():
+            for ex in self.all_exec:
                 if ex.get_index() is not None:
                     bar = ex.charting_bar
 
@@ -3174,6 +3180,7 @@ class BackTest(metaclass=abc.ABCMeta):
 
         self.__is_setup = True
 
+    @property
     def all_exec(self):
         """
             Get all BackTestOperations instances used in the strategy.
@@ -3221,7 +3228,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
         symbols = []
 
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             symbols.append(ex.data.title)
 
         return symbols
@@ -3350,7 +3357,7 @@ class BackTest(metaclass=abc.ABCMeta):
         self.__is_finished = True
 
         # Check if the calculation is finished for all instances
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             if ex.check_if_finished() == False:
                 self.__is_finished = False
                 break
@@ -3392,7 +3399,7 @@ class BackTest(metaclass=abc.ABCMeta):
         """
             Calculate all the required technical data.
         """
-        for ex in self.all_exec():
+        for ex in self.all_exec:
             self.do_tech_calculation(ex)
 
     def signal_buy(self):

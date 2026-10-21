@@ -127,7 +127,7 @@ class MA(BackTest):
             if self.exec().long_positions:
                 if self.exec().trend_changed(self.is_uptrend()):
                     self.exec().close_all()
-                elif self.is_uptrend() != self.exec().is_long():
+                elif self.is_uptrend() != self.exec().is_long:
                     if (self.is_uptrend() and self.signal_buy()) or (self.is_uptrend() is False and self.signal_sell()):
                         self.exec().close_all()
 

@@ -121,7 +121,7 @@ class PriceWeigher(Weigher):
         self._group_max_price = {}
 
         max_price = 0
-        for ex in bt.all_exec():
+        for ex in bt.all_exec:
             # Delisted and skipped securities must not pollute the global values
             if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
                 price = ex.get_row()[Quotes.Open]
@@ -172,7 +172,7 @@ class CapWeigher(Weigher):
             bt._grouping_max_cap = dict.fromkeys(bt._grouping_shares.keys(), 0)
 
         max_cap = 0
-        for ex in bt.all_exec():
+        for ex in bt.all_exec:
             # Delisted and skipped securities must not pollute the global values
             if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
                 current_cap = ex.get_row()['cap']

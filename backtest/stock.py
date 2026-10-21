@@ -153,71 +153,70 @@ class StockOperations(BackTestOperations):
         if ratio != 1 and idx != 0:
             long_before = self.long_positions
 
-            if self.is_long():
-                entitled = self._long_positions * ratio
-                # Round down to avoid crediting shares the holder is not entitled to
-                new_positions = int(entitled + 1e-9)  # TODO Low Think if we need 1e-9
-                fractional = entitled - new_positions
+            entitled = self._long_positions * ratio
+            # Round down to avoid crediting shares the holder is not entitled to
+            new_positions = int(entitled + 1e-9)  # TODO Low Think if we need 1e-9
+            fractional = entitled - new_positions
 
-                if fractional < 1e-9:
-                    fractional = 0
+            if fractional < 1e-9:
+                fractional = 0
 
-                if len(self._portfolio_cash) != self._long_positions:
-                    raise BackTestError(f"Cost basis lots out of sync with positions for {self.data.title}: "
-                                        f"{len(self._portfolio_cash)} != {self._long_positions}")
+            if len(self._portfolio_cash) != self._long_positions:
+                raise BackTestError(f"Cost basis lots out of sync with positions for {self.data.title}: "
+                                    f"{len(self._portfolio_cash)} != {self._long_positions}")
 
-                old_prices = self._portfolio_cash
-                price_idx = 0
-                offset = 0.0
+            old_prices = self._portfolio_cash
+            price_idx = 0
+            offset = 0.0
 
-                def consume(length):
-                    nonlocal price_idx, offset
+            def consume(length):
+                nonlocal price_idx, offset
 
+                cost = 0.0
+
+                while length > 1e-12 and price_idx < len(old_prices):
+                    take = min(length, 1.0 - offset)
+                    cost += take * old_prices[price_idx]
+                    offset += take
+                    length -= take
+
+                    if offset >= 1.0 - 1e-12:
+                        price_idx += 1
+                        offset = 0.0
+
+                return cost
+
+            if fractional:
+                # Cash the fractional part using the oldest cost basis (FIFO)
+                cash = fractional * self.open
+                cash_basis = consume(fractional / ratio)
+                self.caller.add_cash(cash)
+
+                self._total_profit += cash - cash_basis
+
+                self.caller._lg.plain(f"At {self.get_datetime_str()} added {round(cash, 2)} of cash for the fractional "
+                                      f"share of {self.data.title} at split. The cash balance is {round(self.caller.cash, 2)}.")
+
+            # Slice remaining costs into post-split shares in FIFO order
+            new_prices = []
+            chunk = 1.0 / ratio if new_positions else 0
+
+            for i in range(new_positions):
+                if i == new_positions - 1:
+                    # Consume the remainder to avoid floating-point leftovers
                     cost = 0.0
 
-                    while length > 1e-12 and price_idx < len(old_prices):
-                        take = min(length, 1.0 - offset)
-                        cost += take * old_prices[price_idx]
-                        offset += take
-                        length -= take
+                    while price_idx < len(old_prices):
+                        cost += (1.0 - offset) * old_prices[price_idx]
+                        price_idx += 1
+                        offset = 0.0
 
-                        if offset >= 1.0 - 1e-12:
-                            price_idx += 1
-                            offset = 0.0
+                    new_prices.append(cost)
+                else:
+                    new_prices.append(consume(chunk))
 
-                    return cost
-
-                if fractional:
-                    # Cash the fractional part using the oldest cost basis (FIFO)
-                    cash = fractional * self.open
-                    cash_basis = consume(fractional / ratio)
-                    self.caller.add_cash(cash)
-
-                    self._total_profit += cash - cash_basis
-
-                    self.caller._lg.plain(f"At {self.get_datetime_str()} added {round(cash, 2)} of cash for the fractional "
-                                          f"share of {self.data.title} at split. The cash balance is {round(self.caller.cash, 2)}.")
-
-                # Slice remaining costs into post-split shares in FIFO order
-                new_prices = []
-                chunk = 1.0 / ratio if new_positions else 0
-
-                for i in range(new_positions):
-                    if i == new_positions - 1:
-                        # Consume the remainder to avoid floating-point leftovers
-                        cost = 0.0
-
-                        while price_idx < len(old_prices):
-                            cost += (1.0 - offset) * old_prices[price_idx]
-                            price_idx += 1
-                            offset = 0.0
-
-                        new_prices.append(cost)
-                    else:
-                        new_prices.append(consume(chunk))
-
-                self._portfolio_cash = new_prices
-                self._long_positions = new_positions
+            self._portfolio_cash = new_prices
+            self._long_positions = new_positions
 
             self.caller._lg.highlight(f"At {self.get_datetime_str()} new positions after split of {self.data.title}: "
                                   f"{self.long_positions} "

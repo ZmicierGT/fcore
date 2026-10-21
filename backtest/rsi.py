@@ -125,7 +125,7 @@ class RSI(BackTest):
 
             # Rank symbols by the RSI of the latest completed bar (the same bar the crossing
             # checks use) — the current bar's RSI is not known at execution time (the Open).
-            for ex in self.all_exec():
+            for ex in self.all_exec:
                 val_row = ex.get_val(offset=-1)
                 val = val_row['rsi'] if val_row is not None and pd.notna(val_row['rsi']) else None
 

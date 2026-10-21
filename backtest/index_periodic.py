@@ -92,7 +92,7 @@ class IndexSim(BackTest):
             target_buy = None  # The security to open a position
             target_sell = None  # The security to close a position
 
-            for ex in self.all_exec():
+            for ex in self.all_exec:
                 if ex.get_index() is None or ex.weighted is False:
                     continue  # Skip securities without data in the cycle or unweighted securities (if eventually we have any)
 

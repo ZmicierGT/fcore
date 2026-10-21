@@ -86,8 +86,8 @@ class StockOperations(BackTestOperations):
         """
         super().__init__(**kwargs)
 
-        # The future incoming yield
-        self._future_yield = 0
+        # Pending future dividend amount to be credited
+        self._pending_divs = 0.0
 
     ############
     # Properties
@@ -123,12 +123,13 @@ class StockOperations(BackTestOperations):
 
         # Check if we have opened long positions at ex_date
         if self.data.rows[idx][StockQuotes.ExDividends] != 0 and self._long_positions > 0:
-            self._future_yield = self._long_positions * self.data.rows[idx][StockQuotes.ExDividends]
+            self._pending_divs += self._long_positions * self.data.rows[idx][StockQuotes.ExDividends]
 
-        # Calculate dividends to pay for long positions which were opened at ex_date
-        if self.data.rows[idx][StockQuotes.PayDividends] != 0 and self._future_yield > 0:
-            incoming_yield = self._future_yield
-            self._future_yield = 0
+        # Credit all pending dividends on the first payment event
+        # TODO LOW: support multiple payment events
+        if self.data.rows[idx][StockQuotes.PayDividends] != 0 and self._pending_divs:
+            incoming_yield = self._pending_divs
+            self._pending_divs = 0.0
 
         if incoming_yield:
             self.caller._lg.highlight(f"At {self.get_datetime_str()} incoming yield for {self.data.title} is {incoming_yield}")
@@ -270,10 +271,10 @@ class StockOperations(BackTestOperations):
         """
             Pay out the yield still owed to the holder at the moment the security disappears.
         """
-        if self._future_yield:
-            yield_paid = self._future_yield
+        if self._pending_divs:
+            yield_paid = self._pending_divs
 
-            self._future_yield = 0
+            self._pending_divs = 0.0
             self._book_yield(yield_paid)
 
     @property
@@ -285,6 +286,6 @@ class StockOperations(BackTestOperations):
                 float: the total value of the all opened positions.
         """
         total_value = super().total_value
-        total_value += self._future_yield
+        total_value += self._pending_divs
 
         return total_value

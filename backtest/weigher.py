@@ -102,6 +102,12 @@ class EqualWeigher(Weigher):
 class PriceWeigher(Weigher):
     """Price weighting (as in DJIA)."""
 
+    def __init__(self):
+        # Max Open price per group (populated each cycle when grouping is enabled).
+        # Used to size the first position in a group by its price rank within the group,
+        # so that one group cannot consume too much cash before the others are filled.
+        self._group_max_price = {}
+
     def weight(self, ex):
         return ex.long_positions
 
@@ -109,27 +115,41 @@ class PriceWeigher(Weigher):
         return 1
 
     def update_globals(self, bt):
-        if bt.long_positions_num:
-            # No need to calculate anything if any position opened
-            bt._max_price = 0
-            return
-
         from backtest.base import SecState  # local import to avoid a circular import
+
+        # The values depend on Open prices only and are valid regardless of the opened positions.
+        self._group_max_price = {}
 
         max_price = 0
         for ex in bt.all_exec():
             # Delisted and skipped securities must not pollute the global values
             if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
-                max_price = max(max_price, ex.get_row()[Quotes.Open])
+                price = ex.get_row()[Quotes.Open]
+                max_price = max(max_price, price)
+                if bt.grouping_attr is not None:
+                    self._group_max_price[ex.group] = max(self._group_max_price.get(ex.group, 0), price)
+
         bt._max_price = max_price
 
     def get_trade_num(self, ex, deviation):
         if ex.group_mean:
             return super().get_trade_num(ex, deviation)
-        # If opening the first position, then need to avoid the situation when selected security is cheap
-        # as if the maximum possible positions will be opened - then it will be difficult to balance
-        # the portfolio in the future. Need to limit the number of cheap securities.
-        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Open] / ex.caller.max_price) * deviation
+
+        # For the first position, size the buy by the price rank within the group (or the whole
+        # portfolio without grouping) to avoid opening too many positions of a cheap security.
+        group = ex.group
+        if group is not None and group in self._group_max_price:
+            max_price = self._group_max_price[group]
+        else:
+            max_price = ex.caller.max_price
+
+        # Defensive guard: no active weighted quotes (e.g. an empty group) - the price rank
+        # cannot be determined. super() returns the maximum trade size here (group_mean is
+        # falsy in this branch), effectively skipping the price-rank limitation.
+        if not max_price:
+            return super().get_trade_num(ex, deviation)
+
+        return ex.get_max_trade_size() * (ex.get_row()[Quotes.Open] / max_price) * deviation
 
 
 class CapWeigher(Weigher):
@@ -166,16 +186,19 @@ class CapWeigher(Weigher):
             return ex.caller.max_cap / ex.get_row()['cap'] * ex.total_value
         return 0
 
+    # TODO HIGH: no test/demo coverage exists for CapWeigher - address it in the future.
     def get_trade_num(self, ex, deviation):
         if ex.weight:
             ratio = (ex.group_mean * deviation - ex.weight) / ex.total_value
-        else:
+        elif ex.group_max_cap:
             # Limit the number of positions for lower cap companies
             ratio = ex.get_row()['cap'] / ex.group_max_cap * deviation
-
-        if ratio:
-            trade_size = ex.get_max_trade_size()  # May buy more
         else:
-            trade_size = ex.long_positions  # May sell some
+            # No active capped symbols in the group - trade size cannot be determined
+            return 0
+
+        # Buys are limited by the available cash, sells are limited by the held positions.
+        # Sizing sells by cash capacity would deadlock rebalancing in a fully invested portfolio.
+        trade_size = ex.get_max_trade_size() if ratio > 0 else ex.long_positions
 
         return ratio * trade_size

@@ -1472,8 +1472,10 @@ class BackTestOperations():
 
             self.cancel_limit_order()
 
-            # A marketable limit order: the close is within the limit price so the resting
-            # order was crossed after the placement. It fills at the limit price.
+            # Intended behavior: the current bar is treated as atomic and analyzed on Close only.
+            # The ordering of High/Low relative to the order placement is unknown, so Close is
+            # the only price which is guaranteed to be after the placement. Subsequent bars are
+            # processed by Open (plus High/Low) in process_limit_order().
             close_price = self.close
 
             # BUY is filled when the close is not higher than the limit, SELL - when it is not lower
@@ -2036,6 +2038,7 @@ class BTData(BTBaseData):
         invested = self.Deposits[-1]
         total_value = self.TotalValue[-1]
 
+        # TODO LOW: more performance metrics may be added in the future (CAGR, drawdown, risk-adjusted ones, etc.)
         profit = total_value / invested * 100 - 100 if invested else 0
 
         return Statistics(

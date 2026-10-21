@@ -403,10 +403,15 @@ class StockData(SecData, StockFetcher):
             for i in range(len(divs)):
                 idx_ex = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.ExDate][i], ], side='right')[0]
 
+                # With side='right', index 0 means the ex-date is strictly before the first quote -
+                # the dividend is outside the requested window and must not be credited to the first bar.
+                if idx_ex == 0:
+                    continue
+
                 amount = divs[Dividends.Amount][i]
 
                 try:
-                    quotes[StockQuotes.ExDividends][idx_ex] = amount
+                    quotes[StockQuotes.ExDividends][idx_ex] += amount
 
                     opened = quotes[StockQuotes.Open][idx_ex]
                     high = quotes[StockQuotes.High][idx_ex]
@@ -441,8 +446,12 @@ class StockData(SecData, StockFetcher):
 
                 idx_pay = np.searchsorted(quotes[StockQuotes.TimeStamp], [divs[Dividends.PaymentDate][i], ], side='right')[0]
 
+                # Same as above: a payment before the first quote belongs to the previous window.
+                if idx_pay == 0:
+                    continue
+
                 try:
-                    quotes[StockQuotes.PayDividends][idx_pay] = amount
+                    quotes[StockQuotes.PayDividends][idx_pay] += amount
                 except IndexError:
                     pass
                     # No need to do anything as just payment haven't happened in the current stock history

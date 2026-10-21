@@ -9,6 +9,8 @@ from data.fvalues import StockQuotes, sector_titles
 
 from math import inf
 
+__all__ = ["StockData", "StockOperations"]
+
 class StockData(BackTestData):
     """
         The class represents stock data for backtesting.
@@ -33,7 +35,7 @@ class StockData(BackTestData):
 
         if div_tax < 0 or div_tax >= 100:
             raise BackTestError(f"Dividend tax can't be less than 0 or >= 100. {div_tax} is specified.")
-        self.div_tax = div_tax
+        self._div_tax = div_tax
 
     ############
     # Properties
@@ -61,7 +63,7 @@ class StockData(BackTestData):
     # Methods
     ###############
 
-    def create_exec(self, caller):
+    def _create_exec(self, caller):
         """
             Create StockOperations instance based on BackTestData instance.
             StockData is a container for data used for calculation and the usage of every instance of this class is thread safe.
@@ -94,20 +96,20 @@ class StockOperations(BackTestOperations):
     ############
 
     @property
-    def div_tax(self):
+    def _div_tax(self):
         """
             Get the dividend tax.
 
             Returns:
                 float: the dividend tax
         """
-        return self.data.div_tax
+        return self.data._div_tax
 
     #############################################################
     # General methods with calculations for a particular symbol
     #############################################################
 
-    def process_yield(self):
+    def _process_yield(self):
         """
             Get the current yield.
 
@@ -136,7 +138,7 @@ class StockOperations(BackTestOperations):
 
         return incoming_yield
 
-    def check_for_split(self):
+    def _check_for_split(self):
         """
             Check for a stock split and apply split to the portfolio if any.
         """
@@ -236,24 +238,24 @@ class StockOperations(BackTestOperations):
         if current_yield > 0:
             txt = 'added'
 
-            if self.div_tax:
-                tax = current_yield * self.div_tax / 100
-                self.caller.add_other_expense(tax)
+            if self._div_tax:
+                tax = current_yield * self._div_tax / 100
+                self.caller._add_other_expense(tax)
 
                 current_yield = current_yield - tax
 
-            self.caller.add_other_profit(current_yield)
+            self.caller._add_other_profit(current_yield)
             self._total_profit += current_yield
         else:
             txt = 'deducted'
 
-            self.caller.add_other_expense(current_yield)
+            self.caller._add_other_expense(current_yield)
 
         # The main dataset date is used as there may be no fresh bar (e.g. when paying at delisting).
         log = f"At {self.caller.exec().get_datetime_str()} {txt} {current_yield} dividends for {self.data.title}. The cash balance is {round(self.caller.cash, 2)}."
         self.caller._lg.plain(log)
 
-    def apply_other_balance_changes(self):
+    def _apply_other_balance_changes(self):
         """
             Apply the current yield to the portfolio.
         """
@@ -262,9 +264,9 @@ class StockOperations(BackTestOperations):
         if self._state is not SecState.Active:
             return
 
-        self.check_for_split()
+        self._check_for_split()
 
-        self._book_yield(self.process_yield())
+        self._book_yield(self._process_yield())
 
     def _on_delisting(self):
         """

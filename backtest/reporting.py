@@ -21,6 +21,8 @@ from matplotlib import font_manager
 
 from math import ceil
 
+__all__ = ["Report", "ChartType", "ReportsError"]
+
 class ChartType(IntEnum):
     Line = 0
     Candle = 1

@@ -2612,10 +2612,13 @@ class BackTest(metaclass=abc.ABCMeta):
                 ex_total_value(float): the total value before making a trade
         """
         if self.weigher is not None:
+            old_mult = self._multiplier
             self._multiplier += mult_adj_num
 
-            if self.multiplier:
-                self._mean_weight = (self.mean_weight * self.multiplier + - ex_weight + ex.weight) / self.multiplier
+            if self._multiplier:
+                self._mean_weight = (self._mean_weight * old_mult - ex_weight + ex.weight) / self._multiplier
+            else:
+                self._mean_weight = 0
 
             self._total_weighted_value = self._total_weighted_value - ex_total_value + ex.total_value
 

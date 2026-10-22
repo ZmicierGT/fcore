@@ -108,11 +108,27 @@ EXPECTED = {
         'period_start': '2009-07-10',
         'period_end': '2024-07-10',
     },
+    'cap': {
+        'title': 'Cap Weight Simulation Performance:',
+        'Invested': 60764.5,
+        'Total expenses': 242.5,
+        'Total value': 98744.77,
+        'Commission expense': 242.5,
+        'Profit': 62.5,
+        'Spread expense': 0.0,
+        'Other profit': 1304.97,
+        'Other expense': 0.0,
+        'Total trades': 97,
+        'elapsed': 0.47,
+        'period_start': '2022-01-01',
+        'period_end': '2026-09-30',
+    },
 }
 
 DEMOS = (('djia', 'demo.backtest.djia_test'),
          ('grouping', 'demo.backtest.grouping_test'),
-         ('eql', 'demo.backtest.eql_test'))
+         ('eql', 'demo.backtest.eql_test'),
+         ('cap', 'demo.backtest.cap_weight_test'))
 
 
 def failure(text):

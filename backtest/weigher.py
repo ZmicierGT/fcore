@@ -155,12 +155,10 @@ class PriceWeigher(Weigher):
 
 
 class CapWeigher(Weigher):
-    """Capitalization weighting. Requires a 'cap' column in quote rows (via Subquery).
+    """Capitalization weighting. Requires a 'cap' column in quote rows (via Subquery)."""
 
-        The cap is used at the current bar's decision time, so it is the user's responsibility to make it
-        known at the bar's Open — e.g., calculate it as Open * outstanding shares. A subquery-sourced cap
-        (e.g. 'fmp_capitalization') is an EOD value and would leak future data into decisions - use for demo purposes only.
-    """
+    def __init__(self):
+        self._total_cap = 0
 
     def validate_data(self, data):
         if 'cap' not in data.rows.dtype.names:
@@ -174,33 +172,43 @@ class CapWeigher(Weigher):
             bt._grouping_max_cap = dict.fromkeys(bt._grouping_shares.keys(), 0)
 
         max_cap = 0
+        total_cap = 0
         for ex in bt.all_exec:
             # Delisted and skipped securities must not pollute the global values
             if ex.weighted and ex.get_index() is not None and ex.state is SecState.Active:
                 current_cap = ex.get_row()['cap']
                 max_cap = max(max_cap, current_cap)
+                total_cap += current_cap
                 if bt.grouping_attr is not None:
                     bt._grouping_max_cap[ex.group] = max(bt._grouping_max_cap[ex.group], current_cap)
         bt._max_cap = max_cap
+        self._total_cap = total_cap
 
     def weight(self, ex):
         if ex.long_positions:
-            return ex.caller.max_cap / ex.get_row()['cap'] * ex.total_value
+            return ex.total_value / ex.get_row()['cap']
         return 0
 
-    # TODO HIGH: no test/demo coverage exists for CapWeigher - address it in the future.
+    def weight_per_position(self, ex):
+        return ex.market_price / ex.get_row()['cap']
+
     def get_trade_num(self, ex, deviation):
         if ex.weight:
-            ratio = (ex.group_mean * deviation - ex.weight) / ex.total_value
-        elif ex.group_max_cap:
+            # Relative change needed to reach the group mean value per unit of cap.
+            ratio = (ex.group_mean * deviation - ex.weight) / ex.weight
+            return ratio * ex.long_positions
+
+        if self._total_cap and ex.group is None:
+            # Size a new position from the whole portfolio value, not from the available cash only.
+            target_value = ex.caller.total_value * ex.get_row()['cap'] / self._total_cap
+            price = ex.market_price
+            if price:
+                return target_value / price
+
+        if ex.group_max_cap:
             # Limit the number of positions for lower cap companies
             ratio = ex.get_row()['cap'] / ex.group_max_cap * deviation
-        else:
-            # No active capped symbols in the group - trade size cannot be determined
-            return 0
+            return ratio * ex.get_max_trade_size()
 
-        # Buys are limited by the available cash, sells are limited by the held positions.
-        # Sizing sells by cash capacity would deadlock rebalancing in a fully invested portfolio.
-        trade_size = ex.get_max_trade_size() if ratio > 0 else ex.long_positions
-
-        return ratio * trade_size
+        # No active capped symbols in the group - trade size cannot be determined
+        return 0

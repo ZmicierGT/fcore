@@ -173,6 +173,7 @@ Screeners make a conclusion on a single invocation by picking the securities whi
 ### Examples of backtesting strategies with portfolio management
 - [eql_test.py](demo/backtest/eql_test.py) - Equal sector weight portfolio demo (similar to EQL ETF). Note that here you may 'reconstruct' the ETF even prior its inception date. (**python -m demo.backtest.eql_test**)
 - [djia_test.py](demo/backtest/djia_test.py) - Demo to assemble from stocks the price-weighted portfolio which corresponds the DJIA index. (**python -m demo.backtest.djia_test**)
+- [cap_weight_test.py](demo/backtest/cap_weight_test.py) - Demo to assemble a market cap weighted portfolio from stocks using Yahoo outstanding shares. (**python -m demo.backtest.cap_weight_test**)
 - [grouping_test.py](demo/backtest/grouping_test.py) - Demo to test grouping in a portfolio. Grouping allows you to create a group for a particular asset type (international or domestic stock, particular sectors, bonds etc.). Each group has a pre-defined size which impacts position sizing. (**python -m demo.backtest.grouping_test**)
 
 ### Other examples of backtesting strategies

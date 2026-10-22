@@ -21,8 +21,13 @@ from data.futils import get_labelled_ndarray, get_dt
 class YFDataEntries(DataEntriesEnum):
     """
         Enum class for YF dataset entries with intervals tracking.
+
+        Every value is (title, fresh_days, cadence_days): the table title, the minimum
+        number of days between actual fetch attempts and the expected number of days
+        between data updates (None means the cadence is unknown).
     """
-    EarningsHistory = ('yf_earnings_history', 1, 80)  # quarterly earnings
+    EarningsHistory = ('yf_earnings_history', 1, 80)  # quarterly reports; poll daily, expect data ~every 80 days
+    SharesFull = ('yf_shares_full', 1, None)  # updates several times per month; poll at most daily
 
 import urllib.error
 import http.client
@@ -416,6 +421,38 @@ class YF(stock.StockData):
         except self._error as e:
             raise FdataError(f"Can't create index {YFDataEntries.EarningsHistory.title}(symbol_id, time_stamp): {e}") from e
 
+        # Create table 'yf_shares_full' if needed
+        create_shares_full = f"""CREATE TABLE IF NOT EXISTS {YFDataEntries.SharesFull.title}(
+                                yf_share_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                source_id INTEGER NOT NULL,
+                                symbol_id INTEGER NOT NULL,
+                                time_stamp INTEGER NOT NULL,
+                                shares INTEGER NOT NULL,
+                                UNIQUE(symbol_id, time_stamp, source_id)
+                                CONSTRAINT fk_symbols,
+                                    FOREIGN KEY (symbol_id)
+                                    REFERENCES symbols(symbol_id)
+                                    ON DELETE CASCADE
+                                CONSTRAINT fk_sources,
+                                    FOREIGN KEY (source_id)
+                                    REFERENCES sources(source_id)
+                                    ON DELETE CASCADE
+                            );"""
+
+        try:
+            self._cur.execute(create_shares_full)
+        except self._error as e:
+            raise FdataError(f"Can't execute a query on a table '{YFDataEntries.SharesFull.title}': {e}\n{create_shares_full}") from e
+
+        # Create index for symbol_id
+        create_shares_full_idx = f"""CREATE INDEX IF NOT EXISTS idx_{YFDataEntries.SharesFull.title}
+                        ON {YFDataEntries.SharesFull.title}(symbol_id, time_stamp);"""
+
+        try:
+            self._cur.execute(create_shares_full_idx)
+        except self._error as e:
+            raise FdataError(f"Can't create index {YFDataEntries.SharesFull.title}(symbol_id, time_stamp): {e}") from e
+
         self._register_data_entries(YFDataEntries)
 
     def _fetch_earnings_history(self):
@@ -423,10 +460,10 @@ class YF(stock.StockData):
             Fetch the earnings history data.
 
             Returns:
-                list: earnings history data.
+                list: earnings history data; empty list if no data obtained.
 
             Raises:
-                FdataError: network error or no data obtained.
+                FdataError: fetch (network) error.
         """
         ticker = yfin.Ticker(self._symbol)
 
@@ -564,6 +601,177 @@ class YF(stock.StockData):
                                         num_method=self.get_earnings_history_num,
                                         add_method=self._add_earnings_history,
                                         fetch_method=self._fetch_earnings_history)
+
+    def _fetch_shares_full(self):
+        """
+            Fetch the full available outstanding shares history.
+
+            The full history is requested regardless of the instance date range: Yahoo
+            exposes only its available history (~from 2015 at the moment) and dataset
+            intervals track only the latest fetch (no start timestamp).
+
+            Stored values are raw share counts as reported by Yahoo, without any split
+            adjustment. Use raw quote prices (stored 'opened'/'closed') when deriving
+            market capitalization.
+
+            Returns:
+                list: outstanding shares entries; empty list if no data obtained.
+
+            Raises:
+                FdataError: fetch (network) error.
+        """
+        ticker = yfin.Ticker(self._symbol)
+
+        try:
+            shares = ticker.get_shares_full(start=datetime(1970, 1, 1))
+        except Exception as e:
+            raise FdataError(f"Can't fetch outstanding shares for {self._symbol} from YF: {e}") from e
+
+        if shares is None:
+            self._lg.warning(f"No outstanding shares data obtained for {self._symbol}")
+            return []
+
+        # Defensive: some yfinance versions may return a DataFrame.
+        if isinstance(shares, pd.DataFrame):
+            if shares.empty:
+                self._lg.warning(f"No outstanding shares data obtained for {self._symbol}")
+                return []
+            shares = shares.iloc[:, 0]
+
+        if shares.empty:
+            self._lg.warning(f"No outstanding shares data obtained for {self._symbol}")
+            return []
+
+        shares = pd.to_numeric(shares, errors='coerce').dropna()
+
+        if shares.empty:
+            self._lg.warning(f"No numeric outstanding shares data obtained for {self._symbol}")
+            return []
+
+        index = shares.index
+
+        if not isinstance(index, pd.DatetimeIndex):
+            index = pd.to_datetime(index)
+
+        if index.tz is None:
+            index = index.tz_localize('UTC')
+        else:
+            index = index.tz_convert('UTC')
+
+        shares.index = index
+
+        # Keep duplicate timestamps as returned: the DB UPSERT keeps the last value.
+        shares = shares.sort_index(kind='stable')
+
+        shares_data = []
+
+        for idx, value in shares.items():
+            ts = int(calendar.timegm(idx.utctimetuple()))
+
+            shares_data.append({
+                'time_stamp': ts,
+                'shares': int(round(float(value))),
+            })
+
+        return shares_data
+
+    def _add_shares_full(self, results):
+        """
+            Add outstanding shares data to the database.
+
+            Args:
+                results(list): the outstanding shares data.
+
+            Returns:
+                (int, int): total number of outstanding shares entries before and after the operation.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        self._check_if_connected()
+
+        # Insert new symbols to 'symbols' table (if the symbol does not exist)
+        if not self.symbol_exists:
+            self._add_symbol()
+
+        num_before = self.get_shares_full_num()
+
+        if not results:
+            self._lg.warning(f"No outstanding shares data to add for {self._symbol}. Updating data interval only.")
+            self._update_data_interval(YFDataEntries.SharesFull.title)
+            return (num_before, num_before)
+
+        insert_shares = f"""INSERT INTO {YFDataEntries.SharesFull.title} (symbol_id,
+                                    source_id,
+                                    time_stamp,
+                                    shares)
+                                VALUES (
+                                    (SELECT symbol_id FROM symbols WHERE ticker = ?),
+                                    (SELECT source_id FROM sources WHERE title = ?),
+                                    ?,  -- time_stamp
+                                    ?)  -- shares
+                                ON CONFLICT(symbol_id, time_stamp, source_id)
+                                DO UPDATE SET shares = excluded.shares;"""
+
+        rows = (
+            (self._symbol,
+             self._source_title,
+             int(result['time_stamp']),
+             int(result['shares']))
+            for result in results
+        )
+
+        try:
+            self._cur.executemany(insert_shares, rows)
+        except self._error as e:
+            raise FdataError(f"Can't add a record to a table '{YFDataEntries.SharesFull.title}': {e}\n\nThe query is\n{insert_shares}") from e
+
+        self._commit()
+        self._update_data_interval(YFDataEntries.SharesFull.title)
+
+        return (num_before, self.get_shares_full_num())
+
+    def get_shares_full_num(self):
+        """Get the number of outstanding shares entries for the symbol.
+
+            Returns:
+                int: the number of outstanding shares entries.
+
+            Raises:
+                FdataError: sql error happened.
+        """
+        initially_connected = self.is_connected
+
+        if self.is_connected is False:
+            self.db_connect()
+
+        try:
+            return self._get_data_num(YFDataEntries.SharesFull.title, source=True)
+        finally:
+            if initially_connected is False:
+                self.db_close()
+
+    def get_shares_full(self):
+        """
+            Fetch all the available outstanding shares history if needed.
+
+            Returns:
+                int: the number of new entries added to the database (may be 0
+                even after a fetch if existing rows were just updated).
+        """
+        initially_connected = self.is_connected
+
+        if self.is_connected is False:
+            self.db_connect()
+
+        try:
+            return self._fetch_data_if_none(data_entry=YFDataEntries.SharesFull,
+                                            num_method=self.get_shares_full_num,
+                                            add_method=self._add_shares_full,
+                                            fetch_method=self._fetch_shares_full)
+        finally:
+            if initially_connected is False:
+                self.db_close()
 
     def _fetch_income_statement(self):
         raise FdataError(f"Income statement data is not supported (yet) for the source {type(self).__name__}")

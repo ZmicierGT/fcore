@@ -22,11 +22,15 @@ from data.futils import get_dt, get_labelled_ndarray
 class FMPDataEntries(DataEntriesEnum):
     """
         Enum class for FMP dataset entries with intervals tracking.
+
+        Every value is (title, fresh_days, cadence_days): the table title, the minimum
+        number of days between actual fetch attempts and the expected number of days
+        between data updates (None means the cadence is unknown).
     """
-    IncomeStatement = ('fmp_income_statement', 1, 80)  # quarterly reports may arrive a bit earlier than 91 days
-    BalanceSheet = ('fmp_balance_sheet', 1, 80)
-    CashFlow = ('fmp_cash_flow', 1, 80)
-    Capitalization = ('fmp_capitalization', 1, 80)     # depends on outstanding shares from fundamentals
+    IncomeStatement = ('fmp_income_statement', 1, 80)  # quarterly reports may arrive earlier than 91 days; poll daily
+    BalanceSheet = ('fmp_balance_sheet', 1, 80)        # quarterly reports; poll daily, expect data ~every 80 days
+    CashFlow = ('fmp_cash_flow', 1, 80)                # quarterly reports; poll daily, expect data ~every 80 days
+    Capitalization = ('fmp_capitalization', 1, None)   # daily cap data; poll at most daily
 
 
 # Time zones of some popular exchanges for FMP data source

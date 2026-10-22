@@ -323,6 +323,54 @@ def test_earnings_history_intervals(i):
     lg.success(f"Fetched {fetched} entries. eh_max_ts recorded: {get_dt(ts_after)}")
 
 
+def test_shares_full_intervals(i):
+    """
+        Test interval tracking for outstanding shares data via data_intervals.
+
+        Verifies two things:
+        - SH1: shares_full_max_ts is None before the first fetch.
+        - SH2: the first get_shares_full() fetches data (>0 entries) and records
+          shares_full_max_ts in data_intervals.
+
+        Args:
+            i(YF): the data source instance (already db-connected and populated
+                   with quotes, dividends and splits via the prior tests in
+                   this file).
+    """
+    # Precondition for get_shares_full(): the symbol must exist in the DB.
+    i.get()
+
+    print("\nSECTION SH1: shares_full_max_ts is None before the first fetch")
+    print("__________________________________________________________")
+
+    ts_before = i._get_interval_ts(yf.YFDataEntries.SharesFull.title)
+
+    if ts_before is not None:
+        failure(f"shares_full_max_ts should be None before the first fetch, got {ts_before}", i)
+
+    lg.success("shares_full_max_ts is None as expected.")
+
+    #######################################################
+
+    print("\nSECTION SH2: First get_shares_full() fetches data and records the interval")
+    print("____________________________________________________________________________________")
+
+    num_before = i.get_shares_full_num()
+
+    fetched = i.get_shares_full()
+
+    if fetched <= 0:
+        failure(f"First get_shares_full() should fetch >0 entries, got {fetched}", i)
+
+    ts_after = i._get_interval_ts(yf.YFDataEntries.SharesFull.title)
+
+    if ts_after is None:
+        failure("shares_full_max_ts should be set after the first fetch", i)
+
+    lg.success(f"Fetched {fetched} entries (before: {num_before}). "
+               f"shares_full_max_ts recorded: {get_dt(ts_after)}")
+
+
 if __name__ == "__main__":
     lg.highlight("\nTesting YF data source intervals:\n")
 
@@ -344,6 +392,8 @@ if __name__ == "__main__":
     test_request_intervals(yfi, timespans_yf)
 
     test_earnings_history_intervals(yfi)
+
+    test_shares_full_intervals(yfi)
 
     yfi.db_close()
 

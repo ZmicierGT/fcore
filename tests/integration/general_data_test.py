@@ -29,7 +29,7 @@ def test_remove_symbol(i):
         Test remove_symbol().
 
         Verifies that the symbol itself and all cascade-linked data (quotes,
-        dividends, splits, earnings history) are deleted.
+        dividends, splits, earnings history, outstanding shares) are deleted.
         Also checks idempotency: a second call on an already-removed symbol
         must not raise.
 
@@ -49,10 +49,12 @@ def test_remove_symbol(i):
     dividends_num = i.get_dividends_num()
     splits_num = i.get_split_num()
     eh_num = i.get_earnings_history_num()
+    shares_num = i.get_shares_full_num()
 
-    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, Earnings history: {eh_num}")
+    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, "
+          f"Earnings history: {eh_num}, Shares full: {shares_num}")
 
-    if quotes_num == 0 or dividends_num == 0 or splits_num == 0 or eh_num == 0:
+    if quotes_num == 0 or dividends_num == 0 or splits_num == 0 or eh_num == 0 or shares_num == 0:
         failure("All categories should have data before deletion", i)
 
     lg.success("Pre-delete presence confirmed")
@@ -81,10 +83,12 @@ def test_remove_symbol(i):
     dividends_num = i.get_dividends_num()
     splits_num = i.get_split_num()
     eh_num = i.get_earnings_history_num()
+    shares_num = i.get_shares_full_num()
 
-    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, Earnings history: {eh_num}")
+    print(f"Quotes: {quotes_num}, Dividends: {dividends_num}, Splits: {splits_num}, "
+          f"Earnings history: {eh_num}, Shares full: {shares_num}")
 
-    if quotes_num != 0 or dividends_num != 0 or splits_num != 0 or eh_num != 0:
+    if quotes_num != 0 or dividends_num != 0 or splits_num != 0 or eh_num != 0 or shares_num != 0:
         failure("All categories should have 0 rows after cascade deletion", i)
 
     lg.success("Symbol and all linked data removed (cascade verified)")
@@ -312,6 +316,7 @@ if __name__ == "__main__":
 
     yfi.get()
     yfi.get_earnings_history()
+    yfi.get_shares_full()
 
     test_remove_symbol(yfi)
 

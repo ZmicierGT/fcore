@@ -49,6 +49,7 @@ def test_earnings_history_values(make_yf):
     inst.db_connect()
 
     inst.get_earnings_history()
+    # TODO LOW Can it be simplified?
     rows = inst.get(queries=[Subquery(YFDataEntries.EarningsHistory.title, f, title=f) for f in EH_FIELDS])
 
     # Count is checked via the data API too

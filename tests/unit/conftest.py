@@ -49,17 +49,22 @@ def load_quotes(path):
 class FakeTicker:
     """Fake yf Ticker returning synthetic data loaded from files (paths may be None)."""
 
-    def __init__(self, info, quotes_path=None, splits_path=None, dividends_path=None, earnings_history_path=None):
+    def __init__(self, info, quotes_path=None, splits_path=None, dividends_path=None, earnings_history_path=None,
+                 shares_path=None):
         self._info = info
         self._quotes_path = quotes_path
         self._splits_path = splits_path
         self._dividends_path = dividends_path
         self._earnings_history_path = earnings_history_path
+        self._shares_path = shares_path
 
         self.info_calls = 0
         self.download_calls = 0
         self.history_calls = 0
         self.eh_calls = 0
+        self.shares_calls = 0
+        self.shares_start = None
+        self.shares_end = None
 
     @property
     def info(self):
@@ -97,6 +102,16 @@ class FakeTicker:
     def earnings_history(self):
         self.eh_calls += 1
         return load_earnings_history(self._earnings_history_path)
+
+    def get_shares_full(self, start=None, end=None):
+        self.shares_calls += 1
+        self.shares_start = start
+        self.shares_end = end
+
+        if self._shares_path is None:
+            return None
+
+        return load_dated_series(self._shares_path, self.exchange_timezone)
 
 # Shared-cache in-memory DB for tests that share one DB between several instances.
 # The Data API closes transient connections after each operation and the named cache

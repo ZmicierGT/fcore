@@ -23,10 +23,14 @@ report_year = "AND report_tbl.reported_period = (SELECT period_id FROM report_pe
 class StockDataEntries(DataEntriesEnum):
     """
         Enum class for stock dataset entries with intervals tracking.
+
+        Every value is (title, fresh_days, cadence_days): the table title, the minimum
+        number of days between actual fetch attempts and the expected number of days
+        between data updates (None means the cadence is unknown).
     """
-    Dividends = ('cash_dividends', 1, 30)   # may be paid monthly
-    Splits = ('stock_splits', 1, None)      # critical for adjustments - check often
-    StockInfo = ('stock_info', 1, 180)      # changes very rarely
+    Dividends = ('cash_dividends', 1, 30)   # may be paid monthly; poll daily, expect data ~every 30 days
+    Splits = ('stock_splits', 1, None)      # critical for adjustments; poll daily, cadence unknown
+    StockInfo = ('stock_info', 1, 180)      # changes very rarely; poll daily, expect data ~every 180 days
 
 class StockFetcher(object, metaclass=abc.ABCMeta):
     """

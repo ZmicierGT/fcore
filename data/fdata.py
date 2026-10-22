@@ -34,9 +34,12 @@ class DataEntriesEnum(Enum):
 
         Value format: (title, fresh_days, cadence_days):
             title(str): DB data entry title.
-            fresh_days(int): min days between fetches (poll throttle).
-            cadence_days(int or None): approx period between data events
-                (None = unknown, polling is throttled by fresh_days only).
+            fresh_days(int): minimum number of days between actual fetch attempts
+                (poll throttle).
+            cadence_days(int or None): expected number of days between data updates.
+                Polling is deferred until this period has elapsed since the newest
+                stored row. None means the cadence is unknown, so only fresh_days
+                limits polling.
     """
     def __init__(self, title, fresh_days, cadence_days):
         self._title_ = title
@@ -50,17 +53,23 @@ class DataEntriesEnum(Enum):
 
     @property
     def fresh_days(self):
-        """Min days between fetches (poll throttle)."""
+        """Minimum number of days between actual fetch attempts (poll throttle)."""
         return self._fresh_days_
 
     @property
     def cadence_days(self):
-        """Approx period (days) between data events. None = unknown."""
+        """Expected days between data updates; polling waits until due. None = unknown."""
         return self._cadence_days_
 
 class CommonDataEntries(DataEntriesEnum):
-    """Data entries registered by the base class (usable by all sources)."""
-    SecurityInfo = ('sec_info', 1, 180)  # changes very rarely
+    """
+        Data entries registered by the base class (usable by all sources).
+
+        Every value is (title, fresh_days, cadence_days): the table title, the minimum
+        number of days between actual fetch attempts and the expected number of days
+        between data updates (None means the cadence is unknown).
+    """
+    SecurityInfo = ('sec_info', 1, 180)  # changes very rarely; poll daily, expect data ~every 180 days
 
 class Subquery():
     """
@@ -69,6 +78,7 @@ class Subquery():
         Note that this class is not really sql-injection proof so it should be used internally only -
         meaning not exposing it through web-interface or whatever.
     """
+    # TODO HIGH We can simplify instance creation by assuming that column=title by default
     def __init__(self, table, column, condition='', title=None, fill=True, symbol=None):
         """
             Initializes the instance of Subquery class.

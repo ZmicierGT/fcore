@@ -2116,6 +2116,7 @@ class BackTest(metaclass=abc.ABCMeta):
                  cash_interest=0,
                  inflation=0,
                  weighted=None,
+                 compositions=None,
                  open_deviation=2,
                  close_deviation=3,
                  grouping_attr=None,
@@ -2139,6 +2140,7 @@ class BackTest(metaclass=abc.ABCMeta):
                 inflation(float): annual inflation used in the calculation.
                 weighted(Weigher): portfolio weigher instance or None for no
                                    weighting. Pass an instance of a backtest.weigher.Weigher subclass.
+                compositions(dict): index composition periods over time.
                 open_deviation(float): balance deviation multiplier for opening a position. 1 means that no deviation
                                        is acceptable. 2 means that the 'ideal' weight may be violated up to 2 times.
                 close_deviation(float): balance deviation multiplier for closing a position.
@@ -2291,7 +2293,7 @@ class BackTest(metaclass=abc.ABCMeta):
         # Moment of time when the calculation has started (time.perf_counter based)
         self.__calc_started = None
 
-        self._compositions = None  # Index compositions in a moment of time
+        self._compositions = compositions  # Index compositions in a moment of time
 
         self._all_symbols = None  # All symbols used in the back test
         self._current_cmp = None  # Current composition of symbols (depends on date time)

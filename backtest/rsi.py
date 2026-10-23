@@ -91,8 +91,6 @@ class RSI(BackTest):
         # Perform the global calculation setup
         ######################################
 
-        # TODO LOW In setup() the initial data for multi-symbol strategy may be altered.
-        # Consider any length-related operations to be performed only after setup (including other demos)
         self.setup()
 
         length = len(self.main_data.rows)

@@ -472,7 +472,6 @@ class StockData(SecData, StockFetcher):
                     quotes[StockQuotes.Splits][idx_split] = ratio
 
                     if ratio != 1:
-                        # TODO LOW Think if such approach may be dangerous (whe value assigned to the copy of the array)
                         quotes[StockQuotes.AdjOpen][:idx_split] = quotes[StockQuotes.AdjOpen][:idx_split] / ratio
                         quotes[StockQuotes.AdjHigh][:idx_split] = quotes[StockQuotes.AdjHigh][:idx_split] / ratio
                         quotes[StockQuotes.AdjLow][:idx_split] = quotes[StockQuotes.AdjLow][:idx_split] / ratio

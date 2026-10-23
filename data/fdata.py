@@ -308,7 +308,8 @@ class SecFetcher(object, metaclass=abc.ABCMeta):
             'fc_time_zone': 'America/New_York',
         }
 
-    # TODO LOW Kept for possible usage with data sources which have API request limits per time interval
+    # TODO LOW Kept for possible usage with data sources which have API request limits per time interval.
+    # Currently used in FMP only
     def _query_and_parse(self, url, timeout=30):
         """
             Query the data source and parse the response. Used to handle data source API call limit.
@@ -1074,7 +1075,6 @@ class SecData(SecFetcher):
             raise FdataError(f"Can't create table quotes: {e}") from e
 
         # Create indexes for quotes
-        # TODO LOW Think if index for source_id should be added (covering index-only scans in get_quotes_num).
         create_quotes_idx = "CREATE INDEX IF NOT EXISTS idx_quotes ON quotes(symbol_id, time_stamp, time_span_id, source_id);"
 
         try:
@@ -1756,11 +1756,12 @@ class SecData(SecFetcher):
 
         return self._sec_type
 
-    # TODO LOW Note that Unknown will be returned each time as currencies are not supported yet.
     @property
     def currency(self):
         """
             Get the currency of the specified symbol.
+
+            Note that 'Unknown' may be returned as not every data source supports currencies.
 
             Returns:
                 (Currency): security typy.

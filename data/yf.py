@@ -194,7 +194,6 @@ class YF(stock.StockData):
 
         return quotes_data
 
-    # TODO MID For correct screeners work it should correspond the data in the main dataset. Currently the time is not UTC-adjusted.
     # TODO MID Do we need UT for it?
     def get_recent_data(self, to_cache=False):
         """
@@ -325,7 +324,7 @@ class YF(stock.StockData):
 
         return df_result
 
-    # TODO MID Dividends are adjusted by default!
+    # TODO MID Does it need a test?
     def _fetch_dividends(self):
         """
             Fetch cash dividends for the specified period.

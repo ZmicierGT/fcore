@@ -405,7 +405,6 @@ sectors_dict = {'2000-06-30': sector_etfs_oldest,
                 '2004-10-01': sectors_1_oct_2004,
                 '2018-06-22': sector_etfs_spdr}
 
-# TODO MID Create an enum for sectors
 sectors_combined = {'XLK': sector_titles[0],
                     'XLF': sector_titles[1],
                     'XLV': sector_titles[2],

@@ -143,8 +143,6 @@ class SQLiteConn(DBConn):
         except self._error as e:
             raise FdatabaseError(f"Can't disable recursive triggers: {e}") from e
 
-        # TODO MID It will be safer to disable qutocommits in the future as well
-
     # Close the connection
     def db_close(self):
         self._cur.close()

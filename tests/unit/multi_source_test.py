@@ -15,7 +15,7 @@ from data.fvalues import StockQuotes
 
 from yf_quotes_test import csv_quote_rows, build_quotes_inst, QUOTES
 
-# TODO HIGH May it be considered as a hardcode (then needs to be removed).
+# TODO LOW May it be considered as a hardcode (then needs to be removed).
 FIRST_DATE = '2020-1-1'
 LAST_DATE = '2020-2-1'
 

@@ -9,7 +9,7 @@ The author is Zmicier Gotowka
 
 Distributed under Fcore License 1.1 (see license.md)
 """
-from backtest.base import BackTest, BackTestError
+from backtest.base import BackTest
 
 from data.fvalues import StockQuotes
 
@@ -21,22 +21,6 @@ class IndexSim(BackTest):
 
         This strategy simulates some index by combining the stock in a way to correspond the index.
     """
-    def __init__(self,
-                 compositions=None,
-                 **kwargs):
-        """
-            Initializes index simulation implementation.
-
-            Args:
-                compositions(dict): index composition periods.
-
-            Raises:
-                BackTestError: incorrect arguments values.
-        """
-        super().__init__(**kwargs)
-
-        self._compositions = compositions  # TODO High Think how better to handle compositions (move it to the base class?)
-
     def skip_criteria(self, index):
         """
             Estimate if we should skip the current cycle (no data for calculation and so on).

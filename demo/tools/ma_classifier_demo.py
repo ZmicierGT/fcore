@@ -115,7 +115,7 @@ if __name__ == "__main__":
     print(f"Sell estimation f1 score: {round(f1_sell_est, 4)}")
     print(f"Total estimation f1 score: {round(total_f1_est, 4)}")
 
-    print(f"\nThe actual/estimated signals:\n{ma_cls.get_df_signals_to_compare().to_string()}\n")
+    print(f"\nThe actual/estimated signals (nan - no signal):\n{ma_cls.get_df_signals_to_compare().to_string()}\n")
 
     #################
     # Build the chart

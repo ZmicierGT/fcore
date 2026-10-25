@@ -127,6 +127,53 @@ def test_quotes_refetch_upsert(make_yf):
     inst.db_close()
 
 
+def test_quotes_request_end_is_inclusive(make_yf):
+    # yfinance treats 'end' as exclusive, so the request must add a day to
+    # include the last requested date (last_date is '2020-2-1').
+    inst, fake = build_quotes_inst(make_yf)
+    inst.db_connect()
+
+    inst.get()
+
+    assert fake.download_kwargs['start'] == datetime.date(2020, 1, 1)
+    assert fake.download_kwargs['end'] == datetime.date(2020, 2, 2)
+    inst.db_close()
+
+
+def test_quotes_single_day_window(make_yf):
+    # A zero-length window must fetch exactly that date (no start-shift needed
+    # with an inclusive end).
+    inst, fake = make_yf(FakeTicker(info=EQUITY_INFO, quotes_path=QUOTES),
+                         first_date='2020-1-2', last_date='2020-1-2')
+    inst.db_connect()
+
+    rows = inst.get()
+
+    assert fake.download_kwargs['start'] == datetime.date(2020, 1, 2)
+    assert fake.download_kwargs['end'] == datetime.date(2020, 1, 3)
+    assert len(rows) == 1
+    assert rows[0][StockQuotes.DateTime] == '2020-01-02 23:59:59'
+    inst.db_close()
+
+
+def test_quotes_request_trim_last(make_yf):
+    # trim_last clamps a future last date to now (for sources rejecting far-future
+    # end dates); by default the last date is passed through untouched.
+    inst, _ = build_quotes_inst(make_yf)
+    inst.db_connect()
+
+    now_ts = calendar.timegm(datetime.datetime.now(datetime.timezone.utc).utctimetuple())
+    future_ts = now_ts + 10 * 86400
+
+    _, untrimmed = inst._get_request_datetimes(None, future_ts)
+    assert untrimmed.date() > datetime.date.today()
+
+    _, trimmed = inst._get_request_datetimes(None, future_ts, trim_last=True)
+    assert trimmed.date() <= datetime.date.today()
+
+    inst.db_close()
+
+
 ###################################
 # B. Splits & dividends (adjustments)
 ###################################

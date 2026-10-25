@@ -24,9 +24,9 @@ import pytest
 from data.fdata import FdataError, CommonDataEntries
 from data.fmp import FMPDataEntries
 from data.stock import StockDataEntries
-from data.fvalues import Timespans, ReportPeriod
+from data.fvalues import Timespans, ReportPeriod, def_last_date
 
-from conftest import make_fmp, load_fmp_json
+from conftest import make_fmp, load_fmp_json, eod_ts
 
 # A deterministic window in the past; all other dates are derived relative to it
 FIRST_DATE = '2023-06-01'
@@ -132,11 +132,12 @@ def test_quotes_no_marker_needs_update(make_fmp):
 
 def test_quotes_covered_range_no_update(make_fmp, shared_mem_db):
     # Write the marker exactly as a real fetch of [FIRST_DATE, LAST_DATE] would do:
-    # _update_data_interval() for quotes caps max_ts at min(now, last_date_ts), so
-    # writing it one day short of LAST_TS leaves a day-fresh marker.
+    # _update_data_interval() for quotes caps max_ts at min(now, last_date_ts). "Now"
+    # must be past the window end - a same-day "now" would trigger the today-rule
+    # (the marker would be capped at the end of the previous day instead).
     writer = make_inst(make_fmp, shared_mem_db)
     real = writer._current_ts
-    writer._current_ts = lambda adjusted=True: LAST_TS + (SEC - 1)
+    writer._current_ts = lambda adjusted=True: LAST_TS + SEC + 3600
     try:
         writer._update_data_interval()
     finally:
@@ -175,6 +176,115 @@ def test_quotes_uncovered_end_needs_update(make_fmp, shared_mem_db):
 
     writer.db_close()
     reader.db_close()
+
+#########################################
+# B2. Quotes markers for requests reaching into today
+#########################################
+
+# def_last_date (used as last_date in this section) is far in the future, so these
+# tests also pin the "last date in the future" case: the interval end is the newest
+# stored bar's ts (or the previous day's end) per the today-rule.
+
+def patch_now(inst, now_ts):
+    """Patch _current_ts: unadjusted -> now_ts, adjusted -> EOD of that day (Day timespan)."""
+    real = inst._current_ts
+    eod = now_ts // SEC * SEC + (SEC - 1)
+    inst._current_ts = lambda adjusted=False, timespan=None: eod if adjusted else now_ts
+    return real
+
+def test_quotes_today_no_bar_marks_previous_eod(make_fmp):
+    # Pretend "today" is the day after the newest fixture bar.
+    inst = make_inst(make_fmp, first_date=Q_FIRST, last_date=def_last_date)
+    fake_today = _ts(Q_LAST) + SEC  # midnight of the day after the last fixture bar
+    real = patch_now(inst, fake_today + 3600)  # 01:00 UTC "today"
+
+    try:
+        inst.get()
+        # No bar exists for "today": the marker stops at the end of the previous day...
+        assert inst._get_interval_ts(Timespans.Day, is_max=True) == eod_ts(Q_LAST)
+        # ...so a repeated request refetches the small remaining tail
+        assert inst._need_to_update() is True
+    finally:
+        inst._current_ts = real
+        inst.db_close()
+
+def test_quotes_today_bar_marks_bar_ts(make_fmp):
+    # Pretend "today" is the day of the newest fixture bar.
+    inst = make_inst(make_fmp, first_date=Q_FIRST, last_date=def_last_date)
+    real = patch_now(inst, _ts(Q_LAST) + 3600)  # 01:00 UTC on the last fixture bar's day
+
+    try:
+        inst.get()
+        # The newest bar belongs to "today": the marker covers it entirely (its EOD ts)
+        assert inst._get_interval_ts(Timespans.Day, is_max=True) == eod_ts(Q_LAST)
+        assert inst._need_to_update() is False
+    finally:
+        inst._current_ts = real
+        inst.db_close()
+
+def test_quotes_today_only_request_no_marker(make_fmp):
+    # Request only "today" (the day after the newest fixture bar): nothing can be
+    # stored, so no interval must be marked (the range stays retriable).
+    fake_today = _datestr(_ts(Q_LAST) + SEC)
+    inst = make_inst(make_fmp, first_date=fake_today, last_date=def_last_date)
+    real = patch_now(inst, _ts(fake_today) + 3600)
+
+    try:
+        with pytest.raises(FdataError):
+            inst.get()
+        assert inst._get_interval_ts(Timespans.Day) is None
+    finally:
+        inst._current_ts = real
+        inst.db_close()
+
+#########################################
+# B3. Requests entirely in the future
+#########################################
+
+# Always-future window - no time patching needed
+FUT_FIRST = '2099-01-01'
+FUT_LAST = '2099-02-01'
+
+def test_quotes_pure_future_request_ignored(make_fmp):
+    # A pure-future request must not fetch quotes nor mark intervals - and must
+    # not return cached data either (it raises FdataError like any no-data case).
+    # Dividends/splits may still be fetched - they are separate cadence-gated
+    # entries, not bound to the requested quote range (StockData.get()).
+    inst, fake = make_fmp(first_date=FUT_FIRST, last_date=FUT_LAST)
+    inst.db_connect()
+    inst.get_info()
+
+    try:
+        with pytest.raises(FdataError):
+            inst.get()
+
+        assert fake.count('historical-price-eod') == 0  # no quote fetch attempted
+        assert inst._get_interval_ts(Timespans.Day) is None  # no interval marked
+    finally:
+        inst.db_close()
+
+def test_quotes_pure_future_no_tail_refetch(make_fmp, shared_mem_db):
+    # Seed a marker for a past window...
+    writer = make_inst(make_fmp, shared_mem_db, first_date=Q_FIRST, last_date=Q_LAST)
+    writer.get()
+    marker_max = writer._get_interval_ts(Timespans.Day, is_max=True)
+    assert marker_max is not None
+
+    # ...then a pure-future request on the same DB must not trigger a tail refetch
+    # and must not alter the recorded marker.
+    reader, fake = make_fmp(db_name=shared_mem_db, first_date=FUT_FIRST, last_date=FUT_LAST)
+    reader.db_connect()
+    reader.get_info()
+
+    try:
+        with pytest.raises(FdataError):
+            reader.get()
+
+        assert fake.count('historical-price-eod') == 0  # no tail refetch attempted
+        assert reader._get_interval_ts(Timespans.Day, is_max=True) == marker_max
+    finally:
+        writer.db_close()
+        reader.db_close()
 
 #############################
 # C. refetch bypass

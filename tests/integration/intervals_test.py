@@ -13,6 +13,7 @@ from dateutil import tz
 
 from data import lg
 
+import calendar
 import sys
 
 # TODO MID This test should be able to use custom intervals for testing. Currently it is pre-defined.
@@ -227,13 +228,22 @@ def test_request_intervals(source, timespans):
 
         quotes_num = len(quotes)
         max_req = source._get_max_request_ts()
+        actual_max = source._get_max_ts()
 
-        print(f"Initial: {utc_now}, max request: {get_dt(max_req)}")
+        print(f"Initial: {utc_now}, max request: {get_dt(max_req)}, "
+              f"last stored bar: {get_dt(actual_max) if actual_max is not None else None}")
 
-        delta = get_dt(max_req) - utc_now
+        # The request reaches into today: the marker must cover the newest stored
+        # bar (or the end of the previous day if there is no bar for today).
+        today_start = calendar.timegm(utc_now.date().timetuple())
 
-        if delta.seconds < (key * 60 + 1 - 60) or delta.seconds > (key * 60 + 1):
-            failure(f"{delta.seconds} is unexpected", source)
+        if actual_max is not None and actual_max >= today_start:
+            expected_max = actual_max
+        else:
+            expected_max = today_start - 1
+
+        if max_req != expected_max:
+            failure(f"Max request {get_dt(max_req)} should be {get_dt(expected_max)}", source)
 
         print(f"Total quotes fetched: {quotes_num}")
 
@@ -242,7 +252,7 @@ def test_request_intervals(source, timespans):
         if old_num != 0 and quotes_num >= old_num:
             failure(f"Current quotes num should be less than the previous quotes num! {quotes_num} < {old_num}", source)
 
-        lg.success(f"The delta seconds {delta.seconds} is expected")
+        lg.success(f"The max request timestamp is expected")
 
         old_num = quotes_num
         max_minutes = max(max_minutes, key)
@@ -258,16 +268,23 @@ def test_request_intervals(source, timespans):
 
     quotes_num = len(quotes)
     max_req = source._get_max_request_ts()
+    actual_max = source._get_max_ts()
 
-    print(f"Initial: {utc_now}, max request: {get_dt(max_req)}")
+    print(f"Initial: {utc_now}, max request: {get_dt(max_req)}, "
+          f"last stored bar: {get_dt(actual_max) if actual_max is not None else None}")
 
-    max_dt = get_dt(max_req)
+    # The request reaches into today: the marker must cover the newest stored bar
+    # (today's EOD bar at 23:59:59) or the end of the previous day if there is no
+    # bar for today.
+    today_start = calendar.timegm(utc_now.date().timetuple())
 
-    if utc_now.date() != max_dt.date():
-        failure(f"{utc_now.date()} and {max_dt.date()} should not differ!", source)
+    if actual_max is not None and actual_max >= today_start:
+        expected_max = actual_max
+    else:
+        expected_max = today_start - 1
 
-    if max_dt.hour != 23 or max_dt.minute != 59:
-        failure(f"Time difference should be 23:59!", source)
+    if max_req != expected_max:
+        failure(f"Max request {get_dt(max_req)} should be {get_dt(expected_max)}", source)
 
     can_equal = max_minutes >= 240  # In such case the number of quotes may be equal to EOD
 

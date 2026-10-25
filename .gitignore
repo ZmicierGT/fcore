@@ -2,7 +2,7 @@ images
 test*.py
 __pycache__
 total_size.sh
-*.sqlite
+*.sqlite*
 .python-version
 notes.txt
 .DS_Store
@@ -12,6 +12,4 @@ debris
 package-lock.json
 serve.sh
 AGENTS.md
-data.sqlite-shm
-data.sqlite-wal
 

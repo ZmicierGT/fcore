@@ -65,6 +65,7 @@ class FakeTicker:
         self.shares_calls = 0
         self.shares_start = None
         self.shares_end = None
+        self.download_kwargs = None
 
     @property
     def info(self):
@@ -77,6 +78,7 @@ class FakeTicker:
 
     def download(self, *args, **kwargs):
         self.download_calls += 1
+        self.download_kwargs = kwargs
         return load_quotes(self._quotes_path)
 
     @property

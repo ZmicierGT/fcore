@@ -79,7 +79,6 @@ class YF(stock.StockData):
         else:
             raise FdataError(f"Requested timespan is not supported by YF: {self.timespan}")
 
-    # TODO MID Think how to handle a situation that YF fetches the current quote even if period is incomplete
     def _fetch_quotes(self, first_ts=None, last_ts=None):
         """
             The method to fetch quotes.
@@ -97,15 +96,12 @@ class YF(stock.StockData):
         # Adjust dates for the exchange time zone for the request
         first_date, last_date = self._get_request_dates(first_ts, last_ts)
 
-        # Dates should differ or no data obtained
-        if (last_date - first_date).days == 0:
-            first_date = first_date - timedelta(days=1)
-
         try:
+            # yfinance treats 'end' as exclusive - add a day to include the last requested date
             data = yfin.download(self._symbol,
                                  interval=self._get_timespan_str(),
                                  start=first_date,
-                                 end=last_date,
+                                 end=last_date + timedelta(days=1),
                                  auto_adjust=False)
         except Exception as e:
             raise FdataError(f"Can't fetch quotes for {self._symbol} from YF: {e}") from e

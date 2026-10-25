@@ -398,6 +398,7 @@ class StockData(SecData, StockFetcher):
             ex_date_num = np.count_nonzero(~np.isnan(divs[Dividends.ExDate].astype(float)))
 
             if payment_date_num != ex_date_num or payment_date_num == ex_date_num - 1:
+                # TODO MID Likely we need to decrease it (for a week, for example)
                 self._lg.warning("Number of ex_date and payment entries do not correspond each other. Calculating payment date manually (ex_date + 1 month)")
 
                 # Wipe the values in payment_date column

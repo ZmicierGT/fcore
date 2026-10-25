@@ -427,6 +427,8 @@ class SecData(SecFetcher):
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
             At the end the connection status will be resumed.
+            A request entirely in the future is skipped completely (no fetching, no interval
+            marking, no cached data) - FdataError is raised as no quotes can exist for it.
 
             Args:
                 num(int): the number of rows to get. 0 gets all the quotes.
@@ -450,42 +452,48 @@ class SecData(SecFetcher):
             # waste a quote fetch or falsely mark intervals for a non-existent ticker.
             self.get_info()
 
-            total_num = self.get_quotes_num(dt=False)
+            if self.first_date_ts > self._current_ts():
+                # The request is entirely in the future: no data can exist. Skip fetching,
+                # interval marking and even the cached data query - cached data for a future
+                # range would be broken/misleading anyway.
+                rows = None
+            else:
+                total_num = self.get_quotes_num(dt=False)
 
-            last_ts_adj = min(self.last_date_ts, self._current_ts())
+                last_ts_adj = min(self.last_date_ts, self._current_ts())
 
-            if self._need_to_update():
-                intervals = []
+                if self._need_to_update():
+                    intervals = []
 
-                min_request_ts = self._get_min_request_ts()
-                max_request_ts = self._get_max_request_ts()
+                    min_request_ts = self._get_min_request_ts()
+                    max_request_ts = self._get_max_request_ts()
 
-                if self._refetch:
-                    intervals.append([self.first_date_ts, last_ts_adj])
-                elif total_num and min_request_ts is not None and max_request_ts is not None:
-                    # Fetch the requested range excluding the part already covered by recorded
-                    # intervals. Two independent checks: a request can extend on
-                    # one side, both sides, or touch the recorded boundary exactly.
-                    if self.first_date_ts < min_request_ts:
-                        intervals.append([self.first_date_ts, min_request_ts])
+                    if self._refetch:
+                        intervals.append([self.first_date_ts, last_ts_adj])
+                    elif total_num and min_request_ts is not None and max_request_ts is not None:
+                        # Fetch the requested range excluding the part already covered by recorded
+                        # intervals. Two independent checks: a request can extend on
+                        # one side, both sides, or touch the recorded boundary exactly.
+                        if self.first_date_ts < min_request_ts:
+                            intervals.append([self.first_date_ts, min_request_ts])
 
-                    if last_ts_adj > max_request_ts:
-                        intervals.append([max_request_ts, last_ts_adj])
-                else:
-                    intervals.append([self.first_date_ts, last_ts_adj])
+                        if last_ts_adj > max_request_ts:
+                            intervals.append([max_request_ts, last_ts_adj])
+                    else:
+                        intervals.append([self.first_date_ts, last_ts_adj])
 
-                for first_ts, last_ts in intervals:
-                    self._lg.plain(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
+                    for first_ts, last_ts in intervals:
+                        self._lg.plain(f"Fetching contiguous data for {self._symbol} from {get_dt(first_ts)} to {get_dt(last_ts)}...")
 
-                    self._add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
+                        self._add_quotes(self._fetch_quotes(first_ts=first_ts, last_ts=last_ts))
 
-                # Mark the fetched range. Runs even when a sub-interval returned zero quotes
-                # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
-                # known-empty ranges. A fetch failure (e.g. connection error) raises before
-                # reaching here, so intervals are not updated and the range is retried next time.
-                self._update_data_interval()
+                    # Mark the fetched range. Runs even when a sub-interval returned zero quotes
+                    # (e.g. a valid symbol with no quotes in that range) so we don't re-fetch
+                    # known-empty ranges. A fetch failure (e.g. connection error) raises before
+                    # reaching here, so intervals are not updated and the range is retried next time.
+                    self._update_data_interval()
 
-            rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+                rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -2092,6 +2100,12 @@ class SecData(SecFetcher):
             For example: we request the data for 10 years for a stock which was listed 5 years ago - we should mark the interval for
             the whole 10 years (not the 5 years of data which we actually received) as otherwise we'll request non-existent data again and again.
 
+            Exception: if the request reaches into today, max_ts is set to the timestamp of the newest
+            actually stored bar (today's data may still change). If there is no bar for today, max_ts is
+            set to the end of the previous day, so a later request refetches only the small remaining tail.
+            If the whole request is inside today and nothing is stored yet, the interval is not marked.
+            Requests entirely in the future never reach this point - get() skips them completely.
+
             Args:
                 data_entry(str or None): the data entry to update, or None to
                     update the quote interval for self._timespan.
@@ -2107,6 +2121,23 @@ class SecData(SecFetcher):
             title = self._timespan
             min_ts_val = self.first_date_ts
             max_ts_val = min(now, self.last_date_ts)
+
+            today_start_ts = self._current_ts() // 86400 * 86400
+
+            if max_ts_val >= today_start_ts:
+                # The request reaches into today - mark the interval by the newest stored bar
+                # or by the end of the previous day if there is no bar for today.
+                actual_max_ts = self._get_max_ts()
+
+                if actual_max_ts is not None and actual_max_ts >= today_start_ts:
+                    max_ts_val = min(actual_max_ts, now)
+                else:
+                    max_ts_val = today_start_ts - 1
+
+                if max_ts_val < min_ts_val:
+                    # The whole request is inside today and nothing is stored yet -
+                    # do not mark the interval so that it is retried later.
+                    return
         else:
             title = data_entry
             min_ts_val = None

@@ -15,6 +15,9 @@ from data.fvalues import StockQuotes
 
 import sys
 
+# TODO HIGH We need to make possible to place multiple orders at once. For example, the composition is 500 stoks - we can't
+# afford to wait 500 cycles to put orders for all of them. On the other hand, if we have rather limited cash - we can't put
+# too many orders at ones as trade size will be too small. Need to implement it.
 class IndexSim(BackTest):
     """
         Index simulation implementation.

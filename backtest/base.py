@@ -2103,7 +2103,7 @@ class BTSymbol(BTBaseData):
 # Base backtesting class
 ########################
 
-# TODO HIGH Add max position size for lump sum testing
+# TODO LOW Add max position size for lump sum testing. However, need to think if it is ever needed when we have weighing.
 class BackTest(metaclass=abc.ABCMeta):
     def __init__(self,
                  data,

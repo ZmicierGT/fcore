@@ -422,7 +422,7 @@ class SecData(SecFetcher):
         """
         return self._refetch
 
-    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False):
+    def get(self, num=0, columns=[], joins=None, queries=None):
         """
             Check is the required number of quotes exist in the database and fetch if not.
             The data will be cached in the database. This method will connect to the database automatically if needed.
@@ -435,7 +435,6 @@ class SecData(SecFetcher):
                 columns(list): additional columns to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
-                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
 
             Returns:
                 array: the fetched data.
@@ -493,7 +492,7 @@ class SecData(SecFetcher):
                     # reaching here, so intervals are not updated and the range is retried next time.
                     self._update_data_interval()
 
-                rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+                rows = self._get_quotes(num=num, columns=columns, joins=joins, queries=queries)
         finally:
             if initially_connected is False:
                 self.db_close()
@@ -1208,7 +1207,7 @@ class SecData(SecFetcher):
         return rows
 
     # TODO MID Likely we do not need ignore_source and its usage in some cases may be unsafe
-    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -1218,8 +1217,7 @@ class SecData(SecFetcher):
                 columns(list): additional columns to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
-                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
-                ignore_souce(bool): indicates if quotes should be obtained only from a particular source
+                ignore_source(bool): indicates if quotes should be obtained only from a particular source
 
             Returns:
                 list: list with quotes data.
@@ -1277,9 +1275,6 @@ class SecData(SecFetcher):
                 additional_joins += join + '\n'
 
         last_date_ts = calendar.timegm(self._set_eod_time(self.last_date).utctimetuple())
-
-        if ignore_last_date:
-            last_date_ts = def_last_date
 
         source_query = ''
         source_param = None

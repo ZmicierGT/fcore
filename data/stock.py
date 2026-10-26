@@ -332,8 +332,7 @@ class StockData(SecData, StockFetcher):
 
         return splits
 
-    # TODO MID Think if ignore last date is needed here
-    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, ignore_source=False):
+    def _get_quotes(self, num=0, columns=[], joins=None, queries=None, ignore_source=False):
         """
             Get quotes for specified symbol, dates and timespan (if any). Additional columns from other tables
             linked by symbol_id may be requested (like fundamental data)
@@ -343,8 +342,7 @@ class StockData(SecData, StockFetcher):
                 columns(list of tuple): additional pairs of (table, column) to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
-                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
-                ignore_souce(bool): indicates if quotes should be obtained only from a particular source
+                ignore_source(bool): indicates if quotes should be obtained only from a particular source
 
             Returns:
                 list: list with quotes data.
@@ -373,7 +371,6 @@ class StockData(SecData, StockFetcher):
                                     columns=stock_columns,
                                     joins=joins,
                                     queries=queries,
-                                    ignore_last_date=ignore_last_date,
                                     ignore_source=ignore_source)
 
         if quotes is None:
@@ -766,7 +763,10 @@ class StockData(SecData, StockFetcher):
 
     # TODO HIGH quotes_only processed incorrectly - it just skips fetching splits/divs. Actually it is fine to fetch them but we
     # need to return unadjusted quotes when it is set to true.
-    def get(self, num=0, columns=[], joins=None, queries=None, ignore_last_date=False, quotes_only=False):
+    # UPD: Likely we can remove quotes_only and instead of it add div_adjusted=True and split_adjusted=True -
+    # both True by default). If still return Adj columns if both False but the values there may be empty.
+
+    def get(self, num=0, columns=[], joins=None, queries=None, quotes_only=False):
         """
             Get stock quotes, divs and splits data if needed.
 
@@ -775,7 +775,6 @@ class StockData(SecData, StockFetcher):
                 columns(list): additional columns to query.
                 joins(list): additional joins to get data from other tables.
                 queries(list): additional queries from other tables (like funamental, global economic data).
-                ignore_last_date(bool): indicates if last date should be ignored (all recent history is obtained)
                 quotes_only(bool): if True, get unadjusted stock quotes only (without dividends and splits data).
 
             Returns:
@@ -794,7 +793,7 @@ class StockData(SecData, StockFetcher):
             elif not quotes_only:
                 self._lg.warning(f"Security type is not stock or ETF ({self.sectype}) so split/dividend data is not obtained.")
 
-            return super().get(num=num, columns=columns, joins=joins, queries=queries, ignore_last_date=ignore_last_date)
+            return super().get(num=num, columns=columns, joins=joins, queries=queries)
         finally:
             if initially_connected is False:
                 self.db_close()

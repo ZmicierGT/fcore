@@ -2193,6 +2193,7 @@ class BackTest(metaclass=abc.ABCMeta):
             raise BackTestError(f"deposit_interval can't be less than 0. Specified value is {deposit_interval}")
         self._deposit_interval = deposit_interval
 
+        # TODO MID The interest should not be credited at the first day
         # Interest on cash (it may be negative as well):
         self._cash_interest = cash_interest
 

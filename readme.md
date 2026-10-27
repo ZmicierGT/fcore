@@ -186,8 +186,8 @@ Note that the tools and backtesting demos create an image with the result of a c
 
 ## Testing
 
-To run unit tests, invoke ***python -m pytest tests/unit -v*** (only Data API is tested now).
-To run integration tests, invoke ***python -m tests.integration.test_name*** (only Data API is tested as well).
+To run unit tests, invoke ***python -m pytest tests/unit -v***
+To run integration tests, invoke ***python -m tests.integration.test_name***
 
 ## Additional Details
 

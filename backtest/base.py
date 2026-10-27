@@ -3158,7 +3158,8 @@ class BackTest(metaclass=abc.ABCMeta):
         if self._prev_dt is None:
             self._days_delta = 0
         else:
-            self._days_delta = (self.exec().get_datetime() - self._prev_dt).days
+            current_dt = self.exec().get_datetime()
+            self._days_delta = (current_dt.date() - self._prev_dt.date()).days
 
         # Apply the cached days delta to per-symbol and deposit counters
         self._adjust_days_delta()

@@ -39,6 +39,29 @@ def daily(start, count):
     return [start + timedelta(days=i) for i in range(count)]
 
 
+def intraday(start, days, times):
+    """Return datetimes for each day and intraday time combination."""
+    if isinstance(start, datetime):
+        start_date = start.date()
+    elif isinstance(start, date):
+        start_date = start
+    else:
+        start_date = date.fromisoformat(str(start)[:10])
+
+    parsed_times = []
+
+    for value in times:
+        if isinstance(value, time):
+            parsed_times.append(value)
+        else:
+            parts = [int(part) for part in str(value).split(':')]
+            parsed_times.append(time(*parts))
+
+    return [datetime.combine(start_date + timedelta(days=day), bar_time)
+            for day in range(days)
+            for bar_time in sorted(parsed_times)]
+
+
 def _as_datetime(value):
     """Convert a date/string/datetime into a UTC datetime (daily dates use EOD)."""
     if isinstance(value, datetime):

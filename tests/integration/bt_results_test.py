@@ -62,6 +62,7 @@ METRIC_PATTERN = re.compile(rf"(?<![A-Za-z])({'|'.join(METRIC_LABELS)}):\s+(-?[\
 # Expected values for each backtest scenario.
 # 'elapsed' is the expected time of a calculation (in seconds) measured by the engine itself.
 # 'period_start'/'period_end' is the tested period (start and finish dates) reported by the engine.
+# 'extra' is an optional additional statistics block (for example, a comparison strategy).
 EXPECTED = {
     'djia': {
         'title': 'Index Simulation Performance:',
@@ -123,12 +124,88 @@ EXPECTED = {
         'period_start': '2022-01-01',
         'period_end': '2026-09-30',
     },
+    'bh': {
+        'title': 'B&H Strategy performance/expenses:',
+        'Invested': 29338.2,
+        'Total expenses': 124.81,
+        'Total value': 31982.42,
+        'Commission expense': 110.0,
+        'Profit': 9.01,
+        'Spread expense': 14.81,
+        'Other profit': 428.78,
+        'Other expense': 0.0,
+        'Total trades': 44,
+        'elapsed': 0.08,
+        'period_start': '2020-10-01',
+        'period_end': '2023-11-01',
+    },
+    'ma': {
+        'title': 'MA/Quote Cross Backtesting Example for NKE',
+        'Invested': 14562.5,
+        'Total expenses': 187.73,
+        'Total value': 12906.43,
+        'Commission expense': 65.0,
+        'Profit': -11.37,
+        'Spread expense': 122.73,
+        'Other profit': 59.36,
+        'Other expense': 0.0,
+        'Total trades': 26,
+        'elapsed': 0.39,
+        'period_start': '2015-06-01',
+        'period_end': '2016-06-01',
+    },
+    'rsi': {
+        'title': 'RSI Multi Example Testing for MMM and AXP',
+        'Invested': 15612.5,
+        'Total expenses': 33.21,
+        'Total value': 16921.25,
+        'Commission expense': 12.5,
+        'Profit': 8.38,
+        'Spread expense': 20.71,
+        'Other profit': 128.76,
+        'Other expense': 0.0,
+        'Total trades': 5,
+        'elapsed': 0.09,
+        'period_start': '2020-10-01',
+        'period_end': '2021-10-01',
+    },
+    'ma_classification': {
+        'title': 'MA Classifier performance:',
+        'Invested': 22225.94,
+        'Total expenses': 201.47,
+        'Total value': 21070.22,
+        'Commission expense': 52.5,
+        'Profit': -5.2,
+        'Spread expense': 148.97,
+        'Other profit': 179.86,
+        'Other expense': 0.0,
+        'Total trades': 21,
+        'elapsed': 0.06,
+        'period_start': '2021-01-02',
+        'period_end': '2023-04-01',
+        'extra': {
+            'title': 'Regular MA/Price Crossover performance:',
+            'Invested': 22225.94,
+            'Total expenses': 280.32,
+            'Total value': 21399.17,
+            'Commission expense': 90.0,
+            'Profit': -3.72,
+            'Spread expense': 190.32,
+            'Other profit': 266.09,
+            'Other expense': 0.0,
+            'Total trades': 36,
+        },
+    },
 }
 
 DEMOS = (('djia', 'demo.backtest.djia_test'),
          ('grouping', 'demo.backtest.grouping_test'),
          ('eql', 'demo.backtest.eql_test'),
-         ('cap', 'demo.backtest.cap_weight_test'))
+         ('cap', 'demo.backtest.cap_weight_test'),
+         ('bh', 'demo.backtest.bh_test'),
+         ('ma', 'demo.backtest.ma_test'),
+         ('rsi', 'demo.backtest.rsi_test'),
+         ('ma_classification', 'demo.backtest.ma_classification_test'))
 
 
 def failure(text):
@@ -286,6 +363,12 @@ def run_demo(name, module, expected):
     compare_statistics(name, metrics, {label: expected[label] for label in METRIC_LABELS})
     check_timing(name, elapsed, expected['elapsed'])
     check_period(name, period, expected['period_start'], expected['period_end'])
+
+    extra = expected.get('extra')
+
+    if extra is not None:
+        extra_metrics, _, _ = parse_statistics_and_elapsed(proc.stdout, extra['title'])
+        compare_statistics(f"{name} (comparison)", extra_metrics, {label: extra[label] for label in METRIC_LABELS})
 
 
 def main():

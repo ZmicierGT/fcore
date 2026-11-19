@@ -302,7 +302,7 @@ sw20_adr_combined = sorted(list(set(sw20_adr_05_jul_07 + sw20_adr_21_sep_09 + sw
 
 sw20_adr_combined_yf = list(sw20_adr_combined)
 
-# No data on yahoo finance
+# No data on yfinance
 sw20_adr_combined_yf.remove('CS')
 
 sw20_adr_dict = {'2007-07-05': sw20_adr_05_jul_07,

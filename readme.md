@@ -23,7 +23,7 @@ Here are some basic examples of how to use Fcore. Please note that all the provi
 
 Fcore obtains data and stores it in a database - no need to re-fetch it again.
 
-Data from different data sources can be combined via subqueries. For example, quotes may be fetched from Yahoo Finance while the capitalization data may be obtained from FMP (no quotes needed to fetch it). Then the cap value can be added to every quote with the help of a subquery:
+Data from different data sources can be combined via subqueries. For example, quotes may be fetched from yfinance while the capitalization data may be obtained from FMP (no quotes needed to fetch it). Then the cap value can be added to every quote with the help of a subquery:
 
 ```python
 yf.YF(symbol='AAPL', first_date=first_date, last_date=last_date).get()
@@ -155,7 +155,7 @@ The examples above are only a little part of what Fcore is capable. The followin
 
 Use the following tool to manage quotes and obtain data.
 
-- *Yahoo Finance* wrapper - [data/yf.py](data/yf.py)
+- *yfinance* wrapper - [data/yf.py](data/yf.py)
 
 ### Examples of custom data processing tools which are relied on AI
 - [tools/regression.py](tools/regression.py) - Regression API implementation for financial analysis (**python -m demo.tools.regression_demo** for a demonstration using LSTM algorithm, [source of the demo](demo/tools/regression_demo.py))
@@ -173,7 +173,7 @@ Screeners make a conclusion on a single invocation by picking the securities whi
 ### Examples of backtesting strategies with portfolio management
 - [eql_test.py](demo/backtest/eql_test.py) - Equal sector weight portfolio demo (similar to EQL ETF). Note that here you may 'reconstruct' the ETF even prior its inception date. (**python -m demo.backtest.eql_test**)
 - [djia_test.py](demo/backtest/djia_test.py) - Demo to assemble from stocks the price-weighted portfolio which corresponds the DJIA index. (**python -m demo.backtest.djia_test**)
-- [cap_weight_test.py](demo/backtest/cap_weight_test.py) - Demo to assemble a market cap weighted portfolio from stocks using Yahoo outstanding shares. (**python -m demo.backtest.cap_weight_test**)
+- [cap_weight_test.py](demo/backtest/cap_weight_test.py) - Demo to assemble a market cap weighted portfolio from stocks using yfinance outstanding shares. (**python -m demo.backtest.cap_weight_test**)
 - [grouping_test.py](demo/backtest/grouping_test.py) - Demo to test grouping in a portfolio. Grouping allows you to create a group for a particular asset type (international or domestic stock, particular sectors, bonds etc.). Each group has a pre-defined size which impacts position sizing. (**python -m demo.backtest.grouping_test**)
 
 ### Other examples of backtesting strategies
@@ -201,7 +201,7 @@ The repository uses two branches: 'main' and 'devel'. The 'main' branch is suppo
 
 All fetched quotes are cached in a database (sqlite by default). Data-related settings (like api-keys) are stored in [settings.py](settings.py) file.
 
-Fcore is distributed on an 'AS IS' basis under a custom source-available [license](license.md). The author is not responsible for any losses caused by using the project.
+Fcore is distributed on an 'AS IS' basis under a custom source-available [license](license.md). The author is not responsible for any losses/actions caused by using the project. The project is not related to any data sources which may be used along with the project and it is a responsibility of a user how to manage the obtained data.
 
 Please note that Fcore is a tool which helps you to easily implement and test your own financial strategies but it does not provide any 'out of the box' solutions. Consider all the provided demos as programming examples which help you to implement your own strategies.
 

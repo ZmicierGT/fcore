@@ -1,4 +1,4 @@
-"""Yahoo Finance wrapper.
+"""yinance wrapper.
 
 The author is Zmicier Gotowka
 
@@ -34,11 +34,11 @@ import http.client
 
 class YF(stock.StockData):
     """
-        Yahoo Finance wrapper class.
+        yinance wrapper class.
     """
     def __init__(self, **kwargs):
         """
-            Initialize Yahoo Finance wrapper class.
+            Initialize yinance wrapper class.
         """
         super().__init__(**kwargs)
 
@@ -601,11 +601,11 @@ class YF(stock.StockData):
         """
             Fetch the full available outstanding shares history.
 
-            The full history is requested regardless of the instance date range: Yahoo
+            The full history is requested regardless of the instance date range: yfinance
             exposes only its available history (~from 2015 at the moment) and dataset
             intervals track only the latest fetch (no start timestamp).
 
-            Stored values are raw share counts as reported by Yahoo, without any split
+            Stored values are raw share counts as reported by yfinance, without any split
             adjustment. Use raw quote prices (stored 'opened'/'closed') when deriving
             market capitalization.
 
